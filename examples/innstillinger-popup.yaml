@@ -1,6 +1,4 @@
-# Innstillinger-popup bygget med ki-cards (v1.1.0+).
-# Bubble-card-rammen og stylingen er uendret. simple-tabs, auto-entities, expander-card,
-# layout-card, my-slider-v2 og button-card-malene er byttet ut med ki-*-kort.
+# Innstillinger-popup bygget med ki-cards (v1.3.0+). Flat layout uten toppfaner.
 type: custom:bubble-card
 card_type: pop-up
 name: Innstillinger
@@ -28,48 +26,42 @@ tap_action:
   action: navigate
   navigation_path: /config
 cards:
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: custom:ki-toggle-card
+        size: tile
+        entity: input_boolean.ki_helgemodus
+        name: Helgemodus
+        label: Senere oppvarming og lys
+        icon: mdi:airplane-takeoff
+      - type: custom:ki-toggle-card
+        size: tile
+        entity: input_boolean.ki_sommermodus
+        name: Sommermodus
+        label: Varme av, kjøling på
+        icon: mdi:sun-angle
+  - type: custom:gap-card
+    height: 14
   - type: custom:ki-tabs-card
     tabs:
       - title: Automasjoner
         cards:
-          - type: grid
-            columns: 2
-            square: false
-            cards:
-              - type: custom:ki-toggle-card
-                size: tile
-                entity: input_boolean.ki_helgemodus
-                name: Helgemodus
-                icon: mdi:airplane-takeoff
-              - type: custom:ki-toggle-card
-                size: tile
-                entity: input_boolean.ki_sommermodus
-                name: Sommermodus
-                icon: mdi:sun-angle
-          - type: custom:gap-card
-            height: 10
-          - type: custom:ki-tabs-card
-            tabs:
-              - title: Automasjoner
-                cards:
-                  - type: custom:ki-toggle-list-card
-                    sort: domain
-                    include:
-                      - domain: automation
-                        entity_id: automation.automation*
-                      - entity_id: input_boolean.ki_styr_hanklevarmer
-                      - entity_id: input_boolean.ki_klima_hovedbryter
-                  - type: custom:gap-card
-                    height: 120
-              - title: Push varsler
-                cards:
-                  - type: custom:ki-toggle-list-card
-                    include:
-                      - domain: automation
-                        entity_id: automation.push_automation*
-                    empty: Ingen push-automasjoner
-                  - type: custom:gap-card
-                    height: 120
+          - type: custom:ki-toggle-list-card
+            sort: domain
+            include:
+              - domain: automation
+                entity_id: automation.automation*
+              - entity_id: input_boolean.ki_styr_hanklevarmer
+              - entity_id: input_boolean.ki_klima_hovedbryter
+      - title: Push varsler
+        cards:
+          - type: custom:ki-toggle-list-card
+            include:
+              - domain: automation
+                entity_id: automation.push_automation*
+            empty: Ingen push-automasjoner
       - title: Alarm
         cards:
           - type: custom:ki-vekking-card
@@ -90,5 +82,5 @@ cards:
               - domain: automation
                 entity_id: automation.innstillinger*
               - entity_id: input_boolean.innendors_privace_mode
-          - type: custom:gap-card
-            height: 120
+  - type: custom:gap-card
+    height: 120

@@ -52,13 +52,16 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 Ikonene ligger i `brand/` som SVG og PNG (256 px).
 
 ### ki-toggle-card
+Rad = pille med ikon i sirkel til venstre og bryter til høyre. Flis = større kort med ikon, navn og status.
 ```yaml
 type: custom:ki-toggle-card
-entity: switch.ki_helgemodus
+entity: input_boolean.ki_helgemodus
 name: Helgemodus          # valgfri, ellers friendly_name
 label: Undertekst         # valgfri
-icon: mdi:airplane-takeoff # null = skjul ikon
-size: tile                # row (standard) | tile
+icon: mdi:airplane-takeoff # standard: entitetens ikon, ellers domene-ikon. null = skjul
+size: row                 # row (standard) | tile
+control: switch           # row: switch (standard) | dot | none.  tile: text (standard) | switch | dot
+show_state: false         # true = vis På/Av-tekst i tillegg til bryteren
 background: var(--gray200)
 state_on: På
 state_off: Av
