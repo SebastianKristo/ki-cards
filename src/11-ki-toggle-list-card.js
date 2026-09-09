@@ -1,13 +1,13 @@
 /* ki-toggle-list-card – auto-entities-lignende liste av ki-toggle-card */
-(function (SK) {
-  class SkToggleListCard extends SK.Card {
+(function (KI) {
+  class SkToggleListCard extends KI.Card {
     static getStubConfig() { return { include: [{ entity_id: "automation.*" }] }; }
     _matches() {
       const c = this._config; const inc = c.include || []; const exc = c.exclude || [];
       const hit = (rule, id) => {
         const s = this._hass.states[id];
         if (rule.domain && id.split(".")[0] !== rule.domain) return false;
-        if (rule.entity_id && !SK.glob(rule.entity_id, id)) return false;
+        if (rule.entity_id && !KI.glob(rule.entity_id, id)) return false;
         if (rule.state && s.state !== rule.state) return false;
         return true;
       };
@@ -15,7 +15,7 @@
       const sort = c.sort || "name";
       const fn = sort === "domain"
         ? (a, b) => a.localeCompare(b)
-        : (a, b) => SK.friendly(this._hass, a).localeCompare(SK.friendly(this._hass, b), "nb");
+        : (a, b) => KI.friendly(this._hass, a).localeCompare(KI.friendly(this._hass, b), "nb");
       ids.sort(fn);
       return ids;
     }
@@ -37,5 +37,5 @@
     getCardSize() { return (this._children || []).length || 1; }
   }
   customElements.define("ki-toggle-list-card", SkToggleListCard);
-  SK.register("ki-toggle-list-card", "KI Toggle List", "Automatisk liste av brytere fra filter");
-})(window.SK);
+  KI.register("ki-toggle-list-card", "KI Toggle List", "Automatisk liste av brytere fra filter");
+})(window.KI);

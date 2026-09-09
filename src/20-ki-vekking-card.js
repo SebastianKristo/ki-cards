@@ -1,12 +1,12 @@
 /* ki-vekking-card – vekkealarm med ukedager, tider, fade og betingelser (ekspanderbart) */
-(function (SK) {
+(function (KI) {
   const DAGER = [
     ["mandag", "Ma", "Mandag"], ["tirsdag", "Ti", "Tirsdag"], ["onsdag", "On", "Onsdag"], ["torsdag", "To", "Torsdag"],
     ["fredag", "Fr", "Fredag"], ["lordag", "Lø", "Lørdag"], ["sondag", "Sø", "Søndag"],
   ];
   const idag = () => { const j = new Date().getDay(); return DAGER[j === 0 ? 6 : j - 1][0]; };
 
-  class SkAlarmCard extends SK.Card {
+  class SkAlarmCard extends KI.Card {
     static getStubConfig() { return { prefix: "alarm", automation: "automation.soverom_vekkealarm_gradvis_lys" }; }
     setConfig(c) { this._open = !!c.expanded; super.setConfig(c); }
     _cfg() {
@@ -40,7 +40,7 @@
 
     _render() {
       const c = this._cfg(); const masterOn = this.on(c.master);
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.bg}; padding:6px 0; }
         .head { display:grid; grid-template-columns:116px 1fr 52px; align-items:center; height:46px; }
         .head .title { padding:0 14px; cursor:pointer; }
@@ -100,7 +100,7 @@
           <div class="gap"></div>
           <div class="section">Betingelser (må være på)</div>
           ${c.conditions.map(x => `<div class="cond press" data-act="more" data-id="${x.entity}">
-            <div class="name">${x.name || SK.friendly(this._hass, x.entity)}</div>
+            <div class="name">${x.name || KI.friendly(this._hass, x.entity)}</div>
             <div class="pill ${this.on(x.entity) ? "on" : ""}">${this.on(x.entity) ? "På" : "Av"}</div>
           </div>`).join("")}` : ""}
           ${c.test && c.automation ? `<div class="gap"></div><ki-action-card id="test"></ki-action-card>` : ""}
@@ -110,8 +110,8 @@
       const r = this.shadowRoot;
       r.querySelectorAll("[data-act]").forEach(el => {
         const id = el.dataset.id;
-        if (el.dataset.act === "toggle") SK.bindPress(el, () => SK.toggle(this._hass, id), () => SK.moreInfo(this, id));
-        else el.addEventListener("click", () => SK.moreInfo(this, id));
+        if (el.dataset.act === "toggle") KI.bindPress(el, () => KI.toggle(this._hass, id), () => KI.moreInfo(this, id));
+        else el.addEventListener("click", () => KI.moreInfo(this, id));
       });
       r.querySelector(".expand button").addEventListener("click", () => { this._open = !this._open; this._lastKey = null; this._maybeRender(); });
       r.querySelectorAll("input[type=time]").forEach(inp => inp.addEventListener("change", () => {
@@ -131,5 +131,5 @@
     getCardSize() { return this._open ? 8 : 1; }
   }
   customElements.define("ki-vekking-card", SkAlarmCard);
-  SK.register("ki-vekking-card", "KI Vekking", "Vekkealarm: ukedager, tider, fade og betingelser");
-})(window.SK);
+  KI.register("ki-vekking-card", "KI Vekking", "Vekkealarm: ukedager, tider, fade og betingelser");
+})(window.KI);

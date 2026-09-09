@@ -1,9 +1,9 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
-window.SK = window.SK || {};
-(function (SK) {
-  SK.VERSION = "1.1.0";
+window.KI = window.KI || {};
+(function (KI) {
+  KI.VERSION = "1.2.0";
 
-  SK.css = `
+  KI.css = `
     :host { display:block; }
     *, *::before, *::after { box-sizing:border-box; }
     .card {
@@ -32,14 +32,14 @@ window.SK = window.SK || {};
     @media (prefers-reduced-motion: reduce) { .press { transition:none; } }
   `;
 
-  SK.fire = (el, type, detail) =>
+  KI.fire = (el, type, detail) =>
     el.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
-  SK.moreInfo = (el, entityId) => SK.fire(el, "hass-more-info", { entityId });
-  SK.toggle = (hass, entityId) =>
+  KI.moreInfo = (el, entityId) => KI.fire(el, "hass-more-info", { entityId });
+  KI.toggle = (hass, entityId) =>
     hass.callService("homeassistant", "toggle", { entity_id: entityId });
 
   /* Tap = kort trykk, hold = >500 ms. Hindrer dobbel-utløsning på touch. */
-  SK.bindPress = (el, onTap, onHold) => {
+  KI.bindPress = (el, onTap, onHold) => {
     let timer = null, held = false, active = false, touch = false;
     const start = (e) => {
       if (e.type === "touchstart") touch = true;
@@ -64,30 +64,30 @@ window.SK = window.SK || {};
     el.addEventListener("contextmenu", (e) => e.preventDefault());
   };
 
-  SK.glob = (pattern, str) => {
+  KI.glob = (pattern, str) => {
     if (!pattern) return true;
     const re = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
     return re.test(str);
   };
 
-  SK.friendly = (hass, id, fallback) => {
+  KI.friendly = (hass, id, fallback) => {
     const s = hass && hass.states[id];
     return (s && s.attributes.friendly_name) || fallback || id;
   };
 
-  SK.createCard = async (config) => {
+  KI.createCard = async (config) => {
     const helpers = await window.loadCardHelpers();
     return helpers.createCardElement(config);
   };
 
-  SK.register = (type, name, description) => {
+  KI.register = (type, name, description) => {
     const documentationURL = "https://github.com/SebastianKristo/ki-cards#" + type;
     window.customCards = window.customCards || [];
     window.customCards.push({ type, name, description, preview: false, documentationURL });
   };
 
   /* Basisklasse: renderer på nytt bare når _key() endrer seg. */
-  SK.Card = class extends HTMLElement {
+  KI.Card = class extends HTMLElement {
     constructor() { super(); this.attachShadow({ mode: "open" }); this._lastKey = null; }
     setConfig(config) {
       if (!config) throw new Error("Mangler config");
@@ -109,5 +109,5 @@ window.SK = window.SK || {};
     getCardSize() { return 1; }
   };
 
-  console.info(`%c KI-CARDS %c v${SK.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
-})(window.SK);
+  console.info(`%c KI-CARDS %c v${KI.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
+})(window.KI);

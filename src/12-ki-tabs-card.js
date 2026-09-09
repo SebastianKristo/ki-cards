@@ -1,6 +1,6 @@
 /* ki-tabs-card – pillefaner (erstatter simple-tabs + card_mod) */
-(function (SK) {
-  class SkTabsCard extends SK.Card {
+(function (KI) {
+  class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
     setConfig(config) {
       if (!config.tabs || !config.tabs.length) throw new Error("tabs mangler");
@@ -13,7 +13,7 @@
     async _build() {
       this._built = true;
       const tabs = this._config.tabs;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .wrap { display:flex; flex-direction:column; gap:12px; }
         .bar { display:flex; justify-content:${this._config.align || "center"}; }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; }
@@ -37,7 +37,7 @@
         const t = tabs[i]; const cards = t.cards || (t.card ? [t.card] : []);
         const host = this.shadowRoot.querySelector(`.panel[data-i="${i}"] .stack`);
         for (const cc of cards) {
-          try { const el = await SK.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
+          try { const el = await KI.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
           catch (e) { host.innerHTML += `<div style="opacity:.6;font-size:13px">Kunne ikke laste kort: ${e.message}</div>`; }
         }
       }
@@ -50,5 +50,5 @@
     getCardSize() { return 4; }
   }
   customElements.define("ki-tabs-card", SkTabsCard);
-  SK.register("ki-tabs-card", "KI Tabs", "Pillefaner med kort i hver fane");
-})(window.SK);
+  KI.register("ki-tabs-card", "KI Tabs", "Pillefaner med kort i hver fane");
+})(window.KI);

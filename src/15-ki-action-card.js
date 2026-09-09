@@ -1,11 +1,11 @@
 /* ki-action-card – handlingsknapp (erstatter template_trigger_card) */
-(function (SK) {
-  class SkActionCard extends SK.Card {
+(function (KI) {
+  class SkActionCard extends KI.Card {
     static getStubConfig() { return { name: "Kjør", icon: "mdi:play-circle", action: { service: "automation.trigger", target: { entity_id: "automation.example" } } }; }
     _key() { return JSON.stringify(this._config); }
     _render() {
       const c = this._config;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background || "var(--gray100)"}; display:flex; align-items:center; gap:12px; padding:8px 14px 8px 8px; min-height:56px; }
         .name { flex:1; }
         .chev { opacity:.45; }
@@ -22,10 +22,10 @@
         await this._hass.callService(dom, svc, a.data || {}, a.target);
       };
       const el = this.shadowRoot.querySelector(".card");
-      SK.bindPress(el, run);
+      KI.bindPress(el, run);
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } });
     }
   }
   customElements.define("ki-action-card", SkActionCard);
-  SK.register("ki-action-card", "KI Action", "Knapp som kjører en tjeneste, med valgfri bekreftelse");
-})(window.SK);
+  KI.register("ki-action-card", "KI Action", "Knapp som kjører en tjeneste, med valgfri bekreftelse");
+})(window.KI);

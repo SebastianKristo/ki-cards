@@ -35,6 +35,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-helse-card.svg" width="28" align="absmiddle"> | `ki-helse-card` | KI Helse | Aktivitet, hjerte, søvn og kropp fra Apple Health |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter: status, intervall og «vannet nå» (mode: list / tile) |
 
 ### Byggeklosser
 
@@ -116,6 +117,21 @@ action:
     entity_id: automation.soverom_vekkealarm_gradvis_lys
   data:
     skip_condition: true
+```
+
+### ki-planter-card
+```yaml
+type: custom:ki-planter-card
+mode: list                # list (popup) | tile (oversikt, tap åpner hash/navigation_path)
+hash: '#planter-sebastian'
+confirm: false
+plants:
+  - id: areca
+    name: Arekapalme
+    latin: Dypsis lutescens
+    icon: mdi:palm-tree
+    tip: Liker jevnt fuktig jord.
+    # standard: input_datetime.plante_<id>_sist_vannet og input_number.plante_<id>_intervall
 ```
 
 ### ki-vekking-card

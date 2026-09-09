@@ -1,6 +1,6 @@
 /* ki-slider-card – etikett | slider | verdi, for input_number / number */
-(function (SK) {
-  class SkSliderCard extends SK.Card {
+(function (KI) {
+  class SkSliderCard extends KI.Card {
     static getStubConfig() { return { entity: "input_number.example", unit: "" }; }
     _key() { const s = this.st(this._config.entity); return JSON.stringify([this._config, s && s.state, s && s.attributes]); }
     _render() {
@@ -11,9 +11,9 @@
       const dec = c.decimals ?? (step < 1 ? 1 : 0);
       const unit = c.unit ?? (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
       const fmt = (x) => x.toFixed(dec) + unit;
-      const name = c.name || SK.friendly(this._hass, c.entity);
+      const name = c.name || KI.friendly(this._hass, c.entity);
       const pct = ((v - min) / (max - min)) * 100;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .row { display:grid; grid-template-columns:${c.label_width || "106px"} 1fr ${c.value_width || "80px"}; align-items:center; height:46px; }
         .lbl { padding:0 14px; cursor:pointer; }
         .valtxt { font-size:14px; font-weight:500; text-align:right; }
@@ -34,9 +34,9 @@
         const domain = c.entity.split(".")[0];
         this._hass.callService(domain, "set_value", { entity_id: c.entity, value: parseFloat(inp.value) });
       });
-      this.shadowRoot.querySelector(".lbl").addEventListener("click", () => SK.moreInfo(this, c.entity));
+      this.shadowRoot.querySelector(".lbl").addEventListener("click", () => KI.moreInfo(this, c.entity));
     }
   }
   customElements.define("ki-slider-card", SkSliderCard);
-  SK.register("ki-slider-card", "KI Slider", "Etikett, slider og verdi for tall-entiteter");
-})(window.SK);
+  KI.register("ki-slider-card", "KI Slider", "Etikett, slider og verdi for tall-entiteter");
+})(window.KI);

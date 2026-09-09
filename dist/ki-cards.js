@@ -1,16 +1,16 @@
-/* ki-cards v1.1.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-08 */
+/* ki-cards v1.2.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
-window.SK = window.SK || {};
-window.SK.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
+window.KI = window.KI || {};
+window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 
 /* ===== 00-ki-base ===== */
 try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
-window.SK = window.SK || {};
-(function (SK) {
-  SK.VERSION = "1.1.0";
+window.KI = window.KI || {};
+(function (KI) {
+  KI.VERSION = "1.2.0";
 
-  SK.css = `
+  KI.css = `
     :host { display:block; }
     *, *::before, *::after { box-sizing:border-box; }
     .card {
@@ -39,14 +39,14 @@ window.SK = window.SK || {};
     @media (prefers-reduced-motion: reduce) { .press { transition:none; } }
   `;
 
-  SK.fire = (el, type, detail) =>
+  KI.fire = (el, type, detail) =>
     el.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
-  SK.moreInfo = (el, entityId) => SK.fire(el, "hass-more-info", { entityId });
-  SK.toggle = (hass, entityId) =>
+  KI.moreInfo = (el, entityId) => KI.fire(el, "hass-more-info", { entityId });
+  KI.toggle = (hass, entityId) =>
     hass.callService("homeassistant", "toggle", { entity_id: entityId });
 
   /* Tap = kort trykk, hold = >500 ms. Hindrer dobbel-utløsning på touch. */
-  SK.bindPress = (el, onTap, onHold) => {
+  KI.bindPress = (el, onTap, onHold) => {
     let timer = null, held = false, active = false, touch = false;
     const start = (e) => {
       if (e.type === "touchstart") touch = true;
@@ -71,30 +71,30 @@ window.SK = window.SK || {};
     el.addEventListener("contextmenu", (e) => e.preventDefault());
   };
 
-  SK.glob = (pattern, str) => {
+  KI.glob = (pattern, str) => {
     if (!pattern) return true;
     const re = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
     return re.test(str);
   };
 
-  SK.friendly = (hass, id, fallback) => {
+  KI.friendly = (hass, id, fallback) => {
     const s = hass && hass.states[id];
     return (s && s.attributes.friendly_name) || fallback || id;
   };
 
-  SK.createCard = async (config) => {
+  KI.createCard = async (config) => {
     const helpers = await window.loadCardHelpers();
     return helpers.createCardElement(config);
   };
 
-  SK.register = (type, name, description) => {
+  KI.register = (type, name, description) => {
     const documentationURL = "https://github.com/SebastianKristo/ki-cards#" + type;
     window.customCards = window.customCards || [];
     window.customCards.push({ type, name, description, preview: false, documentationURL });
   };
 
   /* Basisklasse: renderer på nytt bare når _key() endrer seg. */
-  SK.Card = class extends HTMLElement {
+  KI.Card = class extends HTMLElement {
     constructor() { super(); this.attachShadow({ mode: "open" }); this._lastKey = null; }
     setConfig(config) {
       if (!config) throw new Error("Mangler config");
@@ -116,15 +116,15 @@ window.SK = window.SK || {};
     getCardSize() { return 1; }
   };
 
-  console.info(`%c KI-CARDS %c v${SK.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
-})(window.SK);
+  console.info(`%c KI-CARDS %c v${KI.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 00-ki-base feilet", e); }
 
 /* ===== 10-ki-toggle-card ===== */
 try {
 /* ki-toggle-card – erstatter template_toggle_card (large) og template_toggle_card_small (row) */
-(function (SK) {
-  class SkToggleCard extends SK.Card {
+(function (KI) {
+  class SkToggleCard extends KI.Card {
     static getStubConfig() { return { entity: "input_boolean.example", size: "row" }; }
     _cfg() {
       const c = this._config;
@@ -141,11 +141,11 @@ try {
     _render() {
       const c = this._cfg(); const s = this.st(c.entity);
       const on = this.on(c.entity);
-      const name = c.name || SK.friendly(this._hass, c.entity);
+      const name = c.name || KI.friendly(this._hass, c.entity);
       const icon = c.icon === null ? null : (c.icon || (s && s.attributes.icon) || "mdi:toggle-switch");
       const stateTxt = on ? c.state_on : c.state_off;
       const tile = c.size === "tile";
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background}; display:flex; gap:12px; align-items:center;
           padding:${tile ? "14px 14px 12px" : "8px 14px 8px 8px"}; min-height:${tile ? "96px" : "56px"};
           ${tile ? "flex-direction:column; align-items:flex-start; justify-content:space-between;" : ""} }
@@ -171,31 +171,31 @@ try {
       </div>`;
       const el = this.shadowRoot.querySelector(".card");
       const act = (a) => {
-        if (a === "toggle") SK.toggle(this._hass, c.entity);
-        else if (a === "more-info") SK.moreInfo(this, c.entity);
+        if (a === "toggle") KI.toggle(this._hass, c.entity);
+        else if (a === "more-info") KI.moreInfo(this, c.entity);
       };
-      SK.bindPress(el, () => act(c.tap), () => act(c.hold));
+      KI.bindPress(el, () => act(c.tap), () => act(c.hold));
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(c.tap); } });
     }
     getCardSize() { return this._config.size === "tile" ? 2 : 1; }
   }
-  window.SK.define("ki-toggle-card", SkToggleCard);
-  SK.register("ki-toggle-card", "KI Toggle", "Bryterkort i rad- eller flisformat");
-})(window.SK);
+  window.KI.define("ki-toggle-card", SkToggleCard);
+  KI.register("ki-toggle-card", "KI Toggle", "Bryterkort i rad- eller flisformat");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 10-ki-toggle-card feilet", e); }
 
 /* ===== 11-ki-toggle-list-card ===== */
 try {
 /* ki-toggle-list-card – auto-entities-lignende liste av ki-toggle-card */
-(function (SK) {
-  class SkToggleListCard extends SK.Card {
+(function (KI) {
+  class SkToggleListCard extends KI.Card {
     static getStubConfig() { return { include: [{ entity_id: "automation.*" }] }; }
     _matches() {
       const c = this._config; const inc = c.include || []; const exc = c.exclude || [];
       const hit = (rule, id) => {
         const s = this._hass.states[id];
         if (rule.domain && id.split(".")[0] !== rule.domain) return false;
-        if (rule.entity_id && !SK.glob(rule.entity_id, id)) return false;
+        if (rule.entity_id && !KI.glob(rule.entity_id, id)) return false;
         if (rule.state && s.state !== rule.state) return false;
         return true;
       };
@@ -203,7 +203,7 @@ try {
       const sort = c.sort || "name";
       const fn = sort === "domain"
         ? (a, b) => a.localeCompare(b)
-        : (a, b) => SK.friendly(this._hass, a).localeCompare(SK.friendly(this._hass, b), "nb");
+        : (a, b) => KI.friendly(this._hass, a).localeCompare(KI.friendly(this._hass, b), "nb");
       ids.sort(fn);
       return ids;
     }
@@ -224,16 +224,16 @@ try {
     _passHass(h) { (this._children || []).forEach(el => el.hass = h); }
     getCardSize() { return (this._children || []).length || 1; }
   }
-  window.SK.define("ki-toggle-list-card", SkToggleListCard);
-  SK.register("ki-toggle-list-card", "KI Toggle List", "Automatisk liste av brytere fra filter");
-})(window.SK);
+  window.KI.define("ki-toggle-list-card", SkToggleListCard);
+  KI.register("ki-toggle-list-card", "KI Toggle List", "Automatisk liste av brytere fra filter");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 11-ki-toggle-list-card feilet", e); }
 
 /* ===== 12-ki-tabs-card ===== */
 try {
 /* ki-tabs-card – pillefaner (erstatter simple-tabs + card_mod) */
-(function (SK) {
-  class SkTabsCard extends SK.Card {
+(function (KI) {
+  class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
     setConfig(config) {
       if (!config.tabs || !config.tabs.length) throw new Error("tabs mangler");
@@ -246,7 +246,7 @@ try {
     async _build() {
       this._built = true;
       const tabs = this._config.tabs;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .wrap { display:flex; flex-direction:column; gap:12px; }
         .bar { display:flex; justify-content:${this._config.align || "center"}; }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; }
@@ -270,7 +270,7 @@ try {
         const t = tabs[i]; const cards = t.cards || (t.card ? [t.card] : []);
         const host = this.shadowRoot.querySelector(`.panel[data-i="${i}"] .stack`);
         for (const cc of cards) {
-          try { const el = await SK.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
+          try { const el = await KI.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
           catch (e) { host.innerHTML += `<div style="opacity:.6;font-size:13px">Kunne ikke laste kort: ${e.message}</div>`; }
         }
       }
@@ -282,32 +282,32 @@ try {
     }
     getCardSize() { return 4; }
   }
-  window.SK.define("ki-tabs-card", SkTabsCard);
-  SK.register("ki-tabs-card", "KI Tabs", "Pillefaner med kort i hver fane");
-})(window.SK);
+  window.KI.define("ki-tabs-card", SkTabsCard);
+  KI.register("ki-tabs-card", "KI Tabs", "Pillefaner med kort i hver fane");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 12-ki-tabs-card feilet", e); }
 
 /* ===== 13-ki-section-card ===== */
 try {
 /* ki-section-card – liten seksjonstittel */
-(function (SK) {
-  class SkSectionCard extends SK.Card {
+(function (KI) {
+  class SkSectionCard extends KI.Card {
     static getStubConfig() { return { title: "Seksjon" }; }
     _key() { return this._config.title; }
     _render() {
-      this.shadowRoot.innerHTML = `<style>${SK.css}</style><div class="section">${this._config.title || ""}</div>`;
+      this.shadowRoot.innerHTML = `<style>${KI.css}</style><div class="section">${this._config.title || ""}</div>`;
     }
   }
-  window.SK.define("ki-section-card", SkSectionCard);
-  SK.register("ki-section-card", "KI Section", "Seksjonsoverskrift");
-})(window.SK);
+  window.KI.define("ki-section-card", SkSectionCard);
+  KI.register("ki-section-card", "KI Section", "Seksjonsoverskrift");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 13-ki-section-card feilet", e); }
 
 /* ===== 14-ki-slider-card ===== */
 try {
 /* ki-slider-card – etikett | slider | verdi, for input_number / number */
-(function (SK) {
-  class SkSliderCard extends SK.Card {
+(function (KI) {
+  class SkSliderCard extends KI.Card {
     static getStubConfig() { return { entity: "input_number.example", unit: "" }; }
     _key() { const s = this.st(this._config.entity); return JSON.stringify([this._config, s && s.state, s && s.attributes]); }
     _render() {
@@ -318,9 +318,9 @@ try {
       const dec = c.decimals ?? (step < 1 ? 1 : 0);
       const unit = c.unit ?? (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
       const fmt = (x) => x.toFixed(dec) + unit;
-      const name = c.name || SK.friendly(this._hass, c.entity);
+      const name = c.name || KI.friendly(this._hass, c.entity);
       const pct = ((v - min) / (max - min)) * 100;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .row { display:grid; grid-template-columns:${c.label_width || "106px"} 1fr ${c.value_width || "80px"}; align-items:center; height:46px; }
         .lbl { padding:0 14px; cursor:pointer; }
         .valtxt { font-size:14px; font-weight:500; text-align:right; }
@@ -341,24 +341,24 @@ try {
         const domain = c.entity.split(".")[0];
         this._hass.callService(domain, "set_value", { entity_id: c.entity, value: parseFloat(inp.value) });
       });
-      this.shadowRoot.querySelector(".lbl").addEventListener("click", () => SK.moreInfo(this, c.entity));
+      this.shadowRoot.querySelector(".lbl").addEventListener("click", () => KI.moreInfo(this, c.entity));
     }
   }
-  window.SK.define("ki-slider-card", SkSliderCard);
-  SK.register("ki-slider-card", "KI Slider", "Etikett, slider og verdi for tall-entiteter");
-})(window.SK);
+  window.KI.define("ki-slider-card", SkSliderCard);
+  KI.register("ki-slider-card", "KI Slider", "Etikett, slider og verdi for tall-entiteter");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 14-ki-slider-card feilet", e); }
 
 /* ===== 15-ki-action-card ===== */
 try {
 /* ki-action-card – handlingsknapp (erstatter template_trigger_card) */
-(function (SK) {
-  class SkActionCard extends SK.Card {
+(function (KI) {
+  class SkActionCard extends KI.Card {
     static getStubConfig() { return { name: "Kjør", icon: "mdi:play-circle", action: { service: "automation.trigger", target: { entity_id: "automation.example" } } }; }
     _key() { return JSON.stringify(this._config); }
     _render() {
       const c = this._config;
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background || "var(--gray100)"}; display:flex; align-items:center; gap:12px; padding:8px 14px 8px 8px; min-height:56px; }
         .name { flex:1; }
         .chev { opacity:.45; }
@@ -375,26 +375,26 @@ try {
         await this._hass.callService(dom, svc, a.data || {}, a.target);
       };
       const el = this.shadowRoot.querySelector(".card");
-      SK.bindPress(el, run);
+      KI.bindPress(el, run);
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } });
     }
   }
-  window.SK.define("ki-action-card", SkActionCard);
-  SK.register("ki-action-card", "KI Action", "Knapp som kjører en tjeneste, med valgfri bekreftelse");
-})(window.SK);
+  window.KI.define("ki-action-card", SkActionCard);
+  KI.register("ki-action-card", "KI Action", "Knapp som kjører en tjeneste, med valgfri bekreftelse");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 15-ki-action-card feilet", e); }
 
 /* ===== 20-ki-vekking-card ===== */
 try {
 /* ki-vekking-card – vekkealarm med ukedager, tider, fade og betingelser (ekspanderbart) */
-(function (SK) {
+(function (KI) {
   const DAGER = [
     ["mandag", "Ma", "Mandag"], ["tirsdag", "Ti", "Tirsdag"], ["onsdag", "On", "Onsdag"], ["torsdag", "To", "Torsdag"],
     ["fredag", "Fr", "Fredag"], ["lordag", "Lø", "Lørdag"], ["sondag", "Sø", "Søndag"],
   ];
   const idag = () => { const j = new Date().getDay(); return DAGER[j === 0 ? 6 : j - 1][0]; };
 
-  class SkAlarmCard extends SK.Card {
+  class SkAlarmCard extends KI.Card {
     static getStubConfig() { return { prefix: "alarm", automation: "automation.soverom_vekkealarm_gradvis_lys" }; }
     setConfig(c) { this._open = !!c.expanded; super.setConfig(c); }
     _cfg() {
@@ -428,7 +428,7 @@ try {
 
     _render() {
       const c = this._cfg(); const masterOn = this.on(c.master);
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.bg}; padding:6px 0; }
         .head { display:grid; grid-template-columns:116px 1fr 52px; align-items:center; height:46px; }
         .head .title { padding:0 14px; cursor:pointer; }
@@ -488,7 +488,7 @@ try {
           <div class="gap"></div>
           <div class="section">Betingelser (må være på)</div>
           ${c.conditions.map(x => `<div class="cond press" data-act="more" data-id="${x.entity}">
-            <div class="name">${x.name || SK.friendly(this._hass, x.entity)}</div>
+            <div class="name">${x.name || KI.friendly(this._hass, x.entity)}</div>
             <div class="pill ${this.on(x.entity) ? "on" : ""}">${this.on(x.entity) ? "På" : "Av"}</div>
           </div>`).join("")}` : ""}
           ${c.test && c.automation ? `<div class="gap"></div><ki-action-card id="test"></ki-action-card>` : ""}
@@ -498,8 +498,8 @@ try {
       const r = this.shadowRoot;
       r.querySelectorAll("[data-act]").forEach(el => {
         const id = el.dataset.id;
-        if (el.dataset.act === "toggle") SK.bindPress(el, () => SK.toggle(this._hass, id), () => SK.moreInfo(this, id));
-        else el.addEventListener("click", () => SK.moreInfo(this, id));
+        if (el.dataset.act === "toggle") KI.bindPress(el, () => KI.toggle(this._hass, id), () => KI.moreInfo(this, id));
+        else el.addEventListener("click", () => KI.moreInfo(this, id));
       });
       r.querySelector(".expand button").addEventListener("click", () => { this._open = !this._open; this._lastKey = null; this._maybeRender(); });
       r.querySelectorAll("input[type=time]").forEach(inp => inp.addEventListener("change", () => {
@@ -518,10 +518,173 @@ try {
     _passHass(h) { (this._subs || []).forEach(el => el.hass = h); }
     getCardSize() { return this._open ? 8 : 1; }
   }
-  window.SK.define("ki-vekking-card", SkAlarmCard);
-  SK.register("ki-vekking-card", "KI Vekking", "Vekkealarm: ukedager, tider, fade og betingelser");
-})(window.SK);
+  window.KI.define("ki-vekking-card", SkAlarmCard);
+  KI.register("ki-vekking-card", "KI Vekking", "Vekkealarm: ukedager, tider, fade og betingelser");
+})(window.KI);
 } catch (e) { console.error("ki-cards: 20-ki-vekking-card feilet", e); }
+
+/* ===== 30-ki-planter-card ===== */
+try {
+/* ki-planter-card – vanning av planter. mode: list (popup) | tile (oversikt) */
+(function (KI) {
+  const DAG = 86400000;
+  const fmtDato = (d) => d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+
+  class KiPlanterCard extends KI.Card {
+    static getStubConfig() { return { plants: [{ id: "areca", name: "Arekapalme" }] }; }
+    setConfig(c) {
+      if (!c.plants || !c.plants.length) throw new Error("plants mangler");
+      this._open = c.expanded ?? null; super.setConfig(c);
+    }
+    _plants() {
+      return this._config.plants.map(p => ({
+        id: p.id, name: p.name || p.id, latin: p.latin || "", icon: p.icon || "mdi:sprout",
+        last: p.last || `input_datetime.plante_${p.id}_sist_vannet`,
+        interval: p.interval || `input_number.plante_${p.id}_intervall`,
+        tip: p.tip || "",
+      }));
+    }
+    /* Beregner status for én plante */
+    _info(p) {
+      const ls = this.st(p.last), is = this.st(p.interval);
+      const interval = is ? parseFloat(is.state) : 7;
+      const last = ls && ls.state && ls.state !== "unknown" ? new Date(ls.state.replace(" ", "T")) : null;
+      if (!last || isNaN(last)) return { interval, last: null, left: null, pct: 0, txt: "Ikke vannet ennå", tone: "red" };
+      const elapsed = (Date.now() - last.getTime()) / DAG;
+      const left = Math.ceil(interval - elapsed);
+      const pct = Math.min(100, Math.max(0, (elapsed / interval) * 100));
+      let txt, tone = "green";
+      if (left > 1) txt = `Om ${left} dager`;
+      else if (left === 1) txt = "I morgen";
+      else if (left === 0) { txt = "Vann i dag"; tone = "yellow"; }
+      else { txt = `${-left} ${-left === 1 ? "dag" : "dager"} over tiden`; tone = "red"; }
+      if (tone === "green" && pct >= 70) tone = "yellow";
+      return { interval, last, left, pct, txt, tone };
+    }
+    _key() {
+      const day = Math.floor(Date.now() / 3600000); // ny nøkkel hver time
+      return JSON.stringify([this._config, this._open, day, this._plants().map(p => [this.val(p.last), this.val(p.interval)])]);
+    }
+    _vannet(p) {
+      const d = new Date(); const pad = n => String(n).padStart(2, "0");
+      const dt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+      return this._hass.callService("input_datetime", "set_datetime", { entity_id: p.last, datetime: dt });
+    }
+
+    _render() {
+      const c = this._config; const plants = this._plants();
+      const infos = plants.map(p => this._info(p));
+      if (c.mode === "tile") return this._renderTile(plants, infos);
+
+      this.shadowRoot.innerHTML = `<style>${KI.css}
+        .list { display:grid; gap:8px; }
+        .card { --ki-bg:${c.background || "var(--gray200)"}; padding:8px 8px 10px; }
+        .row { display:flex; align-items:center; gap:12px; min-height:48px; padding-right:6px; }
+        .txt { flex:1; min-width:0; }
+        .txt .latin { font-style:italic; }
+        .due { text-align:right; }
+        .due .state { display:block; }
+        .due .when { font-size:12px; opacity:.5; }
+        .due.yellow .state, .due.red .state { opacity:1; }
+        .due.red .state { color:var(--red); }
+        .due.yellow .state { color:var(--yellow); }
+        .bar { height:4px; border-radius:2px; background:var(--gray100); margin:6px 8px 0; overflow:hidden; }
+        .bar i { display:block; height:100%; border-radius:2px; transition:width .3s; }
+        .bar i.green { background:var(--green); } .bar i.yellow { background:var(--yellow); } .bar i.red { background:var(--red); }
+        .body { padding:12px 6px 4px; display:none; }
+        .body.open { display:block; }
+        .stack { display:grid; gap:8px; }
+        .tip { font-size:13px; line-height:1.45; opacity:.7; padding:2px 8px 10px; }
+        .meta { display:flex; justify-content:space-between; font-size:12px; opacity:.55; padding:0 8px 10px; }
+        .water { display:flex; align-items:center; justify-content:center; gap:8px; height:46px; border-radius:16px;
+          background:var(--active-big); color:rgba(70,58,64,.95); font-size:14px; font-weight:600; --mdc-icon-size:20px; }
+        .empty { font-size:13px; opacity:.55; padding:6px 4px; }
+        @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
+      </style>
+      <div class="list">
+        ${plants.map((p, i) => { const s = infos[i]; const open = this._open === i;
+          return `<div class="card">
+            <div class="row press" data-i="${i}" role="button" aria-expanded="${open}" tabindex="0">
+              <div class="icon-wrap ${s.tone === "red" ? "on" : ""}"><ha-icon icon="${p.icon}"></ha-icon></div>
+              <div class="txt"><div class="name">${p.name}</div>${p.latin ? `<div class="label latin">${p.latin}</div>` : ""}</div>
+              <div class="due ${s.tone}">
+                <span class="state">${s.txt}</span>
+                <span class="when">${s.last ? "vannet " + fmtDato(s.last) : ""}</span>
+              </div>
+            </div>
+            <div class="bar"><i class="${s.tone}" style="width:${s.pct}%"></i></div>
+            <div class="body ${open ? "open" : ""}">
+              ${p.tip ? `<div class="tip">${p.tip}</div>` : ""}
+              <div class="meta">
+                <span>Sist vannet: ${s.last ? s.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                <span>Hver ${Math.round(s.interval)}. dag</span>
+              </div>
+              <div class="stack">
+                <ki-slider-card data-slider="${i}"></ki-slider-card>
+                <div class="water press" data-water="${i}" role="button" tabindex="0"><ha-icon icon="mdi:watering-can"></ha-icon>Vannet nå</div>
+              </div>
+            </div>
+          </div>`; }).join("")}
+      </div>`;
+
+      const r = this.shadowRoot;
+      r.querySelectorAll(".row").forEach(el => {
+        const i = +el.dataset.i;
+        const toggle = () => { this._open = this._open === i ? null : i; this._lastKey = null; this._maybeRender(); };
+        KI.bindPress(el, toggle, () => KI.moreInfo(this, plants[i].last));
+        el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      });
+      r.querySelectorAll(".water").forEach(el => {
+        const p = plants[+el.dataset.water];
+        const run = () => { if (c.confirm && !window.confirm(`Registrere ${p.name} som vannet nå?`)) return; this._vannet(p); };
+        KI.bindPress(el, run);
+        el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } });
+      });
+      this._subs = [];
+      r.querySelectorAll("ki-slider-card").forEach(el => {
+        const p = plants[+el.dataset.slider];
+        el.setConfig({ entity: p.interval, name: "Intervall", unit: " d", min: 1, max: 45, step: 1, label_width: "90px", value_width: "56px" });
+        el.hass = this._hass; this._subs.push(el);
+      });
+    }
+
+    _renderTile(plants, infos) {
+      const c = this._config;
+      const due = infos.filter(s => s.left !== null && s.left <= 0).length;
+      const next = infos.map((s, i) => ({ s, p: plants[i] })).filter(x => x.s.left !== null).sort((a, b) => a.s.left - b.s.left)[0];
+      const tone = due ? "red" : (next && next.s.left <= 1 ? "yellow" : "green");
+      const label = due ? `${due} trenger vann` : next ? `${next.p.name}: ${next.s.txt.toLowerCase()}` : "Ingen registrert";
+      this.shadowRoot.innerHTML = `<style>${KI.css}
+        .card { --ki-bg:${c.background || "var(--gray200)"}; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start;
+          gap:12px; padding:14px 14px 12px; min-height:96px; }
+        .bottom { display:flex; width:100%; justify-content:space-between; align-items:flex-end; gap:8px; }
+        .dots { display:flex; gap:4px; padding-bottom:3px; }
+        .dots i { width:8px; height:8px; border-radius:50%; background:var(--gray400); }
+        .dots i.green { background:var(--green); } .dots i.yellow { background:var(--yellow); } .dots i.red { background:var(--red); }
+        .label.red { color:var(--red); opacity:1; }
+      </style>
+      <div class="card press" role="button" tabindex="0">
+        <div class="icon-wrap ${tone === "red" ? "on" : ""}"><ha-icon icon="${c.icon || "mdi:flower-outline"}"></ha-icon></div>
+        <div class="bottom">
+          <div><div class="name">${c.name || "Planter"}</div><div class="label ${tone}">${label}</div></div>
+          <div class="dots">${infos.map(s => `<i class="${s.tone}"></i>`).join("")}</div>
+        </div>
+      </div>`;
+      const el = this.shadowRoot.querySelector(".card");
+      const go = () => {
+        if (c.navigation_path) { window.history.pushState(null, "", c.navigation_path); window.dispatchEvent(new Event("location-changed")); }
+        else if (c.hash) { window.location.hash = c.hash; }
+      };
+      KI.bindPress(el, go, () => KI.moreInfo(this, plants[0].last));
+      el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    }
+    _passHass(h) { (this._subs || []).forEach(el => el.hass = h); }
+    getCardSize() { return this._config.mode === "tile" ? 2 : this._plants().length * 2; }
+  }
+  window.KI.define("ki-planter-card", KiPlanterCard);
+  KI.register("ki-planter-card", "KI Planter", "Vanning av planter: status, intervall og «vannet nå»");
+})(window.KI);
+} catch (e) { console.error("ki-cards: 30-ki-planter-card feilet", e); }
 
 /* ===== family-status-card ===== */
 try {
@@ -1320,7 +1483,7 @@ class FamilyStatusCard extends LitElement {
   }
 }
 
-window.SK.define("family-status-card", FamilyStatusCard);
+window.KI.define("family-status-card", FamilyStatusCard);
 
 /* ------------------------------------------------------------------ */
 /*  GUI-editor                                                        */
@@ -2078,7 +2241,7 @@ class FamilyStatusCardEditor extends LitElement {
   }
 }
 
-window.SK.define("family-status-card-editor", FamilyStatusCardEditor);
+window.KI.define("family-status-card-editor", FamilyStatusCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -3335,8 +3498,8 @@ KiAlarmCardEditor.styles = `
   @media (max-width: 500px) { .tokol { grid-template-columns: 1fr; } }
 `;
 
-window.SK.define("ki-alarm-card", KiAlarmCard);
-window.SK.define("ki-alarm-card-editor", KiAlarmCardEditor);
+window.KI.define("ki-alarm-card", KiAlarmCard);
+window.KI.define("ki-alarm-card-editor", KiAlarmCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -4782,8 +4945,8 @@ KiEnergiCardEditor.styles = `
   }
 `;
 
-window.SK.define("ki-energi-card-strom", KiEnergiCard);
-window.SK.define("ki-energi-card-strom-editor", KiEnergiCardEditor);
+window.KI.define("ki-energi-card-strom", KiEnergiCard);
+window.KI.define("ki-energi-card-strom-editor", KiEnergiCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -5375,7 +5538,7 @@ class KiEnergiCard extends HTMLElement {
   }
 }
 
-window.SK.define("ki-energi-card", KiEnergiCard);
+window.KI.define("ki-energi-card", KiEnergiCard);
 
 /* ------------------------------------------------------------------ *
  * GUI-editor
@@ -5429,7 +5592,7 @@ class KiEnergiCardEditor extends HTMLElement {
   }
 }
 
-window.SK.define("ki-energi-card-editor", KiEnergiCardEditor);
+window.KI.define("ki-energi-card-editor", KiEnergiCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -5970,7 +6133,7 @@ class KIEnergyCard extends HTMLElement {
   }
 }
 
-window.SK.define("ki-energy-card", KIEnergyCard);
+window.KI.define("ki-energy-card", KIEnergyCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -7062,8 +7225,8 @@ KiHelseCardEditor.styles = `
   @media (max-width: 500px) { .tokol { grid-template-columns: 1fr; } }
 `;
 
-window.SK.define("ki-helse-card", KiHelseCard);
-window.SK.define("ki-helse-card-editor", KiHelseCardEditor);
+window.KI.define("ki-helse-card", KiHelseCard);
+window.KI.define("ki-helse-card-editor", KiHelseCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -7892,7 +8055,7 @@ class KiK2Card extends HTMLElement {
   }
 }
 
-window.SK.define("ki-k2-card", KiK2Card);
+window.KI.define("ki-k2-card", KiK2Card);
 
 /* ------------------------------------------------------------------ *
  * GUI-editor
@@ -7973,7 +8136,7 @@ class KiK2CardEditor extends HTMLElement {
   }
 }
 
-window.SK.define("ki-k2-card-editor", KiK2CardEditor);
+window.KI.define("ki-k2-card-editor", KiK2CardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -9890,8 +10053,8 @@ KiKameraCardEditor.styles = `
   @media (max-width: 500px) { .tokol, .trekol { grid-template-columns: 1fr; } }
 `;
 
-window.SK.define("ki-kamera-card", KiKameraCard);
-window.SK.define("ki-kamera-card-editor", KiKameraCardEditor);
+window.KI.define("ki-kamera-card", KiKameraCard);
+window.KI.define("ki-kamera-card-editor", KiKameraCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -10814,7 +10977,7 @@ class KiKlimaCard extends HTMLElement {
   }
 }
 
-window.SK.define("ki-klima-card", KiKlimaCard);
+window.KI.define("ki-klima-card", KiKlimaCard);
 
 /* ------------------------------------------------------------------ *
  * GUI-editor
@@ -10906,7 +11069,7 @@ class KiKlimaCardEditor extends HTMLElement {
   }
 }
 
-window.SK.define("ki-klima-card-editor", KiKlimaCardEditor);
+window.KI.define("ki-klima-card-editor", KiKlimaCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -13220,7 +13383,7 @@ class KiKlimaProCard extends HTMLElement {
   }
 }
 
-window.SK.define("ki-klima-pro-card", KiKlimaProCard);
+window.KI.define("ki-klima-pro-card", KiKlimaProCard);
 
 /* ------------------------------------------------------------------ */
 
@@ -13255,7 +13418,7 @@ class KiKlimaProCardEditor extends HTMLElement {
   }
 }
 
-window.SK.define("ki-klima-pro-card-editor", KiKlimaProCardEditor);
+window.KI.define("ki-klima-pro-card-editor", KiKlimaProCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -14217,8 +14380,8 @@ KiRuterCardEditor.styles = `
   @media (max-width: 500px) { .tokol, .trekol { grid-template-columns: 1fr; } }
 `;
 
-window.SK.define("ki-ruter-card", KiRuterCard);
-window.SK.define("ki-ruter-card-editor", KiRuterCardEditor);
+window.KI.define("ki-ruter-card", KiRuterCard);
+window.KI.define("ki-ruter-card-editor", KiRuterCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -15807,8 +15970,8 @@ KiStromregningCardEditor.styles = `
   @media (max-width: 500px) { .tokol { grid-template-columns: 1fr; } }
 `;
 
-window.SK.define("ki-stromregning-card", KiStromregningCard);
-window.SK.define("ki-stromregning-card-editor", KiStromregningCardEditor);
+window.KI.define("ki-stromregning-card", KiStromregningCard);
+window.KI.define("ki-stromregning-card-editor", KiStromregningCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -16475,7 +16638,7 @@ class KiVekkealarmCard extends HTMLElement {
   }
 }
 
-window.SK.define("ki-vekkealarm-card", KiVekkealarmCard);
+window.KI.define("ki-vekkealarm-card", KiVekkealarmCard);
 
 /* ------------------------------------------------------------------ *
  * GUI-editor
@@ -16555,7 +16718,7 @@ class KiVekkealarmCardEditor extends HTMLElement {
   }
 }
 
-window.SK.define("ki-vekkealarm-card-editor", KiVekkealarmCardEditor);
+window.KI.define("ki-vekkealarm-card-editor", KiVekkealarmCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({

@@ -1,6 +1,6 @@
 /* ki-toggle-card – erstatter template_toggle_card (large) og template_toggle_card_small (row) */
-(function (SK) {
-  class SkToggleCard extends SK.Card {
+(function (KI) {
+  class SkToggleCard extends KI.Card {
     static getStubConfig() { return { entity: "input_boolean.example", size: "row" }; }
     _cfg() {
       const c = this._config;
@@ -17,11 +17,11 @@
     _render() {
       const c = this._cfg(); const s = this.st(c.entity);
       const on = this.on(c.entity);
-      const name = c.name || SK.friendly(this._hass, c.entity);
+      const name = c.name || KI.friendly(this._hass, c.entity);
       const icon = c.icon === null ? null : (c.icon || (s && s.attributes.icon) || "mdi:toggle-switch");
       const stateTxt = on ? c.state_on : c.state_off;
       const tile = c.size === "tile";
-      this.shadowRoot.innerHTML = `<style>${SK.css}
+      this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background}; display:flex; gap:12px; align-items:center;
           padding:${tile ? "14px 14px 12px" : "8px 14px 8px 8px"}; min-height:${tile ? "96px" : "56px"};
           ${tile ? "flex-direction:column; align-items:flex-start; justify-content:space-between;" : ""} }
@@ -47,14 +47,14 @@
       </div>`;
       const el = this.shadowRoot.querySelector(".card");
       const act = (a) => {
-        if (a === "toggle") SK.toggle(this._hass, c.entity);
-        else if (a === "more-info") SK.moreInfo(this, c.entity);
+        if (a === "toggle") KI.toggle(this._hass, c.entity);
+        else if (a === "more-info") KI.moreInfo(this, c.entity);
       };
-      SK.bindPress(el, () => act(c.tap), () => act(c.hold));
+      KI.bindPress(el, () => act(c.tap), () => act(c.hold));
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(c.tap); } });
     }
     getCardSize() { return this._config.size === "tile" ? 2 : 1; }
   }
   customElements.define("ki-toggle-card", SkToggleCard);
-  SK.register("ki-toggle-card", "KI Toggle", "Bryterkort i rad- eller flisformat");
-})(window.SK);
+  KI.register("ki-toggle-card", "KI Toggle", "Bryterkort i rad- eller flisformat");
+})(window.KI);
