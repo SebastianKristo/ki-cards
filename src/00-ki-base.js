@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.0.0";
+  KI.VERSION = "2.1.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -44,6 +44,14 @@ window.KI = window.KI || {};
     .sw i { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
     .sw.on i { transform:translateX(18px); }
     .empty { font-size:13px; opacity:.6; padding:10px 12px; line-height:1.5; }
+    .group { background:var(--gray100); border-radius:16px; padding:6px; display:grid; gap:4px; }
+    .group .section { padding:6px 10px 2px; }
+    .kv { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:40px; padding:0 10px; }
+    .kv .k { font-size:13px; font-weight:500; opacity:.85; }
+    .kv .v { font-size:13px; opacity:.6; font-variant-numeric:tabular-nums; }
+    .disclosure { display:flex; align-items:center; justify-content:space-between; min-height:44px; padding:0 4px 0 12px; border-radius:14px; cursor:pointer; }
+    .disclosure ha-icon { opacity:.5; transition:transform .2s; --mdc-icon-size:22px; }
+    .disclosure.open ha-icon { transform:rotate(180deg); }
     .empty code { font-size:12px; opacity:.85; }
     input[type=time] { font:inherit; font-size:14px; font-weight:500; color:var(--gray1000); background:var(--gray100);
       border:0; border-radius:10px; padding:6px 10px; color-scheme:dark; min-width:0; }

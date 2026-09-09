@@ -82,18 +82,19 @@
         ${plants.length ? plants.map((p, i) => { const s = infos[i]; const open = this._open === i;
           return `<div class="card">
             <div class="row" data-i="${i}" role="button" aria-expanded="${open}" tabindex="0">
-              <div class="icon-wrap ${s.tone === "green" ? "" : s.tone}"><ha-icon icon="${p.icon}"></ha-icon></div>
+              <div class="icon-wrap ${s.tone === "green" ? "" : s.tone}" style="width:44px;height:44px"><ha-icon icon="${p.icon}"></ha-icon></div>
               <div class="txt"><div class="name">${KI.esc(p.name)}</div>${p.latin ? `<div class="label latin">${KI.esc(p.latin)}</div>` : ""}</div>
               <div class="due ${s.tone}"><span class="state">${s.txt}</span><span class="when">${s.last ? "vannet " + fmtDato(s.last) : ""}</span></div>
             </div>
             <div class="bar"><i class="${s.tone}" style="width:${s.pct}%"></i></div>
             <div class="body ${open ? "open" : ""}">
               ${p.tip ? `<div class="tip">${KI.esc(p.tip)}</div>` : ""}
-              <div class="meta"><span>Sist vannet: ${s.last ? fmtTid(s.last) : "—"}</span><span>Hver ${Math.round(s.interval)}. dag</span></div>
-              <div class="stack">
+              <div class="group">
+                <div class="kv"><span class="k">Sist vannet</span><span class="v">${s.last ? fmtTid(s.last) : "—"}</span></div>
+                ${s.last ? `<div class="kv"><span class="k">Neste vanning</span><span class="v">${fmtDato(new Date(s.last.getTime() + s.interval * DAG))}</span></div>` : ""}
                 <ki-slider-card data-slider="${i}"></ki-slider-card>
-                <div class="btn primary press" data-water="${i}" role="button" tabindex="0"><ha-icon icon="mdi:watering-can"></ha-icon>Vannet nå</div>
               </div>
+              <div class="btn primary press" data-water="${i}" role="button" tabindex="0" style="margin-top:8px"><ha-icon icon="mdi:watering-can"></ha-icon>Vannet nå</div>
             </div>
           </div>`; }).join("")
         : `<div class="card"><div class="empty">Fant ingen planter fra <b>KI Planter</b>.<br>Legg til integrasjonen med et sted og plantene dine – kortet finner dem selv.</div></div>`}

@@ -179,3 +179,10 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
   Ingen `prefix`/`persons`/`plants` nødvendig (kan fortsatt settes).
 - `ki-sovn-card`: manuell overstyring bruker `button.<navn>_sovn_sett_sover/_sett_vaken`, viser «sover siden».
 - Eksempler i `examples/`: `innstillinger-popup.yaml` (nedtrekksmeny med Automasjoner / Varsler / Vekking / Søvn / Planter), `sovn-popup.yaml`, `planter-popup.yaml`, fliser.
+
+## v2.1.0
+- `ki-sovn-card`: ny rad-layout (avatar, navn, «siden HH:MM», status + prosent, bryter). Innstillinger ligger bak «Innstillinger»-raden
+  i tre grupper (Tider / Terskler / Regler). Tydelig feilmelding når personen ikke finnes i integrasjonen.
+- `ki-vekking-card`: ryddet i blokker – hode, stor neste-alarm, «Ukeplan» (dagpiller + tider i to kolonner), og «Lys, person og
+  betingelser» bak en disclosure-rad. Handlinger nederst.
+- `ki-planter-card`: detaljer i samme gruppe-stil (sist vannet, neste vanning, intervall).

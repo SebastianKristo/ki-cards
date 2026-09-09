@@ -1,4 +1,4 @@
-/* ki-cards v2.0.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v2.1.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.0.0";
+  KI.VERSION = "2.1.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -51,6 +51,14 @@ window.KI = window.KI || {};
     .sw i { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
     .sw.on i { transform:translateX(18px); }
     .empty { font-size:13px; opacity:.6; padding:10px 12px; line-height:1.5; }
+    .group { background:var(--gray100); border-radius:16px; padding:6px; display:grid; gap:4px; }
+    .group .section { padding:6px 10px 2px; }
+    .kv { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:40px; padding:0 10px; }
+    .kv .k { font-size:13px; font-weight:500; opacity:.85; }
+    .kv .v { font-size:13px; opacity:.6; font-variant-numeric:tabular-nums; }
+    .disclosure { display:flex; align-items:center; justify-content:space-between; min-height:44px; padding:0 4px 0 12px; border-radius:14px; cursor:pointer; }
+    .disclosure ha-icon { opacity:.5; transition:transform .2s; --mdc-icon-size:22px; }
+    .disclosure.open ha-icon { transform:rotate(180deg); }
     .empty code { font-size:12px; opacity:.85; }
     input[type=time] { font:inherit; font-size:14px; font-weight:500; color:var(--gray1000); background:var(--gray100);
       border:0; border-radius:10px; padding:6px 10px; color-scheme:dark; min-width:0; }
@@ -509,7 +517,7 @@ try {
 
   class KiVekkingCard extends KI.Card {
     static getStubConfig() { return { mode: "list" }; }
-    setConfig(c) { this._open = c.expanded ?? !c.collapsible; super.setConfig(c); }
+    setConfig(c) { this._open = !!c.expanded; super.setConfig(c); }
 
     /* Finn prefix: config → markør-attributt → gammelt navnemønster */
     _prefix() {
@@ -567,33 +575,28 @@ try {
       if (s.person) chips.push(`<span class="chip ${s.personSover ? "on" : ""}">${KI.friendly(this._hass, s.person).replace(/ (søvn )?sover$/i, "")} ${s.personSover ? "sover" : s.personSover === false ? "er våken" : ""}</span>`);
       const conds = s.a.betingelser || [];
 
+      const open = this._open;
       this.shadowRoot.innerHTML = `<style>${KI.css}
-        .card { --ki-bg:${c.background || "var(--gray200)"}; padding:8px 8px 10px; }
-        .head { display:flex; align-items:center; gap:12px; min-height:48px; padding-right:6px; }
-        .head .txt { flex:1; min-width:0; }
+        .card { --ki-bg:${c.background || "var(--gray200)"}; padding:8px; display:grid; gap:8px; }
+        .head { display:flex; align-items:center; gap:12px; min-height:52px; padding-right:6px; }
         .head .main { display:flex; align-items:center; gap:12px; flex:1; min-width:0; cursor:pointer; }
-        .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; padding:10px 8px 4px; flex-wrap:wrap; }
-        .time { font-size:44px; font-weight:600; letter-spacing:-.02em; line-height:1; font-variant-numeric:tabular-nums; ${s.masterOn ? "" : "opacity:.35;"} }
-        .time small { font-size:14px; font-weight:500; opacity:.6; margin-left:8px; letter-spacing:0; }
-        .chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; padding-bottom:6px; }
-        .expand { display:flex; justify-content:center; }
-        .expand button { border:0; background:none; color:var(--gray1000); opacity:.6; cursor:pointer; padding:2px 24px; --mdc-icon-size:22px; }
-        .expand ha-icon { transition:transform .2s; ${this._open ? "transform:rotate(180deg);" : ""} }
-        .body { padding:10px 4px 4px; display:${this._open ? "block" : "none"}; }
-        .gap { height:14px; }
-        .days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; }
-        .day { border-radius:14px; background:var(--gray100); color:var(--gray1000); display:flex; flex-direction:column; align-items:center;
-          padding:8px 0 6px; gap:4px; opacity:.55; }
+        .head .txt { flex:1; min-width:0; } .head .name { font-size:15px; }
+        .hero { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 10px 6px; }
+        .time { font-size:46px; font-weight:600; letter-spacing:-.02em; line-height:1; font-variant-numeric:tabular-nums; ${s.masterOn ? "" : "opacity:.35;"} }
+        .when { font-size:13px; opacity:.6; margin-top:4px; }
+        .chips { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+        .days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; padding:0 4px 4px; }
+        .day { height:40px; border-radius:12px; background:var(--gray100); display:flex; align-items:center; justify-content:center;
+          font-size:13px; font-weight:600; opacity:.5; cursor:pointer; }
         .day.on { background:var(--yellow); color:var(--black); opacity:1; }
-        .day.today { box-shadow:inset 0 0 0 2px rgba(255,255,255,.35); }
-        .day b { font-size:13px; font-weight:600; cursor:pointer; padding:0 6px; }
-        .day input[type=time] { width:100%; background:rgba(0,0,0,.18); color:inherit; font-size:12px; padding:3px 0; text-align:center; border-radius:8px;
-          color-scheme:${"dark"}; }
-        .day input[type=time]::-webkit-calendar-picker-indicator { display:none; }
-        .stack { display:grid; gap:8px; }
-        .cond { display:flex; align-items:center; justify-content:space-between; min-height:44px; padding:0 10px; border-radius:14px; background:var(--gray100); cursor:pointer; }
-        .actions { display:grid; grid-template-columns:1fr ${s.running ? "1fr" : ""}; gap:8px; }
-        @media (prefers-reduced-motion: reduce) { .expand ha-icon { transition:none; } }
+        .day.today { box-shadow:inset 0 0 0 2px rgba(255,255,255,.4); }
+        .trows { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; padding:2px 4px; }
+        .trow { display:flex; align-items:center; justify-content:space-between; gap:8px; height:38px; padding:0 4px 0 10px; }
+        .trow.dim { opacity:.4; } .trow .name { font-size:13px; }
+        .trow input[type=time] { width:88px; text-align:center; }
+        .trow input[type=time]::-webkit-calendar-picker-indicator { display:none; }
+        .cond { display:flex; align-items:center; justify-content:space-between; min-height:40px; padding:0 10px; cursor:pointer; }
+        .actions { display:grid; grid-template-columns:${s.running ? "1fr 1fr" : "1fr"}; gap:8px; }
       </style>
       <div class="card">
         <div class="head">
@@ -604,37 +607,36 @@ try {
           <div class="sw ${s.masterOn ? "on" : ""}" data-toggle="${e.master}" role="switch" aria-checked="${s.masterOn}" tabindex="0"><i></i></div>
         </div>
         <div class="hero">
-          <div class="time">${s.tid}${s.masterOn && s.dag ? `<small>${KI.esc(s.dag)}</small>` : ""}</div>
+          <div><div class="time">${s.tid}</div><div class="when">${s.masterOn && s.dag ? `Neste: ${KI.esc(s.dag)}` : "Ingen alarm planlagt"}</div></div>
           <div class="chips">${chips.join("")}</div>
         </div>
-        ${c.collapsible ? `<div class="expand"><button aria-label="Vis innstillinger" aria-expanded="${this._open}"><ha-icon icon="mdi:chevron-down"></ha-icon></button></div>` : ""}
-        <div class="body">
-          <div class="section">Ukedager og tider</div>
-          <div class="days">
-            ${DAGER.map(([d, k, full]) => { const on = this.on(e.dayOn(d)); return `<div class="day ${on ? "on" : ""} ${d === idag() ? "today" : ""}">
-              <b class="press" data-toggle="${e.dayOn(d)}" title="${full}" role="switch" aria-checked="${on}" tabindex="0">${k}</b>
-              <input type="time" data-time="${e.dayTime(d)}" value="${KI.hhmm(this.val(e.dayTime(d)))}" aria-label="${full}">
-            </div>`; }).join("")}
-          </div>
-          <div class="gap"></div>
-          <div class="section">Lys</div>
-          <div class="stack">
-            <ki-slider-card data-slider="${e.fade}" data-name="Fade opp"></ki-slider-card>
-            <ki-slider-card data-slider="${e.off}" data-name="Av etter"></ki-slider-card>
-            ${this.st(e.natt) ? `<ki-toggle-card data-toggle-card="${e.natt}" data-name="Nattlampe" data-label="Ta med i vekkingen" data-icon="mdi:lightbulb-night"></ki-toggle-card>` : ""}
-          </div>
-          ${s.person ? `<div class="gap"></div><div class="section">Person</div><div class="stack">
-            <ki-toggle-card data-toggle-card="${e.vekk}" data-name="Vekk person" data-label="Marker som våken når lyset er oppe" data-icon="mdi:account-alert"></ki-toggle-card>
-            <ki-toggle-card data-toggle-card="${e.bare}" data-name="Bare hvis sover" data-label="Hopp over alarmen hvis personen er våken" data-icon="mdi:sleep"></ki-toggle-card>
-          </div>` : ""}
-          ${conds.length ? `<div class="gap"></div><div class="section">Betingelser (må være på)</div><div class="stack">
-            ${conds.map(id => `<div class="cond press" data-more="${id}"><div class="name">${KI.esc((c.condition_names || {})[id] || KI.friendly(this._hass, id))}</div><span class="chip ${this.on(id) ? "on" : "bad"}">${this.on(id) ? "På" : "Av"}</span></div>`).join("")}
-          </div>` : ""}
-          ${c.test === false ? "" : `<div class="gap"></div><div class="actions">
-            ${s.running ? `<div class="btn danger press" data-press="${e.stopp}" tabindex="0"><ha-icon icon="mdi:stop-circle"></ha-icon>Stopp</div>` : ""}
-            <div class="btn press" data-press="${e.test}" data-confirm="1" tabindex="0"><ha-icon icon="mdi:play-circle"></ha-icon>${s.running ? "Kjører …" : "Test vekkesekvensen"}</div>
-          </div>`}
+
+        <div class="group">
+          <div class="section">Ukeplan</div>
+          <div class="days">${DAGER.map(([d, k, full]) => `<div class="day ${this.on(e.dayOn(d)) ? "on" : ""} ${d === idag() ? "today" : ""}" data-toggle="${e.dayOn(d)}" title="${full}" role="switch" aria-checked="${this.on(e.dayOn(d))}" tabindex="0">${k}</div>`).join("")}</div>
+          <div class="trows">${DAGER.map(([d, , full]) => `<div class="trow ${this.on(e.dayOn(d)) ? "" : "dim"}"><span class="name">${full}</span><input type="time" data-time="${e.dayTime(d)}" value="${KI.hhmm(this.val(e.dayTime(d)))}" aria-label="${full}"></div>`).join("")}</div>
         </div>
+
+        <div class="disclosure ${open ? "open" : ""}" role="button" tabindex="0"><span class="name">Lys, person og betingelser</span><ha-icon icon="mdi:chevron-down"></ha-icon></div>
+        ${open ? `
+        <div class="group">
+          <div class="section">Lys</div>
+          <ki-slider-card data-slider="${e.fade}" data-name="Fade opp"></ki-slider-card>
+          <ki-slider-card data-slider="${e.off}" data-name="Av etter"></ki-slider-card>
+          ${this.st(e.natt) ? `<ki-toggle-card data-toggle-card="${e.natt}" data-name="Nattlampe" data-label="Ta med i vekkingen" data-icon="mdi:lightbulb-night"></ki-toggle-card>` : ""}
+        </div>
+        ${s.person ? `<div class="group"><div class="section">Person</div>
+          <ki-toggle-card data-toggle-card="${e.vekk}" data-name="Vekk person" data-label="Marker som våken når lyset er oppe" data-icon="mdi:account-alert"></ki-toggle-card>
+          <ki-toggle-card data-toggle-card="${e.bare}" data-name="Bare hvis sover" data-label="Hopp over alarmen hvis personen er våken" data-icon="mdi:sleep"></ki-toggle-card>
+        </div>` : ""}
+        ${conds.length ? `<div class="group"><div class="section">Betingelser – må være på</div>
+          ${conds.map(id => `<div class="cond" data-more="${id}"><span class="name">${KI.esc((c.condition_names || {})[id] || KI.friendly(this._hass, id))}</span><span class="chip ${this.on(id) ? "on" : "bad"}">${this.on(id) ? "På" : "Av"}</span></div>`).join("")}
+        </div>` : ""}` : ""}
+
+        ${c.test === false ? "" : `<div class="actions">
+          ${s.running ? `<div class="btn danger press" data-press="${e.stopp}" tabindex="0"><ha-icon icon="mdi:stop-circle"></ha-icon>Stopp</div>` : ""}
+          <div class="btn press" data-press="${e.test}" data-confirm="1" tabindex="0"><ha-icon icon="mdi:play-circle"></ha-icon>${s.running ? "Kjører …" : "Test vekkesekvensen"}</div>
+        </div>`}
       </div>`;
       this._wire(c);
     }
@@ -652,8 +654,8 @@ try {
       }));
       this._subs = [];
       r.querySelectorAll("ki-slider-card").forEach(el => { el.setConfig({ entity: el.dataset.slider, name: el.dataset.name, label_width: "96px", value_width: "64px" }); el.hass = h; this._subs.push(el); });
-      r.querySelectorAll("ki-toggle-card").forEach(el => { el.setConfig({ entity: el.dataset.toggleCard, name: el.dataset.name, label: el.dataset.label, icon: el.dataset.icon, background: "var(--gray100)" }); el.hass = h; this._subs.push(el); });
-      const ex = r.querySelector(".expand button"); if (ex) ex.addEventListener("click", () => { this._open = !this._open; this._lastKey = null; this._maybeRender(); });
+      r.querySelectorAll("ki-toggle-card").forEach(el => { el.setConfig({ entity: el.dataset.toggleCard, name: el.dataset.name, label: el.dataset.label, icon: el.dataset.icon, background: "transparent" }); el.hass = h; this._subs.push(el); });
+      const d = r.querySelector(".disclosure"); if (d) { const t = () => { this._open = !this._open; this._lastKey = null; this._maybeRender(); }; d.addEventListener("click", t); KI.key(d, t); }
     }
     _passHass(h) { (this._subs || []).forEach(el => el.hass = h); }
 
@@ -671,7 +673,7 @@ try {
       const el = this.shadowRoot.querySelector(".card");
       KI.bindPress(el, () => KI.go(c), () => KI.toggle(this._hass, e.master)); KI.key(el, () => KI.go(c));
     }
-    getCardSize() { return this._config.mode === "tile" ? 2 : this._open ? 9 : 2; }
+    getCardSize() { return this._config.mode === "tile" ? 2 : this._open ? 10 : 6; }
   }
   window.KI.define("ki-vekking-card", KiVekkingCard);
   KI.register("ki-vekking-card", "KI Vekking", "Vekkealarm fra KI Søvn & Vekking: neste alarm, ukedager med tider, lys, person og betingelser");
@@ -764,18 +766,19 @@ try {
         ${plants.length ? plants.map((p, i) => { const s = infos[i]; const open = this._open === i;
           return `<div class="card">
             <div class="row" data-i="${i}" role="button" aria-expanded="${open}" tabindex="0">
-              <div class="icon-wrap ${s.tone === "green" ? "" : s.tone}"><ha-icon icon="${p.icon}"></ha-icon></div>
+              <div class="icon-wrap ${s.tone === "green" ? "" : s.tone}" style="width:44px;height:44px"><ha-icon icon="${p.icon}"></ha-icon></div>
               <div class="txt"><div class="name">${KI.esc(p.name)}</div>${p.latin ? `<div class="label latin">${KI.esc(p.latin)}</div>` : ""}</div>
               <div class="due ${s.tone}"><span class="state">${s.txt}</span><span class="when">${s.last ? "vannet " + fmtDato(s.last) : ""}</span></div>
             </div>
             <div class="bar"><i class="${s.tone}" style="width:${s.pct}%"></i></div>
             <div class="body ${open ? "open" : ""}">
               ${p.tip ? `<div class="tip">${KI.esc(p.tip)}</div>` : ""}
-              <div class="meta"><span>Sist vannet: ${s.last ? fmtTid(s.last) : "—"}</span><span>Hver ${Math.round(s.interval)}. dag</span></div>
-              <div class="stack">
+              <div class="group">
+                <div class="kv"><span class="k">Sist vannet</span><span class="v">${s.last ? fmtTid(s.last) : "—"}</span></div>
+                ${s.last ? `<div class="kv"><span class="k">Neste vanning</span><span class="v">${fmtDato(new Date(s.last.getTime() + s.interval * DAG))}</span></div>` : ""}
                 <ki-slider-card data-slider="${i}"></ki-slider-card>
-                <div class="btn primary press" data-water="${i}" role="button" tabindex="0"><ha-icon icon="mdi:watering-can"></ha-icon>Vannet nå</div>
               </div>
+              <div class="btn primary press" data-water="${i}" role="button" tabindex="0" style="margin-top:8px"><ha-icon icon="mdi:watering-can"></ha-icon>Vannet nå</div>
             </div>
           </div>`; }).join("")
         : `<div class="card"><div class="empty">Fant ingen planter fra <b>KI Planter</b>.<br>Legg til integrasjonen med et sted og plantene dine – kortet finner dem selv.</div></div>`}
@@ -824,15 +827,14 @@ try {
 
 /* ===== 31-ki-sovn-card ===== */
 try {
-/* ki-sovn-card – søvnstatus per person fra ki_sovn. mode: list (popup/innstillinger) | tile (oversikt)
-   Finner personene selv via binary_sensor.*_sovn_sover. persons: kan brukes for å velge/omdøpe. */
+/* ki-sovn-card – søvnstatus per person fra ki_sovn. mode: list | tile. Finner personene selv. */
 (function (KI) {
   const OBS = { hjemme: "hjemme", sovevindu: "sovevindu", i_rommet: "i rommet", "dør_lukket": "dør lukket",
     "vindu_åpent": "vindu åpent", puls_lav: "lav puls", "puls_høy": "høy puls", i_senga: "i senga" };
 
   class KiSovnCard extends KI.Card {
     static getStubConfig() { return { mode: "list" }; }
-    setConfig(c) { this._open = c.expanded ?? null; super.setConfig(c); }
+    setConfig(c) { this._open = c.expanded ?? null; this._cfgOpen = false; super.setConfig(c); }
 
     _persons() {
       const c = this._config; const h = this._hass; if (!h) return [];
@@ -840,7 +842,7 @@ try {
         const a = (h.states[id] || { attributes: {} }).attributes;
         const prefix = p.prefix || a.prefix || id.replace(/^binary_sensor\./, "").replace(/_sover$/, "");
         return { entity: id, name: p.name || a.navn || KI.friendly(h, id).replace(/ (søvn )?sover$/i, ""), prefix,
-          switch: p.switch || a.bryter || null, bedtime: p.bedtime || "" , setSover: `button.${prefix}_sett_sover`, setVaaken: `button.${prefix}_sett_vaken` };
+          switch: p.switch || a.bryter || null, bedtime: p.bedtime || "", setSover: `button.${prefix}_sett_sover`, setVaaken: `button.${prefix}_sett_vaken` };
       };
       if (c.persons) return c.persons.map(p => mk(p.entity || `binary_sensor.${(p.slug || p.name).toLowerCase()}_sovn_sover`, p));
       let ids = KI.find(h, "binary_sensor", { integrasjon: "ki_sovn", type: "person" });
@@ -848,115 +850,113 @@ try {
       return ids.map(id => mk(id));
     }
     _info(p) {
-      const st = this.st(p.entity); if (!st) return { ok: false, sover: false, pct: 0, txt: "mangler", tone: "red", obs: [], sub: p.entity };
+      const st = this.st(p.entity);
+      if (!st) return { ok: false, sover: false, pct: 0, txt: "Ikke satt opp", tone: "red", obs: [], sub: "Fant ikke " + p.entity };
       const a = st.attributes; const sover = st.state === "on"; const pending = a["venter_på"] || null;
       const pct = Math.round(a.sannsynlighet ?? 0);
-      const txt = pending === "sovner" ? "Sovner …" : pending === "våkner" ? "Våkner …" : sover ? "Sover" : "Våken";
-      const since = a.siden ? (sover ? "Sover siden " : "Våken siden ") + KI.clock(a.siden) : (p.bedtime ? `Legger seg ${p.bedtime}` : "");
+      const txt = pending === "sovner" ? "Sovner" : pending === "våkner" ? "Våkner" : sover ? "Sover" : "Våken";
+      const since = a.siden ? "siden " + KI.clock(a.siden) : "";
       const obs = Object.keys(OBS).map(k => ({ label: OBS[k], v: a["obs_" + k] })).filter(o => o.v !== undefined);
-      return { ok: true, sover, pending, pct, txt, tone: pending ? "yellow" : sover ? "on" : "off", obs, puls: a.obs_puls_glattet ?? null, why: a["årsak"] || "", sub: since, thr: null };
+      const sub = [since, p.bedtime ? `legger seg ${p.bedtime}` : ""].filter(Boolean).join(" · ");
+      return { ok: true, sover, pending, pct, txt, tone: pending ? "yellow" : sover ? "on" : "off", obs, puls: a.obs_puls_glattet ?? null, why: a["årsak"] || "", sub };
     }
     _key() {
       const ps = this._persons();
-      return JSON.stringify([this._config, this._open, ps.map(p => { const s = this.st(p.entity);
-        const cfgIds = Object.keys(this._hass.states).filter(id => id.includes(`.${p.prefix}_`)); return [p, s && s.state, s && s.attributes, cfgIds.map(id => this.val(id))]; })]);
+      return JSON.stringify([this._config, this._open, this._cfgOpen, ps.map(p => { const s = this.st(p.entity);
+        const ids = Object.keys(this._hass.states).filter(id => id.includes(`.${p.prefix}_`)); return [p, s && s.state, s && s.attributes, ids.map(id => this.val(id))]; })]);
     }
 
     _render() {
       const c = this._config; const persons = this._persons(); const infos = persons.map(p => this._info(p));
       if (c.mode === "tile") return this._renderTile(persons, infos);
+      const sovende = infos.filter(s => s.sover).length;
       this.shadowRoot.innerHTML = `<style>${KI.css}
         .list { display:grid; gap:8px; }
-        .card { --ki-bg:${c.background || "var(--gray200)"}; padding:8px 8px 10px; }
-        .row { display:flex; align-items:center; gap:12px; min-height:48px; padding-right:6px; }
+        .card { --ki-bg:${c.background || "var(--gray200)"}; padding:8px; }
+        .row { display:flex; align-items:center; gap:12px; min-height:52px; padding-right:6px; }
         .main { display:flex; align-items:center; gap:12px; flex:1; min-width:0; cursor:pointer; }
-        .txt { flex:1; min-width:0; } .txt .label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .status { text-align:right; } .status .state { display:block; } .status .pct { font-size:12px; opacity:.5; font-variant-numeric:tabular-nums; }
-        .status.on .state { opacity:1; } .status.yellow .state { color:var(--yellow); opacity:1; } .status.red .state { color:var(--red); opacity:1; }
-        .icon-wrap.zz { background:var(--active-big); color:rgba(70,58,64,.95); }
-        .bar { position:relative; height:4px; border-radius:2px; background:var(--gray100); margin:6px 8px 0; }
+        .avatar { width:44px; height:44px; border-radius:50%; background:var(--gray100); display:flex; align-items:center; justify-content:center; flex:none; --mdc-icon-size:22px; }
+        .avatar.on { background:var(--active-big); color:rgba(70,58,64,.95); }
+        .avatar.yellow { background:var(--yellow); color:var(--black); }
+        .avatar.red { background:var(--red); color:#fff; }
+        .txt { flex:1; min-width:0; } .txt .name { font-size:15px; }
+        .txt .label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .txt .label.red { color:var(--red); opacity:1; }
+        .right { display:flex; align-items:center; gap:10px; }
+        .pill { display:flex; flex-direction:column; align-items:flex-end; line-height:1.15; }
+        .pill .s { font-size:14px; font-weight:600; } .pill .s.yellow { color:var(--yellow); } .pill .s.off { opacity:.6; }
+        .pill .p { font-size:11px; opacity:.5; font-variant-numeric:tabular-nums; }
+        .bar { position:relative; height:4px; border-radius:2px; background:var(--gray100); margin:6px 8px 2px; }
         .bar i { display:block; height:100%; border-radius:2px; background:var(--gray400); transition:width .4s; }
         .bar i.on { background:var(--active-big); } .bar i.yellow { background:var(--yellow); }
         .bar b { position:absolute; top:-3px; width:2px; height:10px; border-radius:1px; background:var(--gray1000); opacity:.35; }
-        .body { display:none; padding:12px 6px 4px; } .body.open { display:block; }
-        .chips { display:flex; flex-wrap:wrap; gap:6px; }
-        .chip.no { opacity:.5; text-decoration:line-through; } .chip.num { opacity:1; font-variant-numeric:tabular-nums; }
-        .why { font-size:12px; opacity:.55; margin:8px 2px 0; }
-        .settings { margin-top:14px; }
-        .times { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:4px 0 10px; }
-        .tm { display:flex; flex-direction:column; gap:4px; font-size:12px; opacity:.85; } .tm span { opacity:.7; padding-left:2px; }
-        .tm input { width:100%; }
-        .stack { display:grid; gap:8px; }
+        .body { display:none; padding:10px 2px 2px; } .body.open { display:grid; gap:8px; }
+        .chips { display:flex; flex-wrap:wrap; gap:6px; padding:0 4px; }
+        .chip.no { opacity:.45; text-decoration:line-through; } .chip.num { opacity:1; font-variant-numeric:tabular-nums; }
+        .why { font-size:12px; opacity:.55; padding:0 6px; }
+        .times { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:4px 6px 8px; }
+        .tm { display:flex; flex-direction:column; gap:4px; font-size:11px; opacity:.85; } .tm span { opacity:.7; padding-left:2px; } .tm input { width:100%; }
+        .summary { display:flex; justify-content:space-between; align-items:center; padding:2px 8px 8px; font-size:13px; opacity:.6; }
         @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
       </style>
       <div class="list">
+        ${persons.length && c.summary !== false ? `<div class="summary"><span>${sovende === 0 ? "Alle er våkne" : sovende === persons.length ? "Alle sover" : `${sovende} av ${persons.length} sover`}</span></div>` : ""}
         ${persons.length ? persons.map((p, i) => { const s = infos[i]; const open = this._open === i; const thr = this._thr(p);
           return `<div class="card">
             <div class="row">
               <div class="main" data-i="${i}" role="button" aria-expanded="${open}" tabindex="0">
-                <div class="icon-wrap ${s.sover ? "zz" : ""}"><ha-icon icon="${s.sover ? "mdi:sleep" : "mdi:sleep-off"}"></ha-icon></div>
-                <div class="txt"><div class="name">${KI.esc(p.name)}</div>${s.sub ? `<div class="label">${KI.esc(s.sub)}</div>` : ""}</div>
+                <div class="avatar ${s.tone === "off" ? "" : s.tone}"><ha-icon icon="${!s.ok ? "mdi:help" : s.sover ? "mdi:sleep" : "mdi:white-balance-sunny"}"></ha-icon></div>
+                <div class="txt"><div class="name">${KI.esc(p.name)}</div><div class="label ${s.ok ? "" : "red"}">${KI.esc(s.sub)}</div></div>
               </div>
-              <div class="status ${s.tone}"><span class="state">${s.txt}</span><span class="pct">${s.ok ? s.pct + " %" : ""}</span></div>
-              <div class="sw ${s.sover ? "on" : ""} ${s.ok ? "" : "disabled"}" data-sw="${i}" role="switch" aria-checked="${s.sover}" tabindex="0" title="${s.sover ? "Sett våken" : "Sett sover"}"><i></i></div>
+              <div class="right">
+                <div class="pill"><span class="s ${s.tone}">${s.txt}${s.pending ? " …" : ""}</span>${s.ok ? `<span class="p">${s.pct} %</span>` : ""}</div>
+                <div class="sw ${s.sover ? "on" : ""} ${s.ok ? "" : "disabled"}" data-sw="${i}" role="switch" aria-checked="${s.sover}" tabindex="0" title="${s.sover ? "Sett våken" : "Sett sover"}"><i></i></div>
+              </div>
             </div>
-            <div class="bar"><i class="${s.tone === "off" ? "" : s.tone}" style="width:${s.pct}%"></i><b style="left:${thr}%"></b></div>
+            ${s.ok ? `<div class="bar"><i class="${s.tone === "off" ? "" : s.tone}" style="width:${s.pct}%"></i><b style="left:${thr}%"></b></div>` : ""}
             <div class="body ${open ? "open" : ""}">
-              <div class="chips">
-                ${s.obs.map(o => `<span class="chip ${o.v === true ? "on" : o.v === false ? "no" : ""}">${o.label}</span>`).join("")}
-                ${s.puls !== null ? `<span class="chip num">${s.puls} bpm</span>` : ""}
-              </div>
-              ${s.why ? `<div class="why">Sist: ${KI.esc(s.why)}</div>` : ""}
-              ${c.settings === false ? "" : this._settingsHtml(p, s, i)}
+              ${s.ok ? `<div class="chips">${s.obs.map(o => `<span class="chip ${o.v === true ? "on" : o.v === false ? "no" : ""}">${o.label}</span>`).join("")}
+                ${s.puls !== null ? `<span class="chip num">${s.puls} bpm</span>` : ""}</div>
+                ${s.why ? `<div class="why">Sist endret: ${KI.esc(s.why)}</div>` : ""}` : `<div class="empty">Personen finnes ikke i <b>KI Søvn &amp; Vekking</b>. Sjekk Innstillinger → Enheter og tjenester → KI Søvn &amp; Vekking, og at enheten heter «${KI.esc(p.name)} søvn».</div>`}
+              ${s.ok && c.settings !== false ? this._settingsHtml(p, s, i) : ""}
             </div>
           </div>`; }).join("")
-        : `<div class="card"><div class="empty">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>.<br>Legg til «Person – søvndeteksjon» i integrasjonen. Kortet ser etter <code>binary_sensor.&lt;navn&gt;_sovn_sover</code>.</div></div>`}
+        : `<div class="card"><div class="empty">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>.<br>Legg til «Person – søvndeteksjon» i integrasjonen – kortet finner dem selv.</div></div>`}
       </div>`;
       const r = this.shadowRoot;
-      r.querySelectorAll(".main").forEach(el => {
-        const i = +el.dataset.i; const t = () => { this._open = this._open === i ? null : i; this._lastKey = null; this._maybeRender(); };
-        KI.bindPress(el, t, () => KI.moreInfo(this, persons[i].entity)); KI.key(el, t);
-      });
-      r.querySelectorAll(".sw").forEach(el => {
-        const p = persons[+el.dataset.sw]; const s = infos[+el.dataset.sw];
-        const run = () => {
-          if (this.st(p.setSover)) KI.press(this._hass, s.sover ? p.setVaaken : p.setSover);
-          else if (p.switch) KI.toggle(this._hass, p.switch);
-        };
-        KI.bindPress(el, run, () => KI.moreInfo(this, p.switch || p.entity)); KI.key(el, run);
-      });
+      r.querySelectorAll(".main").forEach(el => { const i = +el.dataset.i; const t = () => { this._open = this._open === i ? null : i; this._cfgOpen = false; this._lastKey = null; this._maybeRender(); };
+        KI.bindPress(el, t, () => KI.moreInfo(this, persons[i].entity)); KI.key(el, t); });
+      r.querySelectorAll(".sw").forEach(el => { const p = persons[+el.dataset.sw]; const s = infos[+el.dataset.sw];
+        const run = () => { if (this.st(p.setSover)) KI.press(this._hass, s.sover ? p.setVaaken : p.setSover); else if (p.switch) KI.toggle(this._hass, p.switch); };
+        KI.bindPress(el, run, () => KI.moreInfo(this, p.switch || p.entity)); KI.key(el, run); });
+      const d = r.querySelector(".disclosure"); if (d) { const t = () => { this._cfgOpen = !this._cfgOpen; this._lastKey = null; this._maybeRender(); }; d.addEventListener("click", t); KI.key(d, t); }
       this._wireSettings();
     }
     _thr(p) { const s = this.st(`number.${p.prefix}_terskel`); return s ? parseFloat(s.state) : (this._config.threshold ?? 80); }
 
     _settingsHtml(p, s, i) {
-      const x = p.prefix;
+      const x = p.prefix; if (!this.st(`number.${x}_terskel`)) return "";
+      const open = this._cfgOpen;
       const t = (id, lbl) => this.st(id) ? `<label class="tm"><span>${lbl}</span><input type="time" data-time="${id}" value="${KI.hhmm(this.val(id))}"></label>` : "";
-      const times = [t(`time.${x}_sovevindu_start`, "Sovevindu fra"), t(`time.${x}_sovevindu_slutt`, "til"), t(`time.${x}_morgen_fra`, "Morgen fra")].join("");
       const sl = (id, name) => this.st(id) ? `<ki-slider-card data-slider="${id}" data-name="${name}"></ki-slider-card>` : "";
       const tg = (id, name, label, icon) => this.st(id) ? `<ki-toggle-card data-toggle-card="${id}" data-name="${name}" data-label="${label}" data-icon="${icon}"></ki-toggle-card>` : "";
-      if (!times && !this.st(`number.${x}_terskel`)) return "";
       const hasHr = s.puls !== null || s.obs.some(o => o.label === "lav puls");
-      return `<div class="settings">
-        <div class="section">Innstillinger</div>
-        <div class="times">${times}</div>
-        <div class="stack">
-          ${sl(`number.${x}_terskel`, "Terskel")}
-          ${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}
-          ${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}
-          ${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}
-          ${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}
-          ${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}
-          ${hasHr ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}
+      return `<div class="disclosure ${open ? "open" : ""}" role="button" tabindex="0"><span class="name">Innstillinger</span><ha-icon icon="mdi:chevron-down"></ha-icon></div>
+      ${open ? `
+        <div class="group"><div class="section">Tider</div>
+          <div class="times">${t(`time.${x}_sovevindu_start`, "Sovevindu fra")}${t(`time.${x}_sovevindu_slutt`, "Sovevindu til")}${t(`time.${x}_morgen_fra`, "Morgen fra")}</div></div>
+        <div class="group"><div class="section">Terskler</div>
+          ${sl(`number.${x}_terskel`, "Terskel")}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}
+          ${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}
+          ${hasHr ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}</div>
+        <div class="group"><div class="section">Regler</div>
           ${tg(`switch.${x}_dor_om_natta_ok`, "Dør om natta", "Do-turer vekker ikke", "mdi:door-open")}
-          ${tg(`switch.${x}_automatisk`, "Automatisk", "Styrer søvnbryteren", "mdi:auto-fix")}
-        </div>
-      </div>`;
+          ${tg(`switch.${x}_automatisk`, "Automatisk", "Styrer søvnbryteren", "mdi:auto-fix")}</div>` : ""}`;
     }
     _wireSettings() {
       const r = this.shadowRoot; const h = this._hass; this._subs = [];
       r.querySelectorAll("ki-slider-card").forEach(el => { el.setConfig({ entity: el.dataset.slider, name: el.dataset.name, label_width: "112px", value_width: "64px" }); el.hass = h; this._subs.push(el); });
-      r.querySelectorAll("ki-toggle-card").forEach(el => { el.setConfig({ entity: el.dataset.toggleCard, name: el.dataset.name, label: el.dataset.label, icon: el.dataset.icon, background: "var(--gray100)" }); el.hass = h; this._subs.push(el); });
+      r.querySelectorAll("ki-toggle-card").forEach(el => { el.setConfig({ entity: el.dataset.toggleCard, name: el.dataset.name, label: el.dataset.label, icon: el.dataset.icon, background: "transparent" }); el.hass = h; this._subs.push(el); });
       r.querySelectorAll("input[type=time]").forEach(inp => inp.addEventListener("change", () => { if (inp.value) h.callService("time", "set_value", { entity_id: inp.dataset.time, time: inp.value + ":00" }); }));
     }
     _passHass(h) { (this._subs || []).forEach(el => el.hass = h); }
@@ -965,7 +965,7 @@ try {
       const c = this._config;
       const sovende = persons.filter((p, i) => infos[i].sover).map(p => p.name);
       const pi = infos.findIndex(s => s.pending);
-      const label = pi >= 0 ? `${persons[pi].name} ${infos[pi].txt.toLowerCase()}` : !persons.length ? "Ingen personer" : sovende.length === 0 ? "Alle er våkne" : sovende.length === persons.length ? "Alle sover" : sovende.join(", ") + " sover";
+      const label = pi >= 0 ? `${persons[pi].name} ${infos[pi].txt.toLowerCase()} …` : !persons.length ? "Ingen personer" : sovende.length === 0 ? "Alle er våkne" : sovende.length === persons.length ? "Alle sover" : sovende.join(", ") + " sover";
       this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background || "var(--gray200)"}; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; gap:12px; padding:14px 14px 12px; min-height:96px; }
         .bottom { display:flex; width:100%; justify-content:space-between; align-items:flex-end; gap:8px; }
@@ -983,7 +983,7 @@ try {
     getCardSize() { return this._config.mode === "tile" ? 2 : Math.max(1, this._persons().length) * 2; }
   }
   window.KI.define("ki-sovn-card", KiSovnCard);
-  KI.register("ki-sovn-card", "KI Søvn", "Søvnstatus per person fra KI Søvn & Vekking: sannsynlighet, observasjoner, manuell overstyring og innstillinger");
+  KI.register("ki-sovn-card", "KI Søvn", "Søvnstatus per person fra KI Søvn & Vekking");
 })(window.KI);
 } catch (e) { console.error("ki-cards: 31-ki-sovn-card feilet", e); }
 
