@@ -155,15 +155,19 @@ settings: true            # innstillinger (sovevindu, terskel, forsinkelser, pul
 ```
 
 ### ki-vekking-card
-Forventer entitetene `input_boolean.<prefix>_master`, `input_boolean.<prefix>_<dag>_aktiv`,
-`input_datetime.<prefix>_<dag>`, `input_number.<prefix>_fade_minutter`,
-`input_number.<prefix>_av_etter_minutter` og `input_boolean.<prefix>_nattlampe`
-(dager: mandag … sondag). Alle kan overstyres.
+To kilder, oppdages automatisk:
+- **[ki_vekking](https://github.com/SebastianKristo/ki-vekking)-integrasjonen** (anbefalt): `prefix` er enhetens slug, f.eks. `soverom_vekking`.
+  Kortet bruker `switch.<prefix>_aktiv`, `switch.<prefix>_<dag>_aktiv`, `time.<prefix>_<dag>`, `number.<prefix>_fade_opp`,
+  `number.<prefix>_av_etter`, `switch.<prefix>_nattlampe`, `sensor.<prefix>_neste_alarm`, `button.<prefix>_test/stopp`.
+  Betingelser hentes fra integrasjonen hvis `conditions` utelates.
+- **YAML-package** (gammel): `input_boolean.<prefix>_master`, `input_boolean.<prefix>_<dag>_aktiv`,
+  `input_datetime.<prefix>_<dag>`, `input_number.<prefix>_fade_minutter`, `input_number.<prefix>_av_etter_minutter`,
+  `input_boolean.<prefix>_nattlampe` + `automation`. Tving med `source: package`.
 ```yaml
 type: custom:ki-vekking-card
 name: Gradvis lys
-prefix: alarm
-automation: automation.soverom_vekkealarm_gradvis_lys
+prefix: soverom_vekking
+# automation: automation.soverom_vekkealarm_gradvis_lys   # bare for YAML-package
 expanded: false
 conditions:
   - entity: switch.sebastian_posisjon_hjemme_borte

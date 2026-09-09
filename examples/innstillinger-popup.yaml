@@ -1,4 +1,4 @@
-# Innstillinger-popup bygget med ki-cards (v1.5.0+). Flat layout uten toppfaner.
+# Innstillinger-popup bygget med ki-cards (v1.6.0+). Flat layout uten toppfaner.
 type: custom:bubble-card
 card_type: pop-up
 name: Innstillinger
@@ -66,9 +66,8 @@ cards:
         cards:
           - type: custom:ki-vekking-card
             name: Gradvis lys
-            prefix: alarm
-            automation: automation.soverom_vekkealarm_gradvis_lys
-            conditions:
+            prefix: soverom_vekking          # ki_vekking-integrasjonen, enhet «Soverom vekking»
+            conditions:                      # valgfri – ellers hentes de fra integrasjonen
               - entity: switch.sebastian_posisjon_hjemme_borte
                 name: Sebastian hjemme
               - entity: input_boolean.ki_klima_hovedbryter
