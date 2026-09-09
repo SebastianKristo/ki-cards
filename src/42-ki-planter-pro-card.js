@@ -55,8 +55,8 @@
           <div class="under"><span>${p.last ? "sist " + p.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ikke vannet ennå"}</span><span>${p.last ? "neste " + fmtDato(new Date(p.last.getTime() + p.iv * DAG)) : ""}</span></div>
           <div class="last-fakta" style="padding-top:8px"><span>hver ${Math.round(p.iv)}. dag${p.sesong ? " (" + p.sesong + ")" : ""}</span>${p.ivVinter ? `<span>❄ ${p.ivVinter} d</span>` : ""}${p.fukt !== null ? `<span class="${p.fukt < p.fuktMin ? "b-feil" : "b-ok"}" data-more="${p.fuktSensor}" style="cursor:pointer">fuktighet ${Math.round(p.fukt)} %</span>` : p.fuktSensor ? `<span>fuktsensor utilgjengelig</span>` : ""}</div>
           ${p.tip ? `<div class="notat">${KI.esc(p.tip)}</div>` : ""}
-          ${adv ? KI.sliderHtml(this._hass, p.interval, "☀ Sommer", { unit: " d" }) + KI.sliderHtml(this._hass, p.intervalV, "❄ Vinter", { unit: " d" })
-            + (this.st(p.fuktMinEnt) ? KI.sliderHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %" }) : "")
+          ${adv ? KI.stepperHtml(this._hass, p.interval, "☀ Sommerintervall", { unit: " d" }) + KI.stepperHtml(this._hass, p.intervalV, "❄ Vinterintervall", { unit: " d", sub: "0 = samme som sommer" })
+            + (this.st(p.fuktMinEnt) ? KI.stepperHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %", tick: p.fukt ?? undefined }) : "")
             + (this.st(p.auto) ? `<div class="rad"><div><div class="rad-navn">Auto-registrer</div><div class="rad-sub">Vanning registreres når fuktigheten hopper opp</div></div><div class="bryter ${this.on(p.auto) ? "on" : ""}" data-toggle="${p.auto}" tabindex="0"><span></span></div></div>` : "")
             + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
           <div class="knapper"><div class="knapp primar press" data-press="${p.water}" ${this._config.confirm ? `data-confirm="Registrere ${KI.esc(p.name)} som vannet nå?"` : ""} tabindex="0">Vannet nå</div></div>

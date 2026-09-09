@@ -1,4 +1,4 @@
-/* ki-cards v2.4.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v2.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.4.0";
+  KI.VERSION = "2.5.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -143,7 +143,46 @@ window.KI = window.KI || {};
     .slider-rad { display:grid; grid-template-columns:110px 1fr 64px; align-items:center; gap:10px; padding:9px 2px; }
     .slider-rad + .slider-rad, .rad + .slider-rad, .slider-rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
     .tom { font-size:13px; opacity:.6; padding:10px 4px; line-height:1.5; }
-    @media (prefers-reduced-motion: reduce) { .ring-fyll, .fyll, .bryter, .bryter span { transition:none; } }
+    /* stepper: navn + verdi over, [−] spor [+] under */
+    .stp { padding:9px 2px; } .stp + .stp, .rad + .stp, .stp + .rad { border-top:1px solid rgba(128,128,128,.14); }
+    .stp-topp { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .stp-navn { font-size:14.5px; } .stp-sub { font-size:12px; opacity:.55; }
+    .stp-verdi { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
+    .stp-rad { display:grid; grid-template-columns:34px 1fr 34px; align-items:center; gap:10px; margin-top:8px; }
+    .steg { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer; background:rgba(128,128,128,.18); user-select:none; -webkit-user-select:none; }
+    .steg:active { transform:scale(.93); }
+    .stp-spor { position:relative; height:34px; border-radius:17px; background:rgba(128,128,128,.16); overflow:hidden; cursor:pointer; touch-action:none; }
+    .stp-fyll { position:absolute; inset:0 auto 0 0; background:var(--active-big); border-radius:17px; transition:width .12s; }
+    .stp-fyll.gul { background:var(--yellow); } .stp-fyll.rod { background:var(--red); }
+    .stp-merker { position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; padding:0 12px; font-size:11px; opacity:.55; pointer-events:none; font-variant-numeric:tabular-nums; }
+    .stp-tick { position:absolute; top:0; bottom:0; width:2px; background:var(--gray1000); opacity:.35; pointer-events:none; }
+    /* graf */
+    .graf { width:100%; height:auto; display:block; overflow:visible; }
+    .graf .akse { stroke:rgba(128,128,128,.25); stroke-width:1; }
+    .graf .rute { stroke:rgba(128,128,128,.12); stroke-width:1; stroke-dasharray:2 3; }
+    .graf .linje { fill:none; stroke:var(--active-big); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+    .graf .flate { fill:var(--active-big); opacity:.15; }
+    .graf .terskel { stroke:var(--yellow); stroke-width:1.5; stroke-dasharray:4 4; }
+    .graf .sover { fill:var(--active-big); opacity:.22; }
+    .graf .sover.gronn { fill:var(--green); }
+    .graf text { font-size:10px; fill:currentColor; opacity:.55; }
+    .graf .naa { stroke:var(--gray1000); stroke-width:1; opacity:.5; }
+    .tegnforklaring { display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; opacity:.65; padding:6px 2px 0; }
+    .tegnforklaring i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+    /* animasjoner */
+    @keyframes ki-pust { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
+    @keyframes ki-zzz { 0% { opacity:0; transform:translate(0,0) scale(.7); } 25% { opacity:1; } 100% { opacity:0; transform:translate(10px,-22px) scale(1.15); } }
+    @keyframes ki-blink { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+    .pust { animation:ki-pust 4s ease-in-out infinite; }
+    .zzz { position:absolute; left:100%; top:-6px; pointer-events:none; font-weight:700; font-size:12px; color:var(--active-big); }
+    .zzz span { position:absolute; left:0; top:0; animation:ki-zzz 3s ease-out infinite; }
+    .zzz span:nth-child(2) { animation-delay:1s; } .zzz span:nth-child(3) { animation-delay:2s; }
+    .blink { animation:ki-blink 1.4s ease-in-out infinite; }
+    .avatar { position:relative; width:40px; height:40px; border-radius:50%; background:rgba(128,128,128,.18); display:flex; align-items:center; justify-content:center; --mdc-icon-size:22px; flex:none; }
+    .avatar.sover { background:var(--active-big); color:rgba(70,58,64,.95); }
+    .avatar.vaken { background:rgba(242,201,76,.35); }
+    .avatar.feil { background:rgba(244,67,54,.3); }
+    @media (prefers-reduced-motion: reduce) { .ring-fyll, .fyll, .bryter, .bryter span, .stp-fyll { transition:none; } .pust, .zzz span, .blink { animation:none; } .zzz { display:none; } }
   `;
   KI.ringHtml = (pct, txt, cls, entity) => { const o = 2 * Math.PI * 43; return `<div class="ring" ${entity ? `data-more="${entity}"` : ""}>
     <svg viewBox="0 0 100 100"><circle class="ring-spor" cx="50" cy="50" r="43"></circle>
@@ -155,6 +194,71 @@ window.KI = window.KI || {};
     return `<div class="slider-rad"><span class="rad-navn" data-more="${id}">${name}</span>
       <input type="range" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${pct}%" data-range="${id}" data-unit="${unit}" data-min="${min}" data-max="${max}">
       <span class="rad-verdi" data-out="${id}">${v}${unit}</span></div>`; };
+  /* Stepper-kontroll for number-entiteter: KI.stepperHtml(hass, id, "Terskel", { unit:" %", sub:"…", tick: 80 }) */
+  KI.stepperHtml = (hass, id, name, opts = {}) => { const s = hass.states[id]; if (!s) return ""; const a = s.attributes;
+    const min = opts.min ?? a.min ?? 0, max = opts.max ?? a.max ?? 100, step = opts.step ?? a.step ?? 1, v = parseFloat(s.state);
+    const unit = opts.unit ?? (a.unit_of_measurement ? " " + a.unit_of_measurement : ""); const pct = ((v - min) / (max - min)) * 100;
+    const fmt = (x) => (opts.fmt ? opts.fmt(x) : x + unit);
+    return `<div class="stp" data-stp="${id}" data-min="${min}" data-max="${max}" data-step="${step}" data-unit="${unit}">
+      <div class="stp-topp"><div><div class="stp-navn" data-more="${id}" style="cursor:pointer">${name}</div>${opts.sub ? `<div class="stp-sub">${opts.sub}</div>` : ""}</div><div class="stp-verdi" data-out="${id}">${fmt(v)}</div></div>
+      <div class="stp-rad"><div class="steg" data-dir="-1">−</div>
+        <div class="stp-spor"><div class="stp-fyll ${opts.tone || ""}" style="width:${pct}%"></div>${opts.tick !== undefined ? `<div class="stp-tick" style="left:${((opts.tick - min) / (max - min)) * 100}%"></div>` : ""}<div class="stp-merker"><span>${fmt(min)}</span><span>${fmt(max)}</span></div></div>
+        <div class="steg" data-dir="1">+</div></div></div>`; };
+  KI.wireSteppers = (card, root) => {
+    const h = card._hass;
+    root.querySelectorAll(".stp[data-stp]").forEach(box => {
+      const id = box.dataset.stp, min = +box.dataset.min, max = +box.dataset.max, step = +box.dataset.step, unit = box.dataset.unit;
+      const dec = step < 1 ? String(step).split(".")[1].length : 0;
+      const fyll = box.querySelector(".stp-fyll"), out = box.querySelector(".stp-verdi"), spor = box.querySelector(".stp-spor");
+      let v = parseFloat(h.states[id].state), timer = null;
+      const show = () => { fyll.style.width = ((v - min) / (max - min)) * 100 + "%"; out.textContent = v.toFixed(dec) + unit; };
+      const commit = () => { clearTimeout(timer); timer = setTimeout(() => h.callService(id.split(".")[0], "set_value", { entity_id: id, value: v }), 350); };
+      const set = (x) => { v = Math.min(max, Math.max(min, Math.round(x / step) * step)); v = +v.toFixed(dec); show(); commit(); };
+      box.querySelectorAll(".steg").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); set(v + (+b.dataset.dir) * step); }));
+      const fromX = (e) => { const r = spor.getBoundingClientRect(); const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left; set(min + (x / r.width) * (max - min)); };
+      let drag = false;
+      spor.addEventListener("pointerdown", e => { e.stopPropagation(); drag = true; spor.setPointerCapture(e.pointerId); fromX(e); });
+      spor.addEventListener("pointermove", e => { if (drag) fromX(e); });
+      spor.addEventListener("pointerup", () => { drag = false; }); spor.addEventListener("pointercancel", () => { drag = false; });
+      spor.addEventListener("click", e => e.stopPropagation());
+    });
+  };
+  /* Historikk for grafer: KI.history(hass, [ids], timer) → { id: [[ts, state], …] } (cachet i 5 min) */
+  KI._hist = {};
+  KI.history = async (hass, ids, hours = 24) => {
+    const key = ids.join(",") + hours; const now = Date.now(); const c = KI._hist[key];
+    if (c && now - c.t < 5 * 60000) return c.data;
+    if (c && c.p) return c.p;
+    const start = new Date(now - hours * 3600000).toISOString();
+    const p = hass.callApi("GET", `history/period/${start}?filter_entity_id=${ids.join(",")}&minimal_response&no_attributes`)
+      .then(res => { const data = {}; (res || []).forEach(arr => { if (arr.length) data[arr[0].entity_id] = arr.map(x => [new Date(x.last_changed || x.last_updated).getTime(), x.state]); });
+        KI._hist[key] = { t: Date.now(), data }; return data; })
+      .catch(() => { KI._hist[key] = { t: Date.now(), data: {} }; return {}; });
+    KI._hist[key] = { t: 0, p }; return p;
+  };
+  /* Graf: sannsynlighet (linje) + soveperioder (bånd) + terskel, siste N timer */
+  KI.sovnGraf = (probSeries, sleepSeries, thr, hours = 24, W = 320, H = 96) => {
+    const now = Date.now(), t0 = now - hours * 3600000, L = 4, R = 4, T = 6, B = 16;
+    const x = (t) => L + ((Math.max(t0, Math.min(now, t)) - t0) / (now - t0)) * (W - L - R);
+    const y = (v) => T + (1 - Math.max(0, Math.min(100, v)) / 100) * (H - T - B);
+    const bands = []; let on = null;
+    (sleepSeries || []).forEach(([t, s]) => { if (s === "on" && on === null) on = t; if (s !== "on" && on !== null) { bands.push([on, t]); on = null; } });
+    if (on !== null) bands.push([on, now]);
+    const pts = (probSeries || []).map(([t, s]) => [t, parseFloat(s)]).filter(p => isFinite(p[1]));
+    if (pts.length) pts.push([now, pts[pts.length - 1][1]]);
+    const path = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const area = pts.length ? `${path} L${x(now).toFixed(1)},${y(0)} L${x(pts[0][0]).toFixed(1)},${y(0)} Z` : "";
+    const hoursTicks = []; for (let h = 0; h <= hours; h += hours / 4) { const t = t0 + h * 3600000; hoursTicks.push(`<text x="${x(t).toFixed(1)}" y="${H - 3}" text-anchor="${h === 0 ? "start" : h === hours ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`); }
+    return `<svg class="graf" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${bands.map(([a, b]) => `<rect class="sover" x="${x(a).toFixed(1)}" y="${T}" width="${Math.max(1, x(b) - x(a)).toFixed(1)}" height="${H - T - B}" rx="3"></rect>`).join("")}
+      ${[25, 50, 75].map(v => `<line class="rute" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"></line>`).join("")}
+      <line class="akse" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"></line>
+      ${thr !== undefined ? `<line class="terskel" x1="${L}" x2="${W - R}" y1="${y(thr)}" y2="${y(thr)}"></line>` : ""}
+      ${area ? `<path class="flate" d="${area}"></path><path class="linje" d="${path}"></path>` : `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">ingen historikk ennå</text>`}
+      ${hoursTicks.join("")}
+    </svg>`;
+  };
+
   /* Kobler opp data-more / data-toggle / data-press / data-range / data-time / .last-hode i et pro-kort */
   KI.wirePro = (card, root) => {
     const h = card._hass;
@@ -171,6 +275,7 @@ window.KI = window.KI || {};
       inp.addEventListener("change", () => { if (inp.value) h.callService(inp.dataset.time.split(".")[0], "set_value", { entity_id: inp.dataset.time, time: inp.value + ":00" }); }); });
     root.querySelectorAll(".last-hode[data-open]").forEach(el => el.addEventListener("click", () => { const k = el.dataset.open; card._apen = card._apen === k ? null : k; card._lastKey = null; card._maybeRender(); }));
     root.querySelectorAll(".switch-valg").forEach(el => el.addEventListener("click", () => { card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
+    KI.wireSteppers(card, root);
   };
 
   KI.fire = (el, type, detail) =>
@@ -1137,15 +1242,41 @@ try {
       const vkTxt = vks.filter(v => v.n).map(v => v.running ? `${v.name}: ${v.navn.toLowerCase()}` : v.masterOn && v.tid ? `Vekking ${v.navn.replace(/^I dag/, "i dag").replace(/^([A-ZÆØÅ])/, m => m.toLowerCase())}${v.igjen ? " (om " + v.igjen + ")" : ""}` : "Vekking av").join(" · ");
       this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
-        <div class="hero">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}
+        <div class="hero"><div class="${sov ? "pust" : ""}">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}</div>
           <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}${vkTxt ? `<br>${KI.esc(vkTxt)}` : ""}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${this._view === "enkel" ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${this._view === "avansert" ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Personer</span><span class="blokk-sub">${n ? "trykk for detaljer" : ""}</span></div>
           ${n ? persons.map((p, i) => this._person(p, infos[i])).join("") : `<div class="tom">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>. Legg til «Person – søvndeteksjon» i integrasjonen.</div>`}
         </div>
+        ${n && c.graf !== false ? `<div class="blokk"><div class="blokk-hode"><span>Siste ${c.hours || 24} timer</span><span class="blokk-sub">hvem sov når</span></div>${this._natt(persons, infos, c.hours || 24)}</div>` : ""}
         ${vks.filter(v => v.n).map(v => KI.vekkingBlocks(this, v, this._view === "avansert", c)).join("")}
       </div>`;
       KI.wirePro(this, this.shadowRoot);
+      this._loadHist(persons);
+    }
+    /* Tidslinje per person: bånd der personen sov */
+    _natt(persons, infos, hours) {
+      const W = 320, rowH = 22, L = 70, now = Date.now(), t0 = now - hours * 3600000;
+      const x = (t) => L + ((Math.max(t0, Math.min(now, t)) - t0) / (now - t0)) * (W - L - 4);
+      const rows = persons.map((p, i) => { const h = ((this._hist || {})[p.prefix] || {})[p.entity] || [];
+        const bands = []; let on = null; h.forEach(([t, st]) => { if (st === "on" && on === null) on = t; if (st !== "on" && on !== null) { bands.push([on, t]); on = null; } }); if (on !== null) bands.push([on, now]);
+        const y = 6 + i * rowH; const tot = bands.reduce((a, [s, e]) => a + (e - s), 0) / 3600000;
+        return `<text x="0" y="${y + 13}">${KI.esc(p.name)}</text><rect x="${L}" y="${y + 3}" width="${W - L - 4}" height="12" rx="6" fill="rgba(128,128,128,.14)"></rect>
+          ${bands.map(([a, b]) => `<rect class="sover gronn" style="opacity:.85" x="${x(a).toFixed(1)}" y="${y + 3}" width="${Math.max(2, x(b) - x(a)).toFixed(1)}" height="12" rx="6"></rect>`).join("")}
+          <text x="${W}" y="${y + 13}" text-anchor="end" style="opacity:.8">${tot ? (tot >= 1 ? tot.toFixed(1) + " t" : Math.round(tot * 60) + " min") : ""}</text>`; });
+      const H = 6 + persons.length * rowH + 14;
+      const ticks = []; for (let h = 0; h <= hours; h += hours / 4) { const t = t0 + h * 3600000; ticks.push(`<text x="${x(t).toFixed(1)}" y="${H - 2}" text-anchor="${h === 0 ? "start" : h === hours ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`); }
+      return `<svg class="graf" viewBox="0 0 ${W} ${H}" style="height:${H}px">${rows.join("")}${ticks.join("")}</svg>`;
+    }
+    _loadHist(persons) {
+      if (!persons.length || this._config.graf === false) return;
+      const ids = persons.flatMap(p => [p.entity, `sensor.${p.prefix}_sannsynlighet`]);
+      const before = this._histStamp;
+      KI.history(this._hass, ids, this._config.hours || 24).then(data => {
+        const stamp = JSON.stringify(Object.keys(data).map(k => [k, data[k].length]));
+        this._hist = {}; persons.forEach(p => { this._hist[p.prefix] = { [p.entity]: data[p.entity], [`sensor.${p.prefix}_sannsynlighet`]: data[`sensor.${p.prefix}_sannsynlighet`] }; });
+        if (stamp !== before) { this._histStamp = stamp; this._lastKey = null; this._maybeRender(); }
+      });
     }
     _person(p, s) {
       const open = this._apen === p.entity, x = p.prefix, adv = this._view === "avansert";
@@ -1154,11 +1285,12 @@ try {
         : p.bryter ? `<div class="bryter ${s.sover ? "on" : ""}" data-toggle="${p.bryter}" role="switch" tabindex="0"><span></span></div>` : `<div class="bryter mangler"><span></span></div>`;
       const t = (id, lbl) => this.st(id) ? `<div class="rad"><span class="rad-navn">${lbl}</span><input type="time" data-time="${id}" value="${KI.hhmm(this.val(id))}"></div>` : "";
       const sw = (id, lbl, sub) => this.st(id) ? `<div class="rad"><div><div class="rad-navn">${lbl}</div><div class="rad-sub">${sub}</div></div><div class="bryter ${this.on(id) ? "on" : ""}" data-toggle="${id}" tabindex="0"><span></span></div></div>` : "";
-      const sl = (id, lbl) => KI.sliderHtml(this._hass, id, lbl);
+      const sl = (id, lbl, sub, o = {}) => KI.stepperHtml(this._hass, id, lbl, { sub, ...o });
       const thr = this.st(`number.${x}_terskel`) ? parseFloat(this.val(`number.${x}_terskel`)) : 80;
+      const hist = (this._hist || {})[p.prefix] || {};
       return `<div class="last ${open ? "apen" : ""}">
-        <div class="last-hode med-bryter" data-open="${p.entity}">
-          <div class="prikk p-${s.tone === "aktiv" ? "aktiv" : s.tone === "advarsel" ? "advarsel" : s.tone === "feil" ? "feil" : "nøytral"}"></div>
+        <div class="last-hode med-bryter" data-open="${p.entity}" style="grid-template-columns:40px 1fr auto auto">
+          <div class="avatar ${s.sover ? "sover pust" : s.ok ? "vaken" : "feil"} ${s.pending ? "blink" : ""}"><ha-icon icon="${!s.ok ? "mdi:help" : s.sover ? "mdi:sleep" : "mdi:white-balance-sunny"}"></ha-icon>${s.sover ? `<div class="zzz"><span>z</span><span>z</span><span>z</span></div>` : ""}</div>
           <div><div class="last-navn">${KI.esc(p.name)}</div><div class="last-forklaring">${KI.esc(s.sub)}</div></div>
           <div class="last-verdi">${s.txt}${s.ok ? `<small>${s.pct} %</small>` : ""}</div>
           ${bryter}
@@ -1166,10 +1298,12 @@ try {
         <div class="last-kropp">
           ${s.ok ? `<div class="spor"><div class="fyll ${s.tone === "advarsel" ? "gul" : s.sover ? "" : "gronn"}" style="width:${s.pct}%;${s.sover || s.pending ? "" : "opacity:.5"}"></div><div class="strek" style="left:${thr}%"></div></div>
             <div class="under"><span>sannsynlighet ${s.pct} %</span><span>terskel ${thr} %</span></div>
+            ${KI.sovnGraf(hist[`sensor.${x}_sannsynlighet`], hist[p.entity], thr, this._config.hours || 24)}
+            <div class="tegnforklaring"><span><i style="background:var(--active-big);opacity:.4"></i>sov</span><span><i style="background:var(--active-big)"></i>sannsynlighet</span><span><i style="background:var(--yellow)"></i>terskel</span></div>
             <div class="last-fakta" style="padding-top:8px">${s.obs.map(o => `<span class="${o.v === true ? "b-ok" : o.v === false ? "b-nei" : ""}">${o.l}</span>`).join("")}${s.puls !== null ? `<span>${s.puls} bpm</span>` : ""}</div>
             ${s.why ? `<div class="notat" style="padding-top:0">Sist endret: ${KI.esc(s.why)}</div>` : ""}
             ${adv ? `<div class="blokk-hode"><span>Tider</span></div>${t(`time.${x}_sovevindu_start`, "Sovevindu fra")}${t(`time.${x}_sovevindu_slutt`, "Sovevindu til")}${t(`time.${x}_morgen_fra`, "Morgen fra")}
-              <div class="blokk-hode"><span>Terskler</span></div>${sl(`number.${x}_terskel`, "Terskel")}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}${s.puls !== null ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}
+              <div class="blokk-hode"><span>Terskler</span></div>${sl(`number.${x}_terskel`, "Terskel", "Sannsynlighet som regnes som «sover»", { tick: s.pct, tone: s.pct >= thr ? "" : "gul" })}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter", "Over terskel så lenge før «sover»")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter", "Under terskel så lenge før «våken»")}${sl(`number.${x}_hold_i_rommet`, "Hold i rommet", "Etter siste bevegelse")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken", "Borte fra rommet så lenge")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i", "Før døra teller som stengt")}${s.puls !== null ? sl(`number.${x}_puls_sover`, "Puls sover", "Glattet puls under dette", { tick: s.puls }) + sl(`number.${x}_puls_vaken`, "Puls våken", "Puls over dette", { tick: s.puls }) : ""}
               <div class="blokk-hode"><span>Regler</span></div>${sw(`switch.${x}_dor_om_natta_ok`, "Dør om natta OK", "Do-turer vekker ikke")}${sw(`switch.${x}_automatisk`, "Automatisk", "Styrer søvnbryteren")}` : ""}`
           : `<div class="tom">Personen finnes ikke i KI Søvn &amp; Vekking. Sjekk at oppføringen «${KI.esc(p.name)}» finnes og har entiteten <code>${p.entity}</code>.</div>`}
         </div></div>`;
@@ -1222,7 +1356,7 @@ try {
           <div class="knapp ${running ? "" : "primar"} press" data-press="${e.test}" data-confirm="${c.test_confirm || "Kjøre vekkesekvensen nå?"}" tabindex="0">${running ? "Kjører …" : "Test vekkesekvensen"}</div></div>`}
       </div>
       ${adv ? `<div class="blokk"><div class="blokk-hode"><span>Lys</span><span class="blokk-sub">${(a.lys || []).length} lys</span></div>
-        ${KI.sliderHtml(card._hass, e.fade, "Fade opp")}${KI.sliderHtml(card._hass, e.off, "Av etter")}${sw(e.natt, "Nattlampe", "Ta med i vekkingen")}
+        ${KI.stepperHtml(card._hass, e.fade, "Fade opp", { sub: "Minutter fra svakt til fullt lys" })}${KI.stepperHtml(card._hass, e.off, "Av etter", { sub: "Minutter før lyset slukkes" })}${sw(e.natt, "Nattlampe", "Ta med i vekkingen")}
         ${(a.lys || []).length ? `<div class="last-fakta" style="padding-top:8px">${a.lys.map(id => `<span data-more="${id}" style="cursor:pointer">${KI.esc(KI.friendly(card._hass, id))}</span>`).join("")}</div>` : ""}</div>
       ${a.person ? `<div class="blokk"><div class="blokk-hode"><span>Person</span><span class="blokk-sub">${KI.esc(v.person)}</span></div>
         ${sw(e.vekk, "Vekk person", "Marker som våken når lyset er oppe")}${sw(e.bare, "Bare hvis sover", "Hopp over alarmen hvis personen er våken")}</div>` : ""}
@@ -1328,8 +1462,8 @@ try {
           <div class="under"><span>${p.last ? "sist " + p.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ikke vannet ennå"}</span><span>${p.last ? "neste " + fmtDato(new Date(p.last.getTime() + p.iv * DAG)) : ""}</span></div>
           <div class="last-fakta" style="padding-top:8px"><span>hver ${Math.round(p.iv)}. dag${p.sesong ? " (" + p.sesong + ")" : ""}</span>${p.ivVinter ? `<span>❄ ${p.ivVinter} d</span>` : ""}${p.fukt !== null ? `<span class="${p.fukt < p.fuktMin ? "b-feil" : "b-ok"}" data-more="${p.fuktSensor}" style="cursor:pointer">fuktighet ${Math.round(p.fukt)} %</span>` : p.fuktSensor ? `<span>fuktsensor utilgjengelig</span>` : ""}</div>
           ${p.tip ? `<div class="notat">${KI.esc(p.tip)}</div>` : ""}
-          ${adv ? KI.sliderHtml(this._hass, p.interval, "☀ Sommer", { unit: " d" }) + KI.sliderHtml(this._hass, p.intervalV, "❄ Vinter", { unit: " d" })
-            + (this.st(p.fuktMinEnt) ? KI.sliderHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %" }) : "")
+          ${adv ? KI.stepperHtml(this._hass, p.interval, "☀ Sommerintervall", { unit: " d" }) + KI.stepperHtml(this._hass, p.intervalV, "❄ Vinterintervall", { unit: " d", sub: "0 = samme som sommer" })
+            + (this.st(p.fuktMinEnt) ? KI.stepperHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %", tick: p.fukt ?? undefined }) : "")
             + (this.st(p.auto) ? `<div class="rad"><div><div class="rad-navn">Auto-registrer</div><div class="rad-sub">Vanning registreres når fuktigheten hopper opp</div></div><div class="bryter ${this.on(p.auto) ? "on" : ""}" data-toggle="${p.auto}" tabindex="0"><span></span></div></div>` : "")
             + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
           <div class="knapper"><div class="knapp primar press" data-press="${p.water}" ${this._config.confirm ? `data-confirm="Registrere ${KI.esc(p.name)} som vannet nå?"` : ""} tabindex="0">Vannet nå</div></div>

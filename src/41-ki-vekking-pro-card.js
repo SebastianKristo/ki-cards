@@ -37,7 +37,7 @@
           <div class="knapp ${running ? "" : "primar"} press" data-press="${e.test}" data-confirm="${c.test_confirm || "Kjøre vekkesekvensen nå?"}" tabindex="0">${running ? "Kjører …" : "Test vekkesekvensen"}</div></div>`}
       </div>
       ${adv ? `<div class="blokk"><div class="blokk-hode"><span>Lys</span><span class="blokk-sub">${(a.lys || []).length} lys</span></div>
-        ${KI.sliderHtml(card._hass, e.fade, "Fade opp")}${KI.sliderHtml(card._hass, e.off, "Av etter")}${sw(e.natt, "Nattlampe", "Ta med i vekkingen")}
+        ${KI.stepperHtml(card._hass, e.fade, "Fade opp", { sub: "Minutter fra svakt til fullt lys" })}${KI.stepperHtml(card._hass, e.off, "Av etter", { sub: "Minutter før lyset slukkes" })}${sw(e.natt, "Nattlampe", "Ta med i vekkingen")}
         ${(a.lys || []).length ? `<div class="last-fakta" style="padding-top:8px">${a.lys.map(id => `<span data-more="${id}" style="cursor:pointer">${KI.esc(KI.friendly(card._hass, id))}</span>`).join("")}</div>` : ""}</div>
       ${a.person ? `<div class="blokk"><div class="blokk-hode"><span>Person</span><span class="blokk-sub">${KI.esc(v.person)}</span></div>
         ${sw(e.vekk, "Vekk person", "Marker som våken når lyset er oppe")}${sw(e.bare, "Bare hvis sover", "Hopp over alarmen hvis personen er våken")}</div>` : ""}

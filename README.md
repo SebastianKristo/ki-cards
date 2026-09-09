@@ -207,3 +207,8 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 ## v2.4.0
 - `ki-sovn-pro-card` viser vekkealarmen(e) i samme kort (blokker under personene); `vekking-popup.yaml` er slått sammen med `sovn-popup.yaml`.
 - `sted:` i planter-kortene matcher del av stedsnavnet, uavhengig av store/små bokstaver.
+
+## v2.5.0
+- Nye steppere (−/+ og dra i sporet) erstatter slidere i pro-kortene, med undertekst og markør for nåverdi.
+- `ki-sovn-pro-card`: graf per person (sannsynlighet siste 24 t, soveperioder som bånd, terskel) og «Siste 24 timer»-tidslinje for husstanden. `hours:` endrer vindu, `graf: false` skrur av.
+- Animasjon: sovende personer «puster» med z-z-z, «sovner …» blinker, ringen puster når noen sover. Respekterer prefers-reduced-motion.

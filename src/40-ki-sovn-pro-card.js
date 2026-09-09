@@ -38,15 +38,41 @@
       const vkTxt = vks.filter(v => v.n).map(v => v.running ? `${v.name}: ${v.navn.toLowerCase()}` : v.masterOn && v.tid ? `Vekking ${v.navn.replace(/^I dag/, "i dag").replace(/^([A-ZÆØÅ])/, m => m.toLowerCase())}${v.igjen ? " (om " + v.igjen + ")" : ""}` : "Vekking av").join(" · ");
       this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
-        <div class="hero">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}
+        <div class="hero"><div class="${sov ? "pust" : ""}">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}</div>
           <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}${vkTxt ? `<br>${KI.esc(vkTxt)}` : ""}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${this._view === "enkel" ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${this._view === "avansert" ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Personer</span><span class="blokk-sub">${n ? "trykk for detaljer" : ""}</span></div>
           ${n ? persons.map((p, i) => this._person(p, infos[i])).join("") : `<div class="tom">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>. Legg til «Person – søvndeteksjon» i integrasjonen.</div>`}
         </div>
+        ${n && c.graf !== false ? `<div class="blokk"><div class="blokk-hode"><span>Siste ${c.hours || 24} timer</span><span class="blokk-sub">hvem sov når</span></div>${this._natt(persons, infos, c.hours || 24)}</div>` : ""}
         ${vks.filter(v => v.n).map(v => KI.vekkingBlocks(this, v, this._view === "avansert", c)).join("")}
       </div>`;
       KI.wirePro(this, this.shadowRoot);
+      this._loadHist(persons);
+    }
+    /* Tidslinje per person: bånd der personen sov */
+    _natt(persons, infos, hours) {
+      const W = 320, rowH = 22, L = 70, now = Date.now(), t0 = now - hours * 3600000;
+      const x = (t) => L + ((Math.max(t0, Math.min(now, t)) - t0) / (now - t0)) * (W - L - 4);
+      const rows = persons.map((p, i) => { const h = ((this._hist || {})[p.prefix] || {})[p.entity] || [];
+        const bands = []; let on = null; h.forEach(([t, st]) => { if (st === "on" && on === null) on = t; if (st !== "on" && on !== null) { bands.push([on, t]); on = null; } }); if (on !== null) bands.push([on, now]);
+        const y = 6 + i * rowH; const tot = bands.reduce((a, [s, e]) => a + (e - s), 0) / 3600000;
+        return `<text x="0" y="${y + 13}">${KI.esc(p.name)}</text><rect x="${L}" y="${y + 3}" width="${W - L - 4}" height="12" rx="6" fill="rgba(128,128,128,.14)"></rect>
+          ${bands.map(([a, b]) => `<rect class="sover gronn" style="opacity:.85" x="${x(a).toFixed(1)}" y="${y + 3}" width="${Math.max(2, x(b) - x(a)).toFixed(1)}" height="12" rx="6"></rect>`).join("")}
+          <text x="${W}" y="${y + 13}" text-anchor="end" style="opacity:.8">${tot ? (tot >= 1 ? tot.toFixed(1) + " t" : Math.round(tot * 60) + " min") : ""}</text>`; });
+      const H = 6 + persons.length * rowH + 14;
+      const ticks = []; for (let h = 0; h <= hours; h += hours / 4) { const t = t0 + h * 3600000; ticks.push(`<text x="${x(t).toFixed(1)}" y="${H - 2}" text-anchor="${h === 0 ? "start" : h === hours ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`); }
+      return `<svg class="graf" viewBox="0 0 ${W} ${H}" style="height:${H}px">${rows.join("")}${ticks.join("")}</svg>`;
+    }
+    _loadHist(persons) {
+      if (!persons.length || this._config.graf === false) return;
+      const ids = persons.flatMap(p => [p.entity, `sensor.${p.prefix}_sannsynlighet`]);
+      const before = this._histStamp;
+      KI.history(this._hass, ids, this._config.hours || 24).then(data => {
+        const stamp = JSON.stringify(Object.keys(data).map(k => [k, data[k].length]));
+        this._hist = {}; persons.forEach(p => { this._hist[p.prefix] = { [p.entity]: data[p.entity], [`sensor.${p.prefix}_sannsynlighet`]: data[`sensor.${p.prefix}_sannsynlighet`] }; });
+        if (stamp !== before) { this._histStamp = stamp; this._lastKey = null; this._maybeRender(); }
+      });
     }
     _person(p, s) {
       const open = this._apen === p.entity, x = p.prefix, adv = this._view === "avansert";
@@ -55,11 +81,12 @@
         : p.bryter ? `<div class="bryter ${s.sover ? "on" : ""}" data-toggle="${p.bryter}" role="switch" tabindex="0"><span></span></div>` : `<div class="bryter mangler"><span></span></div>`;
       const t = (id, lbl) => this.st(id) ? `<div class="rad"><span class="rad-navn">${lbl}</span><input type="time" data-time="${id}" value="${KI.hhmm(this.val(id))}"></div>` : "";
       const sw = (id, lbl, sub) => this.st(id) ? `<div class="rad"><div><div class="rad-navn">${lbl}</div><div class="rad-sub">${sub}</div></div><div class="bryter ${this.on(id) ? "on" : ""}" data-toggle="${id}" tabindex="0"><span></span></div></div>` : "";
-      const sl = (id, lbl) => KI.sliderHtml(this._hass, id, lbl);
+      const sl = (id, lbl, sub, o = {}) => KI.stepperHtml(this._hass, id, lbl, { sub, ...o });
       const thr = this.st(`number.${x}_terskel`) ? parseFloat(this.val(`number.${x}_terskel`)) : 80;
+      const hist = (this._hist || {})[p.prefix] || {};
       return `<div class="last ${open ? "apen" : ""}">
-        <div class="last-hode med-bryter" data-open="${p.entity}">
-          <div class="prikk p-${s.tone === "aktiv" ? "aktiv" : s.tone === "advarsel" ? "advarsel" : s.tone === "feil" ? "feil" : "nøytral"}"></div>
+        <div class="last-hode med-bryter" data-open="${p.entity}" style="grid-template-columns:40px 1fr auto auto">
+          <div class="avatar ${s.sover ? "sover pust" : s.ok ? "vaken" : "feil"} ${s.pending ? "blink" : ""}"><ha-icon icon="${!s.ok ? "mdi:help" : s.sover ? "mdi:sleep" : "mdi:white-balance-sunny"}"></ha-icon>${s.sover ? `<div class="zzz"><span>z</span><span>z</span><span>z</span></div>` : ""}</div>
           <div><div class="last-navn">${KI.esc(p.name)}</div><div class="last-forklaring">${KI.esc(s.sub)}</div></div>
           <div class="last-verdi">${s.txt}${s.ok ? `<small>${s.pct} %</small>` : ""}</div>
           ${bryter}
@@ -67,10 +94,12 @@
         <div class="last-kropp">
           ${s.ok ? `<div class="spor"><div class="fyll ${s.tone === "advarsel" ? "gul" : s.sover ? "" : "gronn"}" style="width:${s.pct}%;${s.sover || s.pending ? "" : "opacity:.5"}"></div><div class="strek" style="left:${thr}%"></div></div>
             <div class="under"><span>sannsynlighet ${s.pct} %</span><span>terskel ${thr} %</span></div>
+            ${KI.sovnGraf(hist[`sensor.${x}_sannsynlighet`], hist[p.entity], thr, this._config.hours || 24)}
+            <div class="tegnforklaring"><span><i style="background:var(--active-big);opacity:.4"></i>sov</span><span><i style="background:var(--active-big)"></i>sannsynlighet</span><span><i style="background:var(--yellow)"></i>terskel</span></div>
             <div class="last-fakta" style="padding-top:8px">${s.obs.map(o => `<span class="${o.v === true ? "b-ok" : o.v === false ? "b-nei" : ""}">${o.l}</span>`).join("")}${s.puls !== null ? `<span>${s.puls} bpm</span>` : ""}</div>
             ${s.why ? `<div class="notat" style="padding-top:0">Sist endret: ${KI.esc(s.why)}</div>` : ""}
             ${adv ? `<div class="blokk-hode"><span>Tider</span></div>${t(`time.${x}_sovevindu_start`, "Sovevindu fra")}${t(`time.${x}_sovevindu_slutt`, "Sovevindu til")}${t(`time.${x}_morgen_fra`, "Morgen fra")}
-              <div class="blokk-hode"><span>Terskler</span></div>${sl(`number.${x}_terskel`, "Terskel")}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}${s.puls !== null ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}
+              <div class="blokk-hode"><span>Terskler</span></div>${sl(`number.${x}_terskel`, "Terskel", "Sannsynlighet som regnes som «sover»", { tick: s.pct, tone: s.pct >= thr ? "" : "gul" })}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter", "Over terskel så lenge før «sover»")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter", "Under terskel så lenge før «våken»")}${sl(`number.${x}_hold_i_rommet`, "Hold i rommet", "Etter siste bevegelse")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken", "Borte fra rommet så lenge")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i", "Før døra teller som stengt")}${s.puls !== null ? sl(`number.${x}_puls_sover`, "Puls sover", "Glattet puls under dette", { tick: s.puls }) + sl(`number.${x}_puls_vaken`, "Puls våken", "Puls over dette", { tick: s.puls }) : ""}
               <div class="blokk-hode"><span>Regler</span></div>${sw(`switch.${x}_dor_om_natta_ok`, "Dør om natta OK", "Do-turer vekker ikke")}${sw(`switch.${x}_automatisk`, "Automatisk", "Styrer søvnbryteren")}` : ""}`
           : `<div class="tom">Personen finnes ikke i KI Søvn &amp; Vekking. Sjekk at oppføringen «${KI.esc(p.name)}» finnes og har entiteten <code>${p.entity}</code>.</div>`}
         </div></div>`;
