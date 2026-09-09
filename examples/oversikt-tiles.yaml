@@ -6,9 +6,8 @@
 - type: custom:ki-vekking-card
   mode: tile
   name: Vekking
-  hash: '#vekking'
+  hash: '#sovn'
 - type: custom:ki-planter-card
   mode: tile
   name: Planter
-  sted: Sebastians soverom
   hash: '#planter-sebastian'

@@ -1,4 +1,5 @@
-# Søvn-popup – ki-sovn-pro-card finner entitetene fra integrasjonen selv.
+# Søvn og vekking i én popup – ki-sovn-pro-card finner personer og vekkealarmer selv.
+# vekking: false skjuler vekkealarmen, vekking_prefix: soverom_vekking velger én.
 type: custom:bubble-card
 card_type: pop-up
 state: null
@@ -19,7 +20,7 @@ margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 button_type: name
-name: Søvn
+name: Søvn og vekking
 icon: mdi:sleep
 hash: '#sovn'
 cards:

@@ -24,6 +24,6 @@ icon: mdi:flower-outline
 hash: '#planter-sebastian'
 cards:
   - type: custom:ki-planter-pro-card
-    sted: Sebastians soverom
+    # sted: soverom          # valgfritt filter, matcher del av stedsnavnet
   - type: custom:gap-card
     height: 120

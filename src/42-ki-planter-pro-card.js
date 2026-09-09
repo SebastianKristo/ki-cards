@@ -8,14 +8,16 @@
     _plants() {
       const c = this._config, h = this._hass; if (!h) return [];
       let ids = KI.find(h, "binary_sensor", { integrasjon: "ki_planter", type: "plante" });
-      if (c.sted) ids = ids.filter(id => h.states[id].attributes.sted === c.sted);
+      if (c.sted) { const q = String(c.sted).toLowerCase(); ids = ids.filter(id => String(h.states[id].attributes.sted || "").toLowerCase().includes(q)); }
       return ids.map(id => { const a = h.states[id].attributes, b = id.replace(/^binary_sensor\./, "").replace(/_trenger_vann$/, "");
         const last = a.sist_vannet ? new Date(a.sist_vannet) : null, iv = a.intervall_dager || 7;
         const left = last ? Math.ceil(iv - (Date.now() - last) / DAG) : null, pct = last ? Math.min(100, Math.max(0, (Date.now() - last) / DAG / iv * 100)) : 100;
-        const tone = left === null || left < 0 ? "feil" : left === 0 ? "advarsel" : pct >= 70 ? "advarsel" : "ok";
-        const txt = left === null ? "Ikke vannet" : left > 1 ? `Om ${left} dager` : left === 1 ? "I morgen" : left === 0 ? "Vann i dag" : `${-left} ${-left === 1 ? "dag" : "dager"} over`;
-        return { entity: id, id: a.plante_id, name: a.navn, latin: a.latin || "", icon: a.ikon, tip: a.tips || "", sted: a.sted, stedPrefix: a.sted_prefix, last, iv, left, pct, tone, txt, due: left === null || left <= 0,
-          water: `button.${b}_vannet_na`, interval: `number.${b}_intervall`, sist: `datetime.${b}_sist_vannet` }; });
+        const due = h.states[id].state === "on"; const fukt = a.fuktighet ?? null;
+        let tone = due ? "feil" : left === 0 || pct >= 70 ? "advarsel" : "ok";
+        let txt = a.grunn === "tørr jord" ? `Tørr jord ${fukt !== null ? Math.round(fukt) + " %" : ""}` : left === null ? "Ikke vannet" : due ? (left < 0 ? `${-left} ${-left === 1 ? "dag" : "dager"} over` : "Vann i dag") : left > 1 ? `Om ${left} dager` : left === 1 ? "I morgen" : (fukt !== null ? `Fuktig ${Math.round(fukt)} %` : "Vann i dag");
+        return { entity: id, id: a.plante_id, name: a.navn, latin: a.latin || "", icon: a.ikon, tip: a.tips || "", sted: a.sted, stedPrefix: a.sted_prefix, last, iv, left, pct, tone, txt, due,
+          sesong: a.sesong, fukt, fuktMin: a.fuktighet_min, fuktSensor: a.fuktighet_sensor, ivSommer: a.intervall_sommer, ivVinter: a.intervall_vinter,
+          water: `button.${b}_vannet_na`, interval: `number.${b}_intervall`, intervalV: `number.${b}_intervall_vinter`, fuktMinEnt: `number.${b}_fuktighet_min`, auto: `switch.${b}_auto_registrer`, sist: `datetime.${b}_sist_vannet` }; });
     }
     _key() { return JSON.stringify([this._config, this._view, this._apen, Math.floor(Date.now() / 3600000), this._plants().map(p => [p.entity, (this.st(p.entity) || {}).attributes, this.val(p.interval)])]); }
     _render() {
@@ -30,7 +32,7 @@
         <div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
           <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
-        <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${c.sted || (ps[0] && ps[0].sted) || ""}</span></div>
+        <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? (ps[0].sesong === "vinter" ? "❄ vinterintervall" : "☀ sommerintervall") : ""}${c.sted || (ps[0] && ps[0].sted) ? " · " + (c.sted || ps[0].sted) : ""}</span></div>
           ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}
           ${due.length > 1 && steder.length === 1 ? `<div class="knapper"><div class="knapp primar press" data-press="button.${steder[0]}_alle_vannet" data-confirm="Registrere alle som trenger vann som vannet nå?" tabindex="0">Alle vannet</div></div>` : ""}
         </div>
@@ -51,8 +53,12 @@
         <div class="last-kropp">
           <div class="spor"><div class="fyll ${p.tone === "feil" ? "rod" : p.tone === "advarsel" ? "gul" : "gronn"}" style="width:${p.pct}%"></div></div>
           <div class="under"><span>${p.last ? "sist " + p.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ikke vannet ennå"}</span><span>${p.last ? "neste " + fmtDato(new Date(p.last.getTime() + p.iv * DAG)) : ""}</span></div>
+          <div class="last-fakta" style="padding-top:8px"><span>hver ${Math.round(p.iv)}. dag${p.sesong ? " (" + p.sesong + ")" : ""}</span>${p.ivVinter ? `<span>❄ ${p.ivVinter} d</span>` : ""}${p.fukt !== null ? `<span class="${p.fukt < p.fuktMin ? "b-feil" : "b-ok"}" data-more="${p.fuktSensor}" style="cursor:pointer">fuktighet ${Math.round(p.fukt)} %</span>` : p.fuktSensor ? `<span>fuktsensor utilgjengelig</span>` : ""}</div>
           ${p.tip ? `<div class="notat">${KI.esc(p.tip)}</div>` : ""}
-          ${adv ? KI.sliderHtml(this._hass, p.interval, "Intervall", { unit: " d" }) + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
+          ${adv ? KI.sliderHtml(this._hass, p.interval, "☀ Sommer", { unit: " d" }) + KI.sliderHtml(this._hass, p.intervalV, "❄ Vinter", { unit: " d" })
+            + (this.st(p.fuktMinEnt) ? KI.sliderHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %" }) : "")
+            + (this.st(p.auto) ? `<div class="rad"><div><div class="rad-navn">Auto-registrer</div><div class="rad-sub">Vanning registreres når fuktigheten hopper opp</div></div><div class="bryter ${this.on(p.auto) ? "on" : ""}" data-toggle="${p.auto}" tabindex="0"><span></span></div></div>` : "")
+            + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
           <div class="knapper"><div class="knapp primar press" data-press="${p.water}" ${this._config.confirm ? `data-confirm="Registrere ${KI.esc(p.name)} som vannet nå?"` : ""} tabindex="0">Vannet nå</div></div>
         </div></div>`;
     }

@@ -17,7 +17,7 @@
         last: p.last || `input_datetime.plante_${p.id}_sist_vannet`, interval: p.interval || `input_number.plante_${p.id}_intervall`,
       }));
       let ids = KI.find(h, "binary_sensor", { integrasjon: "ki_planter", type: "plante" });
-      if (c.sted) ids = ids.filter(id => h.states[id].attributes.sted === c.sted);
+      if (c.sted) { const q = String(c.sted).toLowerCase(); ids = ids.filter(id => String(h.states[id].attributes.sted || "").toLowerCase().includes(q)); }
       if (c.include) ids = ids.filter(id => c.include.some(g => KI.glob(g, id)));
       return ids.map(id => { const a = h.states[id].attributes; const base = id.replace(/^binary_sensor\./, "").replace(/_trenger_vann$/, "");
         return { id: a.plante_id, name: a.navn, latin: a.latin || "", icon: a.ikon || "mdi:sprout", tip: a.tips || "", entity: id, sted: a.sted,
@@ -32,6 +32,7 @@
       } else {
         const a = (this.st(p.entity) || { attributes: {} }).attributes;
         interval = a.intervall_dager || 7; last = a.sist_vannet ? new Date(a.sist_vannet) : null;
+        if (a.grunn === "tørr jord") return { interval, last, left: 0, pct: 100, txt: `Tørr jord ${Math.round(a.fuktighet)} %`, tone: "red" };
       }
       if (!last || isNaN(last)) return { interval, last: null, left: null, pct: 0, txt: "Ikke vannet ennå", tone: "red" };
       const elapsed = (Date.now() - last.getTime()) / DAG; const left = Math.ceil(interval - elapsed);

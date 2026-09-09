@@ -42,11 +42,11 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 
 | Kort | Bruk |
 |---|---|
-| `ki-sovn-pro-card` | Søvn for husstanden: ring med antall som sover, personer som ekspanderbare rader med sannsynlighet, observasjoner og (Avansert) tider/terskler/regler |
+| `ki-sovn-pro-card` | Søvn **og vekking** i ett kort: ring med antall som sover, personer som ekspanderbare rader, vekkealarm(ene) som blokker under (`vekking: false` skjuler, `vekking_prefix:` velger én) |
 | `ki-vekking-pro-card` | Vekkealarm: ring med neste alarm og nedtelling, ukeplan, (Avansert) lys, person, betingelser og logg |
 | `ki-planter-pro-card` | Planter: ring med antall vannet, planter som rader med fremdrift, tips, «vannet nå», (Avansert) intervall og varsling |
 
-Eksempler: `examples/sovn-popup.yaml`, `vekking-popup.yaml`, `planter-popup.yaml`, `oversikt-tiles.yaml`.
+Eksempler: `examples/sovn-popup.yaml` (søvn + vekking), `planter-popup.yaml`, `oversikt-tiles.yaml`.
 
 ### Byggeklosser
 
@@ -200,3 +200,10 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 ## v2.2.0
 - Nye `ki-sovn-pro-card`, `ki-vekking-pro-card`, `ki-planter-pro-card` i ki-energi/klima-pro-stil, med egne popuper.
 - Innstillinger-popupen har bare Automasjoner og Varsler igjen.
+
+## v2.3.0
+- `ki-planter-pro-card` / `ki-planter-card`: sommer- og vinterintervall (ki-planter 1.1.0), jordfuktighet fra sensor med «tørr jord»-status, terskel og auto-registrering i Avansert.
+
+## v2.4.0
+- `ki-sovn-pro-card` viser vekkealarmen(e) i samme kort (blokker under personene); `vekking-popup.yaml` er slått sammen med `sovn-popup.yaml`.
+- `sted:` i planter-kortene matcher del av stedsnavnet, uavhengig av store/små bokstaver.

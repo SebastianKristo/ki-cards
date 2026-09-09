@@ -4,7 +4,7 @@
     "vindu_åpent": "vindu åpent", puls_lav: "lav puls", "puls_høy": "høy puls", i_senga: "i senga" };
 
   class KiSovnProCard extends KI.Card {
-    static getStubConfig() { return { title: "Søvn" }; }
+    static getStubConfig() { return { title: "Søvn og vekking" }; }
     setConfig(c) { this._view = c.view || "enkel"; this._apen = null; super.setConfig(c); }
     _persons() {
       const c = this._config, h = this._hass; if (!h) return [];
@@ -23,8 +23,10 @@
       return { ok: true, sover, pending, pct, txt, sub, tone: pending ? "advarsel" : sover ? "aktiv" : "nøytral", why: a["årsak"] || "", puls: a.obs_puls_glattet ?? null,
         obs: Object.keys(OBS).map(k => ({ l: OBS[k], v: a["obs_" + k] })).filter(o => o.v !== undefined) };
     }
-    _key() { const ps = this._persons(); return JSON.stringify([this._config, this._view, this._apen, ps.map(p => { const s = this.st(p.entity);
-      return [p, s && s.state, s && s.attributes, Object.keys(this._hass.states).filter(id => id.includes(`.${p.prefix}_`)).map(id => this.val(id))]; })]); }
+    _vekking() { const c = this._config; if (c.vekking === false) return []; return c.vekking_prefix ? [c.vekking_prefix] : KI.vekkingPrefixes(this._hass); }
+    _key() { const ps = this._persons(); const vk = this._vekking(); return JSON.stringify([this._config, this._view, this._apen, Math.floor(Date.now() / 60000), ps.map(p => { const s = this.st(p.entity);
+      return [p, s && s.state, s && s.attributes, Object.keys(this._hass.states).filter(id => id.includes(`.${p.prefix}_`)).map(id => this.val(id))]; }),
+      vk.map(p => Object.keys(this._hass.states).filter(id => id.includes(`.${p}_`)).map(id => [this.val(id), this.st(id).attributes]))]); }
 
     _render() {
       const c = this._config, persons = this._persons(), infos = persons.map(p => this._info(p));
@@ -32,14 +34,17 @@
       const navn = !n ? "Ingen personer" : sov === 0 ? "Alle er våkne" : sov === n ? "Alle sover" : `${sov} av ${n} sover`;
       const forkl = pend ? `${persons[infos.indexOf(pend)].name} ${pend.txt.toLowerCase()}` : infos.map((s, i) => s.ok ? `${persons[i].name}: ${s.txt.toLowerCase()}${s.sub.startsWith("siden") ? " " + s.sub.split(" · ")[0] : ""}` : `${persons[i].name}: ikke satt opp`).join(" · ");
       const ringCls = !n ? "av" : sov === n ? "aktiv" : sov ? "gul" : "av";
+      const vks = this._vekking().map(p => KI.vekkingInfo(this, p));
+      const vkTxt = vks.filter(v => v.n).map(v => v.running ? `${v.name}: ${v.navn.toLowerCase()}` : v.masterOn && v.tid ? `Vekking ${v.navn.replace(/^I dag/, "i dag").replace(/^([A-ZÆØÅ])/, m => m.toLowerCase())}${v.igjen ? " (om " + v.igjen + ")" : ""}` : "Vekking av").join(" · ");
       this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         <div class="hero">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}
-          <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+          <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}${vkTxt ? `<br>${KI.esc(vkTxt)}` : ""}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${this._view === "enkel" ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${this._view === "avansert" ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Personer</span><span class="blokk-sub">${n ? "trykk for detaljer" : ""}</span></div>
           ${n ? persons.map((p, i) => this._person(p, infos[i])).join("") : `<div class="tom">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>. Legg til «Person – søvndeteksjon» i integrasjonen.</div>`}
         </div>
+        ${vks.filter(v => v.n).map(v => KI.vekkingBlocks(this, v, this._view === "avansert", c)).join("")}
       </div>`;
       KI.wirePro(this, this.shadowRoot);
     }
@@ -73,5 +78,5 @@
     getCardSize() { return 3 + this._persons().length * 2; }
   }
   customElements.define("ki-sovn-pro-card", KiSovnProCard);
-  KI.register("ki-sovn-pro-card", "KI Søvn Pro", "Søvn for husstanden: status, sannsynlighet, observasjoner og innstillinger per person");
+  KI.register("ki-sovn-pro-card", "KI Søvn Pro", "Søvn og vekking i ett kort: status per person, sannsynlighet, observasjoner, innstillinger og vekkealarm(er)");
 })(window.KI);
