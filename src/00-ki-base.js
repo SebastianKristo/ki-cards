@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "1.3.0";
+  KI.VERSION = "1.3.1";
 
   KI.css = `
     :host { display:block; }

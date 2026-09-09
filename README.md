@@ -6,7 +6,7 @@ Alle egne Lovelace-kort for Home Assistant samlet i ett HACS-repo og én fil, `d
 De nye `ki-*`-kortene bruker temaets CSS-variabler (`--gray100`, `--gray200`, `--gray1000`, `--active-big`,
 `--yellow`, `--green`, …) så de følger dashboardets utseende uten `card_mod`. `ki-*`-kortene er tatt inn uendret.
 Hvert kort er pakket i sin egen blokk, så én feil stopper ikke resten – og kort som allerede finnes
-(for eksempel `ki-klima-pro-card` installert via [ki-strom](https://github.com/SebastianKristo/ki-strom)) hoppes over.
+hoppes over. `ki-klima-pro-card` ligger kun i [ki-strom](https://github.com/SebastianKristo/ki-strom).
 
 ## Installasjon
 
@@ -22,7 +22,6 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 
 | | Kort | Navn | Bruk |
 |---|---|---|---|
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-pro-card.svg" width="28" align="absmiddle"> | `ki-klima-pro-card` | KI Klima Pro | Hele klima- og energisystemet: status, soner, energi, varmtvann, motorens resonnement og logg |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-card.svg" width="28" align="absmiddle"> | `ki-klima-card` | KI Klima | Klimastyring med enkel og avansert visning, effektvakt og sonestyring |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card.svg" width="28" align="absmiddle"> | `ki-energi-card` | KI Energi | Timebudsjett, laster, beslutningslogg og innstillinger for KI-energimotoren |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card-strom.svg" width="28" align="absmiddle"> | `ki-energi-card-strom` | KI Energi Strøm | Strømvariant av KI Energi-kortet |
@@ -177,5 +176,3 @@ Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kor
 Nye kort: legg fila i `src/cards/`, lag et ikon i `brand/`, bygg, bump versjon. Bump `SK.VERSION` i `src/00-sk-base.js` før du bygger, så cache-bustes ressursen
 riktig i HACS.
 
-`ki-klima-pro-card` finnes også i [ki-strom](https://github.com/SebastianKristo/ki-strom); den nyeste av de to bør vinne –
-oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversjon.
