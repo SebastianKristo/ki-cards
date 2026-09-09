@@ -212,3 +212,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 - Nye steppere (−/+ og dra i sporet) erstatter slidere i pro-kortene, med undertekst og markør for nåverdi.
 - `ki-sovn-pro-card`: graf per person (sannsynlighet siste 24 t, soveperioder som bånd, terskel) og «Siste 24 timer»-tidslinje for husstanden. `hours:` endrer vindu, `graf: false` skrur av.
 - Animasjon: sovende personer «puster» med z-z-z, «sovner …» blinker, ringen puster når noen sover. Respekterer prefers-reduced-motion.
+
+## v2.6.0
+- `ki-planter-pro-card`: tre sesonger (vekst / høysommer / vinterhvile) fra ki-planter 1.2.0, daglengde vises i blokk-overskriften.

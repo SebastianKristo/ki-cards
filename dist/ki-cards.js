@@ -1,4 +1,4 @@
-/* ki-cards v2.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v2.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.5.0";
+  KI.VERSION = "2.6.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1423,8 +1423,8 @@ try {
         let tone = due ? "feil" : left === 0 || pct >= 70 ? "advarsel" : "ok";
         let txt = a.grunn === "tørr jord" ? `Tørr jord ${fukt !== null ? Math.round(fukt) + " %" : ""}` : left === null ? "Ikke vannet" : due ? (left < 0 ? `${-left} ${-left === 1 ? "dag" : "dager"} over` : "Vann i dag") : left > 1 ? `Om ${left} dager` : left === 1 ? "I morgen" : (fukt !== null ? `Fuktig ${Math.round(fukt)} %` : "Vann i dag");
         return { entity: id, id: a.plante_id, name: a.navn, latin: a.latin || "", icon: a.ikon, tip: a.tips || "", sted: a.sted, stedPrefix: a.sted_prefix, last, iv, left, pct, tone, txt, due,
-          sesong: a.sesong, fukt, fuktMin: a.fuktighet_min, fuktSensor: a.fuktighet_sensor, ivSommer: a.intervall_sommer, ivVinter: a.intervall_vinter,
-          water: `button.${b}_vannet_na`, interval: `number.${b}_intervall`, intervalV: `number.${b}_intervall_vinter`, fuktMinEnt: `number.${b}_fuktighet_min`, auto: `switch.${b}_auto_registrer`, sist: `datetime.${b}_sist_vannet` }; });
+          sesong: a.sesong, dagl: a.daglengde_timer, fukt, fuktMin: a.fuktighet_min, fuktSensor: a.fuktighet_sensor, ivVekst: a.intervall_vekst, ivHoy: a.intervall_hoysommer, ivVinter: a.intervall_vinter,
+          water: `button.${b}_vannet_na`, interval: `number.${b}_intervall`, intervalV: `number.${b}_intervall_vinter`, intervalH: `number.${b}_intervall_hoysommer`, fuktMinEnt: `number.${b}_fuktighet_min`, auto: `switch.${b}_auto_registrer`, sist: `datetime.${b}_sist_vannet` }; });
     }
     _key() { return JSON.stringify([this._config, this._view, this._apen, Math.floor(Date.now() / 3600000), this._plants().map(p => [p.entity, (this.st(p.entity) || {}).attributes, this.val(p.interval)])]); }
     _render() {
@@ -1439,7 +1439,7 @@ try {
         <div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
           <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
-        <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? (ps[0].sesong === "vinter" ? "❄ vinterintervall" : "☀ sommerintervall") : ""}${c.sted || (ps[0] && ps[0].sted) ? " · " + (c.sted || ps[0].sted) : ""}</span></div>
+        <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? ({ vinter: "❄ vinterhvile", vekst: "🌱 vekstsesong", "høysommer": "☀ høysommer", sommer: "☀ sommer" }[ps[0].sesong] || ps[0].sesong) + (ps[0].dagl ? ` · ${ps[0].dagl} t dag` : "") : ""}</span></div>
           ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}
           ${due.length > 1 && steder.length === 1 ? `<div class="knapper"><div class="knapp primar press" data-press="button.${steder[0]}_alle_vannet" data-confirm="Registrere alle som trenger vann som vannet nå?" tabindex="0">Alle vannet</div></div>` : ""}
         </div>
@@ -1460,9 +1460,9 @@ try {
         <div class="last-kropp">
           <div class="spor"><div class="fyll ${p.tone === "feil" ? "rod" : p.tone === "advarsel" ? "gul" : "gronn"}" style="width:${p.pct}%"></div></div>
           <div class="under"><span>${p.last ? "sist " + p.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ikke vannet ennå"}</span><span>${p.last ? "neste " + fmtDato(new Date(p.last.getTime() + p.iv * DAG)) : ""}</span></div>
-          <div class="last-fakta" style="padding-top:8px"><span>hver ${Math.round(p.iv)}. dag${p.sesong ? " (" + p.sesong + ")" : ""}</span>${p.ivVinter ? `<span>❄ ${p.ivVinter} d</span>` : ""}${p.fukt !== null ? `<span class="${p.fukt < p.fuktMin ? "b-feil" : "b-ok"}" data-more="${p.fuktSensor}" style="cursor:pointer">fuktighet ${Math.round(p.fukt)} %</span>` : p.fuktSensor ? `<span>fuktsensor utilgjengelig</span>` : ""}</div>
+          <div class="last-fakta" style="padding-top:8px"><span>hver ${Math.round(p.iv)}. dag nå</span>${p.ivVekst ? `<span>🌱 ${p.ivVekst} d</span>` : ""}${p.ivHoy ? `<span>☀ ${p.ivHoy} d</span>` : ""}${p.ivVinter ? `<span>❄ ${p.ivVinter} d</span>` : ""}${p.fukt !== null ? `<span class="${p.fukt < p.fuktMin ? "b-feil" : "b-ok"}" data-more="${p.fuktSensor}" style="cursor:pointer">fuktighet ${Math.round(p.fukt)} %</span>` : p.fuktSensor ? `<span>fuktsensor utilgjengelig</span>` : ""}</div>
           ${p.tip ? `<div class="notat">${KI.esc(p.tip)}</div>` : ""}
-          ${adv ? KI.stepperHtml(this._hass, p.interval, "☀ Sommerintervall", { unit: " d" }) + KI.stepperHtml(this._hass, p.intervalV, "❄ Vinterintervall", { unit: " d", sub: "0 = samme som sommer" })
+          ${adv ? KI.stepperHtml(this._hass, p.interval, "🌱 Vekstsesong", { unit: " d", sub: "Daglengde 10–17 t" }) + KI.stepperHtml(this._hass, p.intervalH, "☀ Høysommer", { unit: " d", sub: "Over 17 t dag · 0 = som vekstsesong" }) + KI.stepperHtml(this._hass, p.intervalV, "❄ Vinterhvile", { unit: " d", sub: "Under 10 t dag · 0 = som vekstsesong" })
             + (this.st(p.fuktMinEnt) ? KI.stepperHtml(this._hass, p.fuktMinEnt, "Tørr under", { unit: " %", tick: p.fukt ?? undefined }) : "")
             + (this.st(p.auto) ? `<div class="rad"><div><div class="rad-navn">Auto-registrer</div><div class="rad-sub">Vanning registreres når fuktigheten hopper opp</div></div><div class="bryter ${this.on(p.auto) ? "on" : ""}" data-toggle="${p.auto}" tabindex="0"><span></span></div></div>` : "")
             + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
