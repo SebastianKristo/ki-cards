@@ -1,11 +1,8 @@
-# Innstillinger-popup bygget med ki-cards.
-# Bubble-card-rammen og stylingen er beholdt fra originalen; innholdet er byttet til ki-*-kort.
+# Innstillinger-popup (ki-cards v2). Én ki-tabs-card med style: auto → nedtrekksmeny når fanene ikke får plass,
+# sticky: true holder menyen øverst mens innholdet scroller.
 type: custom:bubble-card
 card_type: pop-up
-name: Innstillinger
-icon: mdi:cog
 state: null
-hash: '#settings'
 is_sidebar_hidden: true
 styles: |+
   .bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
@@ -23,19 +20,24 @@ margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 button_type: name
+name: Innstillinger
+icon: mdi:cog
+hash: '#settings'
 tap_action:
   action: navigate
   navigation_path: /config
 cards:
   - type: custom:ki-tabs-card
+    style: auto            # pills | dropdown | auto
+    sticky: true
     tabs:
       - title: Automasjoner
+        icon: mdi:robot
         cards:
           - type: grid
             columns: 2
             square: false
             cards:
-              # Fra ki-strom-integrasjonen (switch.ki_*)
               - type: custom:ki-toggle-card
                 size: tile
                 entity: switch.ki_helgemodus
@@ -46,38 +48,32 @@ cards:
                 entity: switch.ki_sommermodus
                 name: Sommermodus
                 icon: mdi:sun-angle
-          - type: custom:ki-tabs-card
-            tabs:
-              - title: Automasjoner
-                cards:
-                  - type: custom:ki-toggle-list-card
-                    include:
-                      - domain: automation
-                        entity_id: automation.automation*
-                      - entity_id: switch.ki_styr_hanklevarmer
-                      - entity_id: switch.ki_klima_hovedbryter
-                    sort: domain
-                  - type: custom:gap-card
-                    height: 120
-              - title: Push varsler
-                cards:
-                  - type: custom:ki-toggle-list-card
-                    include:
-                      - domain: automation
-                        entity_id: automation.push_automation*
-                  - type: custom:gap-card
-                    height: 120
-      - title: Alarm
+          - type: custom:ki-section-card
+            title: Automasjoner
+          - type: custom:ki-toggle-list-card
+            include:
+              - domain: automation
+                entity_id: automation.automation*
+              - entity_id: switch.ki_styr_hanklevarmer
+              - entity_id: switch.ki_klima_hovedbryter
+            sort: domain
+          - type: custom:gap-card
+            height: 120
+      - title: Varsler
+        icon: mdi:bell
         cards:
+          - type: custom:ki-toggle-list-card
+            include:
+              - domain: automation
+                entity_id: automation.push_automation*
+          - type: custom:gap-card
+            height: 120
+      - title: Vekking
+        icon: mdi:alarm
+        cards:
+          # Finner alarmen selv (sensor.soverom_vekking_neste_alarm). Sett prefix: hvis du har flere.
           - type: custom:ki-vekking-card
-            name: Gradvis lys
-            prefix: alarm
-            automation: automation.soverom_vekkealarm_gradvis_lys
-            conditions:
-              - entity: switch.sebastian_posisjon_hjemme_borte
-                name: Sebastian hjemme
-              - entity: switch.ki_klima_hovedbryter
-                name: Klimastyring
+            name: Soverom
           - type: custom:gap-card
             height: 12
           - type: custom:ki-toggle-list-card
@@ -86,3 +82,17 @@ cards:
                 entity_id: automation.innstillinger*
               - entity_id: input_boolean.innendors_privace_mode
             sort: domain
+          - type: custom:gap-card
+            height: 120
+      - title: Søvn
+        icon: mdi:sleep
+        cards:
+          - type: custom:ki-sovn-card
+          - type: custom:gap-card
+            height: 120
+      - title: Planter
+        icon: mdi:flower-outline
+        cards:
+          - type: custom:ki-planter-card
+          - type: custom:gap-card
+            height: 120

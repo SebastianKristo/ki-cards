@@ -35,7 +35,8 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-helse-card.svg" width="28" align="absmiddle"> | `ki-helse-card` | KI Helse | Aktivitet, hjerte, søvn og kropp fra Apple Health |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter: status, intervall og «vannet nå» (mode: list / tile) |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 
 ### Byggeklosser
 
@@ -43,11 +44,11 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 |---|---|---|
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-toggle-card.svg" width="28" align="absmiddle"> | `ki-toggle-card` | Bryter som rad (`size: row`) eller flis (`size: tile`) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-toggle-list-card.svg" width="28" align="absmiddle"> | `ki-toggle-list-card` | Liste av `ki-toggle-card` fra filter (erstatter auto-entities) |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-tabs-card.svg" width="28" align="absmiddle"> | `ki-tabs-card` | Pillefaner med kort i hver fane (erstatter simple-tabs + card_mod) |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-tabs-card.svg" width="28" align="absmiddle"> | `ki-tabs-card` | Faner som piller eller nedtrekksmeny (`style: auto` bytter selv når de ikke får plass), `sticky: true` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-section-card.svg" width="28" align="absmiddle"> | `ki-section-card` | Liten seksjonstittel |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-slider-card.svg" width="28" align="absmiddle"> | `ki-slider-card` | Etikett, slider og verdi for `input_number` / `number` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-action-card.svg" width="28" align="absmiddle"> | `ki-action-card` | Knapp som kjører en tjeneste, med valgfri bekreftelse |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vekking-card.svg" width="28" align="absmiddle"> | `ki-vekking-card` | Vekkealarm: ukedager, vekketider, fade, nattlampe, betingelser, test |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vekking-card.svg" width="28" align="absmiddle"> | `ki-vekking-card` | Vekkealarm fra ki-sovn v2: neste alarm, ukedager med tid, lys, person, betingelser, test (mode: list / tile) |
 
 Ikonene ligger i `brand/` som SVG og PNG (256 px).
 
@@ -169,3 +170,12 @@ riktig i HACS.
 
 `ki-klima-pro-card` finnes også i [ki-strom](https://github.com/SebastianKristo/ki-strom); den nyeste av de to bør vinne –
 oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversjon.
+
+## v2.0.0
+- `ki-tabs-card`: `style: auto|pills|dropdown`, `sticky: true`, `align`, `gap`.
+- Alle ki-kort har lås mot horisontal overflyt (`max-width: 100%; overflow: hidden`) – ingen kort «sklir» ut av popupen lenger.
+- `ki-vekking-card`, `ki-sovn-card` og `ki-planter-card` finner entitetene sine selv via markørattributtet `integrasjon` fra
+  [ki-sovn v2](https://github.com/SebastianKristo/ki-sovn) og [ki-planter](https://github.com/SebastianKristo/ki-planter).
+  Ingen `prefix`/`persons`/`plants` nødvendig (kan fortsatt settes).
+- `ki-sovn-card`: manuell overstyring bruker `button.<navn>_sovn_sett_sover/_sett_vaken`, viser «sover siden».
+- Eksempler i `examples/`: `innstillinger-popup.yaml` (nedtrekksmeny med Automasjoner / Varsler / Vekking / Søvn / Planter), `sovn-popup.yaml`, `planter-popup.yaml`, fliser.

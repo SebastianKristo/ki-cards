@@ -1,13 +1,14 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "1.2.1";
+  KI.VERSION = "2.0.0";
 
   KI.css = `
-    :host { display:block; }
-    *, *::before, *::after { box-sizing:border-box; }
+    :host { display:block; min-width:0; max-width:100%; }
+    *, *::before, *::after { box-sizing:border-box; min-width:0; }
     .card {
       border-radius: 22px;
+      max-width:100%; overflow:hidden;
       background: var(--ki-bg, var(--gray200));
       color: var(--gray1000);
       font-family: inherit;
@@ -29,6 +30,24 @@ window.KI = window.KI || {};
     .state { font-size:13px; font-weight:500; opacity:.7; white-space:nowrap; }
     .state.on { opacity:1; }
     .section { font-size:13px; font-weight:600; opacity:.55; padding:4px 2px 2px; color:var(--gray1000); }
+    .chip { font-size:12px; font-weight:500; padding:4px 10px; border-radius:999px; background:var(--gray100); color:var(--gray1000); opacity:.6; white-space:nowrap; }
+    .chip.on { background:var(--active-big); color:rgba(70,58,64,.95); opacity:1; }
+    .chip.warn { background:var(--yellow); color:var(--black); opacity:1; }
+    .chip.bad { background:var(--red); color:#fff; opacity:1; }
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; height:46px; border-radius:16px; padding:0 16px;
+      background:var(--gray100); color:var(--gray1000); font-size:14px; font-weight:600; --mdc-icon-size:20px; cursor:pointer; }
+    .btn.primary { background:var(--active-big); color:rgba(70,58,64,.95); }
+    .btn.danger { background:var(--red); color:#fff; }
+    .sw { width:44px; height:26px; border-radius:13px; background:var(--gray100); position:relative; flex:none; transition:background .2s; cursor:pointer; }
+    .sw.on { background:var(--active-big); }
+    .sw.disabled { opacity:.3; pointer-events:none; }
+    .sw i { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
+    .sw.on i { transform:translateX(18px); }
+    .empty { font-size:13px; opacity:.6; padding:10px 12px; line-height:1.5; }
+    .empty code { font-size:12px; opacity:.85; }
+    input[type=time] { font:inherit; font-size:14px; font-weight:500; color:var(--gray1000); background:var(--gray100);
+      border:0; border-radius:10px; padding:6px 10px; color-scheme:dark; min-width:0; }
+    input[type=time]:focus-visible { outline:2px solid var(--active-big); }
     @media (prefers-reduced-motion: reduce) { .press { transition:none; } }
   `;
 
@@ -74,6 +93,29 @@ window.KI = window.KI || {};
     const s = hass && hass.states[id];
     return (s && s.attributes.friendly_name) || fallback || id;
   };
+
+  /* Finn entiteter etter attributter, f.eks. KI.find(hass, "binary_sensor", { integrasjon:"ki_sovn", type:"person" }) */
+  KI.find = (hass, domain, attrs) => {
+    if (!hass) return [];
+    return Object.keys(hass.states).filter(id => {
+      if (domain && !id.startsWith(domain + ".")) return false;
+      const a = hass.states[id].attributes || {};
+      return Object.keys(attrs).every(k => a[k] === attrs[k]);
+    }).sort();
+  };
+  KI.navigate = (path) => { window.history.pushState(null, "", path); window.dispatchEvent(new Event("location-changed")); };
+  KI.go = (c) => { if (c.navigation_path) KI.navigate(c.navigation_path); else if (c.hash) window.location.hash = c.hash; };
+  KI.press = (hass, entityId) => hass.callService("button", "press", { entity_id: entityId });
+  KI.key = (el, fn) => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+  KI.hhmm = (v) => (v && v !== "unknown" && v !== "unavailable") ? String(v).slice(0, 5) : "--:--";
+  KI.rel = (iso) => {
+    if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return "";
+    const m = Math.round((Date.now() - d.getTime()) / 60000);
+    if (m < 1) return "nå"; if (m < 60) return `${m} min`; const h = Math.floor(m / 60);
+    if (h < 24) return `${h} t${m % 60 ? " " + (m % 60) + " min" : ""}`; return d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+  };
+  KI.clock = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }); };
+  KI.esc = (s) => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
   KI.createCard = async (config) => {
     const helpers = await window.loadCardHelpers();
