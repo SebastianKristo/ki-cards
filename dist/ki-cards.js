@@ -1,4 +1,4 @@
-/* ki-cards v2.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v2.7.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.6.0";
+  KI.VERSION = "2.7.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1437,7 +1437,7 @@ try {
       this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         <div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
-          <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+          <div><div class="hero-navn">${KI.esc(navn)}${ps.some(p => (this.st(p.entity) || { attributes: {} }).attributes.grunn === "test") ? ` <span class="merke gul">test</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
         <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? ({ vinter: "❄ vinterhvile", vekst: "🌱 vekstsesong", "høysommer": "☀ høysommer", sommer: "☀ sommer" }[ps[0].sesong] || ps[0].sesong) + (ps[0].dagl ? ` · ${ps[0].dagl} t dag` : "") : ""}</span></div>
           ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}
@@ -1445,7 +1445,8 @@ try {
         </div>
         ${adv && steder.length ? steder.map(sp => { const sw = `switch.${sp}_varsling`, cnt = this.st(`sensor.${sp}_trenger_vann`); return `<div class="blokk"><div class="blokk-hode"><span>Varsling</span><span class="blokk-sub">${cnt ? KI.friendly(this._hass, `sensor.${sp}_trenger_vann`).replace(/ trenger vann$/i, "") : ""}</span></div>
           ${this.st(sw) ? `<div class="rad"><div><div class="rad-navn">Varsel når planter trenger vann</div><div class="rad-sub">${cnt && cnt.attributes.sist_varslet ? "sist varslet " + new Date(cnt.attributes.sist_varslet).toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "klokkeslett settes i integrasjonen"}</div></div><div class="bryter ${this.on(sw) ? "on" : ""}" data-toggle="${sw}" tabindex="0"><span></span></div></div>` : ""}
-          <div class="knapper"><div class="knapp press" data-press="button.${sp}_send_varsel" tabindex="0">Send varsel nå</div></div></div>`; }).join("") : ""}
+          ${this.st(`switch.${sp}_testvisning`) ? `<div class="rad"><div><div class="rad-navn">Testvisning</div><div class="rad-sub">Viser alle planter som tørste i 10 min – i kortet og på dashboardet</div></div><div class="bryter ${this.on(`switch.${sp}_testvisning`) ? "on" : ""}" data-toggle="switch.${sp}_testvisning" tabindex="0"><span></span></div></div>` : ""}
+          <div class="knapper"><div class="knapp press" data-press="button.${sp}_send_varsel" tabindex="0">🧪 Send testvarsel</div></div></div>`; }).join("") : ""}
       </div>`;
       KI.wirePro(this, this.shadowRoot);
     }

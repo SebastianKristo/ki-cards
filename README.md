@@ -215,3 +215,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.6.0
 - `ki-planter-pro-card`: tre sesonger (vekst / høysommer / vinterhvile) fra ki-planter 1.2.0, daglengde vises i blokk-overskriften.
+
+## v2.7.0
+- `ki-planter-pro-card` (Avansert → Varsling): «Testvisning»-bryter og «Send testvarsel»-knapp fra ki-planter 1.3.0; «test»-merke i hero når testvisning er på.
