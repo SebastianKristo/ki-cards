@@ -1,0 +1,11 @@
+# Flis på soverom-visningen som åpner popupen. Legg den i samme grid som de andre flisene.
+type: custom:ki-planter-card
+mode: tile
+name: Planter
+icon: mdi:flower-outline
+hash: '#planter-sebastian'
+plants:
+  - id: areca
+    name: Arekapalme
+  - id: yucca
+    name: Palmelilje

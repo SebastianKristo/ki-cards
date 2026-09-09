@@ -1,4 +1,4 @@
-/* ki-cards v1.2.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v1.2.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "1.2.0";
+  KI.VERSION = "1.2.1";
 
   KI.css = `
     :host { display:block; }

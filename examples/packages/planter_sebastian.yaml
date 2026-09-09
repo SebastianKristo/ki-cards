@@ -1,0 +1,68 @@
+# packages/planter_sebastian.yaml – hjelpere for vanning av planter på Sebastians soverom.
+# Legg i /config/packages/ (krever homeassistant: packages: !include_dir_named packages i configuration.yaml).
+
+input_datetime:
+  plante_areca_sist_vannet:
+    name: Arekapalme sist vannet
+    has_date: true
+    has_time: true
+    icon: mdi:watering-can
+  plante_yucca_sist_vannet:
+    name: Palmelilje sist vannet
+    has_date: true
+    has_time: true
+    icon: mdi:watering-can
+
+input_number:
+  plante_areca_intervall:
+    name: Arekapalme vanningsintervall
+    min: 1
+    max: 45
+    step: 1
+    initial: 7
+    unit_of_measurement: d
+    icon: mdi:calendar-refresh
+  plante_yucca_intervall:
+    name: Palmelilje vanningsintervall
+    min: 1
+    max: 45
+    step: 1
+    initial: 18
+    unit_of_measurement: d
+    icon: mdi:calendar-refresh
+
+template:
+  - sensor:
+      - name: Planter Sebastian som trenger vann
+        unique_id: planter_sebastian_trenger_vann
+        icon: mdi:flower-outline
+        unit_of_measurement: stk
+        state: >
+          {% set ns = namespace(n=0) %}
+          {% for p in ['areca', 'yucca'] %}
+            {% set last = states('input_datetime.plante_' ~ p ~ '_sist_vannet') %}
+            {% set iv = states('input_number.plante_' ~ p ~ '_intervall') | float(7) %}
+            {% if last in ['unknown', 'unavailable', ''] or (now() - as_datetime(last) | as_local).days >= iv %}
+              {% set ns.n = ns.n + 1 %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.n }}
+
+automation:
+  - alias: Planter – varsel om vanning (Sebastian)
+    id: planter_sebastian_varsel
+    trigger:
+      - platform: time
+        at: "18:00:00"
+    condition:
+      - condition: numeric_state
+        entity_id: sensor.planter_sebastian_som_trenger_vann
+        above: 0
+    action:
+      - service: notify.mobile_app_sebastians_iphone   # bytt til navnet på din iPhone-notify
+        data:
+          title: Planter
+          message: >
+            {{ states('sensor.planter_sebastian_som_trenger_vann') }} plante(r) på soverommet trenger vann.
+          data:
+            url: /lovelace/soverom#planter-sebastian

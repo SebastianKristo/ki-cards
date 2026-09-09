@@ -1,0 +1,48 @@
+# Popup for vanning av planter på Sebastians soverom – bygget med ki-cards (ki-planter-card).
+# Samme bubble-card-ramme og styling som Innstillinger-popupen.
+type: custom:bubble-card
+card_type: pop-up
+name: Planter
+icon: mdi:flower-outline
+state: null
+hash: '#planter-sebastian'
+is_sidebar_hidden: true
+styles: |+
+  .bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
+  #header-container > div > div { background: var(--gray000)!important; }
+  #header-container > button {background: none;}
+  .icon-container {background-color:var(--gray1000)!important;}
+  .icon-container > ha-icon {color:var(--black)!important;opacity:1!important}
+  .bubble-icon { --mdc-icon-size: 24px !important; }
+  .bubble-name { font-size: 30px !important; font-weight: 500; line-height: 1.4 !important; padding: 8px 0 !important; }
+  .bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%; }
+bg_blur: '5'
+shadow_opacity: '20'
+bg_opacity: '98'
+margin_top_mobile: 50px
+margin_top_desktop: 50px
+card_layout: large
+button_type: name
+cards:
+  - type: custom:ki-section-card
+    title: Sebastians soverom
+  - type: custom:ki-planter-card
+    confirm: false            # true = bekreftelsesdialog før «Vannet nå»
+    plants:
+      - id: areca
+        name: Arekapalme
+        latin: Dypsis lutescens
+        icon: mdi:palm-tree
+        tip: >-
+          Liker jevnt fuktig jord uten å stå i vann. Vann når de øverste 2–3 cm er tørre –
+          omtrent ukentlig om sommeren, sjeldnere om vinteren. Dusj bladene av og til, den
+          trives i litt luftfuktighet.
+      - id: yucca
+        name: Palmelilje
+        latin: Yucca elephantipes
+        icon: mdi:sprout
+        tip: >-
+          Tåler tørke godt og råtner lett av for mye vann. La jorda tørke helt ut mellom
+          hver vanning – hver 2.–3. uke er nok, enda sjeldnere om vinteren. Vil ha mye lys.
+  - type: custom:gap-card
+    height: 120

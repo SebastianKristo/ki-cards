@@ -158,7 +158,14 @@ nattlampe: input_boolean.alarm_nattlampe
 test: true
 ```
 
-Et komplett eksempel på Innstillinger-popupen ligger i [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml).
+## Eksempler
+
+| Fil | Innhold |
+|---|---|
+| [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml) | Innstillinger-popup (#settings): faner, helg/sommer, automasjonslister, vekkealarm |
+| [`examples/planter-popup.yaml`](examples/planter-popup.yaml) | Planter-popup (#planter-sebastian) med `ki-planter-card` |
+| [`examples/soverom-tile.yaml`](examples/soverom-tile.yaml) | Planter-flis på soverommet som åpner popupen |
+| [`examples/packages/planter_sebastian.yaml`](examples/packages/planter_sebastian.yaml) | HA-package: hjelpere, teller-sensor og varsel for plantene |
 
 ## Utvikling
 
