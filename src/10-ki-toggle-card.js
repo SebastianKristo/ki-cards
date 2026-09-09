@@ -35,7 +35,7 @@
       this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background}; display:flex; gap:14px; align-items:center;
           ${tile
-            ? "flex-direction:column; align-items:flex-start; justify-content:space-between; padding:16px 16px 14px; min-height:128px;"
+            ? "flex-direction:column; align-items:flex-start; justify-content:space-between; padding:16px 16px 14px; min-height:128px; height:100%;"
             : "border-radius:999px; padding:8px 18px 8px 8px; min-height:64px;"} }
         .icon-wrap { width:48px; height:48px; background:var(--gray300, rgba(255,255,255,.08)); }
         .icon-wrap.on { background:var(--active-big); }
@@ -50,6 +50,7 @@
         .sw.on { background:var(--gray1000); }
         .sw.on i { background:var(--gray200); transform:translateX(20px); }
         ${!icon && !tile ? ".card{padding-left:20px}" : ""}
+        ${tile ? ":host{height:100%}" : ""}
         ${s ? "" : ".card{opacity:.5}"}
         @media (prefers-reduced-motion: reduce) { .sw, .sw i { transition:none; } }
       </style>

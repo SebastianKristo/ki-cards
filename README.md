@@ -139,7 +139,7 @@ plants:
 
 ### ki-sovn-card
 Leser `binary_sensor.<navn>_sover` fra [ki_sovn](https://github.com/SebastianKristo/ki-sovn). Rad per person med status,
-sannsynlighet (bar med terskelstrek) og bryter som overstyrer Homey-bryteren. Trykk på raden for å se observasjonene.
+sannsynlighet (bar med terskelstrek) og bryter som overstyrer Homey-bryteren. Trykk på raden for å se observasjonene og innstillingene (ki_sovn 1.2.0+).
 Uten `persons` finner kortet alle `binary_sensor.*_sover` selv.
 ```yaml
 type: custom:ki-sovn-card
@@ -147,9 +147,11 @@ mode: list                # list (popup) | tile (oversikt, tap åpner hash/navig
 threshold: 80             # terskel i prosent, tegnes som strek i baren
 persons:
   - name: Cybele
-    entity: binary_sensor.cybele_sover
+    entity: binary_sensor.cybele_sovn_sover         # standard: binary_sensor.<navn>_sovn_sover
     switch: switch.homey_logic_cybele_sovn_vaken   # standard: switch.homey_logic_<navn>_sovn_vaken
+    prefix: cybele_sovn   # standard – brukes for number./time./switch.<prefix>_* fra ki_sovn
     bedtime: 19–21        # valgfri undertekst
+settings: true            # innstillinger (sovevindu, terskel, forsinkelser, puls, brytere) under hver person
 ```
 
 ### ki-vekking-card

@@ -30,15 +30,15 @@ cards:
     threshold: 80             # strek i baren – samme som terskelen i ki_sovn
     persons:
       - name: Sebastian
-        entity: binary_sensor.sebastian_sover
+        entity: binary_sensor.sebastian_sovn_sover
         switch: switch.homey_logic_sebastian_sovn_vaken
         bedtime: 23–01
       - name: Rune
-        entity: binary_sensor.rune_sover
+        entity: binary_sensor.rune_sovn_sover
         switch: switch.homey_logic_rune_sovn_vaken
         bedtime: 23–01
       - name: Cybele
-        entity: binary_sensor.cybele_sover
+        entity: binary_sensor.cybele_sovn_sover
         switch: switch.homey_logic_cybele_sovn_vaken
         bedtime: 19–21
   - type: custom:gap-card

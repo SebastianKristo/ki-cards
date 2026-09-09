@@ -1,4 +1,4 @@
-/* ki-cards v1.4.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v1.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "1.4.0";
+  KI.VERSION = "1.5.0";
 
   KI.css = `
     :host { display:block; }
@@ -159,7 +159,7 @@ try {
       this.shadowRoot.innerHTML = `<style>${KI.css}
         .card { --ki-bg:${c.background}; display:flex; gap:14px; align-items:center;
           ${tile
-            ? "flex-direction:column; align-items:flex-start; justify-content:space-between; padding:16px 16px 14px; min-height:128px;"
+            ? "flex-direction:column; align-items:flex-start; justify-content:space-between; padding:16px 16px 14px; min-height:128px; height:100%;"
             : "border-radius:999px; padding:8px 18px 8px 8px; min-height:64px;"} }
         .icon-wrap { width:48px; height:48px; background:var(--gray300, rgba(255,255,255,.08)); }
         .icon-wrap.on { background:var(--active-big); }
@@ -174,6 +174,7 @@ try {
         .sw.on { background:var(--gray1000); }
         .sw.on i { background:var(--gray200); transform:translateX(20px); }
         ${!icon && !tile ? ".card{padding-left:20px}" : ""}
+        ${tile ? ":host{height:100%}" : ""}
         ${s ? "" : ".card{opacity:.5}"}
         @media (prefers-reduced-motion: reduce) { .sw, .sw i { transition:none; } }
       </style>
@@ -721,19 +722,18 @@ try {
     /* Personer fra config, ellers auto-oppdaget fra ki_sovn-entitetene */
     _persons() {
       const c = this._config;
-      if (c.persons) return c.persons.map(p => ({
-        name: p.name, entity: p.entity, icon: p.icon || "mdi:sleep",
-        switch: p.switch || `switch.homey_logic_${p.entity.replace(/^binary_sensor\./, "").replace(/_sover$/, "")}_sovn_vaken`,
+      const mk = (slug, p = {}) => ({
+        name: p.name || slug.charAt(0).toUpperCase() + slug.slice(1),
+        entity: p.entity || `binary_sensor.${slug}_sovn_sover`,
+        switch: p.switch || `switch.homey_logic_${slug}_sovn_vaken`,
+        prefix: p.prefix || `${slug}_sovn`,           // ki_sovn-innstillinger: number./time./switch.<prefix>_*
         bedtime: p.bedtime || "",
-      }));
+      });
+      if (c.persons) return c.persons.map(p => mk(p.slug || (p.entity || p.name).replace(/^binary_sensor\./, "").replace(/_sovn_sover$/, "").toLowerCase(), p));
       if (!this._hass) return [];
       return Object.keys(this._hass.states)
-        .filter(id => id.startsWith("binary_sensor.") && id.endsWith("_sover") && this._hass.states[id].attributes.sannsynlighet !== undefined)
-        .sort()
-        .map(id => { const s = id.slice(14, -6); return {
-          name: s.charAt(0).toUpperCase() + s.slice(1), entity: id, icon: "mdi:sleep",
-          switch: `switch.homey_logic_${s}_sovn_vaken`, bedtime: "",
-        }; });
+        .filter(id => id.startsWith("binary_sensor.") && id.endsWith("_sovn_sover") && this._hass.states[id].attributes.sannsynlighet !== undefined)
+        .sort().map(id => mk(id.slice(14, -11)));
     }
 
     _info(p) {
@@ -754,7 +754,8 @@ try {
       const ps = this._persons();
       return JSON.stringify([this._config, this._open, ps.map(p => {
         const s = this.st(p.entity), w = this.st(p.switch);
-        return [s && s.state, s && s.attributes, w && w.state];
+        const cfgIds = Object.keys(this._hass ? this._hass.states : {}).filter(id => id.includes(`.${p.prefix}_`));
+        return [s && s.state, s && s.attributes, w && w.state, cfgIds.map(id => this.val(id))];
       })]);
     }
 
@@ -794,6 +795,16 @@ try {
         .chip.num { opacity:1; font-variant-numeric:tabular-nums; }
         .why { font-size:12px; opacity:.55; margin-top:8px; }
         .empty { font-size:13px; opacity:.55; padding:6px 4px; }
+        :host { min-width:0; max-width:100%; overflow:hidden; }
+        .list { min-width:0; }
+        .card { overflow:hidden; }
+        .settings { margin-top:14px; }
+        .times { display:flex; flex-wrap:wrap; gap:8px 14px; padding:4px 2px 10px; }
+        .tm { display:flex; align-items:center; gap:8px; font-size:13px; opacity:.85; }
+        .tm span { opacity:.7; }
+        .tm input { font:inherit; font-size:14px; font-weight:500; color:var(--gray1000); background:var(--gray100); border:0; border-radius:10px; padding:6px 8px; }
+        .tm input:focus-visible { outline:2px solid var(--active-big); }
+        .stack { display:grid; gap:8px; }
         @media (prefers-reduced-motion: reduce) { .bar i, .sw, .sw i { transition:none; } }
       </style>
       <div class="list">
@@ -816,6 +827,7 @@ try {
                 ${s.puls !== null ? `<span class="chip num">${s.puls} bpm</span>` : ""}
               </div>
               ${s.why ? `<div class="why">Sist: ${s.why}</div>` : ""}
+              ${c.settings === false ? "" : this._settingsHtml(p, s, i)}
             </div>
           </div>`; }).join("") : `<div class="card"><div class="empty">Fant ingen ki_sovn-entiteter (binary_sensor.*_sover)</div></div>`}
       </div>`;
@@ -833,7 +845,48 @@ try {
         KI.bindPress(el, run, () => KI.moreInfo(this, p.switch));
         el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } });
       });
+      this._wireSettings();
     }
+
+    _settingsHtml(p, s, i) {
+      const x = p.prefix;
+      const t = (id, lbl) => { const st = this.st(id); return st ? `<label class="tm"><span>${lbl}</span><input type="time" data-time="${id}" value="${st.state.slice(0, 5)}"></label>` : ""; };
+      const times = [t(`time.${x}_sovevindu_start`, "Sovevindu"), t(`time.${x}_sovevindu_slutt`, "til"), t(`time.${x}_morgen_fra`, "Morgen fra")].join("");
+      const sl = (id, name, extra = "") => this.st(id) ? `<ki-slider-card data-slider="${i}" data-entity="${id}" data-name="${name}" ${extra}></ki-slider-card>` : "";
+      const tg = (id, name, label) => this.st(id) ? `<ki-toggle-card data-toggle="${i}" data-entity="${id}" data-name="${name}" data-label="${label}"></ki-toggle-card>` : "";
+      if (!times && !this.st(`number.${x}_terskel`)) return "";
+      return `<div class="settings">
+        <div class="section">Innstillinger</div>
+        <div class="times">${times}</div>
+        <div class="stack">
+          ${sl(`number.${x}_terskel`, "Terskel")}
+          ${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}
+          ${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}
+          ${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}
+          ${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}
+          ${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}
+          ${s.puls !== null || s.obs.some(o => o.label === "lav puls" && o.v !== undefined) ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}
+          ${tg(`switch.${x}_dor_om_natta_ok`, "Dør om natta", "Do-turer vekker ikke")}
+          ${tg(`switch.${x}_automatisk`, "Automatisk", "Styrer Homey-bryteren")}
+        </div>
+      </div>`;
+    }
+
+    _wireSettings() {
+      const r = this.shadowRoot; this._subs = [];
+      r.querySelectorAll("ki-slider-card").forEach(el => {
+        el.setConfig({ entity: el.dataset.entity, name: el.dataset.name, label_width: "118px", value_width: "64px" });
+        el.hass = this._hass; this._subs.push(el);
+      });
+      r.querySelectorAll("ki-toggle-card").forEach(el => {
+        el.setConfig({ entity: el.dataset.entity, name: el.dataset.name, label: el.dataset.label, icon: null });
+        el.hass = this._hass; this._subs.push(el);
+      });
+      r.querySelectorAll("input[type=time]").forEach(inp => {
+        inp.addEventListener("change", () => this._hass.callService("time", "set_value", { entity_id: inp.dataset.time, time: inp.value + ":00" }));
+      });
+    }
+    _passHass(h) { (this._subs || []).forEach(el => el.hass = h); }
 
     _renderTile(persons, infos) {
       const c = this._config;
