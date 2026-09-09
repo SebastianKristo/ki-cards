@@ -218,3 +218,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.7.0
 - `ki-planter-pro-card` (Avansert → Varsling): «Testvisning»-bryter og «Send testvarsel»-knapp fra ki-planter 1.3.0; «test»-merke i hero når testvisning er på.
+
+## v2.8.0
+- `ki-planter-pro-card` (Avansert → Varsling): én bryter per varsel-enhet fra ki-planter 1.4.0.
