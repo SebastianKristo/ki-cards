@@ -6,7 +6,7 @@ Alle egne Lovelace-kort for Home Assistant samlet i ett HACS-repo og én fil, `d
 De nye `ki-*`-kortene bruker temaets CSS-variabler (`--gray100`, `--gray200`, `--gray1000`, `--active-big`,
 `--yellow`, `--green`, …) så de følger dashboardets utseende uten `card_mod`. `ki-*`-kortene er tatt inn uendret.
 Hvert kort er pakket i sin egen blokk, så én feil stopper ikke resten – og kort som allerede finnes
-hoppes over. `ki-klima-pro-card` ligger kun i [ki-strom](https://github.com/SebastianKristo/ki-strom).
+(for eksempel `ki-klima-pro-card` installert via [ki-strom](https://github.com/SebastianKristo/ki-strom)) hoppes over.
 
 ## Installasjon
 
@@ -22,6 +22,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 
 | | Kort | Navn | Bruk |
 |---|---|---|---|
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-pro-card.svg" width="28" align="absmiddle"> | `ki-klima-pro-card` | KI Klima Pro | Hele klima- og energisystemet: status, soner, energi, varmtvann, motorens resonnement og logg |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-card.svg" width="28" align="absmiddle"> | `ki-klima-card` | KI Klima | Klimastyring med enkel og avansert visning, effektvakt og sonestyring |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card.svg" width="28" align="absmiddle"> | `ki-energi-card` | KI Energi | Timebudsjett, laster, beslutningslogg og innstillinger for KI-energimotoren |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card-strom.svg" width="28" align="absmiddle"> | `ki-energi-card-strom` | KI Energi Strøm | Strømvariant av KI Energi-kortet |
@@ -33,9 +34,8 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-ruter-card.svg" width="28" align="absmiddle"> | `ki-ruter-card` | KI Ruter | Kollektivavganger fra Entur med avviksvarsler |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-helse-card.svg" width="28" align="absmiddle"> | `ki-helse-card` | KI Helse | Aktivitet, hjerte, søvn og kropp fra Apple Health |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter: status, intervall og «vannet nå» (mode: list / tile) |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki_sovn](https://github.com/SebastianKristo/ki-sovn): sannsynlighet, observasjoner og overstyring (mode: list / tile) |
 
 ### Byggeklosser
 
@@ -52,16 +52,13 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 Ikonene ligger i `brand/` som SVG og PNG (256 px).
 
 ### ki-toggle-card
-Rad = pille med ikon i sirkel til venstre og bryter til høyre. Flis = større kort med ikon, navn og status.
 ```yaml
 type: custom:ki-toggle-card
-entity: input_boolean.ki_helgemodus
+entity: switch.ki_helgemodus
 name: Helgemodus          # valgfri, ellers friendly_name
 label: Undertekst         # valgfri
-icon: mdi:airplane-takeoff # standard: entitetens ikon, ellers domene-ikon. null = skjul
-size: row                 # row (standard) | tile
-control: switch           # row: switch (standard) | dot | none.  tile: text (standard) | switch | dot
-show_state: false         # true = vis På/Av-tekst i tillegg til bryteren
+icon: mdi:airplane-takeoff # null = skjul ikon
+size: tile                # row (standard) | tile
 background: var(--gray200)
 state_on: På
 state_off: Av
@@ -137,37 +134,16 @@ plants:
     # standard: input_datetime.plante_<id>_sist_vannet og input_number.plante_<id>_intervall
 ```
 
-### ki-sovn-card
-Leser `binary_sensor.<navn>_sover` fra [ki_sovn](https://github.com/SebastianKristo/ki-sovn). Rad per person med status,
-sannsynlighet (bar med terskelstrek) og bryter som overstyrer Homey-bryteren. Trykk på raden for å se observasjonene og innstillingene (ki_sovn 1.2.0+).
-Uten `persons` finner kortet alle `binary_sensor.*_sover` selv.
-```yaml
-type: custom:ki-sovn-card
-mode: list                # list (popup) | tile (oversikt, tap åpner hash/navigation_path)
-threshold: 80             # terskel i prosent, tegnes som strek i baren
-persons:
-  - name: Cybele
-    entity: binary_sensor.cybele_sovn_sover         # standard: binary_sensor.<navn>_sovn_sover
-    switch: switch.homey_logic_cybele_sovn_vaken   # standard: switch.homey_logic_<navn>_sovn_vaken
-    prefix: cybele_sovn   # standard – brukes for number./time./switch.<prefix>_* fra ki_sovn
-    bedtime: 19–21        # valgfri undertekst
-settings: true            # innstillinger (sovevindu, terskel, forsinkelser, puls, brytere) under hver person
-```
-
 ### ki-vekking-card
-To kilder, oppdages automatisk:
-- **[ki_vekking](https://github.com/SebastianKristo/ki-vekking)-integrasjonen** (anbefalt): `prefix` er enhetens slug, f.eks. `soverom_vekking`.
-  Kortet bruker `switch.<prefix>_aktiv`, `switch.<prefix>_<dag>_aktiv`, `time.<prefix>_<dag>`, `number.<prefix>_fade_opp`,
-  `number.<prefix>_av_etter`, `switch.<prefix>_nattlampe`, `sensor.<prefix>_neste_alarm`, `button.<prefix>_test/stopp`.
-  Betingelser hentes fra integrasjonen hvis `conditions` utelates.
-- **YAML-package** (gammel): `input_boolean.<prefix>_master`, `input_boolean.<prefix>_<dag>_aktiv`,
-  `input_datetime.<prefix>_<dag>`, `input_number.<prefix>_fade_minutter`, `input_number.<prefix>_av_etter_minutter`,
-  `input_boolean.<prefix>_nattlampe` + `automation`. Tving med `source: package`.
+Forventer entitetene `input_boolean.<prefix>_master`, `input_boolean.<prefix>_<dag>_aktiv`,
+`input_datetime.<prefix>_<dag>`, `input_number.<prefix>_fade_minutter`,
+`input_number.<prefix>_av_etter_minutter` og `input_boolean.<prefix>_nattlampe`
+(dager: mandag … sondag). Alle kan overstyres.
 ```yaml
 type: custom:ki-vekking-card
 name: Gradvis lys
-prefix: soverom_vekking
-# automation: automation.soverom_vekkealarm_gradvis_lys   # bare for YAML-package
+prefix: alarm
+automation: automation.soverom_vekkealarm_gradvis_lys
 expanded: false
 conditions:
   - entity: switch.sebastian_posisjon_hjemme_borte
@@ -182,16 +158,7 @@ nattlampe: input_boolean.alarm_nattlampe
 test: true
 ```
 
-## Eksempler
-
-| Fil | Innhold |
-|---|---|
-| [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml) | Innstillinger-popup (#settings): faner, helg/sommer, automasjonslister, vekkealarm, søvn |
-| [`examples/planter-popup.yaml`](examples/planter-popup.yaml) | Planter-popup (#planter-sebastian) med `ki-planter-card` |
-| [`examples/sovn-popup.yaml`](examples/sovn-popup.yaml) | Søvn-popup (#sovn) med `ki-sovn-card` for alle tre |
-| [`examples/sovn-tile.yaml`](examples/sovn-tile.yaml) | Søvn-flis i oversikten som åpner popupen |
-| [`examples/soverom-tile.yaml`](examples/soverom-tile.yaml) | Planter-flis på soverommet som åpner popupen |
-| [`examples/packages/planter_sebastian.yaml`](examples/packages/planter_sebastian.yaml) | HA-package: hjelpere, teller-sensor og varsel for plantene |
+Et komplett eksempel på Innstillinger-popupen ligger i [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml).
 
 ## Utvikling
 
@@ -200,3 +167,5 @@ Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kor
 Nye kort: legg fila i `src/cards/`, lag et ikon i `brand/`, bygg, bump versjon. Bump `SK.VERSION` i `src/00-sk-base.js` før du bygger, så cache-bustes ressursen
 riktig i HACS.
 
+`ki-klima-pro-card` finnes også i [ki-strom](https://github.com/SebastianKristo/ki-strom); den nyeste av de to bør vinne –
+oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversjon.

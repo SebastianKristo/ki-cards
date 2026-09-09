@@ -1,4 +1,5 @@
-# Innstillinger-popup bygget med ki-cards (v1.6.0+). Flat layout uten toppfaner.
+# Innstillinger-popup bygget med ki-cards.
+# Bubble-card-rammen og stylingen er beholdt fra originalen; innholdet er byttet til ki-*-kort.
 type: custom:bubble-card
 card_type: pop-up
 name: Innstillinger
@@ -26,77 +27,62 @@ tap_action:
   action: navigate
   navigation_path: /config
 cards:
-  - type: grid
-    columns: 2
-    square: false
-    cards:
-      - type: custom:ki-toggle-card
-        size: tile
-        entity: input_boolean.ki_helgemodus
-        name: Helgemodus
-        label: Senere oppvarming og lys
-        icon: mdi:airplane-takeoff
-      - type: custom:ki-toggle-card
-        size: tile
-        entity: input_boolean.ki_sommermodus
-        name: Sommermodus
-        label: Varme av, kjøling på
-        icon: mdi:sun-angle
-  - type: custom:gap-card
-    height: 14
   - type: custom:ki-tabs-card
     tabs:
       - title: Automasjoner
         cards:
-          - type: custom:ki-toggle-list-card
-            sort: domain
-            include:
-              - domain: automation
-                entity_id: automation.automation*
-              - entity_id: input_boolean.ki_styr_hanklevarmer
-              - entity_id: input_boolean.ki_klima_hovedbryter
-      - title: Push varsler
-        cards:
-          - type: custom:ki-toggle-list-card
-            include:
-              - domain: automation
-                entity_id: automation.push_automation*
-            empty: Ingen push-automasjoner
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              # Fra ki-strom-integrasjonen (switch.ki_*)
+              - type: custom:ki-toggle-card
+                size: tile
+                entity: switch.ki_helgemodus
+                name: Helgemodus
+                icon: mdi:airplane-takeoff
+              - type: custom:ki-toggle-card
+                size: tile
+                entity: switch.ki_sommermodus
+                name: Sommermodus
+                icon: mdi:sun-angle
+          - type: custom:ki-tabs-card
+            tabs:
+              - title: Automasjoner
+                cards:
+                  - type: custom:ki-toggle-list-card
+                    include:
+                      - domain: automation
+                        entity_id: automation.automation*
+                      - entity_id: switch.ki_styr_hanklevarmer
+                      - entity_id: switch.ki_klima_hovedbryter
+                    sort: domain
+                  - type: custom:gap-card
+                    height: 120
+              - title: Push varsler
+                cards:
+                  - type: custom:ki-toggle-list-card
+                    include:
+                      - domain: automation
+                        entity_id: automation.push_automation*
+                  - type: custom:gap-card
+                    height: 120
       - title: Alarm
         cards:
           - type: custom:ki-vekking-card
             name: Gradvis lys
-            prefix: soverom_vekking          # ki_vekking-integrasjonen, enhet «Soverom vekking»
-            conditions:                      # valgfri – ellers hentes de fra integrasjonen
+            prefix: alarm
+            automation: automation.soverom_vekkealarm_gradvis_lys
+            conditions:
               - entity: switch.sebastian_posisjon_hjemme_borte
                 name: Sebastian hjemme
-              - entity: input_boolean.ki_klima_hovedbryter
+              - entity: switch.ki_klima_hovedbryter
                 name: Klimastyring
-            test_confirm: Kjøre vekkesekvensen nå? Lysene fader opp og slukkes etter innstilt tid.
           - type: custom:gap-card
             height: 12
           - type: custom:ki-toggle-list-card
-            sort: domain
             include:
               - domain: automation
                 entity_id: automation.innstillinger*
               - entity_id: input_boolean.innendors_privace_mode
-      - title: Søvn
-        cards:
-          - type: custom:ki-sovn-card
-            threshold: 80
-            persons:
-              - name: Sebastian
-                entity: binary_sensor.sebastian_sovn_sover
-                switch: switch.homey_logic_sebastian_sovn_vaken
-                bedtime: 23–01
-              - name: Rune
-                entity: binary_sensor.rune_sovn_sover
-                switch: switch.homey_logic_rune_sovn_vaken
-                bedtime: 23–01
-              - name: Cybele
-                entity: binary_sensor.cybele_sovn_sover
-                switch: switch.homey_logic_cybele_sovn_vaken
-                bedtime: 19–21
-  - type: custom:gap-card
-    height: 120
+            sort: domain

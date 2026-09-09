@@ -29,7 +29,7 @@
       if (!ids.length) { list.innerHTML = `<div class="empty">${this._config.empty || "Ingenting å vise"}</div>`; return; }
       this._children = ids.map(id => {
         const el = document.createElement("ki-toggle-card");
-        el.setConfig({ size: "row", background: "var(--gray200)", ...item, entity: id });
+        el.setConfig({ size: "row", icon: null, background: "var(--gray200)", ...item, entity: id });
         el.hass = this._hass; list.appendChild(el); return el;
       });
     }

@@ -326,11 +326,12 @@ class FamilyStatusCard extends LitElement {
     if (ev.key === "Escape") this._closeDialog();
   }
 
-  _onPointerDown() {
+  /** Langt trykk: personens egen hold_navigation_path, ellers kortets navigation_path. */
+  _onPointerDown(personConfig) {
     this._pressTimer = window.setTimeout(() => {
       this._pressTimer = null;
       this._haptic(this.cfg.haptic_hold);
-      this._navigate(this.cfg.navigation_path);
+      this._navigate((personConfig && personConfig.hold_navigation_path) || this.cfg.navigation_path);
     }, 500);
   }
 
@@ -444,7 +445,7 @@ class FamilyStatusCard extends LitElement {
         <div
           class="avatar-wrap"
           title=${fallbackName}
-          @pointerdown=${() => this._onPointerDown()}
+          @pointerdown=${() => this._onPointerDown(personConfig)}
           @pointerup=${() => this._onPointerUp(personConfig, index)}
           @pointerleave=${() => this._onPointerCancel()}
           @contextmenu=${(e) => e.preventDefault()}
@@ -1064,6 +1065,12 @@ class FamilyStatusCardEditor extends LitElement {
                     @input=${(e) =>
                       this._updateList("persons", i, "display_name", e.target.value)}
                   ></ha-textfield>
+                  <ha-textfield
+                    label="Naviger til ved langt trykk (valgfri, f.eks. #helse)"
+                    .value=${p.hold_navigation_path || ""}
+                    @input=${(e) =>
+                      this._updateList("persons", i, "hold_navigation_path", e.target.value)}
+                  ></ha-textfield>
                 </div>
               `
             )}
@@ -1075,6 +1082,7 @@ class FamilyStatusCardEditor extends LitElement {
                   presence_switch: "",
                   sleep_switch: "",
                   display_name: "",
+                  hold_navigation_path: "",
                 })}
             >
               <ha-icon icon="mdi:plus"></ha-icon>Legg til person
