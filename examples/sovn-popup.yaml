@@ -1,0 +1,45 @@
+# Popup for søvnstatus – bygget med ki-cards (ki-sovn-card) og ki_sovn-integrasjonen.
+# Samme bubble-card-ramme og styling som Innstillinger- og Planter-popupen.
+type: custom:bubble-card
+card_type: pop-up
+name: Søvn
+icon: mdi:sleep
+state: null
+hash: '#sovn'
+is_sidebar_hidden: true
+styles: |+
+  .bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
+  #header-container > div > div { background: var(--gray000)!important; }
+  #header-container > button {background: none;}
+  .icon-container {background-color:var(--gray1000)!important;}
+  .icon-container > ha-icon {color:var(--black)!important;opacity:1!important}
+  .bubble-icon { --mdc-icon-size: 24px !important; }
+  .bubble-name { font-size: 30px !important; font-weight: 500; line-height: 1.4 !important; padding: 8px 0 !important; }
+  .bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%; }
+bg_blur: '5'
+shadow_opacity: '20'
+bg_opacity: '98'
+margin_top_mobile: 50px
+margin_top_desktop: 50px
+card_layout: large
+button_type: name
+cards:
+  - type: custom:ki-section-card
+    title: Hvem sover
+  - type: custom:ki-sovn-card
+    threshold: 80             # strek i baren – samme som terskelen i ki_sovn
+    persons:
+      - name: Sebastian
+        entity: binary_sensor.sebastian_sover
+        switch: switch.homey_logic_sebastian_sovn_vaken
+        bedtime: 23–01
+      - name: Rune
+        entity: binary_sensor.rune_sover
+        switch: switch.homey_logic_rune_sovn_vaken
+        bedtime: 23–01
+      - name: Cybele
+        entity: binary_sensor.cybele_sover
+        switch: switch.homey_logic_cybele_sovn_vaken
+        bedtime: 19–21
+  - type: custom:gap-card
+    height: 120

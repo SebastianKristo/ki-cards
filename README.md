@@ -35,6 +35,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter: status, intervall og «vannet nå» (mode: list / tile) |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki_sovn](https://github.com/SebastianKristo/ki-sovn): sannsynlighet, observasjoner og overstyring (mode: list / tile) |
 
 ### Byggeklosser
 
@@ -136,6 +137,21 @@ plants:
     # standard: input_datetime.plante_<id>_sist_vannet og input_number.plante_<id>_intervall
 ```
 
+### ki-sovn-card
+Leser `binary_sensor.<navn>_sover` fra [ki_sovn](https://github.com/SebastianKristo/ki-sovn). Rad per person med status,
+sannsynlighet (bar med terskelstrek) og bryter som overstyrer Homey-bryteren. Trykk på raden for å se observasjonene.
+Uten `persons` finner kortet alle `binary_sensor.*_sover` selv.
+```yaml
+type: custom:ki-sovn-card
+mode: list                # list (popup) | tile (oversikt, tap åpner hash/navigation_path)
+threshold: 80             # terskel i prosent, tegnes som strek i baren
+persons:
+  - name: Cybele
+    entity: binary_sensor.cybele_sover
+    switch: switch.homey_logic_cybele_sovn_vaken   # standard: switch.homey_logic_<navn>_sovn_vaken
+    bedtime: 19–21        # valgfri undertekst
+```
+
 ### ki-vekking-card
 Forventer entitetene `input_boolean.<prefix>_master`, `input_boolean.<prefix>_<dag>_aktiv`,
 `input_datetime.<prefix>_<dag>`, `input_number.<prefix>_fade_minutter`,
@@ -164,8 +180,10 @@ test: true
 
 | Fil | Innhold |
 |---|---|
-| [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml) | Innstillinger-popup (#settings): faner, helg/sommer, automasjonslister, vekkealarm |
+| [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml) | Innstillinger-popup (#settings): faner, helg/sommer, automasjonslister, vekkealarm, søvn |
 | [`examples/planter-popup.yaml`](examples/planter-popup.yaml) | Planter-popup (#planter-sebastian) med `ki-planter-card` |
+| [`examples/sovn-popup.yaml`](examples/sovn-popup.yaml) | Søvn-popup (#sovn) med `ki-sovn-card` for alle tre |
+| [`examples/sovn-tile.yaml`](examples/sovn-tile.yaml) | Søvn-flis i oversikten som åpner popupen |
 | [`examples/soverom-tile.yaml`](examples/soverom-tile.yaml) | Planter-flis på soverommet som åpner popupen |
 | [`examples/packages/planter_sebastian.yaml`](examples/packages/planter_sebastian.yaml) | HA-package: hjelpere, teller-sensor og varsel for plantene |
 

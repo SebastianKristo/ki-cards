@@ -1,0 +1,5 @@
+# Flis i oversikten som viser hvem som sover og åpner #sovn-popupen
+type: custom:ki-sovn-card
+mode: tile
+name: Søvn
+hash: '#sovn'

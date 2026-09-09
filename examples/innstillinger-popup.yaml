@@ -1,4 +1,4 @@
-# Innstillinger-popup bygget med ki-cards (v1.3.0+). Flat layout uten toppfaner.
+# Innstillinger-popup bygget med ki-cards (v1.4.0+). Flat layout uten toppfaner.
 type: custom:bubble-card
 card_type: pop-up
 name: Innstillinger
@@ -82,5 +82,22 @@ cards:
               - domain: automation
                 entity_id: automation.innstillinger*
               - entity_id: input_boolean.innendors_privace_mode
+      - title: Søvn
+        cards:
+          - type: custom:ki-sovn-card
+            threshold: 80
+            persons:
+              - name: Sebastian
+                entity: binary_sensor.sebastian_sover
+                switch: switch.homey_logic_sebastian_sovn_vaken
+                bedtime: 23–01
+              - name: Rune
+                entity: binary_sensor.rune_sover
+                switch: switch.homey_logic_rune_sovn_vaken
+                bedtime: 23–01
+              - name: Cybele
+                entity: binary_sensor.cybele_sover
+                switch: switch.homey_logic_cybele_sovn_vaken
+                bedtime: 19–21
   - type: custom:gap-card
     height: 120
