@@ -38,6 +38,16 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 
+### Pro-kort (samme stil som ki-energi-card / ki-klima-pro-card – hero med ring, Enkel/Avansert, blokker)
+
+| Kort | Bruk |
+|---|---|
+| `ki-sovn-pro-card` | Søvn for husstanden: ring med antall som sover, personer som ekspanderbare rader med sannsynlighet, observasjoner og (Avansert) tider/terskler/regler |
+| `ki-vekking-pro-card` | Vekkealarm: ring med neste alarm og nedtelling, ukeplan, (Avansert) lys, person, betingelser og logg |
+| `ki-planter-pro-card` | Planter: ring med antall vannet, planter som rader med fremdrift, tips, «vannet nå», (Avansert) intervall og varsling |
+
+Eksempler: `examples/sovn-popup.yaml`, `vekking-popup.yaml`, `planter-popup.yaml`, `oversikt-tiles.yaml`.
+
 ### Byggeklosser
 
 | | Kort | Bruk |
@@ -186,3 +196,7 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 - `ki-vekking-card`: ryddet i blokker – hode, stor neste-alarm, «Ukeplan» (dagpiller + tider i to kolonner), og «Lys, person og
   betingelser» bak en disclosure-rad. Handlinger nederst.
 - `ki-planter-card`: detaljer i samme gruppe-stil (sist vannet, neste vanning, intervall).
+
+## v2.2.0
+- Nye `ki-sovn-pro-card`, `ki-vekking-pro-card`, `ki-planter-pro-card` i ki-energi/klima-pro-stil, med egne popuper.
+- Innstillinger-popupen har bare Automasjoner og Varsler igjen.

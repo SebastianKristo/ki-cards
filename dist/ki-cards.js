@@ -1,4 +1,4 @@
-/* ki-cards v2.1.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
+/* ki-cards v2.2.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-09 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.1.0";
+  KI.VERSION = "2.2.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -65,6 +65,113 @@ window.KI = window.KI || {};
     input[type=time]:focus-visible { outline:2px solid var(--active-big); }
     @media (prefers-reduced-motion: reduce) { .press { transition:none; } }
   `;
+
+  /* Felles stil for "pro"-kortene – samme språk som ki-energi-card / ki-klima-pro-card */
+  KI.pro = `
+    :host { display:block; min-width:0; max-width:100%; }
+    *, *::before, *::after { box-sizing:border-box; min-width:0; }
+    .wrap { display:flex; flex-direction:column; gap:10px; color:var(--gray1000, var(--primary-text-color)); max-width:100%; overflow:hidden; }
+    .card-title { font-size:20px; font-weight:600; padding:2px 6px 0; }
+    .hero { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:14px; background:var(--gray200); border-radius:24px; padding:16px; }
+    .ring { position:relative; width:88px; height:88px; cursor:pointer; }
+    .ring svg { width:88px; height:88px; transform:rotate(-90deg); }
+    .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }
+    .ring-spor { stroke:rgba(128,128,128,.24); }
+    .ring-fyll { stroke:var(--green,#4caf50); transition:stroke-dashoffset .6s cubic-bezier(.2,.7,.3,1); }
+    .ring-fyll.gul { stroke:var(--yellow,#f2c94c); } .ring-fyll.rod { stroke:var(--red,#f44336); } .ring-fyll.aktiv { stroke:var(--active-big); } .ring-fyll.av { stroke:rgba(128,128,128,.5); }
+    .ring-tall { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+    .ring-tall span { font-size:13px; opacity:.6; margin-left:1px; }
+    .ring-tall.liten { font-size:19px; }
+    .hero-navn { font-size:19px; font-weight:600; }
+    .hero-forklaring { font-size:13.5px; opacity:.72; line-height:1.4; margin-top:3px; }
+    .merke { font-size:11px; font-weight:600; padding:2px 7px; border-radius:75px; background:rgba(128,128,128,.28); vertical-align:middle; }
+    .merke.gul { background:rgba(242,201,76,.35); } .merke.rod { background:rgba(244,67,54,.3); }
+    .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px; background:var(--gray200); }
+    .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500; cursor:pointer; opacity:.6; transition:background .18s ease, opacity .18s ease; }
+    .switch-valg.aktiv { background:var(--active-small, var(--active-big)); color:var(--gray100,#fafbfc); opacity:1; }
+    .blokk { background:var(--gray200); border-radius:24px; padding:8px 14px 14px; }
+    .blokk-hode { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:13px; font-weight:600; opacity:.55; padding:8px 4px; }
+    .blokk-sub { font-weight:500; text-align:right; }
+    .tall-rutenett { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .tall { background:rgba(128,128,128,.12); border-radius:16px; padding:10px 6px; text-align:center; }
+    .tall b { display:block; font-size:18px; font-variant-numeric:tabular-nums; } .tall span { font-size:11.5px; opacity:.6; }
+    .spor { height:10px; border-radius:6px; background:rgba(128,128,128,.24); overflow:hidden; margin:10px 0 6px; position:relative; }
+    .fyll { height:100%; background:var(--active-big); transition:width .5s ease; }
+    .fyll.gul { background:var(--yellow); } .fyll.rod { background:var(--red); } .fyll.gronn { background:var(--green); }
+    .spor .strek { position:absolute; top:0; bottom:0; width:2px; background:var(--gray1000); opacity:.45; }
+    .under { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; opacity:.6; }
+    .notat { font-size:12.5px; opacity:.6; padding:8px 2px 0; line-height:1.4; }
+    .last { border-radius:18px; background:rgba(128,128,128,.10); margin-bottom:6px; overflow:hidden; }
+    .last:last-child { margin-bottom:0; }
+    .last-hode { display:grid; grid-template-columns:14px 1fr auto; align-items:center; gap:10px; padding:10px; cursor:pointer; }
+    .last-hode.med-bryter { grid-template-columns:14px 1fr auto auto; }
+    .last-navn { font-size:14.5px; font-weight:500; }
+    .last-forklaring { font-size:12.5px; opacity:.62; line-height:1.35; }
+    .last-verdi { font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
+    .last-verdi small { display:block; font-size:11px; font-weight:500; opacity:.55; }
+    .last-kropp { display:none; padding:0 10px 10px; }
+    .last.apen .last-kropp { display:block; }
+    .last-fakta { display:flex; flex-wrap:wrap; gap:6px; font-size:12px; opacity:.85; padding-bottom:8px; }
+    .last-fakta span { background:rgba(128,128,128,.16); padding:3px 9px; border-radius:75px; }
+    .last-fakta span.b-nei { opacity:.45; text-decoration:line-through; }
+    .b-ok { background:rgba(76,175,80,.25) !important; } .b-advarsel { background:rgba(252,109,9,.25) !important; } .b-feil { background:rgba(244,67,54,.25) !important; }
+    .prikk { width:10px; height:10px; border-radius:50%; background:rgba(128,128,128,.4); }
+    .p-ok { background:var(--green,#4caf50); } .p-advarsel { background:var(--yellow,#f2c94c); } .p-feil { background:var(--red,#f44336); } .p-aktiv { background:var(--active-big); }
+    .rad { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 2px; }
+    .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+    .rad-navn { font-size:14.5px; } .rad-sub { font-size:12px; opacity:.55; line-height:1.3; }
+    .rad-verdi { font-size:13.5px; font-weight:600; opacity:.85; font-variant-numeric:tabular-nums; }
+    .rad.dim { opacity:.45; }
+    .bryter { width:46px; height:28px; min-width:46px; border-radius:75px; background:rgba(128,128,128,.28); cursor:pointer; position:relative; transition:background .18s ease; }
+    .bryter.on { background:var(--active-big); }
+    .bryter span { position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; transition:transform .18s ease; }
+    .bryter.on span { transform:translateX(18px); } .bryter.mangler { opacity:.35; pointer-events:none; }
+    .knapper { display:flex; gap:8px; flex-wrap:wrap; padding-top:8px; }
+    .knapp { flex:1; min-width:120px; text-align:center; padding:11px 14px; border-radius:75px; font-size:14px; font-weight:600; cursor:pointer; background:rgba(128,128,128,.18); }
+    .knapp.primar { background:var(--active-big); color:rgba(70,58,64,.95); } .knapp.fjern { background:rgba(244,67,54,.22); }
+    .knapp.press:active { filter:brightness(1.1); }
+    .dager { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; padding:2px 0 6px; }
+    .dag { height:38px; border-radius:12px; background:rgba(128,128,128,.14); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; opacity:.5; cursor:pointer; }
+    .dag.on { background:var(--yellow); color:var(--black); opacity:1; }
+    .dag.idag { box-shadow:inset 0 0 0 2px rgba(255,255,255,.4); }
+    input[type=time] { font:inherit; font-size:14px; font-weight:600; color:var(--gray1000); background:rgba(128,128,128,.18); border:0; border-radius:10px; padding:6px 10px; color-scheme:dark; min-width:0; width:92px; text-align:center; }
+    input[type=time]::-webkit-calendar-picker-indicator { display:none; }
+    input[type=time]:focus-visible { outline:2px solid var(--active-big); }
+    input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none; background:linear-gradient(to right, var(--active-big) 0 var(--p), rgba(128,128,128,.24) var(--p) 100%); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; cursor:grab; }
+    input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; }
+    .slider-rad { display:grid; grid-template-columns:110px 1fr 64px; align-items:center; gap:10px; padding:9px 2px; }
+    .slider-rad + .slider-rad, .rad + .slider-rad, .slider-rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+    .tom { font-size:13px; opacity:.6; padding:10px 4px; line-height:1.5; }
+    @media (prefers-reduced-motion: reduce) { .ring-fyll, .fyll, .bryter, .bryter span { transition:none; } }
+  `;
+  KI.ringHtml = (pct, txt, cls, entity) => { const o = 2 * Math.PI * 43; return `<div class="ring" ${entity ? `data-more="${entity}"` : ""}>
+    <svg viewBox="0 0 100 100"><circle class="ring-spor" cx="50" cy="50" r="43"></circle>
+    <circle class="ring-fyll ${cls || ""}" cx="50" cy="50" r="43" style="stroke-dasharray:${o};stroke-dashoffset:${o * (1 - Math.max(0, Math.min(100, pct)) / 100)}"></circle></svg>
+    <div class="ring-tall ${String(txt).length > 3 ? "liten" : ""}">${txt}</div></div>`; };
+  KI.sliderHtml = (hass, id, name, opts = {}) => { const s = hass.states[id]; if (!s) return ""; const a = s.attributes;
+    const min = opts.min ?? a.min ?? 0, max = opts.max ?? a.max ?? 100, step = opts.step ?? a.step ?? 1, v = parseFloat(s.state);
+    const unit = opts.unit ?? (a.unit_of_measurement ? " " + a.unit_of_measurement : ""); const pct = ((v - min) / (max - min)) * 100;
+    return `<div class="slider-rad"><span class="rad-navn" data-more="${id}">${name}</span>
+      <input type="range" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${pct}%" data-range="${id}" data-unit="${unit}" data-min="${min}" data-max="${max}">
+      <span class="rad-verdi" data-out="${id}">${v}${unit}</span></div>`; };
+  /* Kobler opp data-more / data-toggle / data-press / data-range / data-time / .last-hode i et pro-kort */
+  KI.wirePro = (card, root) => {
+    const h = card._hass;
+    root.querySelectorAll("[data-more]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); KI.moreInfo(card, el.dataset.more); }));
+    root.querySelectorAll("[data-toggle]").forEach(el => { const run = (e) => { e && e.stopPropagation(); KI.toggle(h, el.dataset.toggle); }; el.addEventListener("click", run); KI.key(el, run); });
+    root.querySelectorAll("[data-press]").forEach(el => { const run = (e) => { e && e.stopPropagation(); if (el.dataset.confirm && !window.confirm(el.dataset.confirm)) return; KI.press(h, el.dataset.press); }; el.addEventListener("click", run); KI.key(el, run); });
+    root.querySelectorAll("input[data-range]").forEach(inp => {
+      const out = root.querySelector(`[data-out="${inp.dataset.range}"]`); const min = +inp.dataset.min, max = +inp.dataset.max;
+      inp.addEventListener("input", () => { out.textContent = inp.value + inp.dataset.unit; inp.style.setProperty("--p", ((inp.value - min) / (max - min)) * 100 + "%"); });
+      inp.addEventListener("change", () => h.callService(inp.dataset.range.split(".")[0], "set_value", { entity_id: inp.dataset.range, value: parseFloat(inp.value) }));
+      inp.addEventListener("click", e => e.stopPropagation());
+    });
+    root.querySelectorAll("input[data-time]").forEach(inp => { inp.addEventListener("click", e => e.stopPropagation());
+      inp.addEventListener("change", () => { if (inp.value) h.callService(inp.dataset.time.split(".")[0], "set_value", { entity_id: inp.dataset.time, time: inp.value + ":00" }); }); });
+    root.querySelectorAll(".last-hode[data-open]").forEach(el => el.addEventListener("click", () => { const k = el.dataset.open; card._apen = card._apen === k ? null : k; card._lastKey = null; card._maybeRender(); }));
+    root.querySelectorAll(".switch-valg").forEach(el => el.addEventListener("click", () => { card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
+  };
 
   KI.fire = (el, type, detail) =>
     el.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
@@ -986,6 +1093,231 @@ try {
   KI.register("ki-sovn-card", "KI Søvn", "Søvnstatus per person fra KI Søvn & Vekking");
 })(window.KI);
 } catch (e) { console.error("ki-cards: 31-ki-sovn-card feilet", e); }
+
+/* ===== 40-ki-sovn-pro-card ===== */
+try {
+/* ki-sovn-pro-card – søvn for husstanden i ki-energi/klima-pro-stil. Finner personene fra ki_sovn selv. */
+(function (KI) {
+  const OBS = { hjemme: "hjemme", sovevindu: "sovevindu", i_rommet: "i rommet", "dør_lukket": "dør lukket",
+    "vindu_åpent": "vindu åpent", puls_lav: "lav puls", "puls_høy": "høy puls", i_senga: "i senga" };
+
+  class KiSovnProCard extends KI.Card {
+    static getStubConfig() { return { title: "Søvn" }; }
+    setConfig(c) { this._view = c.view || "enkel"; this._apen = null; super.setConfig(c); }
+    _persons() {
+      const c = this._config, h = this._hass; if (!h) return [];
+      let ids = c.persons ? c.persons.map(p => p.entity || p) : KI.find(h, "binary_sensor", { integrasjon: "ki_sovn", type: "person" });
+      if (!ids.length) ids = Object.keys(h.states).filter(id => /^binary_sensor\..*_sovn_sover$/.test(id)).sort();
+      return ids.map((id, i) => { const a = (h.states[id] || { attributes: {} }).attributes; const p = (c.persons && typeof c.persons[i] === "object") ? c.persons[i] : {};
+        const prefix = a.prefix || id.replace(/^binary_sensor\./, "").replace(/_sover$/, "");
+        return { entity: id, prefix, name: p.name || a.navn || KI.friendly(h, id).replace(/ (søvn )?sover$/i, ""), bedtime: p.bedtime || "", bryter: a.bryter,
+          setSover: `button.${prefix}_sett_sover`, setVaaken: `button.${prefix}_sett_vaken` }; });
+    }
+    _info(p) {
+      const st = this.st(p.entity); if (!st) return { ok: false, tone: "feil", txt: "Ikke satt opp", sub: "finnes ikke i integrasjonen", pct: 0, obs: [] };
+      const a = st.attributes, sover = st.state === "on", pending = a["venter_på"] || null, pct = Math.round(a.sannsynlighet ?? 0);
+      const txt = pending === "sovner" ? "Sovner …" : pending === "våkner" ? "Våkner …" : sover ? "Sover" : "Våken";
+      const sub = [a.siden ? "siden " + KI.clock(a.siden) : "", p.bedtime ? "legger seg " + p.bedtime : ""].filter(Boolean).join(" · ");
+      return { ok: true, sover, pending, pct, txt, sub, tone: pending ? "advarsel" : sover ? "aktiv" : "nøytral", why: a["årsak"] || "", puls: a.obs_puls_glattet ?? null,
+        obs: Object.keys(OBS).map(k => ({ l: OBS[k], v: a["obs_" + k] })).filter(o => o.v !== undefined) };
+    }
+    _key() { const ps = this._persons(); return JSON.stringify([this._config, this._view, this._apen, ps.map(p => { const s = this.st(p.entity);
+      return [p, s && s.state, s && s.attributes, Object.keys(this._hass.states).filter(id => id.includes(`.${p.prefix}_`)).map(id => this.val(id))]; })]); }
+
+    _render() {
+      const c = this._config, persons = this._persons(), infos = persons.map(p => this._info(p));
+      const n = persons.length, sov = infos.filter(s => s.sover).length, pend = infos.find(s => s.pending);
+      const navn = !n ? "Ingen personer" : sov === 0 ? "Alle er våkne" : sov === n ? "Alle sover" : `${sov} av ${n} sover`;
+      const forkl = pend ? `${persons[infos.indexOf(pend)].name} ${pend.txt.toLowerCase()}` : infos.map((s, i) => s.ok ? `${persons[i].name}: ${s.txt.toLowerCase()}${s.sub.startsWith("siden") ? " " + s.sub.split(" · ")[0] : ""}` : `${persons[i].name}: ikke satt opp`).join(" · ");
+      const ringCls = !n ? "av" : sov === n ? "aktiv" : sov ? "gul" : "av";
+      this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
+        ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
+        <div class="hero">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}
+          <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+        <div class="switch" role="tablist"><div class="switch-valg ${this._view === "enkel" ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${this._view === "avansert" ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
+        <div class="blokk"><div class="blokk-hode"><span>Personer</span><span class="blokk-sub">${n ? "trykk for detaljer" : ""}</span></div>
+          ${n ? persons.map((p, i) => this._person(p, infos[i])).join("") : `<div class="tom">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>. Legg til «Person – søvndeteksjon» i integrasjonen.</div>`}
+        </div>
+      </div>`;
+      KI.wirePro(this, this.shadowRoot);
+    }
+    _person(p, s) {
+      const open = this._apen === p.entity, x = p.prefix, adv = this._view === "avansert";
+      const toggleId = this.st(p.setSover) ? (s.sover ? p.setVaaken : p.setSover) : null;
+      const bryter = toggleId ? `<div class="bryter ${s.sover ? "on" : ""}" data-press="${toggleId}" role="switch" aria-checked="${s.sover}" tabindex="0"><span></span></div>`
+        : p.bryter ? `<div class="bryter ${s.sover ? "on" : ""}" data-toggle="${p.bryter}" role="switch" tabindex="0"><span></span></div>` : `<div class="bryter mangler"><span></span></div>`;
+      const t = (id, lbl) => this.st(id) ? `<div class="rad"><span class="rad-navn">${lbl}</span><input type="time" data-time="${id}" value="${KI.hhmm(this.val(id))}"></div>` : "";
+      const sw = (id, lbl, sub) => this.st(id) ? `<div class="rad"><div><div class="rad-navn">${lbl}</div><div class="rad-sub">${sub}</div></div><div class="bryter ${this.on(id) ? "on" : ""}" data-toggle="${id}" tabindex="0"><span></span></div></div>` : "";
+      const sl = (id, lbl) => KI.sliderHtml(this._hass, id, lbl);
+      const thr = this.st(`number.${x}_terskel`) ? parseFloat(this.val(`number.${x}_terskel`)) : 80;
+      return `<div class="last ${open ? "apen" : ""}">
+        <div class="last-hode med-bryter" data-open="${p.entity}">
+          <div class="prikk p-${s.tone === "aktiv" ? "aktiv" : s.tone === "advarsel" ? "advarsel" : s.tone === "feil" ? "feil" : "nøytral"}"></div>
+          <div><div class="last-navn">${KI.esc(p.name)}</div><div class="last-forklaring">${KI.esc(s.sub)}</div></div>
+          <div class="last-verdi">${s.txt}${s.ok ? `<small>${s.pct} %</small>` : ""}</div>
+          ${bryter}
+        </div>
+        <div class="last-kropp">
+          ${s.ok ? `<div class="spor"><div class="fyll ${s.tone === "advarsel" ? "gul" : s.sover ? "" : "gronn"}" style="width:${s.pct}%;${s.sover || s.pending ? "" : "opacity:.5"}"></div><div class="strek" style="left:${thr}%"></div></div>
+            <div class="under"><span>sannsynlighet ${s.pct} %</span><span>terskel ${thr} %</span></div>
+            <div class="last-fakta" style="padding-top:8px">${s.obs.map(o => `<span class="${o.v === true ? "b-ok" : o.v === false ? "b-nei" : ""}">${o.l}</span>`).join("")}${s.puls !== null ? `<span>${s.puls} bpm</span>` : ""}</div>
+            ${s.why ? `<div class="notat" style="padding-top:0">Sist endret: ${KI.esc(s.why)}</div>` : ""}
+            ${adv ? `<div class="blokk-hode"><span>Tider</span></div>${t(`time.${x}_sovevindu_start`, "Sovevindu fra")}${t(`time.${x}_sovevindu_slutt`, "Sovevindu til")}${t(`time.${x}_morgen_fra`, "Morgen fra")}
+              <div class="blokk-hode"><span>Terskler</span></div>${sl(`number.${x}_terskel`, "Terskel")}${sl(`number.${x}_forsinkelse_sovner`, "Sovner etter")}${sl(`number.${x}_forsinkelse_vakner`, "Våkner etter")}${sl(`number.${x}_hold_i_rommet`, "Hold i rommet")}${sl(`number.${x}_borte_fra_rommet_vaken`, "Borte = våken")}${sl(`number.${x}_dor_lukket_i`, "Dør lukket i")}${s.puls !== null ? sl(`number.${x}_puls_sover`, "Puls sover") + sl(`number.${x}_puls_vaken`, "Puls våken") : ""}
+              <div class="blokk-hode"><span>Regler</span></div>${sw(`switch.${x}_dor_om_natta_ok`, "Dør om natta OK", "Do-turer vekker ikke")}${sw(`switch.${x}_automatisk`, "Automatisk", "Styrer søvnbryteren")}` : ""}`
+          : `<div class="tom">Personen finnes ikke i KI Søvn &amp; Vekking. Sjekk at oppføringen «${KI.esc(p.name)}» finnes og har entiteten <code>${p.entity}</code>.</div>`}
+        </div></div>`;
+    }
+    getCardSize() { return 3 + this._persons().length * 2; }
+  }
+  window.KI.define("ki-sovn-pro-card", KiSovnProCard);
+  KI.register("ki-sovn-pro-card", "KI Søvn Pro", "Søvn for husstanden: status, sannsynlighet, observasjoner og innstillinger per person");
+})(window.KI);
+} catch (e) { console.error("ki-cards: 40-ki-sovn-pro-card feilet", e); }
+
+/* ===== 41-ki-vekking-pro-card ===== */
+try {
+/* ki-vekking-pro-card – vekkealarm i ki-energi/klima-pro-stil. Finner alarmen fra ki_sovn (type vekking) selv; prefix: for å velge. */
+(function (KI) {
+  const DAGER = [["mandag", "Ma", "Mandag"], ["tirsdag", "Ti", "Tirsdag"], ["onsdag", "On", "Onsdag"], ["torsdag", "To", "Torsdag"], ["fredag", "Fr", "Fredag"], ["lordag", "Lø", "Lørdag"], ["sondag", "Sø", "Søndag"]];
+  const idag = () => { const j = new Date().getDay(); return DAGER[j === 0 ? 6 : j - 1][0]; };
+
+  class KiVekkingProCard extends KI.Card {
+    static getStubConfig() { return { title: "Vekking" }; }
+    setConfig(c) { this._view = c.view || "enkel"; this._apen = null; super.setConfig(c); }
+    _prefix() {
+      const c = this._config; if (c.prefix) return c.prefix;
+      const hit = KI.find(this._hass, "sensor", { integrasjon: "ki_sovn", type: "vekking" })[0]; if (hit) return this.st(hit).attributes.prefix;
+      const old = Object.keys(this._hass ? this._hass.states : {}).find(id => /^sensor\..*_vekking_neste_alarm$/.test(id)); return old ? old.slice(7, -12) : null;
+    }
+    _ids(p) { return { master: `switch.${p}_aktiv`, natt: `switch.${p}_nattlampe`, vekk: `switch.${p}_vekk_person`, bare: `switch.${p}_bare_hvis_sover`, fade: `number.${p}_fade_opp`, off: `number.${p}_av_etter`,
+      neste: `sensor.${p}_neste_alarm`, kjorer: `binary_sensor.${p}_kjorer`, test: `button.${p}_test`, stopp: `button.${p}_stopp`, dayOn: d => `switch.${p}_${d}_aktiv`, dayTime: d => `time.${p}_${d}` }; }
+    _key() { const p = this._prefix(); if (!p) return JSON.stringify([this._config, "none"]); const e = this._ids(p);
+      const ids = [e.master, e.natt, e.vekk, e.bare, e.fade, e.off, e.neste, e.kjorer, ...DAGER.flatMap(([d]) => [e.dayOn(d), e.dayTime(d)])];
+      const n = this.st(e.neste); return JSON.stringify([this._config, this._view, this._apen, Math.floor(Date.now() / 60000), ids.map(id => this.val(id)), n && n.attributes, (this.st(e.kjorer) || {}).attributes, ((n && n.attributes.betingelser) || []).map(id => this.val(id))]); }
+
+    _render() {
+      const c = this._config, p = this._prefix();
+      if (!p) { this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap"><div class="blokk"><div class="tom">Fant ingen vekkealarm fra <b>KI Søvn &amp; Vekking</b>. Legg til «Vekkealarm» i integrasjonen, eller sett <code>prefix:</code>.</div></div></div>`; return; }
+      const e = this._ids(p), n = this.st(e.neste), a = (n && n.attributes) || {};
+      const masterOn = this.on(e.master), running = this.on(e.kjorer), fase = (this.st(e.kjorer) || { attributes: {} }).attributes.fase;
+      const tid = n && n.state !== "Av" ? n.state : null;
+      const when = a.neste_tidspunkt ? new Date(a.neste_tidspunkt) : null;
+      const igjenMin = when ? Math.max(0, Math.round((when - Date.now()) / 60000)) : null;
+      const igjen = igjenMin === null ? "" : igjenMin >= 60 ? `${Math.floor(igjenMin / 60)} t ${igjenMin % 60} min` : `${igjenMin} min`;
+      const erIdag = when && when.toDateString() === new Date().toDateString();
+      const navn = running ? (fase === "fader" ? "Fader opp lyset" : "Lyset er på") : !masterOn ? "Vekking er av" : !tid ? "Ingen dager valgt" : `${erIdag ? "I dag" : a.neste_dag} kl. ${tid}`;
+      const skip = masterOn && a.hopper_over ? (a.hopper_over === "betingelser" ? "Hoppes over: en betingelse er av." : "Hoppes over: personen er våken.") : "";
+      const person = a.person ? `${KI.friendly(this._hass, a.person).replace(/ (søvn )?sover$/i, "")} ${a.person_sover ? "sover" : a.person_sover === false ? "er våken" : ""}` : "";
+      const forkl = running ? `Startet ${a.sist_kjort ? KI.clock(a.sist_kjort) : ""} · fader ${this.val(e.fade)} min, av etter ${this.val(e.off)} min` : [skip, igjen ? `om ${igjen}` : "", person].filter(Boolean).join(" · ") || "Sett ukedager og tider under.";
+      const ringPct = igjenMin === null ? 0 : Math.max(0, Math.min(100, 100 - (igjenMin / (24 * 60)) * 100));
+      const ringCls = running ? "gul" : !masterOn ? "av" : skip ? "rod" : "aktiv";
+      const conds = a.betingelser || [], adv = this._view === "avansert";
+      const sw = (id, lbl, sub) => this.st(id) ? `<div class="rad"><div><div class="rad-navn">${lbl}</div>${sub ? `<div class="rad-sub">${sub}</div>` : ""}</div><div class="bryter ${this.on(id) ? "on" : ""}" data-toggle="${id}" tabindex="0"><span></span></div></div>` : "";
+      this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
+        ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
+        <div class="hero">${KI.ringHtml(ringPct, tid && masterOn ? tid : "Av", ringCls, e.neste)}
+          <div><div class="hero-navn">${KI.esc(navn)}${running ? ` <span class="merke gul">kjører</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+        <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
+
+        <div class="blokk">
+          <div class="blokk-hode"><span>Vekking</span><span class="blokk-sub">${masterOn ? "på" : "av"}</span></div>
+          ${sw(e.master, "Aktiv", "Hovedbryter for alle dager")}
+          <div class="blokk-hode"><span>Ukeplan</span><span class="blokk-sub">trykk en dag for å slå av/på</span></div>
+          <div class="dager">${DAGER.map(([d, k, full]) => `<div class="dag ${this.on(e.dayOn(d)) ? "on" : ""} ${d === idag() ? "idag" : ""}" data-toggle="${e.dayOn(d)}" title="${full}" role="switch" tabindex="0">${k}</div>`).join("")}</div>
+          ${DAGER.map(([d, , full]) => `<div class="rad ${this.on(e.dayOn(d)) ? "" : "dim"}"><span class="rad-navn">${full}</span><input type="time" data-time="${e.dayTime(d)}" value="${KI.hhmm(this.val(e.dayTime(d)))}"></div>`).join("")}
+        </div>
+
+        ${adv ? `<div class="blokk"><div class="blokk-hode"><span>Lys</span><span class="blokk-sub">${(a.lys || []).length} lys</span></div>
+          ${KI.sliderHtml(this._hass, e.fade, "Fade opp")}${KI.sliderHtml(this._hass, e.off, "Av etter")}${sw(e.natt, "Nattlampe", "Ta med i vekkingen")}
+          ${(a.lys || []).length ? `<div class="last-fakta" style="padding-top:8px">${a.lys.map(id => `<span data-more="${id}" style="cursor:pointer">${KI.esc(KI.friendly(this._hass, id))}</span>`).join("")}</div>` : ""}</div>
+        ${a.person ? `<div class="blokk"><div class="blokk-hode"><span>Person</span><span class="blokk-sub">${KI.esc(person)}</span></div>
+          ${sw(e.vekk, "Vekk person", "Marker som våken når lyset er oppe")}${sw(e.bare, "Bare hvis sover", "Hopp over alarmen hvis personen er våken")}</div>` : ""}
+        ${conds.length ? `<div class="blokk"><div class="blokk-hode"><span>Betingelser</span><span class="blokk-sub">alle må være på</span></div>
+          ${conds.map(id => `<div class="rad" data-more="${id}" style="cursor:pointer"><span class="rad-navn">${KI.esc((c.condition_names || {})[id] || KI.friendly(this._hass, id))}</span><span class="last-fakta" style="padding:0"><span class="${this.on(id) ? "b-ok" : "b-feil"}">${this.on(id) ? "På" : "Av"}</span></span></div>`).join("")}</div>` : ""}
+        ${a.sist_kjort || a.sist_hoppet_over ? `<div class="blokk"><div class="blokk-hode"><span>Logg</span></div>
+          ${a.sist_kjort ? `<div class="rad"><span class="rad-navn">Sist kjørt</span><span class="rad-verdi">${new Date(a.sist_kjort).toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>` : ""}
+          ${a.sist_hoppet_over ? `<div class="rad"><span class="rad-navn">Sist hoppet over</span><span class="rad-verdi">${KI.esc(a.sist_hoppet_over)}</span></div>` : ""}</div>` : ""}` : ""}
+
+        ${c.test === false ? "" : `<div class="knapper">
+          ${running ? `<div class="knapp fjern press" data-press="${e.stopp}" tabindex="0">Stopp og slukk</div>` : ""}
+          <div class="knapp ${running ? "" : "primar"} press" data-press="${e.test}" data-confirm="${c.test_confirm || "Kjøre vekkesekvensen nå?"}" tabindex="0">${running ? "Kjører …" : "Test vekkesekvensen"}</div></div>`}
+      </div>`;
+      KI.wirePro(this, this.shadowRoot);
+    }
+    getCardSize() { return 8; }
+  }
+  window.KI.define("ki-vekking-pro-card", KiVekkingProCard);
+  KI.register("ki-vekking-pro-card", "KI Vekking Pro", "Vekkealarm: neste alarm, ukeplan, lys, person, betingelser og logg");
+})(window.KI);
+} catch (e) { console.error("ki-cards: 41-ki-vekking-pro-card feilet", e); }
+
+/* ===== 42-ki-planter-pro-card ===== */
+try {
+/* ki-planter-pro-card – planter i ki-energi/klima-pro-stil. Finner plantene fra ki_planter selv; sted: filtrerer. */
+(function (KI) {
+  const DAG = 86400000;
+  const fmtDato = d => d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+  class KiPlanterProCard extends KI.Card {
+    static getStubConfig() { return { title: "Planter" }; }
+    setConfig(c) { this._view = c.view || "enkel"; this._apen = null; super.setConfig(c); }
+    _plants() {
+      const c = this._config, h = this._hass; if (!h) return [];
+      let ids = KI.find(h, "binary_sensor", { integrasjon: "ki_planter", type: "plante" });
+      if (c.sted) ids = ids.filter(id => h.states[id].attributes.sted === c.sted);
+      return ids.map(id => { const a = h.states[id].attributes, b = id.replace(/^binary_sensor\./, "").replace(/_trenger_vann$/, "");
+        const last = a.sist_vannet ? new Date(a.sist_vannet) : null, iv = a.intervall_dager || 7;
+        const left = last ? Math.ceil(iv - (Date.now() - last) / DAG) : null, pct = last ? Math.min(100, Math.max(0, (Date.now() - last) / DAG / iv * 100)) : 100;
+        const tone = left === null || left < 0 ? "feil" : left === 0 ? "advarsel" : pct >= 70 ? "advarsel" : "ok";
+        const txt = left === null ? "Ikke vannet" : left > 1 ? `Om ${left} dager` : left === 1 ? "I morgen" : left === 0 ? "Vann i dag" : `${-left} ${-left === 1 ? "dag" : "dager"} over`;
+        return { entity: id, id: a.plante_id, name: a.navn, latin: a.latin || "", icon: a.ikon, tip: a.tips || "", sted: a.sted, stedPrefix: a.sted_prefix, last, iv, left, pct, tone, txt, due: left === null || left <= 0,
+          water: `button.${b}_vannet_na`, interval: `number.${b}_intervall`, sist: `datetime.${b}_sist_vannet` }; });
+    }
+    _key() { return JSON.stringify([this._config, this._view, this._apen, Math.floor(Date.now() / 3600000), this._plants().map(p => [p.entity, (this.st(p.entity) || {}).attributes, this.val(p.interval)])]); }
+    _render() {
+      const c = this._config, ps = this._plants(), due = ps.filter(p => p.due), adv = this._view === "avansert";
+      const steder = [...new Set(ps.map(p => p.stedPrefix))];
+      const navn = !ps.length ? "Ingen planter" : due.length === 0 ? "Alle er vannet" : `${due.length} av ${ps.length} trenger vann`;
+      const next = ps.filter(p => p.left !== null && p.left > 0).sort((a, b) => a.left - b.left)[0];
+      const forkl = due.length ? due.map(p => p.name).join(", ") + " trenger vann" + (next ? ` · neste: ${next.name} ${next.txt.toLowerCase()}` : "") : next ? `Neste: ${next.name} ${next.txt.toLowerCase()}` : "Legg til planter i KI Planter.";
+      const okPct = ps.length ? ((ps.length - due.length) / ps.length) * 100 : 0;
+      this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
+        ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
+        <div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
+          <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+        <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
+        <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${c.sted || (ps[0] && ps[0].sted) || ""}</span></div>
+          ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}
+          ${due.length > 1 && steder.length === 1 ? `<div class="knapper"><div class="knapp primar press" data-press="button.${steder[0]}_alle_vannet" data-confirm="Registrere alle som trenger vann som vannet nå?" tabindex="0">Alle vannet</div></div>` : ""}
+        </div>
+        ${adv && steder.length ? steder.map(sp => { const sw = `switch.${sp}_varsling`, cnt = this.st(`sensor.${sp}_trenger_vann`); return `<div class="blokk"><div class="blokk-hode"><span>Varsling</span><span class="blokk-sub">${cnt ? KI.friendly(this._hass, `sensor.${sp}_trenger_vann`).replace(/ trenger vann$/i, "") : ""}</span></div>
+          ${this.st(sw) ? `<div class="rad"><div><div class="rad-navn">Varsel når planter trenger vann</div><div class="rad-sub">${cnt && cnt.attributes.sist_varslet ? "sist varslet " + new Date(cnt.attributes.sist_varslet).toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "klokkeslett settes i integrasjonen"}</div></div><div class="bryter ${this.on(sw) ? "on" : ""}" data-toggle="${sw}" tabindex="0"><span></span></div></div>` : ""}
+          <div class="knapper"><div class="knapp press" data-press="button.${sp}_send_varsel" tabindex="0">Send varsel nå</div></div></div>`; }).join("") : ""}
+      </div>`;
+      KI.wirePro(this, this.shadowRoot);
+    }
+    _plant(p, adv) {
+      const open = this._apen === p.entity;
+      return `<div class="last ${open ? "apen" : ""}">
+        <div class="last-hode" data-open="${p.entity}">
+          <div class="prikk p-${p.tone}"></div>
+          <div><div class="last-navn">${KI.esc(p.name)}</div><div class="last-forklaring">${KI.esc(p.latin || (p.last ? "vannet " + fmtDato(p.last) : ""))}</div></div>
+          <div class="last-verdi">${p.txt}${p.last ? `<small>vannet ${fmtDato(p.last)}</small>` : ""}</div>
+        </div>
+        <div class="last-kropp">
+          <div class="spor"><div class="fyll ${p.tone === "feil" ? "rod" : p.tone === "advarsel" ? "gul" : "gronn"}" style="width:${p.pct}%"></div></div>
+          <div class="under"><span>${p.last ? "sist " + p.last.toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ikke vannet ennå"}</span><span>${p.last ? "neste " + fmtDato(new Date(p.last.getTime() + p.iv * DAG)) : ""}</span></div>
+          ${p.tip ? `<div class="notat">${KI.esc(p.tip)}</div>` : ""}
+          ${adv ? KI.sliderHtml(this._hass, p.interval, "Intervall", { unit: " d" }) + `<div class="rad" data-more="${p.sist}" style="cursor:pointer"><span class="rad-navn">Sist vannet</span><span class="rad-verdi">rediger ›</span></div>` : ""}
+          <div class="knapper"><div class="knapp primar press" data-press="${p.water}" ${this._config.confirm ? `data-confirm="Registrere ${KI.esc(p.name)} som vannet nå?"` : ""} tabindex="0">Vannet nå</div></div>
+        </div></div>`;
+    }
+    getCardSize() { return 3 + this._plants().length; }
+  }
+  window.KI.define("ki-planter-pro-card", KiPlanterProCard);
+  KI.register("ki-planter-pro-card", "KI Planter Pro", "Planter: status, neste vanning, tips, intervall og varsling");
+})(window.KI);
+} catch (e) { console.error("ki-cards: 42-ki-planter-pro-card feilet", e); }
 
 /* ===== family-status-card ===== */
 try {

@@ -1,5 +1,4 @@
-# Innstillinger-popup (ki-cards v2). Én ki-tabs-card med style: auto → nedtrekksmeny når fanene ikke får plass,
-# sticky: true holder menyen øverst mens innholdet scroller.
+# Innstillinger-popup (ki-cards v2.2). Søvn, vekking og planter har egne popuper (sovn-popup.yaml, vekking-popup.yaml, planter-popup.yaml).
 type: custom:bubble-card
 card_type: pop-up
 state: null
@@ -66,33 +65,5 @@ cards:
             include:
               - domain: automation
                 entity_id: automation.push_automation*
-          - type: custom:gap-card
-            height: 120
-      - title: Vekking
-        icon: mdi:alarm
-        cards:
-          # Finner alarmen selv (sensor.soverom_vekking_neste_alarm). Sett prefix: hvis du har flere.
-          - type: custom:ki-vekking-card
-            name: Soverom
-          - type: custom:gap-card
-            height: 12
-          - type: custom:ki-toggle-list-card
-            include:
-              - domain: automation
-                entity_id: automation.innstillinger*
-              - entity_id: input_boolean.innendors_privace_mode
-            sort: domain
-          - type: custom:gap-card
-            height: 120
-      - title: Søvn
-        icon: mdi:sleep
-        cards:
-          - type: custom:ki-sovn-card
-          - type: custom:gap-card
-            height: 120
-      - title: Planter
-        icon: mdi:flower-outline
-        cards:
-          - type: custom:ki-planter-card
           - type: custom:gap-card
             height: 120

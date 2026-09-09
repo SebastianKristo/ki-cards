@@ -1,4 +1,4 @@
-# Søvn-popup – ki-sovn-card finner personene fra KI Søvn & Vekking selv.
+# Søvn-popup – ki-sovn-pro-card finner entitetene fra integrasjonen selv.
 type: custom:bubble-card
 card_type: pop-up
 state: null
@@ -23,12 +23,6 @@ name: Søvn
 icon: mdi:sleep
 hash: '#sovn'
 cards:
-  - type: custom:ki-section-card
-    title: Hvem sover
-  - type: custom:ki-sovn-card
-    # persons: kan brukes for rekkefølge/navn/leggetid:
-    # persons:
-    #   - entity: binary_sensor.sebastian_sovn_sover
-    #     bedtime: 23–01
+  - type: custom:ki-sovn-pro-card
   - type: custom:gap-card
     height: 120

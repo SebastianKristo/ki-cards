@@ -1,0 +1,14 @@
+# Fliser som åpner popupene (legg i samme grid som de andre flisene)
+- type: custom:ki-sovn-card
+  mode: tile
+  name: Søvn
+  hash: '#sovn'
+- type: custom:ki-vekking-card
+  mode: tile
+  name: Vekking
+  hash: '#vekking'
+- type: custom:ki-planter-card
+  mode: tile
+  name: Planter
+  sted: Sebastians soverom
+  hash: '#planter-sebastian'

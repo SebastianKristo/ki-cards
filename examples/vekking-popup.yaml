@@ -1,4 +1,4 @@
-# Planter-popup – ki-planter-pro-card finner entitetene fra integrasjonen selv.
+# Vekking-popup – ki-vekking-pro-card finner entitetene fra integrasjonen selv.
 type: custom:bubble-card
 card_type: pop-up
 state: null
@@ -19,11 +19,10 @@ margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 button_type: name
-name: Planter
-icon: mdi:flower-outline
-hash: '#planter-sebastian'
+name: Vekking
+icon: mdi:alarm
+hash: '#vekking'
 cards:
-  - type: custom:ki-planter-pro-card
-    sted: Sebastians soverom
+  - type: custom:ki-vekking-pro-card
   - type: custom:gap-card
     height: 120
