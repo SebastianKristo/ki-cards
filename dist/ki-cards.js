@@ -1,4 +1,4 @@
-/* ki-cards v2.18.2 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.18.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.18.2";
+  KI.VERSION = "2.18.3";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,7 +1546,7 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.5.2  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.3  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -2311,11 +2311,11 @@ try {
       if (changed || this._dirty) {
         this._lastOv = ov;
         this._dirty = true;
-        if (this._visible) { this._dirty = false; this._rebuild(ov); return; }
-        enqueueBuild(this); // bygg i ledig tid så popupen er klar når den åpnes
+        if (this._visible !== false) { this._dirty = false; this._rebuild(ov); return; }
+        enqueueBuild(this); // skjult popup: bygg i ledig tid så den er klar når den åpnes
         return;
       }
-      if (!this._visible) { this._pendingHass = hass; return; }
+      if (this._visible === false) { this._pendingHass = hass; return; }
       this._forward(hass);
     }
 
@@ -2338,14 +2338,15 @@ try {
           this._visible = vis;
           if (!vis) return;
           if (this._dirty && this._lastOv) { this._dirty = false; this._rebuild(this._lastOv); }
+          else if (!this._children.length && this._lastOv && !this._building) this._rebuild(this._lastOv);
           else if (this._pendingHass) this._forward(this._pendingHass);
-        }, { rootMargin: '200px' });
+        }, { rootMargin: '300px' });
         this._io.observe(this);
-      } else if (!this._io) {
-        this._visible = true;
       }
+      // sikkerhetsnett: er kortet fortsatt tomt etter 3 s, bygg uansett
+      setTimeout(() => { if (this.isConnected && !this._children.length && this._lastOv && !this._building) { this._dirty = false; this._rebuild(this._lastOv); } }, 3000);
     }
-    disconnectedCallback() { if (this._io) { this._io.disconnect(); this._io = null; } this._visible = false; }
+    disconnectedCallback() { if (this._io) { this._io.disconnect(); this._io = null; } this._visible = undefined; }
 
     _showError(msg) {
       if (this._root.dataset.error === msg) return;
@@ -2459,7 +2460,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.2 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.3 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 

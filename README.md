@@ -348,3 +348,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.18.2
 - Ytelse: rom-popups forhåndsbygges én om gangen i ledig tid (klar ved åpning), hass-oppdateringer samles til én per animasjonsramme i `ki-rom-card` og `ki-hjem-card`, og swipe-card-stil injiseres bare når `swipe_type: plain` brukes (før: shadow-DOM-gjennomgang hvert 300 ms i 9 s).
+
+## v2.18.3
+- `ki-rom-card`: bygges alltid (i ledig tid når popupen er skjult), synlighet styrer bare hass-videresending; sikkerhetsnett som bygger kortet hvis det står tomt.
