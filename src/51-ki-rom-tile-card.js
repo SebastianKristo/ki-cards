@@ -26,15 +26,12 @@
   const FALLBACK_HUM = 'sensor.hus_fuktighet';
   const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
 
-  function findOne(hass, rom) {
-    if (!rom) return null;
-    if (hass.states[rom]) return hass.states[rom];
-    if (hass.states['sensor.' + rom + '_oversikt']) return hass.states['sensor.' + rom + '_oversikt'];
-    return Object.values(hass.states).find((st) => st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id === rom) || null;
-  }
+  const findOne = (hass, rom) => (window.KI && window.KI.romFindOne) ? window.KI.romFindOne(hass, rom) : (hass.states['sensor.' + rom + '_oversikt'] || null);
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    const ids = (window.KI && window.KI.romOversiktIds) ? window.KI.romOversiktIds(hass)
+      : Object.keys(hass.states).filter((id) => id.startsWith('sensor.') && id.endsWith('_oversikt'));
+    return ids.map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 

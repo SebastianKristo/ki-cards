@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.5.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -595,12 +595,31 @@
   }
 
   // Finn oversikt-sensor for et rom (area_id, entity-prefix eller entity id)
+  // rom -> entity_id huskes: full gjennomgang av hass.states ved hver oppdatering gjorde Android treg
+  const ROM_CACHE = new Map();
   function findOne(hass, rom) {
     if (!rom) return null;
-    if (hass.states[rom]) return hass.states[rom];
-    if (hass.states['sensor.' + rom + '_oversikt']) return hass.states['sensor.' + rom + '_oversikt'];
-    return Object.values(hass.states).find((st) => st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id === rom) || null;
+    const cached = ROM_CACHE.get(rom);
+    if (cached && hass.states[cached]) return hass.states[cached];
+    let st = hass.states[rom] || hass.states['sensor.' + rom + '_oversikt'] || null;
+    if (!st) st = Object.values(hass.states).find((x) => x.entity_id.endsWith('_oversikt') && x.attributes.integrasjon === 'ki_rom' && x.attributes.area_id === rom) || null;
+    if (st) ROM_CACHE.set(rom, st.entity_id);
+    return st;
   }
+
+  // liste over alle oversikt-sensorer: skann hass.states maks hvert 30. sekund
+  let OV_IDS = null, OV_TS = 0;
+  function oversiktIds(hass) {
+    const now = Date.now();
+    if (!OV_IDS || now - OV_TS > 30000 || OV_IDS.some((id) => !hass.states[id])) {
+      OV_IDS = Object.values(hass.states).filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom').map((st) => st.entity_id);
+      OV_TS = now;
+    }
+    return OV_IDS;
+  }
+  window.KI = window.KI || {};
+  window.KI.romFindOne = findOne;
+  window.KI.romOversiktIds = oversiktIds;
   // Returnerer liste av oversikt-tilstander (ett eller flere rom), eller null hvis noe mangler
   function findOversikt(hass, cfg) {
     const roms = [].concat(cfg.entity || [], cfg.rom || []).filter(Boolean);
@@ -619,8 +638,8 @@
   }
 
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    return oversiktIds(hass).map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
@@ -882,5 +901,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

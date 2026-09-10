@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.6  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.7  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -49,8 +49,10 @@
   const FARGER = ['var(--green)', 'var(--blue)', 'var(--yellow)', 'var(--purple)', 'var(--orange)', 'var(--red)', 'var(--pink)'];
 
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    const ids = (window.KI && window.KI.romOversiktIds) ? window.KI.romOversiktIds(hass)
+      : Object.keys(hass.states).filter((id) => id.startsWith('sensor.') && id.endsWith('_oversikt'));
+    return ids.map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
@@ -160,7 +162,7 @@
     const floors = new Map();
     rooms(hass, cfg).forEach((a) => {
       const key = a.etasje_id || '__uten';
-      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Andre', niva: a.etasje_niva ?? 999, rom: [] });
+      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Rom', niva: a.etasje_niva ?? 999, rom: [] });
       floors.get(key).rom.push(a);
     });
     const fc = cfg.etasje_innstillinger || {};
@@ -269,7 +271,7 @@
 
     _floors() {
       const m = new Map();
-      allOversikt(this._hass).forEach((st) => { const a = st.attributes; const k = a.etasje_id || '__uten'; if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Andre', niva: a.etasje_niva ?? 999, rom: [] }); m.get(k).rom.push(a); });
+      allOversikt(this._hass).forEach((st) => { const a = st.attributes; const k = a.etasje_id || '__uten'; if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Rom', niva: a.etasje_niva ?? 999, rom: [] }); m.get(k).rom.push(a); });
       return [...m.values()].sort((x, y) => x.niva - y.niva);
     }
 

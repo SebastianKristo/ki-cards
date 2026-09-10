@@ -342,3 +342,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.18.0
 - Ytelse (Android): romkortene sammenligner state-objekter på referanse i stedet for å JSON-serialisere attributter ved hver hass-oppdatering; `ki-rom-card` bygger innholdet først når popupen er synlig og sender ikke hass til skjulte popups.
+
+## v2.18.1
+- Ytelse: oppslag rom → `sensor.<rom>_oversikt` huskes, og listen over oversikt-sensorer skannes maks hvert 30. sekund (før: full gjennomgang av alle HA-tilstander ved hver oppdatering, per kort). Rom uten etasje havner i fanen «Rom».

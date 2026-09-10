@@ -1,4 +1,4 @@
-/* ki-cards v2.18.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.18.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.18.0";
+  KI.VERSION = "2.18.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,7 +1546,7 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.5.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -2142,12 +2142,31 @@ try {
   }
 
   // Finn oversikt-sensor for et rom (area_id, entity-prefix eller entity id)
+  // rom -> entity_id huskes: full gjennomgang av hass.states ved hver oppdatering gjorde Android treg
+  const ROM_CACHE = new Map();
   function findOne(hass, rom) {
     if (!rom) return null;
-    if (hass.states[rom]) return hass.states[rom];
-    if (hass.states['sensor.' + rom + '_oversikt']) return hass.states['sensor.' + rom + '_oversikt'];
-    return Object.values(hass.states).find((st) => st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id === rom) || null;
+    const cached = ROM_CACHE.get(rom);
+    if (cached && hass.states[cached]) return hass.states[cached];
+    let st = hass.states[rom] || hass.states['sensor.' + rom + '_oversikt'] || null;
+    if (!st) st = Object.values(hass.states).find((x) => x.entity_id.endsWith('_oversikt') && x.attributes.integrasjon === 'ki_rom' && x.attributes.area_id === rom) || null;
+    if (st) ROM_CACHE.set(rom, st.entity_id);
+    return st;
   }
+
+  // liste over alle oversikt-sensorer: skann hass.states maks hvert 30. sekund
+  let OV_IDS = null, OV_TS = 0;
+  function oversiktIds(hass) {
+    const now = Date.now();
+    if (!OV_IDS || now - OV_TS > 30000 || OV_IDS.some((id) => !hass.states[id])) {
+      OV_IDS = Object.values(hass.states).filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom').map((st) => st.entity_id);
+      OV_TS = now;
+    }
+    return OV_IDS;
+  }
+  window.KI = window.KI || {};
+  window.KI.romFindOne = findOne;
+  window.KI.romOversiktIds = oversiktIds;
   // Returnerer liste av oversikt-tilstander (ett eller flere rom), eller null hvis noe mangler
   function findOversikt(hass, cfg) {
     const roms = [].concat(cfg.entity || [], cfg.rom || []).filter(Boolean);
@@ -2166,8 +2185,8 @@ try {
   }
 
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    return oversiktIds(hass).map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
@@ -2429,7 +2448,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
@@ -2463,15 +2482,12 @@ try {
   const FALLBACK_HUM = 'sensor.hus_fuktighet';
   const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
 
-  function findOne(hass, rom) {
-    if (!rom) return null;
-    if (hass.states[rom]) return hass.states[rom];
-    if (hass.states['sensor.' + rom + '_oversikt']) return hass.states['sensor.' + rom + '_oversikt'];
-    return Object.values(hass.states).find((st) => st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id === rom) || null;
-  }
+  const findOne = (hass, rom) => (window.KI && window.KI.romFindOne) ? window.KI.romFindOne(hass, rom) : (hass.states['sensor.' + rom + '_oversikt'] || null);
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    const ids = (window.KI && window.KI.romOversiktIds) ? window.KI.romOversiktIds(hass)
+      : Object.keys(hass.states).filter((id) => id.startsWith('sensor.') && id.endsWith('_oversikt'));
+    return ids.map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
@@ -2830,7 +2846,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.6  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.7  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -2880,8 +2896,10 @@ try {
   const FARGER = ['var(--green)', 'var(--blue)', 'var(--yellow)', 'var(--purple)', 'var(--orange)', 'var(--red)', 'var(--pink)'];
 
   function allOversikt(hass) {
-    return Object.values(hass.states)
-      .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
+    const ids = (window.KI && window.KI.romOversiktIds) ? window.KI.romOversiktIds(hass)
+      : Object.keys(hass.states).filter((id) => id.startsWith('sensor.') && id.endsWith('_oversikt'));
+    return ids.map((id) => hass.states[id])
+      .filter((st) => st && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
@@ -2991,7 +3009,7 @@ try {
     const floors = new Map();
     rooms(hass, cfg).forEach((a) => {
       const key = a.etasje_id || '__uten';
-      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Andre', niva: a.etasje_niva ?? 999, rom: [] });
+      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Rom', niva: a.etasje_niva ?? 999, rom: [] });
       floors.get(key).rom.push(a);
     });
     const fc = cfg.etasje_innstillinger || {};
@@ -3100,7 +3118,7 @@ try {
 
     _floors() {
       const m = new Map();
-      allOversikt(this._hass).forEach((st) => { const a = st.attributes; const k = a.etasje_id || '__uten'; if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Andre', niva: a.etasje_niva ?? 999, rom: [] }); m.get(k).rom.push(a); });
+      allOversikt(this._hass).forEach((st) => { const a = st.attributes; const k = a.etasje_id || '__uten'; if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Rom', niva: a.etasje_niva ?? 999, rom: [] }); m.get(k).rom.push(a); });
       return [...m.values()].sort((x, y) => x.niva - y.niva);
     }
 
