@@ -6,6 +6,7 @@
       const c = this._config;
       return {
         entity: c.entity, name: c.name, label: c.label, icon: c.icon,
+        label_entity: c.label_entity, label_attribute: c.label_attribute, label_format: c.label_format, label_decimals: c.label_decimals,
         size: c.size || "row",                 // "row" | "tile"
         background: c.background || "var(--gray200)",
         state_on: c.state_on ?? "På", state_off: c.state_off ?? "Av",
@@ -13,9 +14,22 @@
         tap: c.tap_action || "toggle", hold: c.hold_action || "more-info",
       };
     }
-    _key() { const c = this._cfg(); const s = this.st(c.entity); return JSON.stringify([c, s && s.state, s && s.attributes.friendly_name, s && s.attributes.icon]); }
+    /* label kan hentes fra en annen entitet: label_entity + label_attribute (valgfri) + label_format med {value} */
+    _label(c) {
+      if (!c.label_entity) return c.label || "";
+      const st = this.st(c.label_entity); if (!st) return c.label || "";
+      let v = c.label_attribute ? st.attributes[c.label_attribute] : st.state;
+      if (v === undefined || v === null || v === "") return c.label || "";
+      if (typeof v === "number" || (!isNaN(parseFloat(v)) && isFinite(v))) {
+        const n = parseFloat(v), d = c.label_decimals ?? (Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2);
+        v = n.toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d });
+      }
+      return (c.label_format || "{value}").replace("{value}", v);
+    }
+    _key() { const c = this._cfg(); const s = this.st(c.entity); const l = c.label_entity ? this.st(c.label_entity) : null;
+      return JSON.stringify([c, s && s.state, s && s.attributes.friendly_name, s && s.attributes.icon, l && l.state, l && c.label_attribute && l.attributes[c.label_attribute]]); }
     _render() {
-      const c = this._cfg(); const s = this.st(c.entity);
+      const c = this._cfg(); const s = this.st(c.entity); c.label = this._label(c);
       const on = this.on(c.entity);
       const name = c.name || KI.friendly(this._hass, c.entity);
       const icon = c.icon === null ? null : (c.icon || (s && s.attributes.icon) || "mdi:toggle-switch");

@@ -1,4 +1,4 @@
-# Innstillinger-popup (ki-cards v2.2). Søvn, vekking og planter har egne popuper (sovn-popup.yaml, vekking-popup.yaml, planter-popup.yaml).
+# Innstillinger-popup (ki-cards v2.9). Søvn, vekking og planter har egne popuper (sovn-popup.yaml, vekking-popup.yaml, planter-popup.yaml).
 type: custom:bubble-card
 card_type: pop-up
 state: null
@@ -54,6 +54,9 @@ cards:
               - domain: automation
                 entity_id: automation.automation*
               - entity_id: switch.ki_styr_hanklevarmer
+                label_entity: sensor.ki_hanklevarmer
+                label_attribute: spart_kr_maned
+                label_format: "Spart {value} kr denne måneden (46 W når den står på)"
               - entity_id: switch.ki_klima_hovedbryter
             sort: domain
           - type: custom:gap-card
