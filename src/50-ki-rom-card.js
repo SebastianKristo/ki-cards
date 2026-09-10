@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.4.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.4.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -15,7 +15,8 @@
  *    klima: true
  *    media: true
  *    sensorer: true
- *  temperatur: sensor.x           # overstyr (ellers første temp-sensor i rommet)
+ *  temperatur: sensor.x           # overstyr (ellers første temp-sensor i rommet, ellers sensor.hus_temperature)
+ *  reserve_temperatur / reserve_fuktighet: sensor.x   # annen reserve enn hus-sensorene
  *  fuktighet: sensor.x
  *  teller_suffix: _teller         # input_number.<klima>_teller brukes hvis den finnes
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
@@ -125,9 +126,13 @@
   };
 
   // ------------------------------------------------------------ seksjoner
+  const FALLBACK_TEMP = 'sensor.hus_temperature';
+  const FALLBACK_HUM = 'sensor.hus_fuktighet';
+
   function sectionHeader(hass, ov, cfg, roomName) {
-    const temp = cfg.temperatur || ov.temperatur[0];
-    const hum = cfg.fuktighet || ov.fuktighet[0];
+    const has = (e) => e && hass.states[e];
+    const temp = cfg.temperatur || ov.temperatur[0] || (has(cfg.reserve_temperatur || FALLBACK_TEMP) ? (cfg.reserve_temperatur || FALLBACK_TEMP) : null);
+    const hum = cfg.fuktighet || ov.fuktighet[0] || (has(cfg.reserve_fuktighet || FALLBACK_HUM) ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
     const clim = ov.klima[0] && ov.klima[0].entity;
     const custom = {};
     if (clim) {
@@ -418,7 +423,7 @@
 
   function sectionKlima(hass, ov, cfg, roomName) {
     if (!ov.klima.length) return null;
-    const hum = cfg.fuktighet || ov.fuktighet[0] || null;
+    const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
     const wIds = ov.klima.map((d) => d.effekt).filter(Boolean);
     return expander(
       [headerTitle('Klima', 'mdi:thermostat'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
@@ -844,5 +849,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.4.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.4.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

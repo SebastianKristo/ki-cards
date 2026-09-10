@@ -267,3 +267,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.14.0
 - `ki-rom-card`: `skjul:` (velger i editoren, begrenset til enhetene i rommet) fjerner enheter fra kortet; flere rom gir nå én felles header.
+
+## v2.14.1
+- `ki-rom-card`: rom uten temperatur-/fuktsensor bruker `sensor.hus_temperature` / `sensor.hus_fuktighet` (endres med `reserve_temperatur:` / `reserve_fuktighet:`).
