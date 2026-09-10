@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.3  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.4  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -55,12 +55,13 @@
   }
 
   let swipeSeq = 0;
+  let curHass = null;
   // ---- et element i en liste -> kortkonfig
-  function item(it, romCfg, gap) {
+  function item(it, romCfg, gap, inSwipe = false) {
     if (!it) return null;
     if (it.swipe) {
       const sw = it.swipe;
-      const cards = (sw.cards || []).map((c) => item(c, romCfg)).filter(Boolean);
+      const cards = (sw.cards || []).map((c) => item(c, romCfg, gap, true)).filter(Boolean);
       if (sw.type === 'plain') {
         const c = { type: 'custom:swipe-card', cards };
         if (sw.pagination) c.parameters = { pagination: { el: '.swiper-pagination', clickable: true }, ...(sw.parameters || {}) };
@@ -73,7 +74,14 @@
     if (it.type) return it;
     if (it.rom || it.kind) {
       const base = it.rom ? (romCfg[it.rom] || {}) : {};
-      return { type: 'custom:ki-rom-tile-card', ...base, ...it };
+      const cfg = { type: 'custom:ki-rom-tile-card', ...base, ...it };
+      // spesialfliser (kalender, lås, alarm …) legges rett inn som button-card-konfig: css-swipe-card
+      // mister hele swipen hvis kalender-flisen kommer via wrapperen
+      const KI = window.KI || {};
+      if ((it.kind || 'rom') !== 'rom' && KI.romTileConfig && curHass) {
+        try { const raw = KI.romTileConfig(curHass, cfg); if (raw) return raw; } catch (e) { /* fall tilbake til wrapper */ }
+      }
+      return cfg;
     }
     return null;
   }
@@ -201,6 +209,7 @@
 
   function generate(hass, cfg) {
     swipeSeq = 0;
+    curHass = hass;
     const romCfg = cfg.rom || {};
     const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
     const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');

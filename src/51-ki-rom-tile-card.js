@@ -376,6 +376,10 @@
     getCardSize() { return this._card && this._card.getCardSize ? this._card.getCardSize() : 3; }
   }
 
+  // eksponer generatoren så ki-hjem-card kan legge fliser rett inn som button-card-konfig
+  window.KI = window.KI || {};
+  window.KI.romTileConfig = generate;
+
   if (!customElements.get('ki-rom-tile-editor')) customElements.define('ki-rom-tile-editor', KiRomTileEditor);
   if (!customElements.get('ki-rom-tile-card')) customElements.define('ki-rom-tile-card', KiRomTileCard);
   window.customCards = window.customCards || [];

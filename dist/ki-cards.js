@@ -1,4 +1,4 @@
-/* ki-cards v2.17.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.17.4 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.17.3";
+  KI.VERSION = "2.17.4";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -2780,6 +2780,10 @@ try {
     getCardSize() { return this._card && this._card.getCardSize ? this._card.getCardSize() : 3; }
   }
 
+  // eksponer generatoren så ki-hjem-card kan legge fliser rett inn som button-card-konfig
+  window.KI = window.KI || {};
+  window.KI.romTileConfig = generate;
+
   if (!customElements.get('ki-rom-tile-editor')) window.KI.define('ki-rom-tile-editor', KiRomTileEditor);
   if (!customElements.get('ki-rom-tile-card')) window.KI.define('ki-rom-tile-card', KiRomTileCard);
   window.customCards = window.customCards || [];
@@ -2790,7 +2794,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.3  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.4  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -2846,12 +2850,13 @@ try {
   }
 
   let swipeSeq = 0;
+  let curHass = null;
   // ---- et element i en liste -> kortkonfig
-  function item(it, romCfg, gap) {
+  function item(it, romCfg, gap, inSwipe = false) {
     if (!it) return null;
     if (it.swipe) {
       const sw = it.swipe;
-      const cards = (sw.cards || []).map((c) => item(c, romCfg)).filter(Boolean);
+      const cards = (sw.cards || []).map((c) => item(c, romCfg, gap, true)).filter(Boolean);
       if (sw.type === 'plain') {
         const c = { type: 'custom:swipe-card', cards };
         if (sw.pagination) c.parameters = { pagination: { el: '.swiper-pagination', clickable: true }, ...(sw.parameters || {}) };
@@ -2864,7 +2869,14 @@ try {
     if (it.type) return it;
     if (it.rom || it.kind) {
       const base = it.rom ? (romCfg[it.rom] || {}) : {};
-      return { type: 'custom:ki-rom-tile-card', ...base, ...it };
+      const cfg = { type: 'custom:ki-rom-tile-card', ...base, ...it };
+      // spesialfliser (kalender, lås, alarm …) legges rett inn som button-card-konfig: css-swipe-card
+      // mister hele swipen hvis kalender-flisen kommer via wrapperen
+      const KI = window.KI || {};
+      if ((it.kind || 'rom') !== 'rom' && KI.romTileConfig && curHass) {
+        try { const raw = KI.romTileConfig(curHass, cfg); if (raw) return raw; } catch (e) { /* fall tilbake til wrapper */ }
+      }
+      return cfg;
     }
     return null;
   }
@@ -2992,6 +3004,7 @@ try {
 
   function generate(hass, cfg) {
     swipeSeq = 0;
+    curHass = hass;
     const romCfg = cfg.rom || {};
     const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
     const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');
