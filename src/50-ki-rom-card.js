@@ -1,9 +1,10 @@
 /* ============================================================================
- * ki-rom-card  v1.1.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.2.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id (eller entity: sensor.stue_oversikt) – kan velges i UI-editoren
  *  gap: 8                         # px mellom kortene
+ *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
  *  seksjoner:                     # alle true som standard
  *    header: true
  *    gardiner: true
@@ -34,6 +35,19 @@
   };
 
   const objId = (e) => e.split('.')[1];
+
+  // seksjoner: {lys:false} | ['lys','klima'] | toppnivå media: false
+  function normalizeSections(config) {
+    const out = { ...DEFAULT_SECTIONS };
+    const sek = config.seksjoner;
+    if (Array.isArray(sek)) {
+      Object.keys(out).forEach((k) => { out[k] = sek.includes(k); });
+    } else if (sek && typeof sek === 'object') {
+      Object.keys(sek).forEach((k) => { if (k in out) out[k] = sek[k] !== false && sek[k] !== 'false' && sek[k] !== 0; });
+    }
+    Object.keys(out).forEach((k) => { if (config[k] === false) out[k] = false; });
+    return out;
+  }
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
   function stripRoom(name, room) {
@@ -223,13 +237,20 @@
     [/av$|lys.?av|alt.?av/i, 'mdi:lightbulb-off-outline'], [/natta|sov/i, 'mdi:sleep'],
   ];
 
-  function sectionScener(hass, ov, roomName) {
-    const items = [...ov.skript.map((e) => ({ e, kind: 'script' })), ...ov.scener.map((e) => ({ e, kind: 'scene' }))];
+  function sectionScener(hass, ov, roomName, ekstra) {
+    const seen = new Set();
+    const items = [];
+    [...ov.skript, ...ov.scener, ...(ekstra || [])].forEach((raw) => {
+      const e = typeof raw === 'string' ? raw : raw && raw.entity;
+      if (!e || seen.has(e) || !/^(script|scene)\./.test(e)) return;
+      seen.add(e);
+      items.push({ e, kind: e.split('.')[0], navn: raw && raw.navn, ikon: raw && raw.ikon });
+    });
     if (!items.length) return null;
-    const buttons = items.map(({ e, kind }) => {
+    const buttons = items.map(({ e, kind, navn, ikon }) => {
       const st = hass.states[e] || { attributes: {} };
-      const name = friendly(hass, e, roomName).replace(/^Lys /, '');
-      let icon = st.attributes.icon;
+      const name = navn || cap(friendly(hass, e, roomName).replace(/^Lys /, ''));
+      let icon = ikon || st.attributes.icon;
       if (!icon) {
         const hit = ICON_GUESS.find(([re]) => re.test(objId(e)));
         icon = hit ? hit[1] : (kind === 'scene' ? 'mdi:palette-outline' : 'mdi:script-text-outline');
@@ -448,37 +469,42 @@
   const binarySensorCard = (e, name, klasse) => {
     const [on, off, color] = SENSOR_STYLE[klasse] || ['Aktiv', 'Stille', 'var(--blue)'];
     return {
-      type: 'custom:button-card', entity: e, template: 'universal_sensor',
+      type: 'custom:button-card', template: 'universal_action', entity: e,
+      tap_action: { action: 'more-info' }, hold_action: { action: 'more-info' },
       variables: {
-        size: 'small', show_tap_indicator: true,
+        size: 'small', icon: null,
         sub_text: T('if (entity.state === "on") return "' + on + '"; if (entity.state === "off") return "' + off + '"; return entity.state;'),
-        icon: null, main_text: name,
-        background_color: T('if (entity.state === "on") return "' + color + '"; return "var(--gray100)";'),
-        text_color: T('if (entity.state === "on") return "var(--gray100)"; return "var(--gray1000)";'),
-        img_cell_background: T('if (entity.state === "on") return "rgba(40, 40, 42, 0.1)"; return "rgba(250, 251, 252, 0.1)";'),
+        main_text: name, background_color: 'var(--gray100)',
+        state_rule_1_value: 'on', state_rule_1_main_text: name,
+        state_rule_1_background_color: color, state_rule_1_text_color: 'var(--black)',
       },
+      styles: universalGrid,
     };
   };
+
+  const luxCard = (e, name) => ({
+    type: 'custom:button-card', template: 'universal_action', entity: e,
+    tap_action: { action: 'more-info' }, hold_action: { action: 'more-info' },
+    variables: {
+      size: 'small', icon: null,
+      sub_text: T('return Number(entity.state).toFixed(1) + " lx";'),
+      main_text: name, background_color: 'var(--gray100)',
+      state_rule_1_condition: true, state_rule_1_main_text: name,
+      state_rule_1_background_color: 'var(--orange)', state_rule_1_text_color: 'var(--black)',
+    },
+    styles: universalGrid,
+  });
 
   function sectionSensorer(hass, ov, roomName) {
     if (!ov.sensorer.length && !ov.lysniva.length) return null;
     const ids = ov.sensorer.map((s) => s.entity);
-    const cards = [];
-    if (ids.length) {
-      cards.push({ type: 'grid', columns: 2, square: false, cards: ov.sensorer.map((s) => binarySensorCard(s.entity, friendly(hass, s.entity, roomName), s.klasse)) });
-    }
-    if (ov.lysniva.length) {
-      cards.push({
-        type: 'grid', columns: 1, square: false,
-        cards: [{ type: 'custom:gap-card', height: 0 }, ...ov.lysniva.map((e) => ({
-          type: 'custom:button-card', entity: e, template: 'universal_sensor',
-          variables: { size: 'small', show_tap_indicator: true, sub_text: T('return Number(entity.state).toFixed(1) + " lx"'), icon: null, main_text: 'Lys', background_color: 'var(--orange)', text_color: 'var(--gray100)', img_cell_background: 'rgba(40, 40, 42, 0.1)' },
-        }))],
-      });
-    }
+    const cards = [
+      ...ov.sensorer.map((s) => binarySensorCard(s.entity, friendly(hass, s.entity, roomName), s.klasse)),
+      ...ov.lysniva.map((e) => luxCard(e, ov.lysniva.length > 1 ? friendly(hass, e, roomName) : 'Lys')),
+    ];
     return expander(
       [headerTitle('Sensorer', 'mdi:motion-sensor'), headerCounter(ids.length ? activeCountTemplate(ids, 'aktiv', 'stille') : '')],
-      cards, '130px 0px'
+      [{ square: false, type: 'grid', columns: 1, cards }], '130px 0px'
     );
   }
 
@@ -492,7 +518,7 @@
     const builders = {
       header: () => sectionHeader(hass, ov, cfg, roomName),
       gardiner: () => sectionGardiner(hass, ov, roomName),
-      scener: () => sectionScener(hass, ov, roomName),
+      scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra),
       lys: () => sectionLys(hass, ov, roomName),
       enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE),
       klima: () => sectionKlima(hass, ov, cfg, roomName),
@@ -529,6 +555,7 @@
   const LABELS = {
     rom: 'Rom', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
     teller_suffix: 'Suffiks for input_number-teller', gap: 'Avstand mellom kort (px)',
+    scener_ekstra: 'Legg til skript/scener som skal vises i raden',
   };
 
   class KiRomCardEditor extends HTMLElement {
@@ -543,26 +570,28 @@
       return [
         { name: 'rom', required: true, selector: { select: { mode: 'dropdown', options: this._rooms() } } },
         { name: 'navn', selector: { text: {} } },
-        {
-          name: 'seksjoner_expand', type: 'expandable', title: 'Seksjoner', expanded: true,
-          schema: Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })),
-        },
-        {
-          name: 'avansert', type: 'expandable', title: 'Avansert',
-          schema: [
-            { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-            { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
-            { name: 'teller_suffix', selector: { text: {} } },
-            { name: 'gap', selector: { number: { min: 0, max: 40, mode: 'box', unit_of_measurement: 'px' } } },
-          ],
-        },
+        { name: 'seksjoner_tittel', type: 'constant', label: 'Seksjoner' },
+        { name: 'sek', type: 'grid', schema: Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })) },
+        { name: 'scener_tittel', type: 'constant', label: 'Scener og skript' },
+        { name: 'scener_ekstra', selector: { entity: { domain: ['script', 'scene'], multiple: true } } },
+        { name: 'avansert_tittel', type: 'constant', label: 'Avansert' },
+        { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+        { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+        { name: 'adv', type: 'grid', schema: [
+          { name: 'teller_suffix', selector: { text: {} } },
+          { name: 'gap', selector: { number: { min: 0, max: 40, mode: 'box', unit_of_measurement: 'px' } } },
+        ] },
       ];
     }
 
     _data() {
       const c = this._config || {};
-      const sek = { ...DEFAULT_SECTIONS, ...(c.seksjoner || {}) };
-      const d = { rom: c.rom, navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet, teller_suffix: c.teller_suffix, gap: c.gap };
+      const sek = normalizeSections(c);
+      const d = {
+        rom: c.rom, navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
+        teller_suffix: c.teller_suffix || '_teller', gap: c.gap === undefined ? 8 : c.gap,
+        scener_ekstra: (c.scener_ekstra || []).map((x) => (typeof x === 'string' ? x : x.entity)).filter(Boolean),
+      };
       Object.keys(DEFAULT_SECTIONS).forEach((k) => { d['sek_' + k] = sek[k]; });
       return d;
     }
@@ -580,6 +609,7 @@
           const out = { type: 'custom:ki-rom-card', rom: v.rom };
           if (v.navn) out.navn = v.navn;
           if (Object.keys(seksjoner).length) out.seksjoner = seksjoner;
+          if (Array.isArray(v.scener_ekstra) && v.scener_ekstra.length) out.scener_ekstra = v.scener_ekstra;
           if (v.temperatur) out.temperatur = v.temperatur;
           if (v.fuktighet) out.fuktighet = v.fuktighet;
           if (v.teller_suffix && v.teller_suffix !== '_teller') out.teller_suffix = v.teller_suffix;
@@ -590,8 +620,10 @@
         this.appendChild(this._form);
       }
       this._form.hass = this._hass;
-      this._form.schema = this._schema();
-      this._form.data = this._data();
+      const schema = this._schema();
+      if (JSON.stringify(schema) !== this._lastSchema) { this._lastSchema = JSON.stringify(schema); this._form.schema = schema; }
+      const data = this._data();
+      if (JSON.stringify(data) !== this._lastData) { this._lastData = JSON.stringify(data); this._form.data = data; }
     }
   }
 
@@ -607,7 +639,7 @@
       this._config = {
         teller_suffix: '_teller',
         ...config,
-        seksjoner: { ...DEFAULT_SECTIONS, ...(config.seksjoner || {}) },
+        seksjoner: normalizeSections(config),
       };
       this._rawConfig = config;
       this._signature = null;
@@ -739,5 +771,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.0.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.2.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

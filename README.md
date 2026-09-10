@@ -191,6 +191,9 @@ seksjoner:                 # alle på som standard, seksjoner uten entiteter fal
 temperatur: sensor.x       # valgfri overstyring (ellers første temp-sensor i rommet)
 fuktighet: sensor.x
 gap: 8                     # px mellom kortene
+scener_ekstra:             # skript/scener i tillegg til de som har rommet som område
+  - script.stue_lys_mer_lys
+  - scene.stue_nede_alt_av
 ```
 
 Kortet har UI-editor: legg til «KI Rom» i en popup, velg rom i nedtrekkslisten og huk av seksjonene. Egen popup per rom som før – `examples/rom-popup.yaml`.
@@ -253,3 +256,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.11.0
 - `ki-rom-card`: UI-editor (velg rom, seksjoner, sensorer), `gap:` mellom kortene (8 px standard).
+
+## v2.12.0
+- `ki-rom-card`: Sensorer bruker samme kort som Enheter (`universal_action`, én kolonne), seksjonsbrytere fikset (editor bruker grid-felt, `seksjoner:` godtar også liste / toppnivå `media: false`), `scener_ekstra:` + velger i editoren for å legge til skript/scener som ikke har rommet som område.
