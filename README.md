@@ -357,3 +357,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.19.1
 - `ki-rom-card`: nytt mediakort – 160 px-kort i klima-kortenes stil (navn, «artist – tittel», albumbilde i sirkelen, av/på · forrige · play/pause · neste · … nederst, grønt når det spiller) + volum. «…»-knappen viste entitetsnavnet – fikset.
+
+## v2.20.0
+- `ki-hjem-card`: innebygde faner `aktuelt:` (TV, støvsuger, vaskemaskin, oppvaskmaskin – samme kort som før) og `batterier:` (auto-entities, vises bare ved lavt batteri), også i editoren.

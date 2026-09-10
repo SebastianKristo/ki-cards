@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.8  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.3.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -14,6 +14,8 @@
  *  etasjer: auto          # standard – én fane per etasje; etasjer: false skrur av
  *  monster: { venstre: [big, small], hoyre: [row, big, row] }   # flismønster per kolonne
  *  etasje_innstillinger: { <etasje_id>: { vis: false, rekkefolge: 2, navn: '1. etg' } }
+ *  aktuelt: { tv: media_player.stue_tv, stovsuger: vacuum.x, vaskemaskin: sensor.x, oppvaskmaskin: sensor.x, ekstra: [...] }
+ *  batterier: true              # eller { terskel: 30, monster: 'sensor.*_battery_plus' }
  *  Alt over kan settes i UI-editoren (rom: vis/størrelse/plassering/rekkefølge/farge).
  *  rom:                   # per-rom-overstyring brukt overalt (auto-faner og fliser)
  *    inngang: { size: small, path: '#gang', farge: var(--yellow) }
@@ -209,6 +211,63 @@
     };
   }
 
+  // ---- Aktuelt-fanen: TV, støvsuger (bare når den vasker), vaskemaskin/oppvaskmaskin (bare når de går)
+  const VACC = '@keyframes vacc {\n    0% { transform: rotate(0deg) translate(0); }\n    20% { transform: rotate(-5deg) translate(-3px, 3px); }\n    40% { transform: rotate(-12deg) translate(-3px, -3px); }\n    60% { transform: translate(3px, 3px); }\n    80% { transform: rotate(12deg) translate(3px, -3px); }\n    100% { transform: rotate(0deg) translate(0); }\n}\n';
+  function aktueltTab(cfg) {
+    const a = (typeof cfg.aktuelt === 'object' && cfg.aktuelt) || {};
+    const cards = [];
+    if (a.tv) cards.push({
+      type: 'custom:button-card', template: 'universal_sensor', entity: a.tv,
+      tap_action: { action: 'navigate', navigation_path: a.tv_path || '?tab=tv#media' },
+      variables: {
+        sub_text: a.tv_navn || 'TV',
+        main_text: '[[[ const a = entity.attributes; const appMap = ' + JSON.stringify(a.app_navn || { 'NRK TV': 'NRK', 'TV 2 Play': 'TV 2', Telia: 'Telia Play', 'HBO Max': 'HBO', 'Apple TV': 'Apple TV+' }) + '; if (a.app_name) return appMap[a.app_name] || a.app_name; return a.source || "TV"; ]]]',
+        icon: 'mdi:television-classic', background_color: 'var(--gray200)', text_color: 'var(--gray1000)',
+      },
+    });
+    if (a.stovsuger) cards.push({
+      type: 'conditional', conditions: [{ condition: 'state', entity: a.stovsuger, state: 'cleaning' }],
+      card: {
+        type: 'custom:button-card', template: 'universal_sensor', entity: a.stovsuger,
+        tap_action: { action: 'navigate', navigation_path: a.stovsuger_path || '#rolf' },
+        extra_styles: VACC,
+        state: [{ value: 'cleaning', styles: { icon: [{ animation: 'vacc 2s ease 0s infinite normal forwards' }] } }],
+        variables: { sub_text: a.stovsuger_navn || 'Rolf', main_text: 'Vasker', icon: 'mdi:robot-vacuum', background_color: 'var(--gray200)', text_color: 'var(--gray1000)' },
+      },
+    });
+    const maskin = (ent, navn, icon, path, template) => ({
+      type: 'conditional', conditions: [{ condition: 'state', entity: ent, state: 'on' }],
+      card: {
+        type: 'custom:button-card', template, entity: ent,
+        tap_action: { action: 'navigate', navigation_path: path },
+        variables: { sub_text: navn, main_text: '[[[ return entity.state ]]]', icon, background_color: 'var(--gray200)', text_color: 'var(--gray1000)', show_bar: true, bar_value: '[[[ return entity.state ]]]', bar_color: 'var(--gray1000)' },
+      },
+    });
+    if (a.vaskemaskin) cards.push(maskin(a.vaskemaskin, 'Vaskemaskin', 'mdi:washing-machine', a.vaskemaskin_path || '#bad_nede', 'universal_sensor'));
+    if (a.oppvaskmaskin) cards.push(maskin(a.oppvaskmaskin, 'Oppvaskmaskin', 'mdi:dishwasher', a.oppvaskmaskin_path || '#kjokken', 'universal_bar'));
+    (a.ekstra || []).forEach((c) => cards.push(c));
+    if (!cards.length) return null;
+    return { title: a.title || 'Aktuelt', icon: '', card: { type: 'vertical-stack', cards: [{ type: 'grid', square: false, columns: 2, cards }] } };
+  }
+
+  // ---- Batterier-fanen: vises bare når noe er lavt
+  function batterierTab(cfg) {
+    const b = typeof cfg.batterier === 'object' && cfg.batterier ? cfg.batterier : {};
+    const terskel = b.terskel ?? 30;
+    const monster = b.monster || 'sensor.*_battery_plus';
+    const lav = b.lav_monster || '_battery_plus_low';
+    return {
+      title: b.title || 'Batterier', icon: '', badge: '',
+      conditions: [{ template: "{{ (states | selectattr('entity_id', 'search', '" + lav + "') | selectattr('state', 'eq', 'on') | list) | length > 0 }}" }],
+      card: {
+        type: 'custom:auto-entities',
+        card: { type: 'grid', columns: 2, square: false }, card_param: 'cards',
+        filter: { include: [{ entity_id: monster, state: '< ' + terskel, options: { type: 'custom:button-card', template: b.template || 'sensor_battery' } }], exclude: [] },
+        sort: { method: 'state', numeric: true },
+      },
+    };
+  }
+
   function generate(hass, cfg) {
     swipeSeq = 0;
     curHass = hass;
@@ -224,6 +283,9 @@
       const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : idx + 1);
       tabs = [...tabs.slice(0, pos), ...auto, ...tabs.slice(pos)];
     }
+    const titles = tabs.map((t) => (t.title || '').toLowerCase());
+    if (cfg.aktuelt && !titles.includes('aktuelt')) { const t = aktueltTab(cfg); if (t) tabs.push(t); }
+    if (cfg.batterier && !titles.includes('batterier')) tabs.push(batterierTab(cfg));
     return {
       type: 'custom:simple-tabs',
       'pre-load': true, alignment: cfg.alignment || 'start',
@@ -290,6 +352,14 @@
         { name: 'hjem_kalender', selector: { entity: { domain: 'sensor' } } },
         { name: 'hjem_rom', selector: { select: { multiple: true, mode: 'list', options: roomOpts } } },
         { name: 'hjem_rom_hoyre', selector: { select: { multiple: true, mode: 'list', options: roomOpts } } },
+        { name: 'h_aktuelt', type: 'constant', label: 'Aktuelt-fanen (tom = skjult)' },
+        { name: 'aktuelt_tv', selector: { entity: { domain: 'media_player' } } },
+        { name: 'aktuelt_stovsuger', selector: { entity: { domain: 'vacuum' } } },
+        { name: 'aktuelt_vaskemaskin', selector: { entity: { domain: ['sensor', 'binary_sensor'] } } },
+        { name: 'aktuelt_oppvaskmaskin', selector: { entity: { domain: ['sensor', 'binary_sensor'] } } },
+        { name: 'h_batterier', type: 'constant', label: 'Batterier-fanen' },
+        { name: 'batterier_vis', selector: { boolean: {} } },
+        { name: 'batterier_terskel', selector: { number: { min: 1, max: 100, mode: 'box', unit_of_measurement: '%' } } },
         { name: 'h_etasjer', type: 'constant', label: 'Etasjer' },
         { name: 'etasjer_vis', selector: { boolean: {} } },
       ];
@@ -319,6 +389,9 @@
         hjem_alarm: typeof h.alarm === 'string' ? h.alarm : (h.alarm || {}).entity, hjem_alarm_script: (h.alarm || {}).script,
         hjem_kalender: h.kalender, hjem_rom: h.rom || [], hjem_rom_hoyre: h.rom_hoyre || [],
         etasjer_vis: c.etasjer !== false,
+        aktuelt_tv: (c.aktuelt || {}).tv, aktuelt_stovsuger: (c.aktuelt || {}).stovsuger,
+        aktuelt_vaskemaskin: (c.aktuelt || {}).vaskemaskin, aktuelt_oppvaskmaskin: (c.aktuelt || {}).oppvaskmaskin,
+        batterier_vis: !!c.batterier, batterier_terskel: (typeof c.batterier === 'object' && c.batterier && c.batterier.terskel) || 30,
       };
       const fc = c.etasje_innstillinger || {}; const rc = c.rom || {};
       this._floors().forEach((f) => {
@@ -358,6 +431,14 @@
         if (Object.keys(h).length) out.hjem = h;
       }
       if (v.etasjer_vis === false) out.etasjer = false;
+      const ak = { ...((typeof prev.aktuelt === 'object' && prev.aktuelt) || {}) };
+      delete ak.tv; delete ak.stovsuger; delete ak.vaskemaskin; delete ak.oppvaskmaskin;
+      if (v.aktuelt_tv) ak.tv = v.aktuelt_tv;
+      if (v.aktuelt_stovsuger) ak.stovsuger = v.aktuelt_stovsuger;
+      if (v.aktuelt_vaskemaskin) ak.vaskemaskin = v.aktuelt_vaskemaskin;
+      if (v.aktuelt_oppvaskmaskin) ak.oppvaskmaskin = v.aktuelt_oppvaskmaskin;
+      if (Object.keys(ak).length) out.aktuelt = ak;
+      if (v.batterier_vis) out.batterier = (v.batterier_terskel && Number(v.batterier_terskel) !== 30) ? { terskel: Number(v.batterier_terskel) } : true;
       const fc = {}; const rc = {};
       this._floors().forEach((f) => {
         const e = {};
@@ -394,6 +475,8 @@
           const m = {
             hjem_vis: 'Vis Hjem-fanen', hjem_las: 'Dørlås', hjem_garasje: 'Garasjeport', hjem_alarm: 'Alarm (entitet)', hjem_alarm_script: 'Alarm av/på-skript',
             hjem_kalender: 'Kalender-sensor', hjem_rom: 'Rom i venstre swipe', hjem_rom_hoyre: 'Rom i høyre swipe', etasjer_vis: 'Vis etasje-faner',
+            aktuelt_tv: 'TV', aktuelt_stovsuger: 'Støvsuger (vises når den vasker)', aktuelt_vaskemaskin: 'Vaskemaskin (tid igjen-sensor)', aktuelt_oppvaskmaskin: 'Oppvaskmaskin (tid igjen-sensor)',
+            batterier_vis: 'Vis Batterier-fanen ved lavt batteri', batterier_terskel: 'Terskel',
           };
           if (m[n]) return m[n];
           if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;

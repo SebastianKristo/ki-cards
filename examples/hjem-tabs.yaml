@@ -31,68 +31,9 @@ rom:                          # per-rom-innstillinger (brukes både i auto-faner
   cybele_soverom: { farge: var(--purple),   ikon: mdi:bed-outline, size: row, navn: Cybele, path: '#cybele' }
   rune_soverom:  { farge: var(--orange),    ikon: mdi:bed-outline, size: row, navn: Rune, path: '#rune' }
   rune_kontor:   { farge: var(--pink),      ikon: mdi:desk, size: row, navn: Kontor }
-tabs:
-  # Vil du styre etasjene manuelt i stedet for `etasjer: auto`:
-  # - title: 1. etg
-  #   kolonner:
-  #     venstre: [ { rom: stue }, { rom: inngang } ]
-  #     hoyre:   [ { rom: do }, { rom: kjokken }, { rom: ute } ]
-  # - title: 2. etg
-  #   kolonner:
-  #     venstre: [ { rom: soverom }, { rom: inngang, navn: Gangen }, { rom: cybele_soverom } ]
-  #     hoyre:   [ { rom: pult }, { rom: bad }, { rom: rune_soverom }, { rom: rune_kontor } ]
-
-  - title: Aktuelt
-    cards:
-      - type: grid
-        square: false
-        columns: 2
-        cards:
-          - type: custom:button-card
-            template: universal_sensor
-            entity: media_player.stue_tv
-            tap_action: { action: navigate, navigation_path: '?tab=tv#media' }
-            variables:
-              sub_text: TV
-              main_text: "[[[ const a = entity.attributes; return a.app_name || a.source || 'TV'; ]]]"
-              icon: mdi:television-classic
-              background_color: var(--gray200)
-              text_color: var(--gray1000)
-          - type: conditional
-            conditions: [ { condition: state, entity: vacuum.sir_sweeps_a_lot, state: cleaning } ]
-            card:
-              type: custom:button-card
-              template: universal_sensor
-              entity: vacuum.sir_sweeps_a_lot
-              tap_action: { action: navigate, navigation_path: '#rolf' }
-              variables: { sub_text: Rolf, main_text: Vasker, icon: mdi:robot-vacuum, background_color: var(--gray200), text_color: var(--gray1000) }
-          - type: conditional
-            conditions: [ { condition: state, entity: sensor.vaskmaskin_tid_igjen, state: 'on' } ]
-            card:
-              type: custom:button-card
-              template: universal_sensor
-              entity: sensor.vaskmaskin_tid_igjen
-              tap_action: { action: navigate, navigation_path: '#bad_nede' }
-              variables: { sub_text: Vaskemaskin, main_text: "[[[ return entity.state ]]]", icon: mdi:washing-machine, background_color: var(--gray200), text_color: var(--gray1000), show_bar: true, bar_value: "[[[ return entity.state ]]]", bar_color: var(--gray1000) }
-          - type: conditional
-            conditions: [ { condition: state, entity: sensor.oppvaskmaskin_tid_igjen, state: 'on' } ]
-            card:
-              type: custom:button-card
-              template: universal_bar
-              entity: sensor.oppvaskmaskin_tid_igjen
-              tap_action: { action: navigate, navigation_path: '#kjokken' }
-              variables: { sub_text: Oppvaskmaskin, main_text: "[[[ return entity.state ]]]", icon: mdi:dishwasher, background_color: var(--gray200), text_color: var(--gray1000), show_bar: true, bar_value: "[[[ return entity.state ]]]", bar_color: var(--gray1000) }
-  - title: Batterier
-    badge: ''
-    conditions:
-      - template: "{{ (states | selectattr('entity_id', 'search', '_battery_plus_low') | selectattr('state', 'eq', 'on') | list) | length > 0 }}"
-    card:
-      type: custom:auto-entities
-      card: { type: grid, columns: 2, square: false }
-      card_param: cards
-      filter:
-        include:
-          - entity_id: sensor.*_battery_plus
-            state: '< 30'
-            options: { type: custom:button-card, template: sensor_battery }
-      sort: { method: state, numeric: true }
+aktuelt:
+  tv: media_player.stue_tv
+  stovsuger: vacuum.sir_sweeps_a_lot
+  vaskemaskin: sensor.vaskmaskin_tid_igjen
+  oppvaskmaskin: sensor.oppvaskmaskin_tid_igjen
+batterier: true                      # vises bare når en *_battery_plus_low er på
