@@ -1,8 +1,9 @@
 /* ============================================================================
- * ki-rom-card  v1.0.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.1.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
- *  rom: stue                      # area_id (eller entity: sensor.stue_oversikt)
+ *  rom: stue                      # area_id (eller entity: sensor.stue_oversikt) – kan velges i UI-editoren
+ *  gap: 8                         # px mellom kortene
  *  seksjoner:                     # alle true som standard
  *    header: true
  *    gardiner: true
@@ -520,8 +521,86 @@
   }
 
   // ------------------------------------------------------------ ki-rom-card
+  // ------------------------------------------------------------ editor (velg rom + seksjoner i UI)
+  const SECTION_LABELS = {
+    header: 'Header (temperatur, graf, måltemp)', gardiner: 'Gardiner / markise', scener: 'Scener og skript',
+    lys: 'Lys', enheter: 'Enheter (brytere, vifter)', klima: 'Klima', media: 'Media', sensorer: 'Sensorer',
+  };
+  const LABELS = {
+    rom: 'Rom', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
+    teller_suffix: 'Suffiks for input_number-teller', gap: 'Avstand mellom kort (px)',
+  };
+
+  class KiRomCardEditor extends HTMLElement {
+    setConfig(config) { this._config = { ...config }; this._render(); }
+    set hass(hass) { this._hass = hass; this._render(); }
+
+    _rooms() {
+      return allOversikt(this._hass).map((st) => ({ value: st.attributes.area_id, label: st.attributes.rom || st.attributes.area_id }));
+    }
+
+    _schema() {
+      return [
+        { name: 'rom', required: true, selector: { select: { mode: 'dropdown', options: this._rooms() } } },
+        { name: 'navn', selector: { text: {} } },
+        {
+          name: 'seksjoner_expand', type: 'expandable', title: 'Seksjoner', expanded: true,
+          schema: Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })),
+        },
+        {
+          name: 'avansert', type: 'expandable', title: 'Avansert',
+          schema: [
+            { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+            { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+            { name: 'teller_suffix', selector: { text: {} } },
+            { name: 'gap', selector: { number: { min: 0, max: 40, mode: 'box', unit_of_measurement: 'px' } } },
+          ],
+        },
+      ];
+    }
+
+    _data() {
+      const c = this._config || {};
+      const sek = { ...DEFAULT_SECTIONS, ...(c.seksjoner || {}) };
+      const d = { rom: c.rom, navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet, teller_suffix: c.teller_suffix, gap: c.gap };
+      Object.keys(DEFAULT_SECTIONS).forEach((k) => { d['sek_' + k] = sek[k]; });
+      return d;
+    }
+
+    _render() {
+      if (!this._hass || !this._config) return;
+      if (!this._form) {
+        this._form = document.createElement('ha-form');
+        this._form.computeLabel = (s) => LABELS[s.name] || SECTION_LABELS[s.name.replace(/^sek_/, '')] || s.name;
+        this._form.addEventListener('value-changed', (ev) => {
+          ev.stopPropagation();
+          const v = ev.detail.value || {};
+          const seksjoner = {};
+          Object.keys(DEFAULT_SECTIONS).forEach((k) => { if (v['sek_' + k] === false) seksjoner[k] = false; });
+          const out = { type: 'custom:ki-rom-card', rom: v.rom };
+          if (v.navn) out.navn = v.navn;
+          if (Object.keys(seksjoner).length) out.seksjoner = seksjoner;
+          if (v.temperatur) out.temperatur = v.temperatur;
+          if (v.fuktighet) out.fuktighet = v.fuktighet;
+          if (v.teller_suffix && v.teller_suffix !== '_teller') out.teller_suffix = v.teller_suffix;
+          if (v.gap !== undefined && v.gap !== null && v.gap !== 8) out.gap = v.gap;
+          this._config = out;
+          this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
+        });
+        this.appendChild(this._form);
+      }
+      this._form.hass = this._hass;
+      this._form.schema = this._schema();
+      this._form.data = this._data();
+    }
+  }
+
   class KiRomCard extends HTMLElement {
-    static getStubConfig() { return { rom: 'stue' }; }
+    static getConfigElement() { return document.createElement('ki-rom-card-editor'); }
+    static getStubConfig(hass) {
+      const first = hass ? allOversikt(hass)[0] : null;
+      return { rom: first ? first.attributes.area_id : 'stue' };
+    }
 
     setConfig(config) {
       if (!config.rom && !config.entity) throw new Error('ki-rom-card: angi rom: <area_id> eller entity: sensor.<rom>_oversikt');
@@ -530,6 +609,7 @@
         ...config,
         seksjoner: { ...DEFAULT_SECTIONS, ...(config.seksjoner || {}) },
       };
+      this._rawConfig = config;
       this._signature = null;
       this._children = [];
       if (!this._root) {
@@ -538,6 +618,8 @@
         this._root.style.flexDirection = 'column';
         this.appendChild(this._root);
       }
+      const gap = this._config.gap === undefined ? 8 : this._config.gap;
+      this._root.style.gap = typeof gap === 'number' ? gap + 'px' : String(gap);
     }
 
     set hass(hass) {
@@ -648,12 +730,13 @@
     getCardSize() { return 1; }
   }
 
+  if (!customElements.get('ki-rom-card-editor')) customElements.define('ki-rom-card-editor', KiRomCardEditor);
   if (!customElements.get('ki-rom-card')) customElements.define('ki-rom-card', KiRomCard);
   if (!customElements.get('ki-rom-popups')) customElements.define('ki-rom-popups', KiRomPopups);
 
   window.customCards = window.customCards || [];
   window.customCards.push(
-    { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen', preview: false },
+    { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
   console.info('%c KI-ROM-CARD %c 1.0.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');

@@ -190,7 +190,10 @@ seksjoner:                 # alle på som standard, seksjoner uten entiteter fal
   sensorer: true
 temperatur: sensor.x       # valgfri overstyring (ellers første temp-sensor i rommet)
 fuktighet: sensor.x
+gap: 8                     # px mellom kortene
 ```
+
+Kortet har UI-editor: legg til «KI Rom» i en popup, velg rom i nedtrekkslisten og huk av seksjonene. Egen popup per rom som før – `examples/rom-popup.yaml`.
 
 `ki-rom-popups` lager én bubble-card pop-up per rom (`#<area_id>`) med farge per rom og per-rom-overstyring – ett kort erstatter alle rom-popupene. Se `examples/alle-rom-popups.yaml` og `examples/rom-popup.yaml`.
 
@@ -247,3 +250,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.10.0
 - Nye `ki-rom-card` og `ki-rom-popups`: auto-bygd rom-popup fra ki-rom 1.1.0 (`sensor.<rom>_oversikt`), samme kort/utseende som rom-popupene i dashbordet, seksjoner kan slås av per rom.
+
+## v2.11.0
+- `ki-rom-card`: UI-editor (velg rom, seksjoner, sensorer), `gap:` mellom kortene (8 px standard).
