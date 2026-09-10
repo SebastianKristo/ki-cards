@@ -330,3 +330,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.17.2
 - `ki-hjem-card`: `hjem.swipe_type: plain` bruker swipe-card (med pagination) for rom-swipene når css-swipe-card ikke vil vise kalender-flisen.
+
+## v2.17.3
+- `ki-hjem-card`: swipe-card-prikkene legges under kortet i css-swipe-stil (grå, 8 px).

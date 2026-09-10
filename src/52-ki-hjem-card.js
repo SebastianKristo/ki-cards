@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.2  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.3  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -234,6 +234,23 @@
     if (tries < 40) setTimeout(() => injectTabsStyle(el, tries + 1), 50);
   }
 
+  // swipe-card (plain): prikker under kortet i samme stil som css-swipe-card
+  const SWIPE_STYLE = '.swiper-container, .swiper { padding-bottom: 18px; } .swiper-pagination { bottom: 0 !important; } .swiper-pagination-bullet { background: var(--gray200) !important; opacity: 1 !important; width: 8px; height: 8px; margin: 0 4px !important; } .swiper-pagination-bullet-active { background: var(--gray400) !important; }';
+
+  function walkShadow(node, fn, depth = 0) {
+    if (!node || depth > 25) return;
+    if (node.shadowRoot) { fn(node); node.shadowRoot.querySelectorAll('*').forEach((n) => walkShadow(n, fn, depth + 1)); }
+    node.querySelectorAll && node.querySelectorAll('*').forEach((n) => { if (n.shadowRoot) walkShadow(n, fn, depth + 1); });
+  }
+  function injectSwipeStyle(root, tries = 0) {
+    walkShadow(root, (el) => {
+      if (el.localName !== 'swipe-card') return;
+      const sr = el.shadowRoot;
+      if (sr && !sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = SWIPE_STYLE; sr.appendChild(st); }
+    });
+    if (tries < 30) setTimeout(() => injectSwipeStyle(root, tries + 1), 300);
+  }
+
   const SIZES = [{ value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten klimaknapp' }, { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten (rad)' }];
   const FARGEVALG = ['var(--green)', 'var(--blue)', 'var(--blue-dark)', 'var(--yellow)', 'var(--orange)', 'var(--red)', 'var(--purple)', 'var(--pink)', 'var(--gray1000)'].map((v) => ({ value: v, label: v.replace('var(--', '').replace(')', '') }));
 
@@ -404,6 +421,7 @@
         el.hass = this._hass;
         this._root.innerHTML = ''; this._root.appendChild(el); this._card = el;
         injectTabsStyle(el);
+        injectSwipeStyle(this._root);
       } catch (err) {
         this._root.innerHTML = '<div style="padding:16px;border-radius:24px;background:var(--gray200);color:var(--gray1000);font-size:14px">KI Hjem: ' + err.message + '</div>';
       }
