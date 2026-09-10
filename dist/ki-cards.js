@@ -1,4 +1,4 @@
-/* ki-cards v2.18.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.18.2 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.18.1";
+  KI.VERSION = "2.18.2";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,7 +1546,7 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.5.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.2  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -2310,13 +2310,24 @@ try {
       const changed = !this._lastOv || ov.length !== this._lastOv.length || ov.some((o, i) => o !== this._lastOv[i] && JSON.stringify(o.attributes) !== JSON.stringify(this._lastOv[i].attributes));
       if (changed || this._dirty) {
         this._lastOv = ov;
-        this._dirty = false;
-        if (this._visible) { this._rebuild(ov); return; }
-        this._dirty = true; // bygg først når popupen/kortet blir synlig
+        this._dirty = true;
+        if (this._visible) { this._dirty = false; this._rebuild(ov); return; }
+        enqueueBuild(this); // bygg i ledig tid så popupen er klar når den åpnes
         return;
       }
       if (!this._visible) { this._pendingHass = hass; return; }
-      this._children.forEach((c) => { c.hass = hass; });
+      this._forward(hass);
+    }
+
+    // send hass videre maks én gang per animasjonsramme
+    _forward(hass) {
+      this._pendingHass = hass;
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => {
+        this._raf = null;
+        const h = this._pendingHass; this._pendingHass = null;
+        if (h) this._children.forEach((c) => { c.hass = h; });
+      });
     }
 
     connectedCallback() {
@@ -2327,7 +2338,7 @@ try {
           this._visible = vis;
           if (!vis) return;
           if (this._dirty && this._lastOv) { this._dirty = false; this._rebuild(this._lastOv); }
-          else if (this._pendingHass) { const h = this._pendingHass; this._pendingHass = null; this._children.forEach((c) => { c.hass = h; }); }
+          else if (this._pendingHass) this._forward(this._pendingHass);
         }, { rootMargin: '200px' });
         this._io.observe(this);
       } else if (!this._io) {
@@ -2448,7 +2459,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.2 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
@@ -2846,7 +2857,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.7  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.8  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -3101,12 +3112,15 @@ try {
     node.querySelectorAll && node.querySelectorAll('*').forEach((n) => { if (n.shadowRoot) walkShadow(n, fn, depth + 1); });
   }
   function injectSwipeStyle(root, tries = 0) {
+    let found = 0;
     walkShadow(root, (el) => {
       if (el.localName !== 'swipe-card') return;
       const sr = el.shadowRoot;
-      if (sr && !sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = SWIPE_STYLE; sr.appendChild(st); }
+      if (!sr) return;
+      found++;
+      if (!sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = SWIPE_STYLE; sr.appendChild(st); }
     });
-    if (tries < 30) setTimeout(() => injectSwipeStyle(root, tries + 1), 300);
+    if (!found && tries < 12) setTimeout(() => injectSwipeStyle(root, tries + 1), 500);
   }
 
   const SIZES = [{ value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten klimaknapp' }, { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten (rad)' }];
@@ -3270,12 +3284,17 @@ try {
       this._hass = hass;
       const list = allOversikt(hass);
       const same = this._lastList && list.length === this._lastList.length && list.every((st, i) => st === this._lastList[i]);
-      if (same && this._card) { this._card.hass = hass; return; }
+      if (same && this._card) { this._forward(hass); return; }
       this._lastList = list;
       const ovs = list.map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
       const sig = this._cfgStr + '|' + ovs;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
-      if (this._card) this._card.hass = hass;
+      if (this._card) this._forward(hass);
+    }
+    _forward(hass) {
+      this._pendingHass = hass;
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = null; const h = this._pendingHass; this._pendingHass = null; if (h && this._card) this._card.hass = h; });
     }
     async _rebuild() {
       try {
@@ -3284,7 +3303,7 @@ try {
         el.hass = this._hass;
         this._root.innerHTML = ''; this._root.appendChild(el); this._card = el;
         injectTabsStyle(el);
-        injectSwipeStyle(this._root);
+        if (JSON.stringify(this._config).includes('plain')) injectSwipeStyle(this._root);
       } catch (err) {
         this._root.innerHTML = '<div style="padding:16px;border-radius:24px;background:var(--gray200);color:var(--gray1000);font-size:14px">KI Hjem: ' + err.message + '</div>';
       }

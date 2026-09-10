@@ -345,3 +345,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.18.1
 - Ytelse: oppslag rom → `sensor.<rom>_oversikt` huskes, og listen over oversikt-sensorer skannes maks hvert 30. sekund (før: full gjennomgang av alle HA-tilstander ved hver oppdatering, per kort). Rom uten etasje havner i fanen «Rom».
+
+## v2.18.2
+- Ytelse: rom-popups forhåndsbygges én om gangen i ledig tid (klar ved åpning), hass-oppdateringer samles til én per animasjonsramme i `ki-rom-card` og `ki-hjem-card`, og swipe-card-stil injiseres bare når `swipe_type: plain` brukes (før: shadow-DOM-gjennomgang hvert 300 ms i 9 s).

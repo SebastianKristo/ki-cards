@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.5.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.2  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -763,13 +763,24 @@
       const changed = !this._lastOv || ov.length !== this._lastOv.length || ov.some((o, i) => o !== this._lastOv[i] && JSON.stringify(o.attributes) !== JSON.stringify(this._lastOv[i].attributes));
       if (changed || this._dirty) {
         this._lastOv = ov;
-        this._dirty = false;
-        if (this._visible) { this._rebuild(ov); return; }
-        this._dirty = true; // bygg først når popupen/kortet blir synlig
+        this._dirty = true;
+        if (this._visible) { this._dirty = false; this._rebuild(ov); return; }
+        enqueueBuild(this); // bygg i ledig tid så popupen er klar når den åpnes
         return;
       }
       if (!this._visible) { this._pendingHass = hass; return; }
-      this._children.forEach((c) => { c.hass = hass; });
+      this._forward(hass);
+    }
+
+    // send hass videre maks én gang per animasjonsramme
+    _forward(hass) {
+      this._pendingHass = hass;
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => {
+        this._raf = null;
+        const h = this._pendingHass; this._pendingHass = null;
+        if (h) this._children.forEach((c) => { c.hass = h; });
+      });
     }
 
     connectedCallback() {
@@ -780,7 +791,7 @@
           this._visible = vis;
           if (!vis) return;
           if (this._dirty && this._lastOv) { this._dirty = false; this._rebuild(this._lastOv); }
-          else if (this._pendingHass) { const h = this._pendingHass; this._pendingHass = null; this._children.forEach((c) => { c.hass = h; }); }
+          else if (this._pendingHass) this._forward(this._pendingHass);
         }, { rootMargin: '200px' });
         this._io.observe(this);
       } else if (!this._io) {
@@ -901,5 +912,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.2 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

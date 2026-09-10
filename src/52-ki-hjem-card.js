@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.7  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.8  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -254,12 +254,15 @@
     node.querySelectorAll && node.querySelectorAll('*').forEach((n) => { if (n.shadowRoot) walkShadow(n, fn, depth + 1); });
   }
   function injectSwipeStyle(root, tries = 0) {
+    let found = 0;
     walkShadow(root, (el) => {
       if (el.localName !== 'swipe-card') return;
       const sr = el.shadowRoot;
-      if (sr && !sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = SWIPE_STYLE; sr.appendChild(st); }
+      if (!sr) return;
+      found++;
+      if (!sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = SWIPE_STYLE; sr.appendChild(st); }
     });
-    if (tries < 30) setTimeout(() => injectSwipeStyle(root, tries + 1), 300);
+    if (!found && tries < 12) setTimeout(() => injectSwipeStyle(root, tries + 1), 500);
   }
 
   const SIZES = [{ value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten klimaknapp' }, { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten (rad)' }];
@@ -423,12 +426,17 @@
       this._hass = hass;
       const list = allOversikt(hass);
       const same = this._lastList && list.length === this._lastList.length && list.every((st, i) => st === this._lastList[i]);
-      if (same && this._card) { this._card.hass = hass; return; }
+      if (same && this._card) { this._forward(hass); return; }
       this._lastList = list;
       const ovs = list.map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
       const sig = this._cfgStr + '|' + ovs;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
-      if (this._card) this._card.hass = hass;
+      if (this._card) this._forward(hass);
+    }
+    _forward(hass) {
+      this._pendingHass = hass;
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = null; const h = this._pendingHass; this._pendingHass = null; if (h && this._card) this._card.hass = h; });
     }
     async _rebuild() {
       try {
@@ -437,7 +445,7 @@
         el.hass = this._hass;
         this._root.innerHTML = ''; this._root.appendChild(el); this._card = el;
         injectTabsStyle(el);
-        injectSwipeStyle(this._root);
+        if (JSON.stringify(this._config).includes('plain')) injectSwipeStyle(this._root);
       } catch (err) {
         this._root.innerHTML = '<div style="padding:16px;border-radius:24px;background:var(--gray200);color:var(--gray1000);font-size:14px">KI Hjem: ' + err.message + '</div>';
       }
