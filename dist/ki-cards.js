@@ -1,4 +1,4 @@
-/* ki-cards v2.19.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.19.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.19.0";
+  KI.VERSION = "2.19.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,7 +1546,7 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.6.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.6.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
@@ -1979,50 +1979,57 @@ try {
     );
   }
 
-  const mediaPill = (e, name) => ({
-    type: 'custom:button-card', entity: e, name, show_icon: true,
-    icon: T('return entity.attributes.device_class === "tv" ? "mdi:television" : "mdi:speaker";'),
-    tap_action: { action: 'toggle' }, hold_action: { action: 'more-info' },
-    state: [
-      { value: 'playing', styles: { card: [{ background: 'var(--active-big)' }], icon: [{ color: 'var(--black)' }], img_cell: [{ background: 'rgba(40, 40, 42, 0.1)' }], name: [{ color: 'var(--black)' }], custom_fields: { state: [{ color: 'var(--black)' }] } } },
-      { value: 'paused', styles: { card: [{ background: 'var(--gray300)' }] } },
-    ],
-    custom_fields: {
-      img: T('const p = entity.attributes.entity_picture; return (p && (entity.state === "playing" || entity.state === "paused")) ? "<img src=\\"" + p + "\\" style=\\"width:100%;height:auto;display:block\\">" : "";'),
-      state: T('const a = entity.attributes; const st = entity.state; if (st === "playing" || st === "paused") { const t = a.media_title || a.media_channel || a.app_name || a.source; const ar = a.media_artist || a.media_series_title || ""; const txt = ar && t ? ar + " – " + t : (t || (st === "paused" ? "Pause" : "Spiller")); return st === "paused" ? "⏸ " + txt : txt; } if (st === "off") return "Av"; if (st === "standby") return "Standby"; if (st === "unavailable") return "Utilgjengelig"; return a.app_name || a.source || "Klar";'),
-    },
-    styles: {
-      card: [{ height: '66px' }, { 'border-radius': '75px' }, { padding: '4px 20px 4px 4px' }, { background: 'var(--gray100)' }, { overflow: 'hidden' }, { position: 'relative' }],
-      grid: [{ 'grid-template-columns': '76px 1fr' }, { 'grid-template-areas': '"i state" "i n"' }],
-      icon: [{ width: '30px' }, { color: 'var(--gray1000)' }, { 'z-index': 1 }],
-      img_cell: [{ 'justify-self': 'start' }, { width: '30px' }, { height: '30px' }, { background: 'rgba(250, 251, 252, 0.1)' }, { padding: '14px' }, { 'border-radius': '50%' }, { 'z-index': 1 }],
-      name: [{ 'justify-self': 'start' }, { 'font-size': '14px' }, { color: 'var(--gray1000)' }, { opacity: 0.7 }, { 'padding-bottom': '7px' }, { 'z-index': 1 }],
-      custom_fields: {
-        img: [{ position: 'absolute' }, { left: 0 }, { top: '-40%' }, { width: '100%' }, { 'z-index': 0 }, { opacity: 0.55 }, { filter: 'blur(18px)' }, { 'pointer-events': 'none' }],
-        state: [{ 'justify-self': 'start' }, { 'font-size': '16px' }, { 'padding-top': '4px' }, { 'font-weight': 500 }, { color: 'var(--gray1000)' }, { 'white-space': 'nowrap' }, { overflow: 'hidden' }, { 'text-overflow': 'ellipsis' }, { 'max-width': '100%' }, { 'z-index': 1 }],
+  // 160 px-kort i samme stil som klima-kortene: navn, "artist – tittel", albumbilde i sirkelen,
+  // kontrollrad nederst (av/på · forrige · play/pause · neste · …). Grønt når det spiller.
+  const mediaCard = (e, name) => {
+    const ctlBtn = (icon, service, size, big) => ({
+      layout: 'icon', icon, ripple: 'none',
+      tap_action: { action: 'call-service', service, target: { entity_id: e } },
+      styles: {
+        button: {
+          width: size, height: size, 'flex-shrink': 0, 'border-radius': '50%',
+          background: T('return entity.state === "playing" ? "rgba(0,0,0,0.12)" : "' + (big ? 'var(--gray200)' : 'transparent') + '";'),
+        },
+        icon: { '--mdc-icon-size': big ? '26px' : '20px', color: T('return entity.state === "playing" ? "var(--black)" : "var(--gray1000)";') },
       },
-    },
-  });
-
-  const mediaControls = (e) => {
-    const small = (icon, service, size, iconSize) => ({
-      icon, tap_action: { action: 'call-service', service, target: { entity_id: e } },
-      styles: { button: { width: size, height: size, 'flex-shrink': 0, background: 'none' }, icon: { '--mdc-icon-size': iconSize, color: 'var(--gray1000)' } },
     });
     return {
-      type: 'custom:paper-buttons-row',
-      styles: { gap: '8px', 'flex-wrap': 'nowrap', 'margin-top': '10px', 'margin-bottom': '14px', 'justify-content': 'center', 'align-items': 'center', width: '100%' },
-      buttons: [
-        small('mdi:power', 'media_player.toggle', '40px', '22px'),
-        small('mdi:skip-backward', 'media_player.media_previous_track', '46px', '34px'),
-        {
-          icon: "{% if is_state('" + e + "', 'playing') %}mdi:pause{% else %}mdi:play{% endif %}",
-          tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: e } },
-          styles: { button: { width: '76px', height: '76px', 'flex-shrink': 0, background: 'var(--active-big)', 'border-radius': '50%' }, icon: { '--mdc-icon-size': '30px', color: 'var(--black)' } },
-        },
-        small('mdi:skip-forward', 'media_player.media_next_track', '46px', '34px'),
-        { icon: 'mdi:dots-horizontal', entity: e, tap_action: { action: 'more-info' }, styles: { button: { width: '40px', height: '40px', 'flex-shrink': 0, background: 'none' }, icon: { '--mdc-icon-size': '22px', color: 'var(--gray1000)' } } },
+      type: 'custom:button-card', entity: e, name, show_icon: true, show_label: true, show_entity_picture: false,
+      icon: T('return entity.attributes.device_class === "tv" ? "mdi:television" : "mdi:speaker";'),
+      tap_action: { action: 'more-info' }, hold_action: { action: 'more-info' },
+      label: T('const a = entity.attributes; const st = entity.state; if (st === "playing" || st === "paused") { const t = a.media_title || a.media_channel || a.app_name || a.source || ""; const ar = a.media_artist || a.media_series_title || ""; const txt = ar && t ? ar + " – " + t : (t || "Spiller"); return (st === "paused" ? "Pause · " : "") + txt; } if (st === "off") return "Av"; if (st === "standby") return "Standby"; if (st === "unavailable") return "Utilgjengelig"; return a.app_name || a.source || "Klar";'),
+      state: [
+        { value: 'playing', styles: { card: [{ background: 'var(--active-big)' }], name: [{ color: 'var(--black)' }], label: [{ color: 'var(--black)' }], icon: [{ color: 'var(--black)' }], img_cell: [{ background: 'rgba(0, 0, 0, 0.12)' }] } },
+        { value: 'paused', styles: { card: [{ background: 'var(--gray300)' }] } },
       ],
+      custom_fields: {
+        art: T('const p = entity.attributes.entity_picture; return (p && (entity.state === "playing" || entity.state === "paused")) ? "<img src=\\"" + p + "\\" style=\\"width:60px;height:60px;border-radius:50%;object-fit:cover;display:block\\">" : "";'),
+        ctl: {
+          card: {
+            type: 'custom:paper-buttons-row',
+            styles: { 'justify-content': 'space-between', 'align-items': 'center', width: '100%', gap: '4px' },
+            buttons: [
+              ctlBtn('mdi:power', 'media_player.toggle', '36px'),
+              ctlBtn('mdi:skip-previous', 'media_player.media_previous_track', '36px'),
+              { ...ctlBtn("{% if is_state('" + e + "', 'playing') %}mdi:pause{% else %}mdi:play{% endif %}", 'media_player.media_play_pause', '52px', true) },
+              ctlBtn('mdi:skip-next', 'media_player.media_next_track', '36px'),
+              { layout: 'icon', icon: 'mdi:dots-horizontal', ripple: 'none', entity: e, tap_action: { action: 'more-info' }, styles: { button: { width: '36px', height: '36px', 'flex-shrink': 0, 'border-radius': '50%', background: 'transparent' }, icon: { '--mdc-icon-size': '20px', color: T('return entity.state === "playing" ? "var(--black)" : "var(--gray1000)";') } } },
+            ],
+          },
+        },
+      },
+      styles: {
+        card: [{ height: '160px' }, { padding: '4px' }, { overflow: 'visible' }, { background: 'var(--gray100)' }],
+        grid: [{ 'grid-template-areas': '"n i" "l i" "ctl ctl"' }, { 'grid-template-rows': 'min-content 1fr min-content' }, { 'grid-template-columns': '1fr min-content' }],
+        icon: [{ width: '28px' }, { color: 'var(--gray1000)' }],
+        img_cell: [{ 'justify-self': 'end' }, { 'align-self': 'start' }, { background: 'rgba(250, 251, 252, 0.1)' }, { 'border-radius': '100%' }, { width: '60px' }, { height: '60px' }, { position: 'relative' }],
+        name: [{ 'justify-self': 'start' }, { 'text-align': 'left' }, { 'font-size': '14px' }, { color: 'var(--gray1000)' }, { opacity: '0.7' }, { padding: '14px 0 0 20px' }],
+        label: [{ 'justify-self': 'start' }, { 'align-self': 'start' }, { 'text-align': 'left' }, { 'font-size': '17px' }, { 'font-weight': 500 }, { color: 'var(--gray1000)' }, { 'line-height': '1.3em' }, { padding: '4px 12px 0 20px' }, { overflow: 'hidden' }, { 'text-overflow': 'ellipsis' }, { display: '-webkit-box' }, { '-webkit-line-clamp': 2 }, { '-webkit-box-orient': 'vertical' }, { 'max-width': '100%' }],
+        custom_fields: {
+          art: [{ position: 'absolute' }, { top: '4px' }, { right: '4px' }, { 'pointer-events': 'none' }],
+          ctl: [{ 'justify-self': 'stretch' }, { 'align-self': 'end' }, { padding: '0 8px 6px 8px' }],
+        },
+      },
     };
   };
 
@@ -2039,7 +2046,7 @@ try {
   let mediaSwipeSeq = 0;
   function sectionMedia(hass, ov, roomName, cfg = {}) {
     if (!ov.media.length) return null;
-    const page = (e) => ({ type: 'vertical-stack', cards: [mediaPill(e, friendly(hass, e, roomName)), mediaControls(e), volumeRow(e)] });
+    const page = (e) => ({ type: 'vertical-stack', cards: [mediaCard(e, friendly(hass, e, roomName)), volumeRow(e)] });
     let cards;
     if (ov.media.length === 1 || cfg.media_layout === 'liste') {
       cards = [];
@@ -2048,7 +2055,7 @@ try {
       // flere spillere: én side per spiller i en swipe (prikker under), ryddigere enn alt under hverandre
       cards = [{
         type: 'custom:css-swipe-card', cardId: 'ki_rom_media_' + (ov.prefix || 'x') + '_' + (++mediaSwipeSeq),
-        height: cfg.media_hoyde || '236px', pagination: true,
+        height: cfg.media_hoyde || '224px', pagination: true,
         custom_css: { '--pagination-bullet-active-background-color': 'var(--gray400)', '--pagination-bullet-background-color': 'var(--gray100)', '--pagination-bullet-border': 'none', '--pagination-bullet-distance': '0px' },
         cards: ov.media.map(page),
       }];
@@ -2499,7 +2506,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.6.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.6.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
