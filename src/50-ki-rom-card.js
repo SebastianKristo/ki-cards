@@ -1,8 +1,9 @@
 /* ============================================================================
- * ki-rom-card  v1.5.3  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.6.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
- *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
+ *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
+ *  media_layout: swipe            # flere spillere: swipe (standard) | liste
  *  gap: 8                         # px mellom kortene
  *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
  *  skjul: [light.kjokken_spot_1, switch.x]                             # enheter som ikke skal vises
@@ -488,15 +489,23 @@
     ],
   });
 
-  function sectionMedia(hass, ov, roomName) {
+  let mediaSwipeSeq = 0;
+  function sectionMedia(hass, ov, roomName, cfg = {}) {
     if (!ov.media.length) return null;
-    const cards = [];
-    ov.media.forEach((e, i) => {
-      if (i) cards.push({ type: 'custom:gap-card', height: 14 });
-      cards.push(mediaPill(e, friendly(hass, e, roomName)));
-      cards.push(mediaControls(e));
-      cards.push(volumeRow(e));
-    });
+    const page = (e) => ({ type: 'vertical-stack', cards: [mediaPill(e, friendly(hass, e, roomName)), mediaControls(e), volumeRow(e)] });
+    let cards;
+    if (ov.media.length === 1 || cfg.media_layout === 'liste') {
+      cards = [];
+      ov.media.forEach((e, i) => { if (i) cards.push({ type: 'custom:gap-card', height: 14 }); cards.push(...page(e).cards); });
+    } else {
+      // flere spillere: én side per spiller i en swipe (prikker under), ryddigere enn alt under hverandre
+      cards = [{
+        type: 'custom:css-swipe-card', cardId: 'ki_rom_media_' + (ov.prefix || 'x') + '_' + (++mediaSwipeSeq),
+        height: cfg.media_hoyde || '236px', pagination: true,
+        custom_css: { '--pagination-bullet-active-background-color': 'var(--gray400)', '--pagination-bullet-background-color': 'var(--gray100)', '--pagination-bullet-border': 'none', '--pagination-bullet-distance': '0px' },
+        cards: ov.media.map(page),
+      }];
+    }
     return expander(
       [headerTitle('Media', 'mdi:speaker'), headerCounter(activeCountTemplate(ov.media, 'spiller', 'av', 'playing'))],
       cards
@@ -585,7 +594,7 @@
       lys: () => sectionLys(hass, ov, roomName),
       enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE),
       klima: () => sectionKlima(hass, ov, cfg, roomName),
-      media: () => sectionMedia(hass, ov, roomName),
+      media: () => sectionMedia(hass, ov, roomName, cfg),
       sensorer: () => sectionSensorer(hass, ov, roomName),
     };
     const cards = [];
@@ -622,15 +631,21 @@
   window.KI.romOversiktIds = oversiktIds;
   // Returnerer liste av oversikt-tilstander (ett eller flere rom), eller null hvis noe mangler
   function findOversikt(hass, cfg) {
-    const roms = [].concat(cfg.entity || [], cfg.rom || []).filter(Boolean);
+    let roms = [].concat(cfg.entity || [], cfg.rom || []).filter(Boolean);
+    if (roms.includes('alle')) {
+      const eks = new Set([].concat(cfg.ekskluder_rom || []));
+      roms = allOversikt(hass).map((st) => st.attributes.area_id).filter((r) => !eks.has(r));
+    }
     if (!roms.length) return null;
     const out = roms.map((r) => findOne(hass, r));
     return out.every(Boolean) ? out : null;
   }
 
-  function roomEntityIds(hass, roms) {
+  function roomEntityIds(hass, roms, cfg = {}) {
     const ids = new Set();
-    [].concat(roms || []).forEach((r) => {
+    let list = [].concat(roms || []);
+    if (list.includes('alle')) { const eks = new Set([].concat(cfg.ekskluder_rom || [])); list = allOversikt(hass).map((st) => st.attributes.area_id).filter((r) => !eks.has(r)); }
+    list.forEach((r) => {
       const st = findOne(hass, r); if (!st) return;
       LIST_KEYS.forEach((k) => (st.attributes[k] || []).forEach((x) => ids.add(typeof x === 'string' ? x : x.entity)));
     });
@@ -650,7 +665,7 @@
     lys: 'Vis lys', enheter: 'Vis enheter (brytere, vifter)', klima: 'Vis klima', media: 'Vis media', sensorer: 'Vis sensorer',
   };
   const LABELS = {
-    rom: 'Rom (velg ett eller flere)', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
+    rom: 'Rom (velg ett eller flere)', rom_modus: 'Romvalg', ekskluder_rom: 'Rom som ikke skal med', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
     teller_suffix: 'Suffiks for input_number-teller', gap: 'Avstand mellom kort (px)',
     scener_ekstra: 'Legg til skript/scener som skal vises i raden',
     skjul: 'Skjul enheter fra kortet',
@@ -664,13 +679,29 @@
       return allOversikt(this._hass).map((st) => ({ value: st.attributes.area_id, label: st.attributes.rom || st.attributes.area_id }));
     }
 
+    _entityToggles() {
+      const c = this._config || {};
+      const ids = roomEntityIds(this._hass, c.rom, c);
+      const label = (e) => { const st = this._hass.states[e]; return ((st && st.attributes.friendly_name) || e) + '  (' + e + ')'; };
+      const order = ['light', 'switch', 'fan', 'climate', 'cover', 'media_player', 'binary_sensor', 'sensor', 'script', 'scene'];
+      return ids
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => order.indexOf(a.e.split('.')[0]) - order.indexOf(b.e.split('.')[0]) || a.e.localeCompare(b.e))
+        .map(({ e }) => ({ name: 'ent_' + e.replace(/\./g, '__'), label: label(e), selector: { boolean: {} } }));
+    }
+
     _schema() {
+      const alle = [].concat((this._config || {}).rom || []).includes('alle');
       return [
-        { name: 'rom', required: true, selector: { select: { mode: 'list', multiple: true, options: this._rooms() } } },
+        { name: 'rom_modus', selector: { select: { mode: 'dropdown', options: [{ value: 'velg', label: 'Velg rom som skal med' }, { value: 'alle', label: 'Alle rom – velg bort de som ikke skal med' }] } } },
+        ...(alle
+          ? [{ name: 'ekskluder_rom', selector: { select: { mode: 'list', multiple: true, options: this._rooms() } } }]
+          : [{ name: 'rom', required: true, selector: { select: { mode: 'list', multiple: true, options: this._rooms() } } }]),
         { name: 'navn', selector: { text: {} } },
         ...Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })),
         { name: 'scener_ekstra', selector: { entity: { domain: ['script', 'scene'], multiple: true } } },
-        { name: 'skjul', selector: { entity: { multiple: true, include_entities: roomEntityIds(this._hass, (this._config || {}).rom) } } },
+        { name: 'h_ent', type: 'constant', label: 'Enheter i kortet (skru av for å fjerne)' },
+        ...this._entityToggles(),
         { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
         { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
         { name: 'teller_suffix', selector: { text: {} } },
@@ -681,13 +712,17 @@
     _data() {
       const c = this._config || {};
       const sek = normalizeSections(c);
+      const alle = [].concat(c.rom || []).includes('alle');
+      const skjul = new Set([].concat(c.skjul || []));
       const d = {
-        rom: [].concat(c.rom || []), navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
+        rom_modus: alle ? 'alle' : 'velg', ekskluder_rom: [].concat(c.ekskluder_rom || []),
+        rom: [].concat(c.rom || []).filter((r) => r !== 'alle'), navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
         teller_suffix: c.teller_suffix || '_teller', gap: c.gap === undefined ? 8 : c.gap,
         scener_ekstra: (c.scener_ekstra || []).map((x) => (typeof x === 'string' ? x : x.entity)).filter(Boolean),
         skjul: [].concat(c.skjul || []),
       };
       Object.keys(DEFAULT_SECTIONS).forEach((k) => { d['sek_' + k] = sek[k]; });
+      roomEntityIds(this._hass, c.rom, c).forEach((e) => { d['ent_' + e.replace(/\./g, '__')] = !skjul.has(e); });
       return d;
     }
 
@@ -701,18 +736,22 @@
           const v = ev.detail.value || {};
           const seksjoner = {};
           Object.keys(DEFAULT_SECTIONS).forEach((k) => { if (v['sek_' + k] === false) seksjoner[k] = false; });
-          const roms = [].concat(v.rom || []).filter(Boolean);
+          const alle = v.rom_modus === 'alle';
+          const roms = alle ? ['alle'] : [].concat(v.rom || []).filter(Boolean);
           const out = { type: 'custom:ki-rom-card', rom: roms.length === 1 ? roms[0] : roms };
+          if (alle && Array.isArray(v.ekskluder_rom) && v.ekskluder_rom.length) out.ekskluder_rom = v.ekskluder_rom;
           if (v.navn) out.navn = v.navn;
           if (Object.keys(seksjoner).length) out.seksjoner = seksjoner;
           if (Array.isArray(v.scener_ekstra) && v.scener_ekstra.length) out.scener_ekstra = v.scener_ekstra;
-          if (Array.isArray(v.skjul) && v.skjul.length) out.skjul = v.skjul;
+          const skjul = Object.keys(v).filter((k) => k.startsWith('ent_') && v[k] === false).map((k) => k.slice(4).replace(/__/g, '.'));
+          if (skjul.length) out.skjul = skjul;
           if (v.temperatur) out.temperatur = v.temperatur;
           if (v.fuktighet) out.fuktighet = v.fuktighet;
           if (v.teller_suffix && v.teller_suffix !== '_teller') out.teller_suffix = v.teller_suffix;
           if (v.gap !== undefined && v.gap !== null && v.gap !== 8) out.gap = v.gap;
           this._config = out;
           this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
+          this._render();
         });
         this.appendChild(this._form);
       }
@@ -913,5 +952,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.5.3 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.6.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

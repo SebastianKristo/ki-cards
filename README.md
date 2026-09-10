@@ -351,3 +351,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.18.3
 - `ki-rom-card`: bygges alltid (i ledig tid når popupen er skjult), synlighet styrer bare hass-videresending; sikkerhetsnett som bygger kortet hvis det står tomt.
+
+## v2.19.0
+- `ki-rom-card`: flere mediaspillere vises som én side per spiller i en swipe (`media_layout: liste` for det gamle), `rom: alle` + `ekskluder_rom:` (velg bort i stedet for å velge), og editoren lister enhetene i kortet med av/på-brytere (skrudd av → `skjul:`).
