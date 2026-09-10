@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.1  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -53,6 +53,7 @@
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
+  let swipeSeq = 0;
   // ---- et element i en liste -> kortkonfig
   function item(it, romCfg, gap) {
     if (!it) return null;
@@ -60,7 +61,8 @@
       const sw = it.swipe;
       const cards = (sw.cards || []).map((c) => item(c, romCfg)).filter(Boolean);
       if (sw.type === 'plain') return { type: 'custom:swipe-card', cards };
-      return { type: 'custom:css-swipe-card', cardId: sw.cardId || 'swipe_dashboard1', height: sw.height || '266px', pagination: sw.pagination !== false, custom_css: SWIPE_CSS, cards };
+      // unik cardId per swipe – like id-er gjør at én av dem forsvinner når de lages samtidig
+      return { type: 'custom:css-swipe-card', cardId: sw.cardId || ('ki_hjem_swipe_' + (++swipeSeq)), height: sw.height || '266px', pagination: sw.pagination !== false, custom_css: SWIPE_CSS, cards };
     }
     if (it.card) return it.card;
     if (it.type) return it;
@@ -193,6 +195,7 @@
   }
 
   function generate(hass, cfg) {
+    swipeSeq = 0;
     const romCfg = cfg.rom || {};
     const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
     const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');

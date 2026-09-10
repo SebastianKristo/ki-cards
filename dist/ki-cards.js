@@ -1,4 +1,4 @@
-/* ki-cards v2.17.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.17.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.17.0";
+  KI.VERSION = "2.17.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -2734,7 +2734,11 @@ try {
       if (['las', 'alarm', 'garasje', 'kalender', 'gjoremal'].includes(config.kind) && !config.entity) throw new Error('ki-rom-tile-card: angi entity');
       this._config = config;
       this._sig = null;
-      if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); }
+      if (!this._root) { this._root = document.createElement('div'); this.style.display = 'block'; this.appendChild(this._root); }
+      const kind = config.kind || 'rom';
+      const size = { medium: 'small', stor: 'big', stor_uten: 'big_plain', liten: 'row' }[config.size] || config.size || 'big';
+      const h = kind === 'rom' ? ({ big: 246, big_plain: 246, small: 142, row: 66 }[size] || 246) : (kind === 'kalender' ? 245 : 66);
+      this._root.style.minHeight = h + 'px';
     }
 
     set hass(hass) {
@@ -2786,7 +2790,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.1  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -2840,6 +2844,7 @@ try {
       .sort((a, b) => (a.attributes.rom || '').localeCompare(b.attributes.rom || '', 'nb'));
   }
 
+  let swipeSeq = 0;
   // ---- et element i en liste -> kortkonfig
   function item(it, romCfg, gap) {
     if (!it) return null;
@@ -2847,7 +2852,8 @@ try {
       const sw = it.swipe;
       const cards = (sw.cards || []).map((c) => item(c, romCfg)).filter(Boolean);
       if (sw.type === 'plain') return { type: 'custom:swipe-card', cards };
-      return { type: 'custom:css-swipe-card', cardId: sw.cardId || 'swipe_dashboard1', height: sw.height || '266px', pagination: sw.pagination !== false, custom_css: SWIPE_CSS, cards };
+      // unik cardId per swipe – like id-er gjør at én av dem forsvinner når de lages samtidig
+      return { type: 'custom:css-swipe-card', cardId: sw.cardId || ('ki_hjem_swipe_' + (++swipeSeq)), height: sw.height || '266px', pagination: sw.pagination !== false, custom_css: SWIPE_CSS, cards };
     }
     if (it.card) return it.card;
     if (it.type) return it;
@@ -2980,6 +2986,7 @@ try {
   }
 
   function generate(hass, cfg) {
+    swipeSeq = 0;
     const romCfg = cfg.rom || {};
     const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
     const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');

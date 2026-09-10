@@ -330,7 +330,11 @@
       if (['las', 'alarm', 'garasje', 'kalender', 'gjoremal'].includes(config.kind) && !config.entity) throw new Error('ki-rom-tile-card: angi entity');
       this._config = config;
       this._sig = null;
-      if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); }
+      if (!this._root) { this._root = document.createElement('div'); this.style.display = 'block'; this.appendChild(this._root); }
+      const kind = config.kind || 'rom';
+      const size = { medium: 'small', stor: 'big', stor_uten: 'big_plain', liten: 'row' }[config.size] || config.size || 'big';
+      const h = kind === 'rom' ? ({ big: 246, big_plain: 246, small: 142, row: 66 }[size] || 246) : (kind === 'kalender' ? 245 : 66);
+      this._root.style.minHeight = h + 'px';
     }
 
     set hass(hass) {
