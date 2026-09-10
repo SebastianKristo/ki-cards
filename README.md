@@ -178,7 +178,7 @@ Bygger innholdet i en rom-popup automatisk fra `sensor.<rom>_oversikt` (ki-rom �
 
 ```yaml
 type: custom:ki-rom-card
-rom: stue                  # area_id
+rom: stue                  # area_id – eller [stue, kjokken]: hver seksjon får enhetene fra begge rom
 seksjoner:                 # alle på som standard, seksjoner uten entiteter faller bort selv
   header: true
   gardiner: true
@@ -259,3 +259,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.12.0
 - `ki-rom-card`: Sensorer bruker samme kort som Enheter (`universal_action`, én kolonne), seksjonsbrytere fikset (editor bruker grid-felt, `seksjoner:` godtar også liste / toppnivå `media: false`), `scener_ekstra:` + velger i editoren for å legge til skript/scener som ikke har rommet som område.
+
+## v2.13.0
+- `ki-rom-card`: nytt mediakort (pille med uskarpt albumbilde, artist – tittel, av/på, forrige, play/pause, neste, «…» = more-info, volum), flere rom i ett kort (`rom: [stue, kjokken]` – én header per rom, resten slås sammen), seksjonsbryterne i editoren fikset for godt (flate felt – HA nestet grid/expandable-verdier).

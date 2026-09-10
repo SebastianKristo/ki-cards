@@ -1,8 +1,8 @@
 /* ============================================================================
- * ki-rom-card  v1.2.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.3.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
- *  rom: stue                      # area_id (eller entity: sensor.stue_oversikt) – kan velges i UI-editoren
+ *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
  *  gap: 8                         # px mellom kortene
  *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
  *  seksjoner:                     # alle true som standard
@@ -53,9 +53,11 @@
   function stripRoom(name, room) {
     if (!name) return name;
     let n = name;
-    const r = (room || '').toLowerCase();
-    if (r && n.toLowerCase().startsWith(r + ' ')) n = n.slice(r.length + 1);
-    if (r && n.toLowerCase().endsWith(' ' + r)) n = n.slice(0, -(r.length + 1));
+    const rooms = (Array.isArray(room) ? room : [room]).filter(Boolean).map((r) => r.toLowerCase());
+    rooms.forEach((r) => {
+      if (n.toLowerCase().startsWith(r + ' ')) n = n.slice(r.length + 1);
+      if (n.toLowerCase().endsWith(' ' + r)) n = n.slice(0, -(r.length + 1));
+    });
     return cap(n.trim()) || name;
   }
 
@@ -110,8 +112,8 @@
   const sumWattTemplate = (ids) =>
     T('const ids = ' + JSON.stringify(ids) + '; const total = ids.reduce((s, e) => { const st = states[e]; if (!st) return s; const v = parseFloat(st.state); return isNaN(v) ? s : s + v; }, 0); return total.toFixed(0) + " W";');
 
-  const activeCountTemplate = (ids, aktiv, stille) =>
-    T('const sensors = ' + JSON.stringify(ids) + '; let active = 0; sensors.forEach(s => { if (states[s] && states[s].state === "on") active++; }); return active + " ' + aktiv + ' - " + (sensors.length - active) + " ' + stille + '";');
+  const activeCountTemplate = (ids, aktiv, stille, state = 'on') =>
+    T('const sensors = ' + JSON.stringify(ids) + '; let active = 0; sensors.forEach(s => { if (states[s] && states[s].state === "' + state + '") active++; }); return active + " ' + aktiv + ' - " + (sensors.length - active) + " ' + stille + '";');
 
   const universalGrid = {
     grid: [
@@ -286,7 +288,7 @@
       return c;
     });
     return expander(
-      [headerTitle('Lys', 'mdi:lamp'), headerCounter(T('const s = states["sensor.' + ov.prefix + '_lys"]; return s ? s.attributes.tekst : "";'))],
+      [headerTitle('Lys', 'mdi:lamp'), headerCounter(activeCountTemplate(ov.lys, 'på', 'av'))],
       cards, '100px 0px'
     );
   }
@@ -423,27 +425,59 @@
     );
   }
 
-  const mediaCard = (e, name) => ({
-    type: 'custom:button-card', entity: e, name, show_icon: true, icon: 'mdi:speaker',
+  const mediaPill = (e, name) => ({
+    type: 'custom:button-card', entity: e, name, show_icon: true,
+    icon: T('return entity.attributes.device_class === "tv" ? "mdi:television" : "mdi:speaker";'),
     tap_action: { action: 'toggle' }, hold_action: { action: 'more-info' },
-    state: [{ value: 'playing', styles: { card: [{ background: 'var(--active-big)' }], icon: [{ color: 'var(--black)' }], img_cell: [{ background: 'rgba(40, 40, 42, 0.1)' }], name: [{ color: 'var(--black)' }], custom_fields: { state: [{ color: 'var(--black)' }] } } }],
-    custom_fields: { state: T('if (entity.state === "playing") { return entity.attributes.media_title || entity.attributes.source || "Spiller"; } return "Av";') },
+    state: [
+      { value: 'playing', styles: { card: [{ background: 'var(--active-big)' }], icon: [{ color: 'var(--black)' }], img_cell: [{ background: 'rgba(40, 40, 42, 0.1)' }], name: [{ color: 'var(--black)' }], custom_fields: { state: [{ color: 'var(--black)' }] } } },
+      { value: 'paused', styles: { card: [{ background: 'var(--gray300)' }] } },
+    ],
+    custom_fields: {
+      img: T('const p = entity.attributes.entity_picture; return (p && (entity.state === "playing" || entity.state === "paused")) ? "<img src=\\"" + p + "\\" style=\\"width:100%;height:auto;display:block\\">" : "";'),
+      state: T('const a = entity.attributes; const st = entity.state; if (st === "playing" || st === "paused") { const t = a.media_title || a.media_channel || a.app_name || a.source; const ar = a.media_artist || a.media_series_title || ""; const txt = ar && t ? ar + " – " + t : (t || (st === "paused" ? "Pause" : "Spiller")); return st === "paused" ? "⏸ " + txt : txt; } if (st === "off") return "Av"; if (st === "standby") return "Standby"; if (st === "unavailable") return "Utilgjengelig"; return a.app_name || a.source || "Klar";'),
+    },
     styles: {
-      card: [{ height: '66px' }, { 'border-radius': '75px' }, { padding: '4px 20px 4px 4px' }, { background: 'var(--gray100)' }, { 'margin-bottom': '12px' }],
+      card: [{ height: '66px' }, { 'border-radius': '75px' }, { padding: '4px 20px 4px 4px' }, { background: 'var(--gray100)' }, { overflow: 'hidden' }, { position: 'relative' }],
       grid: [{ 'grid-template-columns': '76px 1fr' }, { 'grid-template-areas': '"i state" "i n"' }],
-      icon: [{ width: '30px' }, { color: 'var(--gray1000)' }],
-      img_cell: [{ 'justify-self': 'start' }, { width: '30px' }, { height: '30px' }, { background: 'rgba(250, 251, 252, 0.1)' }, { padding: '14px' }, { 'border-radius': '50%' }],
-      name: [{ 'justify-self': 'start' }, { 'font-size': '14px' }, { color: 'var(--gray1000)' }, { opacity: 0.7 }, { 'padding-bottom': '7px' }],
-      custom_fields: { state: [{ 'justify-self': 'start' }, { 'font-size': '16px' }, { 'padding-top': '4px' }, { 'font-weight': 500 }, { color: 'var(--gray1000)' }, { 'white-space': 'nowrap' }, { overflow: 'hidden' }, { 'text-overflow': 'ellipsis' }, { 'max-width': '200px' }] },
+      icon: [{ width: '30px' }, { color: 'var(--gray1000)' }, { 'z-index': 1 }],
+      img_cell: [{ 'justify-self': 'start' }, { width: '30px' }, { height: '30px' }, { background: 'rgba(250, 251, 252, 0.1)' }, { padding: '14px' }, { 'border-radius': '50%' }, { 'z-index': 1 }],
+      name: [{ 'justify-self': 'start' }, { 'font-size': '14px' }, { color: 'var(--gray1000)' }, { opacity: 0.7 }, { 'padding-bottom': '7px' }, { 'z-index': 1 }],
+      custom_fields: {
+        img: [{ position: 'absolute' }, { left: 0 }, { top: '-40%' }, { width: '100%' }, { 'z-index': 0 }, { opacity: 0.55 }, { filter: 'blur(18px)' }, { 'pointer-events': 'none' }],
+        state: [{ 'justify-self': 'start' }, { 'font-size': '16px' }, { 'padding-top': '4px' }, { 'font-weight': 500 }, { color: 'var(--gray1000)' }, { 'white-space': 'nowrap' }, { overflow: 'hidden' }, { 'text-overflow': 'ellipsis' }, { 'max-width': '100%' }, { 'z-index': 1 }],
+      },
     },
   });
+
+  const mediaControls = (e) => {
+    const small = (icon, service, size, iconSize) => ({
+      icon, tap_action: { action: 'call-service', service, target: { entity_id: e } },
+      styles: { button: { width: size, height: size, 'flex-shrink': 0, background: 'none' }, icon: { '--mdc-icon-size': iconSize, color: 'var(--gray1000)' } },
+    });
+    return {
+      type: 'custom:paper-buttons-row',
+      styles: { gap: '8px', 'flex-wrap': 'nowrap', 'margin-top': '10px', 'margin-bottom': '14px', 'justify-content': 'center', 'align-items': 'center', width: '100%' },
+      buttons: [
+        small('mdi:power', 'media_player.toggle', '40px', '22px'),
+        small('mdi:skip-backward', 'media_player.media_previous_track', '46px', '34px'),
+        {
+          icon: "{% if is_state('" + e + "', 'playing') %}mdi:pause{% else %}mdi:play{% endif %}",
+          tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: e } },
+          styles: { button: { width: '76px', height: '76px', 'flex-shrink': 0, background: 'var(--active-big)', 'border-radius': '50%' }, icon: { '--mdc-icon-size': '30px', color: 'var(--black)' } },
+        },
+        small('mdi:skip-forward', 'media_player.media_next_track', '46px', '34px'),
+        { icon: 'mdi:dots-horizontal', entity: e, tap_action: { action: 'more-info' }, styles: { button: { width: '40px', height: '40px', 'flex-shrink': 0, background: 'none' }, icon: { '--mdc-icon-size': '22px', color: 'var(--gray1000)' } } },
+      ],
+    };
+  };
 
   const volumeRow = (e) => ({
     type: 'custom:layout-card', layout_type: 'custom:grid-layout',
     layout: { 'grid-template-columns': '90px 1fr 50px', 'grid-template-areas': '"one two three"\n' },
     cards: [
       { type: 'custom:button-card', view_layout: { 'grid-area': 'one' }, name: 'Volum', show_icon: false, styles: { card: [{ background: 'none' }, { padding: '6px 12px' }, { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'start' }] } },
-      { ...coverSlider(e, 'two'), mode: 'volume', allowTapping: true, vertical: undefined, flipped: undefined, styles: { container: [{ overflow: 'visible' }, { 'margin-top': '10px' }], card: [{ background: 'var(--gray100)' }, { 'border-radius': '4px' }, { height: '8px' }], progress: [{ background: 'var(--active-big)' }, { 'border-radius': '4px' }], thumb: [{ width: '18px' }, { height: '18px' }, { top: '-5px' }, { 'margin-right': '-4px' }, { 'border-radius': '50%' }, { background: 'var(--gray1000)' }], track: [{ background: 'none' }] } },
+      { type: 'custom:my-slider-v2', view_layout: { 'grid-area': 'two' }, entity: e, mode: 'volume', allowTapping: true, allowSliding: true, styles: { container: [{ overflow: 'visible' }, { 'margin-top': '10px' }], card: [{ background: 'var(--gray100)' }, { 'border-radius': '4px' }, { height: '8px' }], progress: [{ background: 'var(--active-big)' }, { 'border-radius': '4px' }], thumb: [{ width: '18px' }, { height: '18px' }, { top: '-5px' }, { 'margin-right': '-4px' }, { 'border-radius': '50%' }, { background: 'var(--gray1000)' }], track: [{ background: 'none' }] } },
       { type: 'custom:button-card', view_layout: { 'grid-area': 'three' }, entity: e, name: T('return Math.floor((entity.attributes.volume_level || 0) * 100) + "%"'), show_icon: false, styles: { card: [{ background: 'none' }, { padding: '6px 0' }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'end' }] } },
     ],
   });
@@ -451,9 +485,14 @@
   function sectionMedia(hass, ov, roomName) {
     if (!ov.media.length) return null;
     const cards = [];
-    ov.media.forEach((e) => { cards.push(mediaCard(e, friendly(hass, e, roomName))); cards.push(volumeRow(e)); });
+    ov.media.forEach((e, i) => {
+      if (i) cards.push({ type: 'custom:gap-card', height: 14 });
+      cards.push(mediaPill(e, friendly(hass, e, roomName)));
+      cards.push(mediaControls(e));
+      cards.push(volumeRow(e));
+    });
     return expander(
-      [headerTitle('Media', 'mdi:speaker'), headerCounter(T('const s = states["sensor.' + ov.prefix + '_media"]; return s ? s.attributes.tekst : "";'))],
+      [headerTitle('Media', 'mdi:speaker'), headerCounter(activeCountTemplate(ov.media, 'spiller', 'av', 'playing'))],
       cards
     );
   }
@@ -509,14 +548,34 @@
   }
 
   // ------------------------------------------------------------ generator
-  function generate(hass, ovState, cfg) {
-    const ov = { ...ovState.attributes };
-    ov.prefix = ovState.entity_id.replace(/^sensor\./, '').replace(/_oversikt$/, '');
-    const roomName = cfg.navn || ov.rom || cap(ov.prefix.replace(/_/g, ' '));
+  const LIST_KEYS = ['lys', 'media', 'brytere', 'vifter', 'klima', 'gardiner', 'sensorer', 'skript', 'scener', 'temperatur', 'fuktighet', 'lysniva', 'effekt', 'effekt_andre'];
+
+  function mergeOversikt(ovStates) {
+    const ov = {};
+    LIST_KEYS.forEach((k) => { ov[k] = []; });
+    ov.rooms = [];
+    ovStates.forEach((st) => {
+      const a = st.attributes;
+      LIST_KEYS.forEach((k) => { (a[k] || []).forEach((x) => { const id = typeof x === 'string' ? x : x.entity; if (!ov[k].some((y) => (typeof y === 'string' ? y : y.entity) === id)) ov[k].push(x); }); });
+      ov.rooms.push({ ...a, prefix: st.entity_id.replace(/^sensor\./, '').replace(/_oversikt$/, '') });
+    });
+    ov.prefix = ov.rooms[0].prefix;
+    ov.rom = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' '))).join(' + ');
+    return ov;
+  }
+
+  function generate(hass, ovStates, cfg) {
+    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates]);
+    const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
+    const roomName = roomNames.length === 1 ? (cfg.navn || roomNames[0]) : roomNames;
     const s = cfg.seksjoner;
     const order = cfg.rekkefolge || ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
     const builders = {
-      header: () => sectionHeader(hass, ov, cfg, roomName),
+      header: () => {
+        // ett header-kort per rom (temperatur/graf/måltemp er romspesifikt)
+        const hs = ov.rooms.map((r, i) => sectionHeader(hass, { ...r, temperatur: r.temperatur || [], fuktighet: r.fuktighet || [], klima: r.klima || [] }, i === 0 ? cfg : { ...cfg, temperatur: undefined, fuktighet: undefined }, ov.rooms.length === 1 ? roomName : (r.rom || r.prefix)));
+        return hs.length === 1 ? hs[0] : { type: 'grid', square: false, columns: hs.length > 2 ? 2 : hs.length, cards: hs };
+      },
       gardiner: () => sectionGardiner(hass, ov, roomName),
       scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra),
       lys: () => sectionLys(hass, ov, roomName),
@@ -532,12 +591,18 @@
   }
 
   // Finn oversikt-sensor for et rom (area_id, entity-prefix eller entity id)
-  function findOversikt(hass, cfg) {
-    if (cfg.entity && hass.states[cfg.entity]) return hass.states[cfg.entity];
-    const rom = cfg.rom;
+  function findOne(hass, rom) {
     if (!rom) return null;
+    if (hass.states[rom]) return hass.states[rom];
     if (hass.states['sensor.' + rom + '_oversikt']) return hass.states['sensor.' + rom + '_oversikt'];
     return Object.values(hass.states).find((st) => st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id === rom) || null;
+  }
+  // Returnerer liste av oversikt-tilstander (ett eller flere rom), eller null hvis noe mangler
+  function findOversikt(hass, cfg) {
+    const roms = [].concat(cfg.entity || [], cfg.rom || []).filter(Boolean);
+    if (!roms.length) return null;
+    const out = roms.map((r) => findOne(hass, r));
+    return out.every(Boolean) ? out : null;
   }
 
   function allOversikt(hass) {
@@ -549,11 +614,11 @@
   // ------------------------------------------------------------ ki-rom-card
   // ------------------------------------------------------------ editor (velg rom + seksjoner i UI)
   const SECTION_LABELS = {
-    header: 'Header (temperatur, graf, måltemp)', gardiner: 'Gardiner / markise', scener: 'Scener og skript',
-    lys: 'Lys', enheter: 'Enheter (brytere, vifter)', klima: 'Klima', media: 'Media', sensorer: 'Sensorer',
+    header: 'Vis header (temperatur, graf, måltemp)', gardiner: 'Vis gardiner / markise', scener: 'Vis scener og skript',
+    lys: 'Vis lys', enheter: 'Vis enheter (brytere, vifter)', klima: 'Vis klima', media: 'Vis media', sensorer: 'Vis sensorer',
   };
   const LABELS = {
-    rom: 'Rom', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
+    rom: 'Rom (velg ett eller flere)', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
     teller_suffix: 'Suffiks for input_number-teller', gap: 'Avstand mellom kort (px)',
     scener_ekstra: 'Legg til skript/scener som skal vises i raden',
   };
@@ -568,19 +633,14 @@
 
     _schema() {
       return [
-        { name: 'rom', required: true, selector: { select: { mode: 'dropdown', options: this._rooms() } } },
+        { name: 'rom', required: true, selector: { select: { mode: 'list', multiple: true, options: this._rooms() } } },
         { name: 'navn', selector: { text: {} } },
-        { name: 'seksjoner_tittel', type: 'constant', label: 'Seksjoner' },
-        { name: 'sek', type: 'grid', schema: Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })) },
-        { name: 'scener_tittel', type: 'constant', label: 'Scener og skript' },
+        ...Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })),
         { name: 'scener_ekstra', selector: { entity: { domain: ['script', 'scene'], multiple: true } } },
-        { name: 'avansert_tittel', type: 'constant', label: 'Avansert' },
         { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
         { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
-        { name: 'adv', type: 'grid', schema: [
-          { name: 'teller_suffix', selector: { text: {} } },
-          { name: 'gap', selector: { number: { min: 0, max: 40, mode: 'box', unit_of_measurement: 'px' } } },
-        ] },
+        { name: 'teller_suffix', selector: { text: {} } },
+        { name: 'gap', selector: { number: { min: 0, max: 40, mode: 'box', unit_of_measurement: 'px' } } },
       ];
     }
 
@@ -588,7 +648,7 @@
       const c = this._config || {};
       const sek = normalizeSections(c);
       const d = {
-        rom: c.rom, navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
+        rom: [].concat(c.rom || []), navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
         teller_suffix: c.teller_suffix || '_teller', gap: c.gap === undefined ? 8 : c.gap,
         scener_ekstra: (c.scener_ekstra || []).map((x) => (typeof x === 'string' ? x : x.entity)).filter(Boolean),
       };
@@ -606,7 +666,8 @@
           const v = ev.detail.value || {};
           const seksjoner = {};
           Object.keys(DEFAULT_SECTIONS).forEach((k) => { if (v['sek_' + k] === false) seksjoner[k] = false; });
-          const out = { type: 'custom:ki-rom-card', rom: v.rom };
+          const roms = [].concat(v.rom || []).filter(Boolean);
+          const out = { type: 'custom:ki-rom-card', rom: roms.length === 1 ? roms[0] : roms };
           if (v.navn) out.navn = v.navn;
           if (Object.keys(seksjoner).length) out.seksjoner = seksjoner;
           if (Array.isArray(v.scener_ekstra) && v.scener_ekstra.length) out.scener_ekstra = v.scener_ekstra;
@@ -635,7 +696,7 @@
     }
 
     setConfig(config) {
-      if (!config.rom && !config.entity) throw new Error('ki-rom-card: angi rom: <area_id> eller entity: sensor.<rom>_oversikt');
+      if (!config.rom && !config.entity) throw new Error('ki-rom-card: angi rom: <area_id> (eller liste med rom) eller entity: sensor.<rom>_oversikt');
       this._config = {
         teller_suffix: '_teller',
         ...config,
@@ -657,8 +718,8 @@
     set hass(hass) {
       this._hass = hass;
       const ov = findOversikt(hass, this._config);
-      if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + (this._config.rom || this._config.entity) + '»'); return; }
-      const sig = JSON.stringify(ov.attributes) + '|' + JSON.stringify(this._config);
+      if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
+      const sig = ov.map((o) => JSON.stringify(o.attributes)).join('|') + '|' + JSON.stringify(this._config);
       if (sig !== this._signature) { this._signature = sig; this._rebuild(ov); return; }
       this._children.forEach((c) => { c.hass = hass; });
     }
@@ -771,5 +832,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.2.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.3.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
