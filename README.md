@@ -320,3 +320,7 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.16.1
 - `ki-hjem-card`: fane-stilen satt med simple-tabs sine egne farger (card_mod tok ikke via card-helpers), Hjem-fanen lages automatisk som standard (`hjem:` med lås/garasje/alarm/kalender/stov), flismønster per kolonne (`monster:`, standard venstre big/small, høyre row/big/row) + `kolonne:`/`rekkefolge:` per rom.
+
+## v2.17.0
+- `ki-hjem-card`: UI-editor – Hjem-fanen (lås/garasje/alarm/kalender, rom i venstre/høyre swipe), etasjer (vis/skjul, rekkefølge, fanenavn) og per rom (vis/skjul, størrelse stor m/klimaknapp · stor uten · medium · liten, plassering venstre/høyre, rekkefølge, farge, popup-hash). Fane-stilen legges inn i simple-tabs direkte (én rund ramme som før).
+- `ki-rom-tile-card`: `size: big_plain` (stor uten klimaknapp).

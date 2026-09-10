@@ -4,7 +4,7 @@
  *  type: custom:ki-rom-tile-card
  *  kind: rom                    # rom | las | alarm | garasje | kalender | gjoremal | navigate
  *  rom: stue                    # area_id (kind: rom)
- *  size: big                    # big (246px m/ termostat) | small (142px) | row (66px pille)
+ *  size: big                    # big (246px m/ termostat) | big_plain (246px uten) | small (142px) | row (66px pille)
  *  farge: var(--green)          # farge på ikon-sirkelen
  *  ikon: mdi:sofa               # standard: rommets ikon i HA
  *  navn: Stue                   # standard: romnavn
@@ -88,7 +88,7 @@
     const path = cfg.path || ('#' + a.area_id);
     const color = cfg.farge || 'var(--green)';
     const varsel = cfg.varsel === false ? null : (cfg.varsel || ((a.sensorer || []).find((s) => DOOR_CLASSES.includes(s.klasse)) || {}).entity);
-    const size = cfg.size || 'big';
+    const size = { medium: 'small', stor: 'big', stor_uten: 'big_plain', liten: 'row' }[cfg.size] || cfg.size || 'big';
 
     if (size === 'row') {
       return {
@@ -108,9 +108,10 @@
       };
     }
 
-    const big = size === 'big';
+    const big = size === 'big' || size === 'big_plain';
+    const withClim = size === 'big' && clim;
     const custom = { error: T('return "!"'), temp: temp ? tempTpl(temp, hum) : '' };
-    if (big && clim) custom.btn1 = stepper(hass, clim, teller);
+    if (withClim) custom.btn1 = stepper(hass, clim, teller);
     const card = {
       type: 'custom:button-card', icon, name: T('return ' + JSON.stringify(name)),
       entity: cfg.entity || ov.entity_id,
@@ -129,7 +130,7 @@
         custom_fields: {
           error: [{ position: 'absolute' }, { padding: '2px' }, { right: '0px' }, { top: '-2px' }, { background: 'var(--red)' }, { width: '20px' }, { height: '20px' }, { 'border-radius': '50%' }, { display: 'none' }, { 'line-height': '20px' }, { 'font-weight': 900 }, { color: 'var(--white)' }],
           btn1: [{ 'align-self': 'end' }, { 'justify-self': 'end' }],
-          temp: [{ 'justify-self': 'start' }, { 'font-size': big && clim ? '2.2em' : '2.6em' }, { 'line-height': '1em' }, { 'font-weight': 300 }, { color: 'var(--gray1000)' }, { padding: '0 0 14px 14px' }],
+          temp: [{ 'justify-self': 'start' }, { 'font-size': withClim ? '2.2em' : '2.6em' }, { 'line-height': '1em' }, { 'font-weight': 300 }, { color: 'var(--gray1000)' }, { padding: '0 0 14px 14px' }],
         },
       },
     };
@@ -279,7 +280,7 @@
       if (kind === 'rom') {
         s.push(
           { name: 'rom', required: true, selector: { select: { mode: 'dropdown', options: allOversikt(this._hass).map((st) => ({ value: st.attributes.area_id, label: st.attributes.rom || st.attributes.area_id })) } } },
-          { name: 'size', selector: { select: { mode: 'dropdown', options: [{ value: 'big', label: 'Stor (246 px, termostat)' }, { value: 'small', label: 'Liten (142 px)' }, { value: 'row', label: 'Rad (66 px)' }] } } },
+          { name: 'size', selector: { select: { mode: 'dropdown', options: [{ value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten klimaknapp' }, { value: 'small', label: 'Medium (142 px)' }, { value: 'row', label: 'Liten (66 px rad)' }] } } },
           { name: 'teller', selector: { entity: { domain: 'input_number' } } },
           { name: 'varsel', selector: { entity: { domain: 'binary_sensor' } } },
         );
