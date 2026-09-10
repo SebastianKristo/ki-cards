@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.1  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.2  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -10,6 +10,7 @@
  *    rom: [stue, inngang, ute]        # store fliser i venstre swipe (standard: første ~60 % av rommene)
  *    rom_hoyre: [pult, kjokken]       # høyre swipe
  *    stov: [ { kind: navigate, ... }, { swipe: {...} } ]
+ *    swipe_type: plain               # bruk swipe-card i stedet for css-swipe-card for rom-swipene
  *  etasjer: auto          # standard – én fane per etasje; etasjer: false skrur av
  *  monster: { venstre: [big, small], hoyre: [row, big, row] }   # flismønster per kolonne
  *  etasje_innstillinger: { <etasje_id>: { vis: false, rekkefolge: 2, navn: '1. etg' } }
@@ -60,7 +61,11 @@
     if (it.swipe) {
       const sw = it.swipe;
       const cards = (sw.cards || []).map((c) => item(c, romCfg)).filter(Boolean);
-      if (sw.type === 'plain') return { type: 'custom:swipe-card', cards };
+      if (sw.type === 'plain') {
+        const c = { type: 'custom:swipe-card', cards };
+        if (sw.pagination) c.parameters = { pagination: { el: '.swiper-pagination', clickable: true }, ...(sw.parameters || {}) };
+        return c;
+      }
       // unik cardId per swipe – like id-er gjør at én av dem forsvinner når de lages samtidig
       return { type: 'custom:css-swipe-card', cardId: sw.cardId || ('ki_hjem_swipe_' + (++swipeSeq)), height: sw.height || '266px', pagination: sw.pagination !== false, custom_css: SWIPE_CSS, cards };
     }
@@ -179,11 +184,11 @@
 
     const stue = [];
     if (topp.length) stue.push({ swipe: { type: 'plain', cards: topp } });
-    if (store.length) stue.push({ swipe: { height: '266px', cards: store } });
+    if (store.length) stue.push({ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: store } });
     if (h.alarm) stue.push({ kind: 'alarm', ...(typeof h.alarm === 'string' ? { entity: h.alarm } : h.alarm), path: (h.alarm && h.alarm.path) || '#alarm' });
 
     const omrader = { stue };
-    if (hoyreRom.length) omrader.kjokken = [{ swipe: { height: '266px', cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
+    if (hoyreRom.length) omrader.kjokken = [{ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
     if (h.stov && h.stov.length) omrader.stov = h.stov;
 
     const areas = omrader.stov ? '"stue kjokken"\n"stue stov"\n"stue stov"\n' : (omrader.kjokken ? '"stue kjokken"\n' : '"stue"\n');

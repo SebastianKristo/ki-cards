@@ -327,3 +327,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.17.1
 - `ki-hjem-card`: unik `cardId` per css-swipe (rom-swipen forsvant når alle delte `swipe_dashboard1`); `ki-rom-tile-card` har fast minimumshøyde så swipe-kortet måler riktig før flisen er bygget.
+
+## v2.17.2
+- `ki-hjem-card`: `hjem.swipe_type: plain` bruker swipe-card (med pagination) for rom-swipene når css-swipe-card ikke vil vise kalender-flisen.
