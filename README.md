@@ -37,6 +37,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
 
 ### Pro-kort (samme stil som ki-energi-card / ki-klima-pro-card – hero med ring, Enkel/Avansert, blokker)
 
@@ -171,6 +172,28 @@ test: true
 
 Et komplett eksempel på Innstillinger-popupen ligger i [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml).
 
+## ki-rom-card / ki-rom-popups
+
+Bygger innholdet i en rom-popup automatisk fra `sensor.<rom>_oversikt` (ki-rom ≥ 1.1.0). Kortet lager **ikke** noe nytt design – det genererer nøyaktig samme konfig som rom-popupene i dashbordet (expander-card, layout-card, button-card med `universal_action`/`universal_sensor`/`sensor_small`-malene, my-slider-v2, mysmart-light-control, paper-buttons-row, mini-graph-card) og rendrer dem via HA sine card-helpers.
+
+```yaml
+type: custom:ki-rom-card
+rom: stue                  # area_id
+seksjoner:                 # alle på som standard, seksjoner uten entiteter faller bort selv
+  header: true
+  gardiner: true
+  scener: true             # skript/scener med rommet som område
+  lys: true
+  enheter: true            # brytere + vifter (+ effekt fra samme enhet)
+  klima: true              # input_number.<klima>_teller brukes hvis den finnes
+  media: false
+  sensorer: true
+temperatur: sensor.x       # valgfri overstyring (ellers første temp-sensor i rommet)
+fuktighet: sensor.x
+```
+
+`ki-rom-popups` lager én bubble-card pop-up per rom (`#<area_id>`) med farge per rom og per-rom-overstyring – ett kort erstatter alle rom-popupene. Se `examples/alle-rom-popups.yaml` og `examples/rom-popup.yaml`.
+
 ## Utvikling
 
 Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kortene, uendret).
@@ -221,3 +244,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.8.0
 - `ki-planter-pro-card` (Avansert → Varsling): én bryter per varsel-enhet fra ki-planter 1.4.0.
+
+## v2.10.0
+- Nye `ki-rom-card` og `ki-rom-popups`: auto-bygd rom-popup fra ki-rom 1.1.0 (`sensor.<rom>_oversikt`), samme kort/utseende som rom-popupene i dashbordet, seksjoner kan slås av per rom.

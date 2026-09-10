@@ -1,0 +1,26 @@
+# Én rom-popup manuelt (erstatter hele cards:-lista i #stue-popupen)
+- type: custom:bubble-card
+  card_type: pop-up
+  name: Stue
+  icon: mdi:sofa-outline
+  hash: '#stue'
+  is_sidebar_hidden: true
+  margin_top_mobile: 50px
+  margin_top_desktop: 50px
+  card_layout: large
+  styles: >-
+    .bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
+    #header-container > div > div { background: var(--gray200)!important; }
+    #header-container > button {background: none;}
+    .icon-container {background-color:var(--green)!important;}
+    .icon-container > ha-icon {color:var(--black)!important;opacity:1!important}
+    .bubble-icon { --mdc-icon-size: 24px !important; }
+  bg_blur: '20'
+  shadow_opacity: '20'
+  bg_opacity: '88'
+  button_type: name
+  cards:
+    - type: custom:ki-rom-card
+      rom: stue
+      seksjoner:
+        media: false          # rommet har ingen media-seksjon

@@ -1,0 +1,30 @@
+# Alle rom-popups automatisk – ett kort erstatter alle #stue/#kjokken/#bad/... popupene.
+# Hash = #<area_id>. Legg kortet i samme view som navbar/rom-kortene (det rendrer ingenting synlig).
+- type: custom:ki-rom-popups
+  farger:                     # ikon-farge i popup-headeren per area_id
+    stue: var(--green)
+    kjokken: var(--red)
+    bad: var(--blue)
+    do: var(--blue)
+    inngang: var(--purple)
+    pult: var(--purple)
+    soverom: var(--purple)
+    rune_soverom: var(--blue)
+    cybele_soverom: var(--purple)
+    rune_kontor: var(--yellow)
+    vaskegang: var(--blue)
+    ute: var(--blue)
+  seksjoner:                  # standard for alle rom
+    media: true
+  hopp_over:
+    - garasje
+  rom:                        # per-rom-overstyring
+    do:
+      seksjoner: { media: false, gardiner: false }
+    ute:
+      navn: Ute
+      ikon: mdi:tree-outline
+      seksjoner: { klima: false, media: false }
+    soverom:
+      temperatur: sensor.pult_hub_2_temperature
+      fuktighet: sensor.pult_hub_2_humidity
