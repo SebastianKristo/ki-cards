@@ -733,6 +733,7 @@
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const ov = findOversikt(hass, this._config);
       if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
@@ -794,6 +795,7 @@
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const list = allOversikt(hass).filter((st) => !this._config.hopp_over.includes(st.attributes.area_id));
       const sig = list.map((st) => st.entity_id + ':' + (st.attributes.rom || '') + ':' + (st.attributes.ikon || '')).join(',');

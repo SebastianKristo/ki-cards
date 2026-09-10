@@ -338,6 +338,7 @@
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const cfg = this._config;
       let extra = '';

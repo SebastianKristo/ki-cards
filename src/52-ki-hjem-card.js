@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.4  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.5  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -417,6 +417,7 @@
     static getStubConfig() { return {}; }
     setConfig(config) { this._config = config; this._sig = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const ovs = allOversikt(hass).map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
       const sig = JSON.stringify(this._config) + '|' + ovs;

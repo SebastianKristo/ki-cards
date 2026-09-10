@@ -336,3 +336,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.17.4
 - `ki-hjem-card`: spesialfliser (kalender, lås, alarm, garasje, gjøremål, naviger) legges inn som ferdig button-card-konfig i stedet for via ki-rom-tile-card – css-swipe-card virker igjen med kalender i rom-swipen (`swipe_type: plain` kan fjernes).
+
+## v2.17.5
+- `ki-rom-card` / `ki-rom-tile-card` / `ki-hjem-card`: tåler at css-swipe-card setter `hass = undefined` på barnekortene (kalender-flisen fikk hele rom-swipen til å forsvinne).

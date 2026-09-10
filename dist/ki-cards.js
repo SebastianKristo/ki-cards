@@ -1,4 +1,4 @@
-/* ki-cards v2.17.4 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.17.5 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.17.4";
+  KI.VERSION = "2.17.5";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -2280,6 +2280,7 @@ try {
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const ov = findOversikt(hass, this._config);
       if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
@@ -2341,6 +2342,7 @@ try {
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const list = allOversikt(hass).filter((st) => !this._config.hopp_over.includes(st.attributes.area_id));
       const sig = list.map((st) => st.entity_id + ':' + (st.attributes.rom || '') + ':' + (st.attributes.ikon || '')).join(',');
@@ -2742,6 +2744,7 @@ try {
     }
 
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const cfg = this._config;
       let extra = '';
@@ -2794,7 +2797,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.4  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.5  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -3212,6 +3215,7 @@ try {
     static getStubConfig() { return {}; }
     setConfig(config) { this._config = config; this._sig = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
     set hass(hass) {
+      if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
       const ovs = allOversikt(hass).map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
       const sig = JSON.stringify(this._config) + '|' + ovs;
