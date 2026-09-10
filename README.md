@@ -317,3 +317,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.16.0
 - Ny `ki-hjem-card`: hele simple-tabs-blokken (Hjem/etasjer/Aktuelt/Batterier) fra ett kort, `etasjer: auto` fra HA-etasjer (ki-rom 1.2.0). `examples/hjem-tabs.yaml`.
+
+## v2.16.1
+- `ki-hjem-card`: fane-stilen satt med simple-tabs sine egne farger (card_mod tok ikke via card-helpers), Hjem-fanen lages automatisk som standard (`hjem:` med lås/garasje/alarm/kalender/stov), flismønster per kolonne (`monster:`, standard venstre big/small, høyre row/big/row) + `kolonne:`/`rekkefolge:` per rom.

@@ -1,4 +1,4 @@
-/* ki-cards v2.16.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.16.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.16.0";
+  KI.VERSION = "2.16.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -2785,10 +2785,19 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.0.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.1.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
- *  type: custom:ki-hjem-card
- *  etasjer: auto          # lager én fane per HA-etasje (rom sortert, to kolonner, size: big)
+ *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
+ *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
+ *    las: lock.dorlas_blatann
+ *    garasje: cover.garasje
+ *    alarm: { entity: select.alarm_homealarm_state, script: script.x }
+ *    kalender: sensor.kalender_oslomet
+ *    rom: [stue, inngang, ute]        # store fliser i venstre swipe (standard: første ~60 % av rommene)
+ *    rom_hoyre: [pult, kjokken]       # høyre swipe
+ *    stov: [ { kind: navigate, ... }, { swipe: {...} } ]
+ *  etasjer: auto          # standard – én fane per etasje; etasjer: false skrur av
+ *  monster: { venstre: [big, small], hoyre: [row, big, row] }   # flismønster per kolonne
  *  rom:                   # per-rom-overstyring brukt overalt (auto-faner og fliser)
  *    inngang: { size: small, path: '#gang', farge: var(--yellow) }
  *    do:      { size: row,   farge: var(--blue-dark) }
@@ -2887,45 +2896,102 @@ try {
     return out;
   }
 
+  // ---- rom fra ki-rom, filtrert og sortert (rekkefolge i rom: { x: { rekkefolge: 1 } })
+  function rooms(hass, cfg) {
+    const romCfg = cfg.rom || {};
+    return allOversikt(hass)
+      .map((st) => st.attributes)
+      .filter((a) => !(cfg.hopp_over || []).includes(a.area_id) && !(romCfg[a.area_id] && romCfg[a.area_id].skjul))
+      .sort((x, y) => ((romCfg[x.area_id] || {}).rekkefolge ?? 50) - ((romCfg[y.area_id] || {}).rekkefolge ?? 50) || (x.rom || '').localeCompare(y.rom || '', 'nb'));
+  }
+
+  const DEFAULT_MONSTER = { venstre: ['big', 'small'], hoyre: ['row', 'big', 'row'] };
+
+  // fordel rom i to kolonner etter flismønsteret (venstre: big, small … hoyre: row, big, row …)
+  function columnsFor(list, cfg, offset = 0) {
+    const romCfg = cfg.rom || {};
+    const monster = { ...DEFAULT_MONSTER, ...(cfg.monster || {}) };
+    const kol = { venstre: [], hoyre: [] };
+    let i = offset;
+    list.forEach((a) => {
+      const o = romCfg[a.area_id] || {};
+      const side = o.kolonne || (i % 2 ? 'hoyre' : 'venstre');
+      const pat = monster[side] || ['big'];
+      const size = o.size || pat[kol[side].length % pat.length];
+      kol[side].push({ rom: a.area_id, size, farge: o.farge || FARGER[i % FARGER.length] });
+      i++;
+    });
+    return kol;
+  }
+
   // ---- auto: én fane per etasje
   function autoFloorTabs(hass, cfg) {
-    const romCfg = cfg.rom || {};
     const floors = new Map();
-    allOversikt(hass).forEach((st) => {
-      const a = st.attributes;
-      if ((cfg.hopp_over || []).includes(a.area_id)) return;
-      if (romCfg[a.area_id] && romCfg[a.area_id].skjul) return;
+    rooms(hass, cfg).forEach((a) => {
       const key = a.etasje_id || '__uten';
-      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Rom', niva: a.etasje_niva ?? 999, rom: [] });
-      floors.get(key).rom.push(a.area_id);
+      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Andre', niva: a.etasje_niva ?? 999, rom: [] });
+      floors.get(key).rom.push(a);
     });
     const list = [...floors.values()].sort((x, y) => (x.niva - y.niva) || x.navn.localeCompare(y.navn, 'nb'));
-    return list.map((f) => {
-      const venstre = [], hoyre = [];
-      f.rom.forEach((r, i) => {
-        const o = romCfg[r] || {};
-        const tile = { rom: r, size: o.size || 'big', farge: o.farge || FARGER[i % FARGER.length] };
-        (o.kolonne === 'hoyre' || (!o.kolonne && i % 2)) ? hoyre.push(tile) : venstre.push(tile);
-      });
-      return { title: f.navn, kolonner: { venstre, hoyre } };
-    });
+    return list.map((f) => ({ title: f.navn, kolonner: columnsFor(f.rom, cfg) }));
+  }
+
+  // ---- auto: Hjem-fanen med samme layout som før ("stue kjokken" / "stue stov")
+  //  hjem: { las: lock.x, garasje: cover.x, alarm: { entity, script }, kalender: sensor.x,
+  //          rom: [stue, inngang, ute] (venstre swipe), rom_hoyre: [pult, kjokken], stov: [ ...fliser ] }
+  function autoHjemTab(hass, cfg) {
+    const h = typeof cfg.hjem === 'object' && cfg.hjem ? cfg.hjem : {};
+    const romCfg = cfg.rom || {};
+    const alle = rooms(hass, cfg).map((a) => a.area_id);
+    const venstreRom = h.rom || alle.slice(0, Math.max(2, Math.ceil(alle.length * 0.6)));
+    const hoyreRom = h.rom_hoyre || alle.filter((r) => !venstreRom.includes(r));
+    const tile = (r, i) => ({ rom: r, size: 'big', farge: (romCfg[r] || {}).farge || FARGER[i % FARGER.length] });
+
+    const topp = [];
+    if (h.las) topp.push({ kind: 'las', entity: h.las, path: h.las_path || '#dor' });
+    if (h.garasje) topp.push({ kind: 'garasje', entity: h.garasje, path: h.garasje_path || '#garasje' });
+
+    const store = venstreRom.map(tile);
+    if (h.kalender) store.push({ kind: 'kalender', entity: h.kalender, path: h.kalender_path || '#kalender' });
+
+    const stue = [];
+    if (topp.length) stue.push({ swipe: { type: 'plain', cards: topp } });
+    if (store.length) stue.push({ swipe: { height: '266px', cards: store } });
+    if (h.alarm) stue.push({ kind: 'alarm', ...(typeof h.alarm === 'string' ? { entity: h.alarm } : h.alarm), path: (h.alarm && h.alarm.path) || '#alarm' });
+
+    const omrader = { stue };
+    if (hoyreRom.length) omrader.kjokken = [{ swipe: { height: '266px', cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
+    if (h.stov && h.stov.length) omrader.stov = h.stov;
+
+    const areas = omrader.stov ? '"stue kjokken"\n"stue stov"\n"stue stov"\n' : (omrader.kjokken ? '"stue kjokken"\n' : '"stue"\n');
+    return {
+      title: h.title || 'Hjem',
+      layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(160px, 1fr))', 'grid-template-rows': 'auto', 'grid-template-areas': areas, ...(h.layout || {}) },
+      omrader,
+    };
   }
 
   function generate(hass, cfg) {
     const romCfg = cfg.rom || {};
     const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
+    const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');
     let tabs = explicit;
-    if (cfg.etasjer === 'auto' || cfg.etasjer === true) {
+    // Hjem-fanen er standard på (hjem: false skrur av); egen «Hjem» i tabs vinner
+    if (cfg.hjem !== false && !hasHjem) tabs = [buildTab(autoHjemTab(hass, cfg), romCfg), ...explicit];
+    if (cfg.etasjer !== false && cfg.etasjer !== 'manuell') {
       const auto = autoFloorTabs(hass, cfg).map((t) => buildTab(t, romCfg));
-      const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : Math.min(1, explicit.length));
-      tabs = [...explicit.slice(0, pos), ...auto, ...explicit.slice(pos)];
+      const idx = tabs.findIndex((t) => (t.title || '').toLowerCase() === 'hjem');
+      const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : idx + 1);
+      tabs = [...tabs.slice(0, pos), ...auto, ...tabs.slice(pos)];
     }
     return {
       type: 'custom:simple-tabs',
-      'pre-load': true, alignment: cfg.alignment || 'start', container_padding: '10px',
-      'background-color': 'transparent', 'border-color': 'transparent',
+      'pre-load': true, alignment: cfg.alignment || 'start',
+      container_padding: '10px', container_background: 'transparent', container_rounding: '999px',
+      tabs_gap: '4px', button_padding: '9px 22px',
+      'background-color': 'transparent', 'border-color': 'rgba(255, 255, 255, 0.3)',
       'text-color': 'rgba(255, 255, 255, 0.72)', 'hover-color': 'rgba(255, 255, 255, 0.95)',
-      container_background: 'transparent',
+      'active-background': 'var(--active-big)', 'active-text-color': 'rgba(70, 58, 64, 0.95)',
       tabs,
       card_mod: { style: TABS_STYLE },
     };

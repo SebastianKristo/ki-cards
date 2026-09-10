@@ -1,13 +1,30 @@
 # Hele simple-tabs-blokken på forsiden i ett kort. Layout/swipe/faner som før,
 # romflisene auto fra ki-rom, spesialfliser med entitet. Erstatter vertical-stack > simple-tabs.
 type: custom:ki-hjem-card
-etasjer: auto                 # én fane per HA-etasje, satt inn etter Hjem-fanen
+# Standard uten mer config: Hjem-fane + én fane per HA-etasje med flismønsteret
+# venstre: big, small …  hoyre: row, big, row …  (endres med `monster:`)
+hjem:                         # Hjem-fanen automatisk med samme layout som før
+  las: lock.dorlas_blatann
+  garasje: cover.garasje
+  alarm: { entity: select.alarm_homealarm_state, script: script.mysmarthome_home_screen_alarm_aktiver_deaktiver }
+  kalender: sensor.kalender_oslomet
+  rom: [stue, inngang, ute]           # venstre swipe
+  rom_hoyre: [pult, kjokken]          # høyre swipe
+  stov:
+    - { kind: navigate, ikon: mdi:cctv, main_text: Kamera, path: /dashboard-kamera }
+    - swipe:
+        height: 85px
+        cards:
+          - { kind: gjoremal, entity: sensor.todo_oppgaver_count, sub_text: 2 ferdige, path: '#gjoremal' }
+          - { kind: navigate, ikon: mdi:car, main_text: Bensinstasjon, sub_text: Diselpris, path: '#bensinstasjon' }
+          - { kind: navigate, ikon: mdi:cctv, main_text: Veikamerar, path: '#veikamera' }
+          - { kind: navigate, entity: sensor.ruter_disruption_summary, ikon: mdi:bus, main_text: Transport, sub_text: Ruter, path: '#ruter' }
 rom:                          # per-rom-innstillinger (brukes både i auto-faner og i tabs under)
-  stue:          { farge: var(--green),     ikon: mdi:sofa }
-  kjokken:       { farge: var(--blue),      ikon: mdi:knife }
-  inngang:       { farge: var(--yellow),    ikon: mdi:door, path: '#gang', size: small, navn: Gangen, varsel: binary_sensor.inngangsdor }
-  do:            { farge: var(--blue-dark), ikon: mdi:toilet, size: row }
-  ute:           { farge: var(--blue),      ikon: mdi:tree-outline, size: row }
+  stue:          { farge: var(--green),     ikon: mdi:sofa, rekkefolge: 1 }
+  kjokken:       { farge: var(--blue),      ikon: mdi:knife, kolonne: hoyre, rekkefolge: 4 }
+  inngang:       { farge: var(--yellow),    ikon: mdi:door, path: '#gang', size: small, navn: Gangen, varsel: binary_sensor.inngangsdor, rekkefolge: 3 }
+  do:            { farge: var(--blue-dark), ikon: mdi:toilet, size: row, kolonne: hoyre, rekkefolge: 2 }
+  ute:           { farge: var(--blue),      ikon: mdi:tree-outline, size: row, kolonne: hoyre, rekkefolge: 5 }
   pult:          { farge: var(--red),       ikon: mdi:desktop-classic, size: row }
   soverom:       { farge: var(--green),     ikon: mdi:bed-king-outline }
   bad:           { farge: var(--blue),      ikon: mdi:bathtub-outline, varsel: binary_sensor.bad_bevegelsesensor_motion }
@@ -15,45 +32,6 @@ rom:                          # per-rom-innstillinger (brukes både i auto-faner
   rune_soverom:  { farge: var(--orange),    ikon: mdi:bed-outline, size: row, navn: Rune, path: '#rune' }
   rune_kontor:   { farge: var(--pink),      ikon: mdi:desk, size: row, navn: Kontor }
 tabs:
-  - title: Hjem
-    layout:
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))
-      grid-template-rows: auto
-      grid-template-areas: |
-        "stue kjokken"
-        "stue stov"
-        "stue stov"
-    omrader:
-      stov:
-        - { kind: navigate, ikon: mdi:cctv, main_text: Kamera, path: /dashboard-kamera }
-        - swipe:
-            height: 85px
-            cards:
-              - { kind: gjoremal, entity: sensor.todo_oppgaver_count, sub_text: 2 ferdige, path: '#gjoremal' }
-              - { kind: navigate, ikon: mdi:car, main_text: Bensinstasjon, sub_text: Diselpris, path: '#bensinstasjon' }
-              - { kind: navigate, ikon: mdi:cctv, main_text: Veikamerar, path: '#veikamera' }
-              - { kind: navigate, entity: sensor.ruter_disruption_summary, ikon: mdi:bus, main_text: Transport, sub_text: Ruter, path: '#ruter' }
-      stue:
-        - swipe:
-            type: plain
-            cards:
-              - { kind: las, entity: lock.dorlas_blatann, path: '#dor' }
-              - { kind: garasje, entity: cover.garasje, path: '#garasje' }
-        - swipe:
-            height: 266px
-            cards:
-              - { rom: stue, size: big }
-              - { rom: inngang, size: big }
-              - { rom: ute, size: big, temperatur: sensor.vaervarsel_temperature, fuktighet: sensor.vaervarsel_humidity }
-              - { kind: kalender, entity: sensor.kalender_oslomet, path: '#kalender' }
-        - { kind: alarm, entity: select.alarm_homealarm_state, script: script.mysmarthome_home_screen_alarm_aktiver_deaktiver, path: '#alarm' }
-      kjokken:
-        - swipe:
-            height: 266px
-            cards:
-              - { rom: pult, size: big }
-              - { rom: kjokken, size: big }
-
   # Vil du styre etasjene manuelt i stedet for `etasjer: auto`:
   # - title: 1. etg
   #   kolonner:
