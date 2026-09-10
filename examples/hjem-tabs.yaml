@@ -1,0 +1,120 @@
+# Hele simple-tabs-blokken på forsiden i ett kort. Layout/swipe/faner som før,
+# romflisene auto fra ki-rom, spesialfliser med entitet. Erstatter vertical-stack > simple-tabs.
+type: custom:ki-hjem-card
+etasjer: auto                 # én fane per HA-etasje, satt inn etter Hjem-fanen
+rom:                          # per-rom-innstillinger (brukes både i auto-faner og i tabs under)
+  stue:          { farge: var(--green),     ikon: mdi:sofa }
+  kjokken:       { farge: var(--blue),      ikon: mdi:knife }
+  inngang:       { farge: var(--yellow),    ikon: mdi:door, path: '#gang', size: small, navn: Gangen, varsel: binary_sensor.inngangsdor }
+  do:            { farge: var(--blue-dark), ikon: mdi:toilet, size: row }
+  ute:           { farge: var(--blue),      ikon: mdi:tree-outline, size: row }
+  pult:          { farge: var(--red),       ikon: mdi:desktop-classic, size: row }
+  soverom:       { farge: var(--green),     ikon: mdi:bed-king-outline }
+  bad:           { farge: var(--blue),      ikon: mdi:bathtub-outline, varsel: binary_sensor.bad_bevegelsesensor_motion }
+  cybele_soverom: { farge: var(--purple),   ikon: mdi:bed-outline, size: row, navn: Cybele, path: '#cybele' }
+  rune_soverom:  { farge: var(--orange),    ikon: mdi:bed-outline, size: row, navn: Rune, path: '#rune' }
+  rune_kontor:   { farge: var(--pink),      ikon: mdi:desk, size: row, navn: Kontor }
+tabs:
+  - title: Hjem
+    layout:
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))
+      grid-template-rows: auto
+      grid-template-areas: |
+        "stue kjokken"
+        "stue stov"
+        "stue stov"
+    omrader:
+      stov:
+        - { kind: navigate, ikon: mdi:cctv, main_text: Kamera, path: /dashboard-kamera }
+        - swipe:
+            height: 85px
+            cards:
+              - { kind: gjoremal, entity: sensor.todo_oppgaver_count, sub_text: 2 ferdige, path: '#gjoremal' }
+              - { kind: navigate, ikon: mdi:car, main_text: Bensinstasjon, sub_text: Diselpris, path: '#bensinstasjon' }
+              - { kind: navigate, ikon: mdi:cctv, main_text: Veikamerar, path: '#veikamera' }
+              - { kind: navigate, entity: sensor.ruter_disruption_summary, ikon: mdi:bus, main_text: Transport, sub_text: Ruter, path: '#ruter' }
+      stue:
+        - swipe:
+            type: plain
+            cards:
+              - { kind: las, entity: lock.dorlas_blatann, path: '#dor' }
+              - { kind: garasje, entity: cover.garasje, path: '#garasje' }
+        - swipe:
+            height: 266px
+            cards:
+              - { rom: stue, size: big }
+              - { rom: inngang, size: big }
+              - { rom: ute, size: big, temperatur: sensor.vaervarsel_temperature, fuktighet: sensor.vaervarsel_humidity }
+              - { kind: kalender, entity: sensor.kalender_oslomet, path: '#kalender' }
+        - { kind: alarm, entity: select.alarm_homealarm_state, script: script.mysmarthome_home_screen_alarm_aktiver_deaktiver, path: '#alarm' }
+      kjokken:
+        - swipe:
+            height: 266px
+            cards:
+              - { rom: pult, size: big }
+              - { rom: kjokken, size: big }
+
+  # Vil du styre etasjene manuelt i stedet for `etasjer: auto`:
+  # - title: 1. etg
+  #   kolonner:
+  #     venstre: [ { rom: stue }, { rom: inngang } ]
+  #     hoyre:   [ { rom: do }, { rom: kjokken }, { rom: ute } ]
+  # - title: 2. etg
+  #   kolonner:
+  #     venstre: [ { rom: soverom }, { rom: inngang, navn: Gangen }, { rom: cybele_soverom } ]
+  #     hoyre:   [ { rom: pult }, { rom: bad }, { rom: rune_soverom }, { rom: rune_kontor } ]
+
+  - title: Aktuelt
+    cards:
+      - type: grid
+        square: false
+        columns: 2
+        cards:
+          - type: custom:button-card
+            template: universal_sensor
+            entity: media_player.stue_tv
+            tap_action: { action: navigate, navigation_path: '?tab=tv#media' }
+            variables:
+              sub_text: TV
+              main_text: "[[[ const a = entity.attributes; return a.app_name || a.source || 'TV'; ]]]"
+              icon: mdi:television-classic
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+          - type: conditional
+            conditions: [ { condition: state, entity: vacuum.sir_sweeps_a_lot, state: cleaning } ]
+            card:
+              type: custom:button-card
+              template: universal_sensor
+              entity: vacuum.sir_sweeps_a_lot
+              tap_action: { action: navigate, navigation_path: '#rolf' }
+              variables: { sub_text: Rolf, main_text: Vasker, icon: mdi:robot-vacuum, background_color: var(--gray200), text_color: var(--gray1000) }
+          - type: conditional
+            conditions: [ { condition: state, entity: sensor.vaskmaskin_tid_igjen, state: 'on' } ]
+            card:
+              type: custom:button-card
+              template: universal_sensor
+              entity: sensor.vaskmaskin_tid_igjen
+              tap_action: { action: navigate, navigation_path: '#bad_nede' }
+              variables: { sub_text: Vaskemaskin, main_text: "[[[ return entity.state ]]]", icon: mdi:washing-machine, background_color: var(--gray200), text_color: var(--gray1000), show_bar: true, bar_value: "[[[ return entity.state ]]]", bar_color: var(--gray1000) }
+          - type: conditional
+            conditions: [ { condition: state, entity: sensor.oppvaskmaskin_tid_igjen, state: 'on' } ]
+            card:
+              type: custom:button-card
+              template: universal_bar
+              entity: sensor.oppvaskmaskin_tid_igjen
+              tap_action: { action: navigate, navigation_path: '#kjokken' }
+              variables: { sub_text: Oppvaskmaskin, main_text: "[[[ return entity.state ]]]", icon: mdi:dishwasher, background_color: var(--gray200), text_color: var(--gray1000), show_bar: true, bar_value: "[[[ return entity.state ]]]", bar_color: var(--gray1000) }
+  - title: Batterier
+    badge: ''
+    conditions:
+      - template: "{{ (states | selectattr('entity_id', 'search', '_battery_plus_low') | selectattr('state', 'eq', 'on') | list) | length > 0 }}"
+    card:
+      type: custom:auto-entities
+      card: { type: grid, columns: 2, square: false }
+      card_param: cards
+      filter:
+        include:
+          - entity_id: sensor.*_battery_plus
+            state: '< 30'
+            options: { type: custom:button-card, template: sensor_battery }
+      sort: { method: state, numeric: true }

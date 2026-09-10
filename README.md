@@ -39,6 +39,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-tile-card.svg" width="28" align="absmiddle"> | `ki-rom-tile-card` | KI Rom flis | Romflis til forsiden (temp/fukt, termostat-stepper, «!»-varsel) auto-konfigurert fra ki-rom, `size: big / small / row`. `kind: las / alarm / garasje / kalender / gjoremal / navigate` gir spesialflisene med entitet som config |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hjem-card.svg" width="28" align="absmiddle"> | `ki-hjem-card` | KI Hjem | Hele simple-tabs-blokken på forsiden i ett kort: `etasjer: auto` lager én fane per HA-etasje med romflisene, `tabs:` gir Hjem-layout (grid-areas + swipe), Aktuelt, Batterier. `examples/hjem-tabs.yaml` |
 
 ### Pro-kort (samme stil som ki-energi-card / ki-klima-pro-card – hero med ring, Enkel/Avansert, blokker)
 
@@ -219,6 +220,29 @@ varsel: binary_sensor.inngangsdor   # standard: første dør/vindu i rommet
 
 Spesialfliser med entitet som config: `kind: las` (lock), `kind: alarm` (select/alarm + `script:` for knappen), `kind: garasje` (cover), `kind: kalender` (sensor med events), `kind: gjoremal` (teller-sensor), `kind: navigate` (ikon/tekst/path). Alle har UI-editor. Hjem-fanen ferdig omskrevet: `examples/hjem-fliser.yaml`.
 
+## ki-hjem-card
+
+Ett kort for hele fane-blokken på forsiden. Faner kan være automatiske (`etasjer: auto` → én fane per etasje i HA, rommene i to kolonner) eller eksplisitte:
+
+```yaml
+type: custom:ki-hjem-card
+etasjer: auto
+rom:                                   # per-rom-innstillinger (farge, ikon, size, path, varsel, navn)
+  inngang: { size: small, path: '#gang', farge: var(--yellow) }
+tabs:
+  - title: Hjem
+    layout: { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)), grid-template-areas: "\"stue kjokken\" \"stue stov\"" }
+    omrader:
+      stue:
+        - swipe: { type: plain, cards: [ { kind: las, entity: lock.x }, { kind: garasje, entity: cover.x } ] }
+        - swipe: { height: 266px, cards: [ { rom: stue }, { rom: inngang }, { kind: kalender, entity: sensor.k } ] }
+        - { kind: alarm, entity: select.x, script: script.x }
+  - title: Aktuelt
+    cards: [ ...vanlige kort... ]
+```
+
+Listeelementer: `{rom: x}` / `{kind: …}` = `ki-rom-tile-card`, `{swipe: {…}}` = css-swipe-card (`type: plain` = swipe-card), alt med `type:` = kortet som det er. Krever ki-rom ≥ 1.2.0 for etasjer.
+
 ## Utvikling
 
 Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kortene, uendret).
@@ -290,3 +314,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.15.0
 - Ny `ki-rom-tile-card`: romfliser til forsiden auto-konfigurert fra ki-rom (big/small/row) + spesialfliser lås/alarm/garasje/kalender/gjøremål/naviger med entitet som config. `examples/hjem-fliser.yaml`.
+
+## v2.16.0
+- Ny `ki-hjem-card`: hele simple-tabs-blokken (Hjem/etasjer/Aktuelt/Batterier) fra ett kort, `etasjer: auto` fra HA-etasjer (ki-rom 1.2.0). `examples/hjem-tabs.yaml`.
