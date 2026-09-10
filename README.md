@@ -194,6 +194,8 @@ gap: 8                     # px mellom kortene
 scener_ekstra:             # skript/scener i tillegg til de som har rommet som område
   - script.stue_lys_mer_lys
   - scene.stue_nede_alt_av
+skjul:                     # enheter som ikke skal vises i kortet
+  - light.kjokken_spot_1
 ```
 
 Kortet har UI-editor: legg til «KI Rom» i en popup, velg rom i nedtrekkslisten og huk av seksjonene. Egen popup per rom som før – `examples/rom-popup.yaml`.
@@ -262,3 +264,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.13.0
 - `ki-rom-card`: nytt mediakort (pille med uskarpt albumbilde, artist – tittel, av/på, forrige, play/pause, neste, «…» = more-info, volum), flere rom i ett kort (`rom: [stue, kjokken]` – én header per rom, resten slås sammen), seksjonsbryterne i editoren fikset for godt (flate felt – HA nestet grid/expandable-verdier).
+
+## v2.14.0
+- `ki-rom-card`: `skjul:` (velger i editoren, begrenset til enhetene i rommet) fjerner enheter fra kortet; flere rom gir nå én felles header.

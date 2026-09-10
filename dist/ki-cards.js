@@ -1,4 +1,4 @@
-/* ki-cards v2.13.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.14.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.13.0";
+  KI.VERSION = "2.14.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,12 +1546,13 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.3.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.4.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
  *  gap: 8                         # px mellom kortene
  *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
+ *  skjul: [light.kjokken_spot_1, switch.x]                             # enheter som ikke skal vises
  *  seksjoner:                     # alle true som standard
  *    header: true
  *    gardiner: true
@@ -2097,13 +2098,14 @@ try {
   // ------------------------------------------------------------ generator
   const LIST_KEYS = ['lys', 'media', 'brytere', 'vifter', 'klima', 'gardiner', 'sensorer', 'skript', 'scener', 'temperatur', 'fuktighet', 'lysniva', 'effekt', 'effekt_andre'];
 
-  function mergeOversikt(ovStates) {
+  function mergeOversikt(ovStates, skjul) {
+    const hide = new Set([].concat(skjul || []));
     const ov = {};
     LIST_KEYS.forEach((k) => { ov[k] = []; });
     ov.rooms = [];
     ovStates.forEach((st) => {
       const a = st.attributes;
-      LIST_KEYS.forEach((k) => { (a[k] || []).forEach((x) => { const id = typeof x === 'string' ? x : x.entity; if (!ov[k].some((y) => (typeof y === 'string' ? y : y.entity) === id)) ov[k].push(x); }); });
+      LIST_KEYS.forEach((k) => { (a[k] || []).forEach((x) => { const id = typeof x === 'string' ? x : x.entity; if (hide.has(id)) return; if (!ov[k].some((y) => (typeof y === 'string' ? y : y.entity) === id)) ov[k].push(x); }); });
       ov.rooms.push({ ...a, prefix: st.entity_id.replace(/^sensor\./, '').replace(/_oversikt$/, '') });
     });
     ov.prefix = ov.rooms[0].prefix;
@@ -2112,17 +2114,14 @@ try {
   }
 
   function generate(hass, ovStates, cfg) {
-    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates]);
+    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], cfg.skjul);
     const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
     const roomName = roomNames.length === 1 ? (cfg.navn || roomNames[0]) : roomNames;
     const s = cfg.seksjoner;
     const order = cfg.rekkefolge || ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
     const builders = {
-      header: () => {
-        // ett header-kort per rom (temperatur/graf/måltemp er romspesifikt)
-        const hs = ov.rooms.map((r, i) => sectionHeader(hass, { ...r, temperatur: r.temperatur || [], fuktighet: r.fuktighet || [], klima: r.klima || [] }, i === 0 ? cfg : { ...cfg, temperatur: undefined, fuktighet: undefined }, ov.rooms.length === 1 ? roomName : (r.rom || r.prefix)));
-        return hs.length === 1 ? hs[0] : { type: 'grid', square: false, columns: hs.length > 2 ? 2 : hs.length, cards: hs };
-      },
+      // én header uansett antall rom: første temperatur-/fuktsensor og første klima (eller overstyring i cfg)
+      header: () => sectionHeader(hass, ov, cfg, cfg.navn || (Array.isArray(roomName) ? roomName.join(' + ') : roomName)),
       gardiner: () => sectionGardiner(hass, ov, roomName),
       scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra),
       lys: () => sectionLys(hass, ov, roomName),
@@ -2152,6 +2151,15 @@ try {
     return out.every(Boolean) ? out : null;
   }
 
+  function roomEntityIds(hass, roms) {
+    const ids = new Set();
+    [].concat(roms || []).forEach((r) => {
+      const st = findOne(hass, r); if (!st) return;
+      LIST_KEYS.forEach((k) => (st.attributes[k] || []).forEach((x) => ids.add(typeof x === 'string' ? x : x.entity)));
+    });
+    return [...ids].sort();
+  }
+
   function allOversikt(hass) {
     return Object.values(hass.states)
       .filter((st) => st.entity_id.startsWith('sensor.') && st.entity_id.endsWith('_oversikt') && st.attributes.integrasjon === 'ki_rom' && st.attributes.area_id !== 'totalt')
@@ -2168,6 +2176,7 @@ try {
     rom: 'Rom (velg ett eller flere)', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',
     teller_suffix: 'Suffiks for input_number-teller', gap: 'Avstand mellom kort (px)',
     scener_ekstra: 'Legg til skript/scener som skal vises i raden',
+    skjul: 'Skjul enheter fra kortet',
   };
 
   class KiRomCardEditor extends HTMLElement {
@@ -2184,6 +2193,7 @@ try {
         { name: 'navn', selector: { text: {} } },
         ...Object.keys(DEFAULT_SECTIONS).map((k) => ({ name: 'sek_' + k, selector: { boolean: {} } })),
         { name: 'scener_ekstra', selector: { entity: { domain: ['script', 'scene'], multiple: true } } },
+        { name: 'skjul', selector: { entity: { multiple: true, include_entities: roomEntityIds(this._hass, (this._config || {}).rom) } } },
         { name: 'temperatur', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
         { name: 'fuktighet', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
         { name: 'teller_suffix', selector: { text: {} } },
@@ -2198,6 +2208,7 @@ try {
         rom: [].concat(c.rom || []), navn: c.navn, temperatur: c.temperatur, fuktighet: c.fuktighet,
         teller_suffix: c.teller_suffix || '_teller', gap: c.gap === undefined ? 8 : c.gap,
         scener_ekstra: (c.scener_ekstra || []).map((x) => (typeof x === 'string' ? x : x.entity)).filter(Boolean),
+        skjul: [].concat(c.skjul || []),
       };
       Object.keys(DEFAULT_SECTIONS).forEach((k) => { d['sek_' + k] = sek[k]; });
       return d;
@@ -2218,6 +2229,7 @@ try {
           if (v.navn) out.navn = v.navn;
           if (Object.keys(seksjoner).length) out.seksjoner = seksjoner;
           if (Array.isArray(v.scener_ekstra) && v.scener_ekstra.length) out.scener_ekstra = v.scener_ekstra;
+          if (Array.isArray(v.skjul) && v.skjul.length) out.skjul = v.skjul;
           if (v.temperatur) out.temperatur = v.temperatur;
           if (v.fuktighet) out.fuktighet = v.fuktighet;
           if (v.teller_suffix && v.teller_suffix !== '_teller') out.teller_suffix = v.teller_suffix;
@@ -2379,7 +2391,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.3.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.4.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
