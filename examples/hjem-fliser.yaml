@@ -1,0 +1,151 @@
+# Hjem-fanen med romflisene auto-konfigurert fra KI Rom.
+# Layouten (grid-areas, swipe) er som før – bare hver romflis er byttet ut med ki-rom-tile-card,
+# og spesialflisene (lås, alarm, garasje, kalender, gjøremål) tar entitet som config.
+type: custom:layout-card
+layout_type: custom:grid-layout
+layout:
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))
+  grid-template-rows: auto
+  grid-gap: 0px
+  margin: -12px 0px 0px -4px
+  grid-template-areas: |
+    "stue kjokken"
+    "stue stov"
+    "stue stov"
+cards:
+  - type: vertical-stack
+    view_layout: { grid-area: stov }
+    cards:
+      - type: custom:ki-rom-tile-card
+        kind: navigate
+        ikon: mdi:cctv
+        main_text: Kamera
+        path: /dashboard-kamera
+      - type: custom:gap-card
+        height: 10
+      - type: custom:css-swipe-card
+        cardId: swipe_dashboard1
+        height: 85px
+        pagination: true
+        custom_css:
+          --pagination-bullet-active-background-color: var(--gray400)
+          --pagination-bullet-background-color: var(--gray200)
+          --pagination-bullet-border: none
+          --pagination-bullet-distance: 0px
+        cards:
+          - type: custom:ki-rom-tile-card
+            kind: gjoremal
+            entity: sensor.todo_oppgaver_count
+            sub_text: 2 ferdige
+            path: '#gjoremal'
+          - type: custom:ki-rom-tile-card
+            kind: navigate
+            ikon: mdi:car
+            main_text: Bensinstasjon
+            sub_text: Diselpris
+            path: '#bensinstasjon'
+          - type: custom:ki-rom-tile-card
+            kind: navigate
+            ikon: mdi:cctv
+            main_text: Veikamerar
+            path: '#veikamera'
+          - type: custom:ki-rom-tile-card
+            kind: navigate
+            entity: sensor.ruter_disruption_summary
+            ikon: mdi:bus
+            main_text: Transport
+            sub_text: Ruter
+            path: '#ruter'
+  - type: vertical-stack
+    view_layout: { grid-area: stue }
+    cards:
+      - type: custom:swipe-card
+        cards:
+          - type: custom:ki-rom-tile-card
+            kind: las
+            entity: lock.dorlas_blatann
+            path: '#dor'
+          - type: custom:ki-rom-tile-card
+            kind: garasje
+            entity: cover.garasje
+            path: '#garasje'
+      - type: custom:gap-card
+        height: 10
+      - type: custom:css-swipe-card
+        cardId: swipe_dashboard1
+        height: 266px
+        pagination: true
+        custom_css:
+          --pagination-bullet-active-background-color: var(--gray400)
+          --pagination-bullet-background-color: var(--gray200)
+          --pagination-bullet-border: none
+          --pagination-bullet-distance: 0px
+        cards:
+          - type: custom:ki-rom-tile-card
+            rom: stue
+            size: big
+            farge: var(--green)
+            ikon: mdi:sofa
+          - type: custom:ki-rom-tile-card
+            rom: inngang            # area_id for «Gang»
+            size: big
+            farge: var(--yellow)
+            ikon: mdi:door
+            path: '#gang'
+            varsel: binary_sensor.inngangsdor
+          - type: custom:ki-rom-tile-card
+            rom: ute
+            size: big
+            farge: var(--blue)
+            ikon: mdi:tree-outline
+            temperatur: sensor.vaervarsel_temperature
+            fuktighet: sensor.vaervarsel_humidity
+          - type: custom:ki-rom-tile-card
+            kind: kalender
+            entity: sensor.kalender_oslomet
+            path: '#kalender'
+      - type: custom:gap-card
+        height: 10
+      - type: custom:ki-rom-tile-card
+        kind: alarm
+        entity: select.alarm_homealarm_state
+        script: script.mysmarthome_home_screen_alarm_aktiver_deaktiver
+        path: '#alarm'
+  - type: custom:css-swipe-card
+    view_layout: { grid-area: kjokken }
+    cardId: swipe_dashboard1
+    height: 266px
+    pagination: true
+    custom_css:
+      --pagination-bullet-active-background-color: var(--gray400)
+      --pagination-bullet-background-color: var(--gray200)
+      --pagination-bullet-border: none
+      --pagination-bullet-distance: 0px
+    cards:
+      - type: custom:ki-rom-tile-card
+        rom: pult
+        size: big
+        farge: var(--orange)
+        ikon: mdi:desktop-classic
+      - type: custom:ki-rom-tile-card
+        rom: kjokken
+        size: big
+        farge: var(--blue)
+        ikon: mdi:knife
+
+# --- 1. etg / 2. etg: samme mønster ---------------------------------------
+# - type: custom:ki-rom-tile-card
+#   rom: do
+#   size: row                 # 66 px-pillen (Do, Ute, Cybele, Rune, Kontor, Pult)
+#   farge: var(--blue-dark)
+#   ikon: mdi:toilet
+# - type: custom:ki-rom-tile-card
+#   rom: inngang
+#   size: small               # 142 px (Gangen)
+#   farge: var(--yellow)
+#   path: '#gang'
+# - type: custom:ki-rom-tile-card
+#   rom: bad
+#   size: big
+#   farge: var(--blue)
+#   varsel: binary_sensor.bad_bevegelsesensor_motion

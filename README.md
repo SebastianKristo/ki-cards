@@ -38,6 +38,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-tile-card.svg" width="28" align="absmiddle"> | `ki-rom-tile-card` | KI Rom flis | Romflis til forsiden (temp/fukt, termostat-stepper, «!»-varsel) auto-konfigurert fra ki-rom, `size: big / small / row`. `kind: las / alarm / garasje / kalender / gjoremal / navigate` gir spesialflisene med entitet som config |
 
 ### Pro-kort (samme stil som ki-energi-card / ki-klima-pro-card – hero med ring, Enkel/Avansert, blokker)
 
@@ -202,6 +203,22 @@ Kortet har UI-editor: legg til «KI Rom» i en popup, velg rom i nedtrekkslisten
 
 `ki-rom-popups` lager én bubble-card pop-up per rom (`#<area_id>`) med farge per rom og per-rom-overstyring – ett kort erstatter alle rom-popupene. Se `examples/alle-rom-popups.yaml` og `examples/rom-popup.yaml`.
 
+## ki-rom-tile-card
+
+Flisene på forsiden (Stue, Kjøkken, Gang, Pult … med temperatur, fukt, termostat-stepper og «!»-varsel) generert fra `sensor.<rom>_oversikt` – samme button-card-konfig som før.
+
+```yaml
+type: custom:ki-rom-tile-card
+rom: stue
+size: big            # big (246 px, termostat fra første klima / input_number.<klima>_teller) | small (142 px) | row (66 px pille)
+farge: var(--green)  # ikon-sirkel
+ikon: mdi:sofa       # standard: rommets ikon i HA
+path: '#stue'        # standard: '#<area_id>'
+varsel: binary_sensor.inngangsdor   # standard: første dør/vindu i rommet
+```
+
+Spesialfliser med entitet som config: `kind: las` (lock), `kind: alarm` (select/alarm + `script:` for knappen), `kind: garasje` (cover), `kind: kalender` (sensor med events), `kind: gjoremal` (teller-sensor), `kind: navigate` (ikon/tekst/path). Alle har UI-editor. Hjem-fanen ferdig omskrevet: `examples/hjem-fliser.yaml`.
+
 ## Utvikling
 
 Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kortene, uendret).
@@ -270,3 +287,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.14.1
 - `ki-rom-card`: rom uten temperatur-/fuktsensor bruker `sensor.hus_temperature` / `sensor.hus_fuktighet` (endres med `reserve_temperatur:` / `reserve_fuktighet:`).
+
+## v2.15.0
+- Ny `ki-rom-tile-card`: romfliser til forsiden auto-konfigurert fra ki-rom (big/small/row) + spesialfliser lås/alarm/garasje/kalender/gjøremål/naviger med entitet som config. `examples/hjem-fliser.yaml`.
