@@ -1,4 +1,4 @@
-/* ki-cards v2.17.5 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.18.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.17.5";
+  KI.VERSION = "2.18.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1546,7 +1546,7 @@ try {
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.4.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -2269,6 +2269,8 @@ try {
       this._rawConfig = config;
       this._signature = null;
       this._children = [];
+      this._lastOv = null;
+      this._dirty = true;
       if (!this._root) {
         this._root = document.createElement('div');
         this._root.style.display = 'flex';
@@ -2282,12 +2284,38 @@ try {
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
+      // Ytelse: sammenlign state-objektene på referanse (HA lager nytt objekt bare når entiteten endres)
+      // i stedet for å JSON-serialisere attributtene ved hver hass-oppdatering.
       const ov = findOversikt(hass, this._config);
       if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
-      const sig = ov.map((o) => JSON.stringify(o.attributes)).join('|') + '|' + JSON.stringify(this._config);
-      if (sig !== this._signature) { this._signature = sig; this._rebuild(ov); return; }
+      const changed = !this._lastOv || ov.length !== this._lastOv.length || ov.some((o, i) => o !== this._lastOv[i] && JSON.stringify(o.attributes) !== JSON.stringify(this._lastOv[i].attributes));
+      if (changed || this._dirty) {
+        this._lastOv = ov;
+        this._dirty = false;
+        if (this._visible) { this._rebuild(ov); return; }
+        this._dirty = true; // bygg først når popupen/kortet blir synlig
+        return;
+      }
+      if (!this._visible) { this._pendingHass = hass; return; }
       this._children.forEach((c) => { c.hass = hass; });
     }
+
+    connectedCallback() {
+      if (!this._io && 'IntersectionObserver' in window) {
+        this._io = new IntersectionObserver((entries) => {
+          const vis = entries.some((e) => e.isIntersecting);
+          if (vis === this._visible) return;
+          this._visible = vis;
+          if (!vis) return;
+          if (this._dirty && this._lastOv) { this._dirty = false; this._rebuild(this._lastOv); }
+          else if (this._pendingHass) { const h = this._pendingHass; this._pendingHass = null; this._children.forEach((c) => { c.hass = h; }); }
+        }, { rootMargin: '200px' });
+        this._io.observe(this);
+      } else if (!this._io) {
+        this._visible = true;
+      }
+    }
+    disconnectedCallback() { if (this._io) { this._io.disconnect(); this._io = null; } this._visible = false; }
 
     _showError(msg) {
       if (this._root.dataset.error === msg) return;
@@ -2312,6 +2340,7 @@ try {
         delete this._root.dataset.error;
         els.forEach((el) => this._root.appendChild(el));
         this._children = els;
+        this._pendingHass = null;
       } catch (err) {
         this._showError('KI Rom: ' + err.message);
       } finally {
@@ -2338,6 +2367,8 @@ try {
       this._config = { hash_prefix: '#', farger: {}, hopp_over: [], rom: {}, ...config };
       this._signature = null;
       this._children = [];
+      this._lastOv = null;
+      this._dirty = true;
       if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); }
     }
 
@@ -2398,7 +2429,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.4.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
@@ -2735,6 +2766,7 @@ try {
       if ((config.kind || 'rom') === 'rom' && !config.rom) throw new Error('ki-rom-tile-card: angi rom: <area_id>');
       if (['las', 'alarm', 'garasje', 'kalender', 'gjoremal'].includes(config.kind) && !config.entity) throw new Error('ki-rom-tile-card: angi entity');
       this._config = config;
+      this._cfgStr = JSON.stringify(config);
       this._sig = null;
       if (!this._root) { this._root = document.createElement('div'); this.style.display = 'block'; this.appendChild(this._root); }
       const kind = config.kind || 'rom';
@@ -2751,13 +2783,14 @@ try {
       if ((cfg.kind || 'rom') === 'rom') {
         const ov = findOne(hass, cfg.rom);
         if (!ov) { this._error('KI Rom: fant ikke sensor.<rom>_oversikt for «' + cfg.rom + '»'); return; }
+        if (ov === this._lastOv && this._card) { this._card.hass = hass; return; } // samme state-objekt -> ingenting nytt
+        this._lastOv = ov;
         extra = JSON.stringify(ov.attributes);
-        // teller-eksistens påvirker generert konfig
         const clim = cfg.klima || (ov.attributes.klima[0] && ov.attributes.klima[0].entity);
         const teller = cfg.teller || (clim ? 'input_number.' + clim.split('.')[1] + (cfg.teller_suffix || '_teller') : null);
         extra += '|' + (teller && hass.states[teller] ? 1 : 0);
       }
-      const sig = JSON.stringify(cfg) + '|' + extra;
+      const sig = this._cfgStr + '|' + extra;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._card.hass = hass;
     }
@@ -2797,7 +2830,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.2.5  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.6  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -3213,12 +3246,16 @@ try {
   class KiHjemCard extends HTMLElement {
     static getConfigElement() { return document.createElement('ki-hjem-editor'); }
     static getStubConfig() { return {}; }
-    setConfig(config) { this._config = config; this._sig = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
+    setConfig(config) { this._config = config; this._cfgStr = JSON.stringify(config); this._sig = null; this._lastList = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
-      const ovs = allOversikt(hass).map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
-      const sig = JSON.stringify(this._config) + '|' + ovs;
+      const list = allOversikt(hass);
+      const same = this._lastList && list.length === this._lastList.length && list.every((st, i) => st === this._lastList[i]);
+      if (same && this._card) { this._card.hass = hass; return; }
+      this._lastList = list;
+      const ovs = list.map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
+      const sig = this._cfgStr + '|' + ovs;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._card.hass = hass;
     }

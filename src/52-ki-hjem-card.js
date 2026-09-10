@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-hjem-card  v1.2.5  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.2.6  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -415,12 +415,16 @@
   class KiHjemCard extends HTMLElement {
     static getConfigElement() { return document.createElement('ki-hjem-editor'); }
     static getStubConfig() { return {}; }
-    setConfig(config) { this._config = config; this._sig = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
+    setConfig(config) { this._config = config; this._cfgStr = JSON.stringify(config); this._sig = null; this._lastList = null; if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); } }
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
-      const ovs = allOversikt(hass).map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
-      const sig = JSON.stringify(this._config) + '|' + ovs;
+      const list = allOversikt(hass);
+      const same = this._lastList && list.length === this._lastList.length && list.every((st, i) => st === this._lastList[i]);
+      if (same && this._card) { this._card.hass = hass; return; }
+      this._lastList = list;
+      const ovs = list.map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
+      const sig = this._cfgStr + '|' + ovs;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._card.hass = hass;
     }

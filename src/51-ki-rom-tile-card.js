@@ -329,6 +329,7 @@
       if ((config.kind || 'rom') === 'rom' && !config.rom) throw new Error('ki-rom-tile-card: angi rom: <area_id>');
       if (['las', 'alarm', 'garasje', 'kalender', 'gjoremal'].includes(config.kind) && !config.entity) throw new Error('ki-rom-tile-card: angi entity');
       this._config = config;
+      this._cfgStr = JSON.stringify(config);
       this._sig = null;
       if (!this._root) { this._root = document.createElement('div'); this.style.display = 'block'; this.appendChild(this._root); }
       const kind = config.kind || 'rom';
@@ -345,13 +346,14 @@
       if ((cfg.kind || 'rom') === 'rom') {
         const ov = findOne(hass, cfg.rom);
         if (!ov) { this._error('KI Rom: fant ikke sensor.<rom>_oversikt for «' + cfg.rom + '»'); return; }
+        if (ov === this._lastOv && this._card) { this._card.hass = hass; return; } // samme state-objekt -> ingenting nytt
+        this._lastOv = ov;
         extra = JSON.stringify(ov.attributes);
-        // teller-eksistens påvirker generert konfig
         const clim = cfg.klima || (ov.attributes.klima[0] && ov.attributes.klima[0].entity);
         const teller = cfg.teller || (clim ? 'input_number.' + clim.split('.')[1] + (cfg.teller_suffix || '_teller') : null);
         extra += '|' + (teller && hass.states[teller] ? 1 : 0);
       }
-      const sig = JSON.stringify(cfg) + '|' + extra;
+      const sig = this._cfgStr + '|' + extra;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._card.hass = hass;
     }

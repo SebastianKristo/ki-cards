@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.4.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.5.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] slår rommene sammen per seksjon
@@ -722,6 +722,8 @@
       this._rawConfig = config;
       this._signature = null;
       this._children = [];
+      this._lastOv = null;
+      this._dirty = true;
       if (!this._root) {
         this._root = document.createElement('div');
         this._root.style.display = 'flex';
@@ -735,12 +737,38 @@
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
+      // Ytelse: sammenlign state-objektene på referanse (HA lager nytt objekt bare når entiteten endres)
+      // i stedet for å JSON-serialisere attributtene ved hver hass-oppdatering.
       const ov = findOversikt(hass, this._config);
       if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
-      const sig = ov.map((o) => JSON.stringify(o.attributes)).join('|') + '|' + JSON.stringify(this._config);
-      if (sig !== this._signature) { this._signature = sig; this._rebuild(ov); return; }
+      const changed = !this._lastOv || ov.length !== this._lastOv.length || ov.some((o, i) => o !== this._lastOv[i] && JSON.stringify(o.attributes) !== JSON.stringify(this._lastOv[i].attributes));
+      if (changed || this._dirty) {
+        this._lastOv = ov;
+        this._dirty = false;
+        if (this._visible) { this._rebuild(ov); return; }
+        this._dirty = true; // bygg først når popupen/kortet blir synlig
+        return;
+      }
+      if (!this._visible) { this._pendingHass = hass; return; }
       this._children.forEach((c) => { c.hass = hass; });
     }
+
+    connectedCallback() {
+      if (!this._io && 'IntersectionObserver' in window) {
+        this._io = new IntersectionObserver((entries) => {
+          const vis = entries.some((e) => e.isIntersecting);
+          if (vis === this._visible) return;
+          this._visible = vis;
+          if (!vis) return;
+          if (this._dirty && this._lastOv) { this._dirty = false; this._rebuild(this._lastOv); }
+          else if (this._pendingHass) { const h = this._pendingHass; this._pendingHass = null; this._children.forEach((c) => { c.hass = h; }); }
+        }, { rootMargin: '200px' });
+        this._io.observe(this);
+      } else if (!this._io) {
+        this._visible = true;
+      }
+    }
+    disconnectedCallback() { if (this._io) { this._io.disconnect(); this._io = null; } this._visible = false; }
 
     _showError(msg) {
       if (this._root.dataset.error === msg) return;
@@ -765,6 +793,7 @@
         delete this._root.dataset.error;
         els.forEach((el) => this._root.appendChild(el));
         this._children = els;
+        this._pendingHass = null;
       } catch (err) {
         this._showError('KI Rom: ' + err.message);
       } finally {
@@ -791,6 +820,8 @@
       this._config = { hash_prefix: '#', farger: {}, hopp_over: [], rom: {}, ...config };
       this._signature = null;
       this._children = [];
+      this._lastOv = null;
+      this._dirty = true;
       if (!this._root) { this._root = document.createElement('div'); this.appendChild(this._root); }
     }
 
@@ -851,5 +882,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.4.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.5.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
