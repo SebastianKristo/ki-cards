@@ -40,6 +40,9 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-media-card.svg" width="28" align="absmiddle"> | `ki-media-card` | KI Media | Nå spilles med levende omslag, radiokanaler, transport og volum |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
@@ -182,6 +185,81 @@ nederst og enheten som liten hevet tekst. `animasjon: auto` velger søyler for W
 total_increasing, ellers puls. Animasjonen leses av verdien: søylene hopper høyere og raskere når forbruket
 stiger, bølgen står som en vannstand på `verdi / maks`, og pulsringene går raskere ved høye verdier.
 Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
+
+### ki-enhet-card
+```yaml
+type: custom:ki-enhet-card
+navn: Dream Machine Pro
+figur: ruter                 # ruter | switch | ap | server | boks
+status: device_tracker.oslo_dream_machine_pro
+status_pa: [home, on, online, running]   # verdier som betyr «oppe»
+tekst_pa: Online             # valgfrie egne statustekster
+tekst_av: Offline
+oppetid: sensor.oslo_dream_machine_pro_oppetid
+oppdatering: update.oslo_dream_machine_pro_fastvare
+undertekst: Kjerne og vert   # valgfri fritekst i tillegg
+maalinger:                   # opptil fire ringmålere
+  - navn: CPU
+    entity: sensor.oslo_dream_machine_pro_cpu_utilization
+    enhet: '%'
+    maks: 100
+    gul: 70                  # terskler for farge
+    rod: 88
+info:                        # fliser med tall eller tekst
+  - navn: Klienter
+    entity: sensor.oslo_dream_machine_pro_klienter
+    enhet: ''
+  - navn: Temperatur
+    entity: sensor.x
+    attributt: temperature_celsius
+    enhet: ' °C'
+    varsel_over: 75           # flisen blir oransje over denne verdien
+  - navn: Paritet
+    entity: binary_sensor.x
+    tekst: {off: Gyldig, on: Ugyldig}
+    varsel_er: 'on'
+knapper:
+  - navn: Restart
+    entity: button.oslo_dream_machine_pro_omstart
+    ikon: mdi:restart
+    farge: var(--orange)
+    bekreft: Restarte Dream Machine Pro?
+  - navn: LED
+    entity: light.havets_24_poe_250w_led     # brytere lyser opp når de er på
+    ikon: mdi:led-outline
+```
+Et 180 px hero i samme høyde som `ki-natt-card`: navn med pulserende statuspille, oppetid og fastvare som
+undertekst, opptil fire ringmålere som fyller seg opp med fargeterskler, og en figur til høyre som lever etter
+hva slags enhet det er – ruteren sender wifi-bølger og pakker som glir forbi, switchen blinker i portlysene,
+aksesspunktet ringer utover, serveren blinker i diodene med vifta som går rundt, og VM/container-boksen har en
+skannelinje. Er enheten nede, gråner figuren, det legges et rødt kryss over, og ringene tømmes. Under hero
+ligger infofliser og knapperad. Alt er trykkbart til more-info.
+
+### ki-wifi-card
+```yaml
+type: custom:ki-wifi-card
+navn: Utehavet
+qr: image.utehavet_qr_kode
+klienter: sensor.utehavet_klienter
+bryter: switch.utehavet_aktivert
+```
+QR-koden til høyre med et lysstrøk over, antall klienter i stor tynn skrift, bryter for SSID-en og
+wifi-ringer som brer seg ut fra hjørnet så lenge nettet er på. Er det slått av, blir QR-koden grå.
+
+### ki-porter-card
+```yaml
+type: custom:ki-porter-card
+tittel: Porter (strømsykling)
+prefiks: button.havets_24_poe_250w_port_
+etterfiks: _power_cycle
+antall: 24
+kolonner: 6
+bekreft: Strømsykle {port}?
+# eller eksplisitt:
+# porter: [{navn: P1, entity: switch.stue_usw_flex_mini_port_1}]
+```
+Porter som fliser i rutenett. `switch`-porter lyser blått med blinkende aktivitetsprikk og kan slås av og på;
+`button`-porter kjører strømsykling og får et lysstrøk mens det skjer.
 
 ### ki-media-card
 ```yaml
@@ -363,6 +441,8 @@ off_after: input_number.alarm_av_etter_minutter
 nattlampe: input_boolean.alarm_nattlampe
 test: true
 ```
+
+Hele Server-popupen ligger ferdig omskrevet i [`examples/server-popup.yaml`](examples/server-popup.yaml).
 
 Et komplett eksempel på Innstillinger-popupen ligger i [`examples/innstillinger-popup.yaml`](examples/innstillinger-popup.yaml).
 

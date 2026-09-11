@@ -11,10 +11,11 @@
  * apper:  [{navn: Netflix, kilde: Netflix, farge: "#e50914"}]   # app-fliser under fjernkontrollen
  * vis_media: stor        # stor | naa | ingen – legger ki-media-card øverst i kortet
  * vis_status: true       # statuspillen (skjules automatisk når vis_media er satt)
+ *                       # er den skjult, får knapperaden en av/på-knapp i stedet
  * vis_seertid: true      # seertidboksene (skjules automatisk når vis_media: stor viser dem)
  * apper: { com.netflix.Netflix: Netflix } # legges til standardlista
  */
-const KI_FJK_VERSJON = "1.2.0";
+const KI_FJK_VERSJON = "1.3.0";
 
 const KI_FJK_APPER = {
   "com.netflix.Netflix": "Netflix", "com.apple.TVWatchList": "Apple TV+", "com.apple.TVMovies": "Filmer",
@@ -94,6 +95,7 @@ const KI_FJK_STIL = `
     transition:transform .12s var(--fjaer), background .2s; }
   .rund:active { transform:scale(.92); background:var(--gray100); }
   .rund.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .rund[data-k="stromav"]:not(.pa) { color:var(--red,#e8657a); }
   .lyd { display:grid; grid-template-columns:1fr 1fr 1fr; background:var(--gray200); border-radius:66px; overflow:hidden; }
   .lyd button { height:62px; border:0; background:none; color:var(--gray1000); display:flex; align-items:center; justify-content:center;
     cursor:pointer; --mdc-icon-size:26px; transition:background .15s; }
@@ -296,6 +298,7 @@ class KiFjernkontrollCard extends HTMLElement {
         </div>
 
         <div class="knapper">
+          ${this._visStatus ? "" : rund("stromav", "mdi:power", "Slå av eller på")}
           ${rund("meny", "mdi:arrow-u-left-top", "Tilbake")}
           ${rund("hjem", "mdi:home-outline", "Hjem")}
           ${rund("mikrofon", "mdi:microphone-outline", "Søk")}
@@ -335,7 +338,8 @@ class KiFjernkontrollCard extends HTMLElement {
     const kom = { meny: "menu", hjem: "home", mikrofon: "siri" };
     r.querySelectorAll(".rund").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.k;
-      if (k === "spill") { const t = this._tilstand(); this._send(t === "playing" ? "pause" : "play"); }
+      if (k === "stromav") this._veksle();
+      else if (k === "spill") { const t = this._tilstand(); this._send(t === "playing" ? "pause" : "play"); }
       else this._send(kom[k]);
     }));
     r.querySelectorAll("[data-lyd]").forEach((b) => {
@@ -376,6 +380,8 @@ class KiFjernkontrollCard extends HTMLElement {
       if (stat.innerHTML !== ny) { stat.innerHTML = ny; stat.classList.toggle("lang", tekst.length > 30); }
     }
 
+    const strom = r.querySelector('.rund[data-k="stromav"]');
+    if (strom) { strom.classList.toggle("pa", pa); strom.setAttribute("aria-pressed", String(pa)); }
     const spill = r.querySelector('.rund[data-k="spill"]');
     if (spill) { spill.querySelector("ha-icon").setAttribute("icon", spiller ? "mdi:pause" : "mdi:play"); spill.classList.toggle("pa", spiller); }
     const demp = r.querySelector(".demp");

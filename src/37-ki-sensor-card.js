@@ -16,7 +16,7 @@
  *   - over: 3000
  *     farge: var(--red)
  */
-const KI_SENSOR_VERSJON = "1.0.0";
+const KI_SENSOR_VERSJON = "1.1.0";
 
 const KI_SENSOR_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -56,6 +56,9 @@ const KI_SENSOR_STIL = `
   .n { font-size:14px; font-weight:500; opacity:.7; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .v { white-space:nowrap; }
   .v .enhet { font-size:14px; font-weight:500; opacity:.7; margin-left:2px; }
+  .kort.stor .v.tekst { font-size:1.35em; line-height:1.15em; white-space:normal; overflow:hidden;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .kort.liten .v.tekst { font-size:14px; overflow:hidden; text-overflow:ellipsis; }
   .v b { font-weight:inherit; display:inline-block; }
   .v b.ny { animation:tall .45s var(--myk) both; }
   @keyframes tall { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
@@ -126,7 +129,9 @@ class KiSensorCard extends HTMLElement {
   /* Tallverdi, enhet, maks og hvilken animasjon som passer */
   _les() {
     const s = this._st(), a = (s && s.attributes) || {}, c = this._c;
-    const tall = parseFloat(String(s ? s.state : "").replace(",", "."));
+    /* bare rene tall regnes som tallverdi – «12 dager» er tekst */
+    const rå = String(s ? s.state : "").trim();
+    const tall = /^-?\d+([.,]\d+)?$/.test(rå) ? parseFloat(rå.replace(",", ".")) : NaN;
     const enhet = c.enhet !== undefined ? c.enhet : (a.unit_of_measurement || "");
     const desimaler = c.desimaler !== undefined ? c.desimaler
       : (!isFinite(tall) ? 0 : /^(W|Wh|VA|ppm|lx|A|V)$/.test(enhet) || Math.abs(tall) >= 1000 ? 0 : 1);
@@ -193,13 +198,19 @@ class KiSensorCard extends HTMLElement {
     const ukjent = !isFinite(d.tall) || s.state === "unavailable" || s.state === "unknown";
 
     /* verdi + enhet, med rulleanimasjon når tallet endrer seg */
+    const kart = c.tekst || {};
+    const rå = String(s.state);
     const tekst = c.verdi !== undefined ? String(c.verdi)
-      : ukjent ? (s.state === "unavailable" ? "Utilgjengelig" : "–")
+      : kart[rå] !== undefined ? String(kart[rå])
+      : s.state === "unavailable" || s.state === "unknown" ? "–"
+      : !isFinite(d.tall) ? rå                              /* tekstverdi: vis den som den er */
       : d.tall.toLocaleString("nb-NO", { minimumFractionDigits: d.desimaler, maximumFractionDigits: d.desimaler });
     const vEl = r.querySelector(".v");
     if (this._sisteVerdi !== tekst) {
       const ny = this._sisteVerdi !== null;
-      vEl.innerHTML = `<b>${kiSensorEsc(tekst)}</b>${d.enhet && !ukjent ? `<span class="enhet">${kiSensorEsc(d.enhet)}</span>` : ""}`;
+      const erTekst = !isFinite(d.tall) || c.verdi !== undefined || kart[rå] !== undefined;
+      vEl.classList.toggle("tekst", erTekst && tekst.length > 6);
+      vEl.innerHTML = `<b>${kiSensorEsc(tekst)}</b>${d.enhet && !ukjent && !erTekst ? `<span class="enhet">${kiSensorEsc(d.enhet)}</span>` : ""}`;
       if (ny) { const b = vEl.querySelector("b"); void b.offsetWidth; b.classList.add("ny"); }
       this._sisteVerdi = tekst;
     }
