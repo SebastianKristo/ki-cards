@@ -9,9 +9,12 @@
  * maned: sensor.tv_seertid_denne_maned
  * kilder: [Plex, NRK TV, TV 2 Play]       # eller [{navn: Plex, kilde: plex}]
  * apper:  [{navn: Netflix, kilde: Netflix, farge: "#e50914"}]   # app-fliser under fjernkontrollen
+ * vis_media: stor        # stor | naa | ingen – legger ki-media-card øverst i kortet
+ * vis_status: true       # statuspillen (skjules automatisk når vis_media er satt)
+ * vis_seertid: true      # seertidboksene (skjules automatisk når vis_media: stor viser dem)
  * apper: { com.netflix.Netflix: Netflix } # legges til standardlista
  */
-const KI_FJK_VERSJON = "1.1.0";
+const KI_FJK_VERSJON = "1.2.0";
 
 const KI_FJK_APPER = {
   "com.netflix.Netflix": "Netflix", "com.apple.TVWatchList": "Apple TV+", "com.apple.TVMovies": "Filmer",
@@ -40,7 +43,10 @@ const KI_FJK_STIL = `
   .topp.pa .ic, .topp.av .ic { background:rgba(0,0,0,.1); }
   .topp .ic ha-icon { --mdc-icon-size:30px; }
   .topp .tekst { grid-area:tekst; align-self:end; font-size:16px; font-weight:500; padding-top:4px; display:flex; align-items:center; gap:8px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    white-space:nowrap; overflow:hidden; min-width:0; }
+  .topp .stat { display:inline-block; min-width:0; overflow:hidden; }
+  .topp .stat.lang span { display:inline-block; animation:fjkrull 15s linear infinite; padding-right:40px; }
+  @keyframes fjkrull { 0%,8% { transform:translateX(0); } 92%,100% { transform:translateX(-100%); } }
   .topp .navn { grid-area:navn; align-self:start; font-size:14px; opacity:.7; padding-bottom:7px; }
   .topp .bryt { grid-area:bryt; justify-self:end; --mdc-icon-size:44px; display:flex; cursor:pointer; }
   .eq { display:inline-flex; align-items:flex-end; gap:2px; height:13px; flex:none; margin-right:8px; }
@@ -139,7 +145,10 @@ class KiFjernkontrollCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || !c.media) throw new Error("Sett media: til media_player-entiteten");
-    this._c = { navn: "Apple TV", ikon: "mdi:apple", ...c };
+    this._c = { navn: "Apple TV", ikon: "mdi:apple", vis_media: "ingen", ...c };
+    this._hero = ["stor", "naa"].includes(this._c.vis_media);
+    this._visStatus = c.vis_status !== undefined ? !!c.vis_status : !this._hero;
+    this._visSeertid = c.vis_seertid !== undefined ? !!c.vis_seertid : !(this._c.vis_media === "stor" && (c.i_dag || c.maned));
     this._apper = { ...KI_FJK_APPER, ...(c.apper || {}) };
     this._kilder = (c.kilder || []).map((k) => typeof k === "string" ? { navn: k, kilde: k } : { navn: k.navn || k.kilde, kilde: k.kilde || k.navn });
     this._appliste = (c.apper_liste || c.snarveier || []).map((a) => typeof a === "string" ? { navn: a, kilde: a } : a);
@@ -259,14 +268,15 @@ class KiFjernkontrollCard extends HTMLElement {
     const rund = (kl, ikon, tit) => `<button class="rund ${kl}" data-k="${kl}" aria-label="${tit}" title="${tit}"><ha-icon icon="${ikon}"></ha-icon></button>`;
     this.shadowRoot.innerHTML = `<style>${KI_FJK_STIL}</style>
       <div class="rot">
-        <div class="topp" role="group">
+        ${this._hero ? `<ki-media-card class="mediakort"></ki-media-card>` : ""}
+        ${this._visStatus ? `<div class="topp" role="group">
           <div class="ic" data-mer><ha-icon icon="${kiFjkEsc(c.ikon)}"></ha-icon></div>
           <div class="tekst"><span class="stat"></span></div>
           <div class="navn">${kiFjkEsc(c.navn)}</div>
           <div class="bryt" data-veksle role="switch" tabindex="0" aria-label="Slå ${kiFjkEsc(c.navn)} av eller på"><ha-icon icon="mdi:toggle-switch"></ha-icon></div>
-        </div>
+        </div>` : ""}
 
-        ${c.i_dag || c.maned ? `<div class="tid">
+        ${this._visSeertid && (c.i_dag || c.maned) ? `<div class="tid">
           ${c.i_dag ? `<div class="tidboks"><div class="lab">TV i dag</div><div class="verdi" data-t="i_dag">–</div>
             <div class="stolpe"><i data-b="i_dag"></i></div></div>` : ""}
           ${c.maned ? `<div class="tidboks"><div class="lab">TV denne måned</div><div class="verdi" data-t="maned">–</div>
@@ -308,10 +318,19 @@ class KiFjernkontrollCard extends HTMLElement {
       </div>`;
 
     const r = this.shadowRoot;
-    r.querySelector("[data-mer]").addEventListener("click", () => this._mer());
+    const hero = r.querySelector(".mediakort");
+    if (hero) {
+      hero.setConfig({ media: c.media, visning: c.vis_media, navn: c.navn, ikon: c.ikon,
+        i_dag: c.i_dag, maned: c.maned, ...(c.media_kort || {}) });
+      if (this._h) hero.hass = this._h;
+    }
+    const mer = r.querySelector("[data-mer]");
+    if (mer) mer.addEventListener("click", () => this._mer());
     const br = r.querySelector("[data-veksle]");
-    br.addEventListener("click", () => this._veksle());
-    br.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._veksle(); } });
+    if (br) {
+      br.addEventListener("click", () => this._veksle());
+      br.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._veksle(); } });
+    }
     const pad = r.querySelector(".pad"); if (pad) this._kobblePad(pad);
     const kom = { meny: "menu", hjem: "home", mikrofon: "siri" };
     r.querySelectorAll(".rund").forEach((b) => b.addEventListener("click", () => {
@@ -343,16 +362,19 @@ class KiFjernkontrollCard extends HTMLElement {
     }
     if (!this._bygget) this._bygg();
     const r = this.shadowRoot, s = h.states[c.media], t = this._tilstand(), pa = this._pa();
-    const topp = r.querySelector(".topp");
-    topp.classList.toggle("pa", pa); topp.classList.toggle("av", !pa);
-    r.querySelector(".bryt ha-icon").setAttribute("icon", pa ? "mdi:toggle-switch" : "mdi:toggle-switch-off");
-    r.querySelector("[data-veksle]").setAttribute("aria-checked", String(pa));
-
+    const hero = r.querySelector(".mediakort"); if (hero) hero.hass = h;
     const spiller = t === "playing", pause = t === "paused";
-    const eq = spiller || pause ? `<span class="eq ${pause ? "pause" : ""}"><i></i><i></i><i></i><i></i></span>` : "";
-    const stat = r.querySelector(".stat");
-    const ny = eq + kiFjkEsc(this._statustekst());
-    if (stat.innerHTML !== ny) stat.innerHTML = ny;
+    const topp = r.querySelector(".topp");
+    if (topp) {
+      topp.classList.toggle("pa", pa); topp.classList.toggle("av", !pa);
+      r.querySelector(".bryt ha-icon").setAttribute("icon", pa ? "mdi:toggle-switch" : "mdi:toggle-switch-off");
+      r.querySelector("[data-veksle]").setAttribute("aria-checked", String(pa));
+      const eq = spiller || pause ? `<span class="eq ${pause ? "pause" : ""}"><i></i><i></i><i></i><i></i></span>` : "";
+      const tekst = this._statustekst();
+      const stat = r.querySelector(".stat");
+      const ny = eq + `<span>${kiFjkEsc(tekst)}</span>` + (tekst.length > 30 ? `<span>${kiFjkEsc(tekst)}</span>` : "");
+      if (stat.innerHTML !== ny) { stat.innerHTML = ny; stat.classList.toggle("lang", tekst.length > 30); }
+    }
 
     const spill = r.querySelector('.rund[data-k="spill"]');
     if (spill) { spill.querySelector("ha-icon").setAttribute("icon", spiller ? "mdi:pause" : "mdi:play"); spill.classList.toggle("pa", spiller); }
@@ -392,7 +414,8 @@ class KiFjernkontrollCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { media: "Mediaspiller", fjernkontroll: "Fjernkontroll (remote)", navn: "Navn", ikon: "Ikon",
-        i_dag: "Seertid i dag", maned: "Seertid denne måned", maks_i_dag: "Full stolpe i dag (timer)", maks_maned: "Full stolpe måned (timer)" };
+        i_dag: "Seertid i dag", maned: "Seertid denne måned", maks_i_dag: "Full stolpe i dag (timer)", maks_maned: "Full stolpe måned (timer)",
+        vis_media: "Mediakort øverst" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -407,6 +430,9 @@ class KiFjernkontrollCardEditor extends HTMLElement {
       { name: "maned", selector: { entity: { domain: ["sensor"] } } },
       { name: "maks_i_dag", selector: { number: { mode: "box", min: 1, max: 24 } } },
       { name: "maks_maned", selector: { number: { mode: "box", min: 1, max: 400 } } },
+      { name: "vis_media", selector: { select: { mode: "dropdown", options: [
+        { value: "ingen", label: "Ingen mediakort" }, { value: "stor", label: "Stort mediakort øverst" },
+        { value: "naa", label: "Smal medialinje øverst" }] } } },
     ];
   }
 }

@@ -240,6 +240,9 @@ maned: sensor.tv_seertid_denne_maned
 maks_i_dag: 6                         # full stolpe
 maks_maned: 90
 kilder: [Plex, NRK TV, Telia Play]    # eller [{navn: Plex, kilde: plex}]
+vis_media: stor                       # stor | naa | ingen – ki-media-card øverst i kortet
+vis_status: false                     # statuspillen (skjules automatisk når vis_media er satt)
+vis_seertid: false                    # seertidboksene (skjules når vis_media: stor viser pillen)
 apper_liste:                          # app-fliser under fjernkontrollen
   - navn: Netflix
     kilde: Netflix                    # select_source; eller skript: / kommando:
@@ -259,7 +262,10 @@ I stedet for piltastene er navigeringen en rund styreflate som Apple TV-fjernkon
 du drar. Piltaster og Enter virker også. Under ligger tilbake, hjem, Siri og en play/pause-knapp som følger
 tilstanden, en volumrad der minus og pluss gjentar når du holder inne, og kildene som fliser der den aktive
 er markert, og app-flisene ligger som en vannrett rad med merkefarge, der appen som er åpen får ring og
-prikk. Seertiden vises bare når `i_dag` eller `maned` er satt. Har egen visuell editor.
+prikk. Seertiden vises bare når `i_dag` eller `maned` er satt. Med `vis_media: stor` legges `ki-media-card`
+i stor visning øverst i kortet med samme spiller og seertid, og da skjules statuspillen og seertidboksene
+automatisk – `vis_status` og `vis_seertid` overstyrer hvis du vil ha begge. Slik bestemmer du selv om
+mediakortet står over fjernkontrollen eller over fanene. Har egen visuell editor.
 
 ### ki-vaer-card
 ```yaml
