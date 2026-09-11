@@ -130,6 +130,10 @@ tabs:
       - type: custom:ki-section-card
         title: Hei
 ```
+Nedtrekksmenyen ligger i fast posisjon og plasseres etter knappen, så den ikke blir klippet av kort under
+eller av foreldre med `overflow: hidden` (for eksempel bubble-card-popupene). Den vender oppover hvis det er
+mer plass over knappen, får egen rulling når den er høyere enn skjermen, og lukkes ved klikk utenfor,
+Escape eller når siden scrolles.
 
 ### ki-slider-card
 ```yaml

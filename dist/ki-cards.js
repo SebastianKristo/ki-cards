@@ -1,4 +1,4 @@
-/* ki-cards v2.35.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.35.0";
+  KI.VERSION = "2.36.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -526,16 +526,23 @@ try {
     }
     set hass(h) { this._hass = h; if (!this._built) this._build(); (this._panels || []).forEach(p => p.hass = h); }
     get hass() { return this._hass; }
-    disconnectedCallback() { if (this._ro) this._ro.disconnect(); if (this._docClick) document.removeEventListener("click", this._docClick, true); }
+    disconnectedCallback() {
+      if (this._ro) this._ro.disconnect();
+      if (this._docClick) document.removeEventListener("click", this._docClick, true);
+      if (this._lukk) { window.removeEventListener("resize", this._flytt); window.removeEventListener("scroll", this._lukk, true); }
+      if (this._esc) document.removeEventListener("keydown", this._esc);
+      this._menuOpen = false; this.classList.remove("ki-meny-apen");
+    }
 
     async _build() {
       this._built = true;
       const c = this._config; const tabs = c.tabs; const style = c.style || "auto";
       const sticky = !!c.sticky;
       this.shadowRoot.innerHTML = `<style>${KI.css}
-        :host { overflow:visible; }
+        :host { overflow:visible; position:relative; }
+        :host(.ki-meny-apen) { z-index:99; }
         .wrap { display:flex; flex-direction:column; gap:${c.gap ?? 12}px; max-width:100%; }
-        .bar { display:flex; justify-content:${c.align || "center"}; position:relative; z-index:5; max-width:100%;
+        .bar { display:flex; justify-content:${c.align || "center"}; position:relative; z-index:6; max-width:100%;
           ${sticky ? "position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; background:var(--ki-tabs-bg, var(--gray000, #000)); border-radius:0 0 18px 18px;" : ""} }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
@@ -546,9 +553,9 @@ try {
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
         .dd .chev { transition:transform .15s; --mdc-icon-size:20px; margin-right:-6px; }
         .dd.open .chev { transform:rotate(180deg); }
-        .menu { position:absolute; top:calc(100% + 6px); ${c.align === "flex-start" ? "left:0;" : c.align === "flex-end" ? "right:0;" : "left:50%; transform:translateX(-50%);"}
-          min-width:220px; max-width:calc(100vw - 32px); background:var(--gray200); color:var(--gray1000); border-radius:18px; padding:6px;
-          box-shadow:0 12px 32px rgba(0,0,0,.45); display:none; z-index:20; }
+        .menu { position:fixed; left:0; top:0; min-width:220px; max-width:calc(100vw - 32px); max-height:min(60vh, 420px); overflow-y:auto;
+          background:var(--gray200); color:var(--gray1000); border-radius:18px; padding:6px;
+          box-shadow:0 12px 32px rgba(0,0,0,.5); display:none; z-index:999; -webkit-overflow-scrolling:touch; }
         .menu.open { display:grid; gap:2px; }
         .item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:12px; font-size:14px; font-weight:500; cursor:pointer; --mdc-icon-size:20px; }
         .item:hover { background:var(--gray100); }
@@ -616,12 +623,47 @@ try {
       const dd = this.shadowRoot.querySelector(".dd");
       dd.innerHTML = `${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}<ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>`;
     }
+    /* Menyen ligger i fast posisjon og plasseres etter knappen, så den ikke
+       klippes av kort under eller av foreldre med overflow:hidden. */
+    _plasserMeny() {
+      const r = this.shadowRoot, dd = r.querySelector(".dd"), menu = r.querySelector(".menu");
+      if (!dd || !menu) return;
+      const b = dd.getBoundingClientRect();
+      menu.style.visibility = "hidden"; menu.style.display = "grid";
+      const mb = menu.getBoundingClientRect();
+      menu.style.display = ""; menu.style.visibility = "";
+      const marg = 12;
+      let venstre = b.left + b.width / 2 - mb.width / 2;
+      venstre = Math.min(Math.max(marg, venstre), Math.max(marg, window.innerWidth - mb.width - marg));
+      const under = window.innerHeight - b.bottom - marg;
+      const over = b.top - marg;
+      const nedenfor = under >= Math.min(mb.height, 200) || under >= over;
+      menu.style.left = Math.round(venstre) + "px";
+      menu.style.top = nedenfor ? Math.round(b.bottom + 6) + "px" : "auto";
+      menu.style.bottom = nedenfor ? "auto" : Math.round(window.innerHeight - b.top + 6) + "px";
+      menu.style.maxHeight = "min(" + Math.max(160, Math.round(nedenfor ? under : over)) + "px, 60vh)";
+    }
     _toggleMenu(open) {
       this._menuOpen = open === undefined ? !this._menuOpen : open;
       const r = this.shadowRoot;
+      if (this._menuOpen) this._plasserMeny();
       r.querySelector(".menu").classList.toggle("open", this._menuOpen);
       r.querySelector(".dd").classList.toggle("open", this._menuOpen);
       r.querySelector(".dd").setAttribute("aria-expanded", String(this._menuOpen));
+      this.classList.toggle("ki-meny-apen", this._menuOpen);
+      if (this._menuOpen) {
+        if (!this._lukk) {
+          this._lukk = () => this._toggleMenu(false);
+          this._flytt = () => { if (this._menuOpen) this._plasserMeny(); };
+        }
+        window.addEventListener("resize", this._flytt);
+        window.addEventListener("scroll", this._lukk, true);
+        document.addEventListener("keydown", this._esc = this._esc || ((e) => { if (e.key === "Escape") this._toggleMenu(false); }));
+      } else if (this._lukk) {
+        window.removeEventListener("resize", this._flytt);
+        window.removeEventListener("scroll", this._lukk, true);
+        if (this._esc) document.removeEventListener("keydown", this._esc);
+      }
     }
     _select(i) {
       this._active = i; const r = this.shadowRoot;

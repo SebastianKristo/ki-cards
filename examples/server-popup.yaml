@@ -1,6 +1,6 @@
-# Server-popupen bygget med ki-enhet-card, ki-wifi-card, ki-porter-card,
-# ki-sensor-card, ki-toggle-card og ki-tabs-card. Erstatter simple-tabs, expander-card,
-# mini-graph-card, universal_sensor og sensor_small-malene.
+# Server-popupen med de faktiske entitetene fra UniFi, Unraid og Proxmox.
+# Bygget med ki-enhet-card, ki-wifi-card, ki-porter-card, ki-sensor-card,
+# ki-toggle-card og ki-tabs-card.
 type: custom:bubble-card
 card_type: pop-up
 name: Server
@@ -14,24 +14,22 @@ button_type: name
 bg_blur: '5'
 shadow_opacity: '20'
 bg_opacity: '98'
-styles: '.bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
-
+styles: |+
+  .bubble-pop-up-container {
+    --vertical-stack-card-gap: 0px!important;
+  }
   #header-container > div > div { background: var(--gray000)!important; }
-
   #header-container > button { background: none; }
-
   .icon-container { background-color: var(--gray1000)!important; }
-
   .icon-container > ha-icon { color: var(--black)!important; opacity: 1!important; }
-
   .bubble-icon { --mdc-icon-size: 24px !important; }
-
-  .bubble-name { font-size: 30px !important; font-weight: 500; line-height: 1.4 !important; padding: 8px
-  0 !important; }
-
+  .bubble-name {
+    font-size: 30px !important;
+    font-weight: 500;
+    line-height: 1.4 !important;
+    padding: 8px 0 !important;
+  }
   .bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%; }
-
-  '
 cards:
 - type: custom:ki-tabs-card
   align: center
@@ -47,122 +45,51 @@ cards:
           navn: Dream Machine Pro
           figur: ruter
           status: device_tracker.oslo_dream_machine_pro
-          oppetid: sensor.oslo_dream_machine_pro_oppetid
-          oppdatering: update.oslo_dream_machine_pro_fastvare
+          oppetid: sensor.oslo_dream_machine_pro_uptime_2
+          oppdatering: update.oslo_dream_machine_pro_firmware
           maalinger:
           - navn: CPU
-            entity: sensor.oslo_dream_machine_pro_cpu_utilization
+            entity: sensor.oslo_dream_machine_pro_cpu_utilisation_2
             enhet: '%'
           - navn: Minne
-            entity: sensor.oslo_dream_machine_pro_memory_utilization
+            entity: sensor.oslo_dream_machine_pro_memory_utilisation_2
             enhet: '%'
           - navn: Temp
-            entity: sensor.oslo_dream_machine_pro_cpu_temperatur
+            entity: sensor.oslo_dream_machine_pro_cpu_temperature_2
             enhet: °
             maks: 90
+            gul: 60
+            rod: 75
           info:
-          - navn: Klienter
-            entity: sensor.oslo_dream_machine_pro_klienter
-            enhet: ''
-          - navn: Google latens
+          - navn: Google
             entity: sensor.oslo_dream_machine_pro_google_wan_latency
             enhet: ' ms'
             varsel_over: 80
-          - navn: Cloudflare latens
+          - navn: Cloudflare
             entity: sensor.oslo_dream_machine_pro_cloudflare_wan_latency
             enhet: ' ms'
             varsel_over: 80
-          - navn: Lagring
-            entity: sensor.oslo_dream_machine_pro_storage_utilization
-            enhet: ' %'
+          - navn: Microsoft
+            entity: sensor.oslo_dream_machine_pro_microsoft_wan_latency
+            enhet: ' ms'
+            varsel_over: 80
+          - navn: Local temp
+            entity: sensor.oslo_dream_machine_pro_local_temperature
+            enhet: ' °C'
+            varsel_over: 70
+          - navn: Klienter
+            entity: sensor.oslo_dream_machine_pro_clients
+            enhet: ''
+          - navn: Tilstand
+            entity: sensor.oslo_dream_machine_pro_state
+          - navn: Uplink MAC
+            entity: sensor.oslo_dream_machine_pro_uplink_mac
           knapper:
           - navn: Restart
-            entity: button.oslo_dream_machine_pro_omstart
+            entity: button.oslo_dream_machine_pro_restart
             ikon: mdi:restart
             farge: var(--orange)
             bekreft: Restarte Dream Machine Pro?
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-section-card
-          title: Opptak
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_recording_capacity
-            navn: Opptakskapasitet
-            ikon: mdi:database
-            enhet: ' %'
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_resolution_free_space
-            navn: Ledig plass
-            ikon: mdi:harddisk
-            enhet: ' dager'
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_resolution_hd_video
-            navn: HD-video
-            ikon: mdi:video-outline
-            enhet: ' dager'
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_resolution_4k_video
-            navn: 4K-video
-            ikon: mdi:video-4k-box
-            enhet: ' dager'
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_type_timelapse_video
-            navn: Timelapse
-            ikon: mdi:fast-forward
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_type_continuous_video
-            navn: Kontinuerlig
-            ikon: mdi:video
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.oslo_dream_machine_pro_type_detections_video
-            navn: Deteksjon
-            ikon: mdi:motion-sensor
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.oslo_dream_machine_pro_hdd_1
-            navn: HDD 1
-            ikon: mdi:harddisk
-            tekst:
-              'on': Feil
-              'off': OK
-            merke_over: 0
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-section-card
-          title: Sikkerhet
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-toggle-card
-            entity: switch.oslo_dream_machine_pro_insights_enabled
-            name: Innsikt
-            icon: mdi:chart-line
-          - type: custom:ki-toggle-card
-            entity: switch.oslo_dream_machine_pro_analytics_enabled
-            name: Analyse
-            icon: mdi:google-analytics
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: select.vaskerom_oslo_dream_machine_pro_alarmprofil
-            navn: Alarmprofil
-            ikon: mdi:shield-account
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: alarm_control_panel.oslo_dream_machine_pro_alarmbehandling
-            navn: Alarmbehandling
-            ikon: mdi:shield-lock
         - type: custom:gap-card
           height: 36
       - title: Switch
@@ -170,80 +97,109 @@ cards:
         - type: custom:ki-tabs-card
           align: center
           tabs:
-          - title: US 24 PoE
+          - title: Treets 24 PoE
             cards:
             - type: custom:ki-enhet-card
-              navn: US 24 PoE 250W
+              navn: Treets USW-24-PoE
               figur: switch
-              status: device_tracker.havets_24_poe_250w
-              oppetid: sensor.havets_24_poe_250w_uptime
-              oppdatering: update.havets_24_poe_250w
+              status: device_tracker.treets_usw_24_poe
+              oppetid: sensor.treets_usw_24_poe_uptime
+              oppdatering: update.treets_usw_24_poe_firmware
               maalinger:
               - navn: CPU
-                entity: sensor.havets_24_poe_250w_cpu_utilization
+                entity: sensor.treets_usw_24_poe_cpu_utilisation
                 enhet: '%'
               - navn: Minne
-                entity: sensor.havets_24_poe_250w_memory_utilization
+                entity: sensor.treets_usw_24_poe_memory_utilisation
                 enhet: '%'
-              - navn: Temp
-                entity: sensor.havets_24_poe_250w_temperature
-                enhet: °
-                maks: 80
+              info:
+              - navn: Klienter
+                entity: sensor.treets_usw_24_poe_clients
+                enhet: ''
+              - navn: Tilstand
+                entity: sensor.treets_usw_24_poe_state
+              - navn: Uplink MAC
+                entity: sensor.treets_usw_24_poe_uplink_mac
               knapper:
               - navn: Restart
-                entity: button.havets_24_poe_250w_restart
+                entity: button.treets_usw_24_poe_restart
                 ikon: mdi:restart
                 farge: var(--orange)
-                bekreft: Restarte US 24 PoE?
-              - navn: LED
-                entity: light.havets_24_poe_250w_led
-                ikon: mdi:led-outline
+                bekreft: Restarte Treets USW-24-PoE?
             - type: custom:gap-card
               height: 6
             - type: custom:ki-porter-card
               tittel: Porter (strømsykling)
-              prefiks: button.havets_24_poe_250w_port_
+              prefiks: button.treets_usw_24_poe_port_
               etterfiks: _power_cycle
-              antall: 24
-              kolonner: 6
+              antall: 16
+              kolonner: 4
               bekreft: Strømsykle {port}?
             - type: custom:gap-card
               height: 36
-          - title: Stue Flex Mini
+          - title: Veien 24 G2
             cards:
             - type: custom:ki-enhet-card
-              navn: Stue USW Flex Mini
+              navn: Veien USW-24-G2
               figur: switch
-              status: device_tracker.stue_usw_flex_mini
-              oppetid: sensor.stue_usw_flex_mini_uptime
-              oppdatering: update.stue_usw_flex_mini
+              status: device_tracker.veien_usw_24_g2
+              oppetid: sensor.veien_usw_24_g2_uptime
+              oppdatering: update.veien_usw_24_g2_firmware
               maalinger:
               - navn: CPU
-                entity: sensor.stue_usw_flex_mini_cpu_utilization
+                entity: sensor.veien_usw_24_g2_cpu_utilisation
                 enhet: '%'
               - navn: Minne
-                entity: sensor.stue_usw_flex_mini_memory_utilization
+                entity: sensor.veien_usw_24_g2_memory_utilisation
                 enhet: '%'
               info:
               - navn: Klienter
-                entity: sensor.stue_usw_flex_mini_clients
+                entity: sensor.veien_usw_24_g2_clients
                 enhet: ''
+              - navn: Tilstand
+                entity: sensor.veien_usw_24_g2_state
+              - navn: Uplink MAC
+                entity: sensor.veien_usw_24_g2_uplink_mac
               knapper:
               - navn: Restart
-                entity: button.stue_usw_flex_mini_restart
+                entity: button.veien_usw_24_g2_restart
                 ikon: mdi:restart
                 farge: var(--orange)
-                bekreft: Restarte Flex Mini?
-              - navn: LED
-                entity: light.stue_usw_flex_mini_led
-                ikon: mdi:led-outline
+                bekreft: Restarte Veien USW-24-G2?
             - type: custom:gap-card
-              height: 6
-            - type: custom:ki-porter-card
-              tittel: Porter
-              prefiks: switch.stue_usw_flex_mini_port_
-              antall: 5
-              kolonner: 5
+              height: 36
+          - title: Spisebord Flex
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Spisebord USW Flex Mini
+              figur: switch
+              status: device_tracker.spisebord_usw_flex_mini
+              oppetid: sensor.spisebord_usw_flex_mini_uptime
+              oppdatering: update.spisebord_usw_flex_mini_firmware
+              maalinger:
+              - navn: CPU
+                entity: sensor.spisebord_usw_flex_mini_cpu_utilisation
+                enhet: '%'
+              - navn: Minne
+                entity: sensor.spisebord_usw_flex_mini_memory_utilisation
+                enhet: '%'
+              info:
+              - navn: Klienter
+                entity: sensor.spisebord_usw_flex_mini_clients
+                enhet: ''
+              - navn: Tilstand
+                entity: sensor.spisebord_usw_flex_mini_state
+              - navn: Uplink MAC
+                entity: sensor.spisebord_usw_flex_mini_uplink_mac
+              knapper:
+              - navn: Restart
+                entity: button.spisebord_usw_flex_mini_restart
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Spisebord USW Flex Mini?
+              - navn: LED
+                entity: light.spisebord_usw_flex_mini_led
+                ikon: mdi:led-outline
             - type: custom:gap-card
               height: 36
       - title: AP
@@ -251,86 +207,81 @@ cards:
         - type: custom:ki-tabs-card
           align: center
           tabs:
-          - title: Bølgen
+          - title: Fuglen U7 Pro XG
             cards:
             - type: custom:ki-enhet-card
-              navn: Bølgen U6 Lite
+              navn: Fuglen U7 Pro XG
               figur: ap
-              status: device_tracker.u6_lite
-              oppetid: sensor.u6_lite_uptime
-              oppdatering: update.u6_lite
+              status: device_tracker.fuglen_u7_pro_xg
+              oppetid: sensor.fuglen_u7_pro_xg_uptime
+              oppdatering: update.fuglen_u7_pro_xg_firmware
               maalinger:
               - navn: CPU
-                entity: sensor.u6_lite_cpu_utilization
+                entity: sensor.fuglen_u7_pro_xg_cpu_utilisation
                 enhet: '%'
               - navn: Minne
-                entity: sensor.u6_lite_memory_utilization
+                entity: sensor.fuglen_u7_pro_xg_memory_utilisation
                 enhet: '%'
+              info:
+              - navn: Klienter
+                entity: sensor.fuglen_u7_pro_xg_clients
+                enhet: ''
+              - navn: Tilstand
+                entity: sensor.fuglen_u7_pro_xg_state
+              - navn: Uplink MAC
+                entity: sensor.fuglen_u7_pro_xg_uplink_mac
               knapper:
               - navn: Restart
-                entity: button.u6_lite_restart
+                entity: button.fuglen_u7_pro_xg_restart
                 ikon: mdi:restart
                 farge: var(--orange)
-                bekreft: Restarte Bølgen?
+                bekreft: Restarte Fuglen U7 Pro XG?
               - navn: LED
-                entity: light.fossen_u6_lite_led
+                entity: light.fuglen_u7_pro_xg_led
                 ikon: mdi:led-outline
             - type: custom:gap-card
               height: 36
-          - title: Vinden
+          - title: Posten U7 Lite
             cards:
             - type: custom:ki-enhet-card
-              navn: Vinden AC Mesh
+              navn: Posten U7 Lite
               figur: ap
-              status: device_tracker.vinden_ac_mesh
-              oppetid: sensor.vinden_ac_mesh_uptime
-              oppdatering: update.vinden_ac_mesh
+              status: device_tracker.posten_u7_lite
+              oppetid: sensor.posten_u7_lite_uptime
+              oppdatering: update.posten_u7_lite_firmware
               maalinger:
               - navn: CPU
-                entity: sensor.vinden_ac_mesh_cpu_utilization
+                entity: sensor.posten_u7_lite_cpu_utilisation
                 enhet: '%'
               - navn: Minne
-                entity: sensor.vinden_ac_mesh_memory_utilization
+                entity: sensor.posten_u7_lite_memory_utilisation
                 enhet: '%'
+              info:
+              - navn: Klienter
+                entity: sensor.posten_u7_lite_clients
+                enhet: ''
+              - navn: Tilstand
+                entity: sensor.posten_u7_lite_state
+              - navn: Uplink MAC
+                entity: sensor.posten_u7_lite_uplink_mac
               knapper:
               - navn: Restart
-                entity: button.vinden_ac_mesh_restart
+                entity: button.posten_u7_lite_restart
                 ikon: mdi:restart
                 farge: var(--orange)
-                bekreft: Restarte Vinden?
+                bekreft: Restarte Posten U7 Lite?
               - navn: LED
-                entity: light.vinden_ac_mesh_led
+                entity: light.posten_u7_lite_led
                 ikon: mdi:led-outline
             - type: custom:gap-card
               height: 36
       - title: Wi-Fi
         cards:
         - type: custom:ki-wifi-card
-          navn: Utehavet
-          qr: image.utehavet_qr_kode
-          klienter: sensor.utehavet_klienter
-          bryter: switch.utehavet_aktivert
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-wifi-card
-          navn: Banzai S22
-          qr: image.banzai_s22_qr_kode
-          klienter: sensor.banzai_s22_klienter
-          bryter: switch.banzai_s22_aktivert
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-wifi-card
-          navn: HavetsLiv
-          qr: image.havetsliv_qr_kode
-          klienter: sensor.havetsliv_klienter
-          bryter: switch.havetsliv_aktivert
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-wifi-card
-          navn: HavetIoT
-          qr: image.havetsiot_qr_kode
-          klienter: sensor.havetsiot_klienter
-          bryter: switch.havetsiot_aktivert
+          navn: Skuta I Byen
+          qr: image.skuta_i_byen_qr_code
+          klienter: sensor.skuta_i_byen_clients
+          bryter: switch.skuta_i_byen_enabled
         - type: custom:gap-card
           height: 36
   - title: Home Assistant
@@ -338,6 +289,7 @@ cards:
     - type: custom:ki-enhet-card
       navn: Home Assistant
       figur: boks
+      undertekst: Kjerne
       maalinger:
       - navn: CPU
         entity: sensor.home_assistant_core_cpu_percent
@@ -345,18 +297,6 @@ cards:
       - navn: Minne
         entity: sensor.home_assistant_core_memory_percent
         enhet: '%'
-      - navn: Disktemp
-        entity: sensor.disk_pve_samsung_ssd_840_evo_250gb_airflow_temperature
-        enhet: °
-        maks: 70
-        gul: 50
-        rod: 60
-      info:
-      - navn: Disktemperatur
-        entity: sensor.disk_pve_samsung_ssd_840_evo_250gb_airflow_temperature
-        enhet: ' °C'
-        varsel_over: 49.9
-      undertekst: Kjerne og vert
     - type: custom:gap-card
       height: 36
   - title: Unraid
@@ -370,7 +310,12 @@ cards:
           navn: D-Day Darling
           figur: server
           status: binary_sensor.d_day_darling_array_started
-          oppdatering: update.d_day_darling_update
+          status_pa:
+          - 'on'
+          tekst_pa: Array startet
+          tekst_av: Array stoppet
+          oppdatering: null
+          oppetid: sensor.d_day_darling_up_since
           maalinger:
           - navn: CPU
             entity: sensor.d_day_darling_cpu_usage
@@ -381,26 +326,141 @@ cards:
           - navn: Array
             entity: sensor.d_day_darling_array_usage
             enhet: '%'
-          info:
-          - navn: CPU temp
+          - navn: Temp
             entity: sensor.d_day_darling_cpu_temperature
-            enhet: ' °C'
-            varsel_over: 75
+            enhet: °
+            maks: 90
+            gul: 65
+            rod: 80
+          info:
+          - navn: Array
+            entity: sensor.d_day_darling_array_state
+          - navn: RAM brukt
+            entity: sensor.d_day_darling_ram_used
+          - navn: CPU-effekt
+            entity: sensor.d_day_darling_cpu_power
           - navn: Unraid
             entity: sensor.d_day_darling_unraid_version
-          - navn: Paritet
-            entity: binary_sensor.d_day_darling_parity_valid
+          - navn: Nettverk
+            entity: sensor.d_day_darling_network_access
+          - navn: Varsler
+            entity: sensor.d_day_darling_active_notifications
+            enhet: ''
+            varsel_over: 0
+          - navn: Sky
+            entity: binary_sensor.d_day_darling_cloud_connected
             tekst:
-              'off': Gyldig
-              'on': Ugyldig
-            varsel_er: 'on'
-          - navn: Paritetssjekk
+              'on': Tilkoblet
+              'off': Frakoblet
+          - navn: Konfig
+            entity: binary_sensor.d_day_darling_config_valid
+            tekst:
+              'on': Gyldig
+              'off': Ugyldig
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-section-card
+          title: Paritet
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_parity_valid
+            navn: Paritet
+            ikon: mdi:check-decagram
+            tekst:
+              'on': Gyldig
+              'off': Ugyldig
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_parity_check_running
+            navn: Paritetssjekk
+            ikon: mdi:progress-check
+            tekst:
+              'on': Kjører
+              'off': Ikke i gang
+          - type: custom:ki-sensor-card
+            storrelse: liten
             entity: sensor.d_day_darling_parity_progress
+            navn: Framdrift
+            ikon: mdi:percent
             enhet: ' %'
-          status_pa:
-          - 'on'
-          tekst_pa: Array startet
-          tekst_av: Array stoppet
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_parity_check_speed
+            navn: Hastighet
+            ikon: mdi:speedometer
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_parity_check_elapsed
+            navn: Brukt tid
+            ikon: mdi:timer-outline
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_last_parity_check
+            navn: Siste sjekk
+            ikon: mdi:calendar-check
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-section-card
+          title: Helse
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_disks_missing
+            navn: Disker mangler
+            ikon: mdi:harddisk-remove
+            tekst:
+              'on': Ja
+              'off': Nei
+            merke_over: 0
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_disks_invalid
+            navn: Disker ugyldige
+            ikon: mdi:alert-circle-outline
+            tekst:
+              'on': Ja
+              'off': Nei
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_disks_disabled
+            navn: Disker deaktivert
+            ikon: mdi:harddisk-off
+            tekst:
+              'on': Ja
+              'off': Nei
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_filesystems_unmountable
+            navn: Filsystem
+            ikon: mdi:folder-alert-outline
+            tekst:
+              'on': Feil
+              'off': OK
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_mover_active
+            navn: Mover
+            ikon: mdi:swap-vertical
+            tekst:
+              'on': Kjører
+              'off': Hviler
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: binary_sensor.d_day_darling_safe_mode
+            navn: Sikker modus
+            ikon: mdi:shield-half-full
+            tekst:
+              'on': På
+              'off': Av
         - type: custom:gap-card
           height: 6
         - type: custom:ki-section-card
@@ -412,11 +472,11 @@ cards:
           - type: custom:ki-toggle-card
             entity: switch.d_day_darling_vm_home_assistant
             name: Home Assistant
-            icon: mdi:server
+            icon: mdi:home-assistant
           - type: custom:ki-toggle-card
             entity: switch.d_day_darling_vm_home_assistantny
             name: Home Assistant Ny
-            icon: mdi:server
+            icon: mdi:home-assistant
         - type: custom:gap-card
           height: 36
       - title: Docker
@@ -424,6 +484,7 @@ cards:
         - type: custom:ki-enhet-card
           navn: Docker
           figur: boks
+          undertekst: Containere på Unraid
           maalinger:
           - navn: CPU
             entity: sensor.d_day_darling_docker_total_cpu
@@ -434,16 +495,194 @@ cards:
           info:
           - navn: RAM brukt
             entity: sensor.d_day_darling_docker_total_memory_used
-            enhet: ' GiB'
-            desimaler: 1
-          - navn: Containere
-            entity: sensor.d_day_darling_docker_total_cpu
-            attributt: container_count
           - navn: Oppdateringer
             entity: sensor.d_day_darling_container_updates_available
             enhet: ''
             varsel_over: 0
-          undertekst: Containere på Unraid
+          knapper:
+          - navn: Se etter oppdateringer
+            entity: button.d_day_darling_check_container_updates
+            ikon: mdi:cloud-download
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-section-card
+          title: Containere
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_adguard_home
+            name: AdGuard Home
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_bazarr
+            name: Bazarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_jellyfin
+            name: Jellyfin
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_minecraftserver
+            name: Minecraft
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_official_metube
+            name: MeTube
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_plexpass
+            name: Plex
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_prowlarr
+            name: Prowlarr (binhex)
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_qbittorrentvpn
+            name: qBittorrent VPN
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_radarr
+            name: Radarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_readarr
+            name: Readarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_seerr
+            name: Seerr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_binhex_sonarr
+            name: Sonarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_cloudflare_ddns
+            name: Cloudflare DDNS
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_cloudflaredtunnel
+            name: Cloudflared
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_cloudreve
+            name: Cloudreve
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_esphome
+            name: ESPHome
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_flaresolverr
+            name: Flaresolverr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_frigate
+            name: Frigate
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_glance_1
+            name: Glance
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_homarr
+            name: Homarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_homeassistant_inabox
+            name: HA in a box
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_immich_machine_learning
+            name: Immich ML
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_immich_postgres
+            name: Immich DB
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_immich_redis
+            name: Immich Redis
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_immich_server
+            name: Immich
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_iperf3
+            name: Iperf3
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_jellyfin_rewind
+            name: Jellyfin Rewind
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_jellyplex_watched
+            name: Jellyplex
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_lyrionmusicserver
+            name: Lyrion
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_minio
+            name: Minio
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_navidrome
+            name: Navidrome
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_podgrab
+            name: Podgrab
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_portainerce
+            name: Portainer
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_prowlarr
+            name: Prowlarr
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_redis
+            name: Redis
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_silo
+            name: Silo
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_silo_postgresql
+            name: Silo DB
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_speedtest_by_openspeedtest
+            name: OpenSpeedTest
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_speedtest_tracker
+            name: Speedtest Tracker
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_subwave
+            name: Subwave
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_tofa
+            name: Tofa
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_uptimekuma
+            name: Uptime Kuma
+            icon: mdi:package-variant-closed
+          - type: custom:ki-toggle-card
+            entity: switch.d_day_darling_container_yubal
+            name: Yubal
+            icon: mdi:package-variant-closed
         - type: custom:gap-card
           height: 36
       - title: Disker
@@ -460,14 +699,6 @@ cards:
           - navn: Bruk
             entity: sensor.d_day_darling_disk_disk1_usage
             enhet: '%'
-          info:
-          - navn: Temperatur
-            entity: sensor.d_day_darling_disk_disk1_usage
-            attributt: temperature_celsius
-            enhet: ' °C'
-          - navn: Feil
-            entity: sensor.d_day_darling_disk_disk1_usage
-            attributt: num_errors
         - type: custom:ki-enhet-card
           navn: Disk 2
           figur: boks
@@ -480,14 +711,6 @@ cards:
           - navn: Bruk
             entity: sensor.d_day_darling_disk_disk2_usage
             enhet: '%'
-          info:
-          - navn: Temperatur
-            entity: sensor.d_day_darling_disk_disk2_usage
-            attributt: temperature_celsius
-            enhet: ' °C'
-          - navn: Feil
-            entity: sensor.d_day_darling_disk_disk2_usage
-            attributt: num_errors
         - type: custom:ki-enhet-card
           navn: Disk 3
           figur: boks
@@ -500,14 +723,6 @@ cards:
           - navn: Bruk
             entity: sensor.d_day_darling_disk_disk3_usage
             enhet: '%'
-          info:
-          - navn: Temperatur
-            entity: sensor.d_day_darling_disk_disk3_usage
-            attributt: temperature_celsius
-            enhet: ' °C'
-          - navn: Feil
-            entity: sensor.d_day_darling_disk_disk3_usage
-            attributt: num_errors
         - type: custom:ki-enhet-card
           navn: Disk 4
           figur: boks
@@ -520,14 +735,6 @@ cards:
           - navn: Bruk
             entity: sensor.d_day_darling_disk_disk4_usage
             enhet: '%'
-          info:
-          - navn: Temperatur
-            entity: sensor.d_day_darling_disk_disk4_usage
-            attributt: temperature_celsius
-            enhet: ' °C'
-          - navn: Feil
-            entity: sensor.d_day_darling_disk_disk4_usage
-            attributt: num_errors
         - type: custom:ki-enhet-card
           navn: Cache
           figur: boks
@@ -541,29 +748,160 @@ cards:
             entity: sensor.d_day_darling_disk_cach_usage
             enhet: '%'
           info:
-          - navn: Temperatur
-            entity: sensor.d_day_darling_disk_cach_usage
-            attributt: temperature_celsius
-            enhet: ' °C'
           - navn: Feil
-            entity: sensor.d_day_darling_disk_cach_usage
-            attributt: num_errors
-        - type: custom:ki-enhet-card
+            entity: sensor.d_day_darling_disk_cach_errors
+            enhet: ''
+            varsel_over: 0
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-sensor-card
+          storrelse: stor
+          entity: binary_sensor.d_day_darling_disk_parity_health
           navn: Paritetsdisk
-          figur: boks
-          status: binary_sensor.d_day_darling_disk_parity_health
-          status_pa:
-          - 'off'
-          tekst_pa: Frisk
-          tekst_av: Feil
-          info:
-          - navn: Temperatur
-            entity: binary_sensor.d_day_darling_disk_parity_health
-            attributt: temperature
-            enhet: ' °C'
-          - navn: Status
-            entity: binary_sensor.d_day_darling_disk_parity_health
-            attributt: status
+          ikon: mdi:harddisk
+          tekst:
+            'on': Feil
+            'off': Frisk
+        - type: custom:gap-card
+          height: 36
+      - title: Delinger
+        cards:
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_aoosar_x_linux_usage
+            navn: Aoosar X Linux
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_appdata_usage
+            navn: Appdata
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_data_usage
+            navn: Data
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_docker_usage
+            navn: Docker
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_domains_usage
+            navn: Domains
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_isos_usage
+            navn: Isos
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_media_usage
+            navn: Media
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_nextcloud_usage
+            navn: Nextcloud
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_proxmox_usage
+            navn: Proxmox
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_radio_usage
+            navn: Radio
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_rune_usage
+            navn: Rune
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_skogen_usage
+            navn: Skogen
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_share_system_usage
+            navn: System
+            ikon: mdi:folder-outline
+            enhet: ' %'
+            stolpe: true
+            maks: 100
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-section-card
+          title: Nettverk br0
+        - type: grid
+          columns: 2
+          square: false
+          cards:
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_network_br0_inbound
+            navn: Inn
+            ikon: mdi:download
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_network_br0_outbound
+            navn: Ut
+            ikon: mdi:upload
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_network_br0_speed
+            navn: Hastighet
+            ikon: mdi:speedometer
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.d_day_darling_network_br0_ip_address
+            navn: IP
+            ikon: mdi:ip-network
         - type: custom:gap-card
           height: 36
   - title: Proxmox
@@ -575,13 +913,43 @@ cards:
         state: 'on'
       card:
         type: custom:ki-sensor-card
+        storrelse: liten
         entity: binary_sensor.overloaded
         navn: Advarsel
-        verdi: Noden er overbelastet
         ikon: mdi:alert-octagon-outline
+        verdi: Noden er overbelastet
         bakgrunn: var(--red)
         tekstfarge: var(--black)
+        animasjon: puls
+    - type: conditional
+      conditions:
+      - condition: state
+        entity: binary_sensor.disk_overloaded
+        state: 'on'
+      card:
+        type: custom:ki-sensor-card
         storrelse: liten
+        entity: binary_sensor.disk_overloaded
+        navn: Advarsel
+        ikon: mdi:alert-octagon-outline
+        verdi: Disken er overbelastet
+        bakgrunn: var(--red)
+        tekstfarge: var(--black)
+        animasjon: puls
+    - type: conditional
+      conditions:
+      - condition: state
+        entity: binary_sensor.stressed
+        state: 'on'
+      card:
+        type: custom:ki-sensor-card
+        storrelse: liten
+        entity: binary_sensor.stressed
+        navn: Advarsel
+        ikon: mdi:alert-octagon-outline
+        verdi: Noden er stresset
+        bakgrunn: var(--orange)
+        tekstfarge: var(--black)
         animasjon: puls
     - type: custom:ki-tabs-card
       align: center
@@ -592,6 +960,9 @@ cards:
           navn: Proxmox-node
           figur: server
           status: sensor.1_node_pve_node_status
+          status_pa:
+          - online
+          oppetid: sensor.1_node_pve_uptime
           maalinger:
           - navn: CPU
             entity: sensor.1_node_pve_cpu_usage
@@ -602,30 +973,51 @@ cards:
           - navn: Swap
             entity: sensor.1_node_pve_swap_usage
             enhet: '%'
+          - navn: Rot-FS
+            entity: sensor.1_node_pve_root_filesystem_usage
+            enhet: '%'
           info:
           - navn: Load 1m
             entity: sensor.1_node_pve_load_average_1m
+            enhet: ''
+          - navn: Load
+            entity: sensor.1_node_pve_load_average
             enhet: ''
           - navn: IO wait
             entity: sensor.1_node_pve_io_wait
             enhet: ' %'
             desimaler: 1
-          - navn: Rot-filsystem
-            entity: sensor.1_node_pve_root_filesystem_usage
+          - navn: Idle
+            entity: sensor.1_node_pve_idle
             enhet: ' %'
-          - navn: PVE-versjon
-            entity: sensor.1_node_pve_pve_version
-          - navn: Kernel
-            entity: sensor.1_node_pve_kernel_version
+          - navn: Node score
+            entity: sensor.1_node_pve_node_score
           - navn: Oppdateringer
             entity: sensor.1_node_pve_node_updates
             enhet: ''
             varsel_over: 0
+          - navn: Nett RX
+            entity: sensor.1_node_pve_network_rx
+          - navn: Nett TX
+            entity: sensor.1_node_pve_network_tx
           - navn: Siste oppgave
             entity: sensor.1_node_pve_last_task
           - navn: Backup
             entity: sensor.1_node_pve_backup_progress
             enhet: ' %'
+          - navn: KSM delt minne
+            entity: sensor.1_node_pve_ksm_shared_memory
+          - navn: ZFS tank
+            entity: sensor.1_node_pve_zfs_tank
+          - navn: Lagringsområder
+            entity: sensor.1_node_pve_storages
+            enhet: ''
+          - navn: PVE-versjon
+            entity: sensor.1_node_pve_pve_version
+          - navn: Kernel
+            entity: sensor.1_node_pve_kernel_version
+          - navn: CPU
+            entity: sensor.1_node_pve_cpu_information
           knapper:
           - navn: Restart node
             entity: button.1_node_pve_reboot_pve
@@ -637,42 +1029,34 @@ cards:
             ikon: mdi:power
             farge: var(--red)
             bekreft: Slå av hele Proxmox-noden? Dette stopper alt.
-          status_pa:
-          - online
         - type: custom:gap-card
           height: 6
         - type: custom:ki-section-card
-          title: Internett
+          title: Fysiske disker
         - type: grid
           columns: 2
           square: false
           cards:
           - type: custom:ki-sensor-card
             storrelse: liten
-            entity: sensor.speedtest_download
-            navn: Ned
-            ikon: mdi:speedometer-slow
-            enhet: ' Mbps'
-            desimaler: 1
+            entity: sensor.2_disks_pve_asint_as806_1tb_size
+            navn: ASint AS806 1TB
+            ikon: mdi:harddisk
           - type: custom:ki-sensor-card
             storrelse: liten
-            entity: sensor.speedtest_upload
-            navn: Opp
-            ikon: mdi:speedometer
-            enhet: ' Mbps'
-            desimaler: 1
-        - type: custom:gap-card
-          height: 6
-        - type: custom:ki-sensor-card
-          entity: sensor.disk_pve_samsung_ssd_840_evo_250gb_airflow_temperature
-          navn: Disktemperatur
-          ikon: mdi:thermometer
-          enhet: ' °C'
-          maks: 70
-          nivaa:
-          - over: 49.9
-            farge: var(--red)
-            merke: true
+            entity: sensor.2_disks_pve_hgst_hus724040ala640_size
+            navn: HGST 4TB
+            ikon: mdi:harddisk
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.2_disks_pve_kingston_snv2s500g_size
+            navn: Kingston 500G
+            ikon: mdi:harddisk
+          - type: custom:ki-sensor-card
+            storrelse: liten
+            entity: sensor.6_mounted_disks_pve_mounted_disks
+            navn: Monterte disker
+            ikon: mdi:database
         - type: custom:gap-card
           height: 36
       - title: Containere
@@ -680,94 +1064,396 @@ cards:
         - type: custom:ki-tabs-card
           align: center
           tabs:
-          - title: AdGuard
+          - title: Dispatcharr
             cards:
             - type: custom:ki-enhet-card
-              navn: AdGuard
+              navn: Dispatcharr
               figur: boks
-              status: sensor.3_ct_adguard_102_status
-              oppetid: sensor.3_ct_adguard_102_uptime
-              maalinger:
-              - navn: CPU
-                entity: sensor.3_ct_adguard_102_cpu_usage
-                enhet: '%'
-              info:
-              - navn: RAM
-                entity: sensor.3_ct_adguard_102_ram_used
-              - navn: Disk
-                entity: sensor.3_ct_adguard_102_disk_used
-              - navn: Nett RX
-                entity: sensor.3_ct_adguard_102_network_rx
-              - navn: Nett TX
-                entity: sensor.3_ct_adguard_102_network_tx
-              knapper:
-              - navn: Start
-                entity: button.3_ct_adguard_102_start_adguard
-                ikon: mdi:play
-                farge: var(--green)
-              - navn: Stopp
-                entity: button.3_ct_adguard_102_stop_adguard
-                ikon: mdi:stop
-                bekreft: Stoppe AdGuard?
-              - navn: Restart
-                entity: button.3_ct_adguard_102_reboot_adguard
-                ikon: mdi:restart
-                farge: var(--orange)
-                bekreft: Restarte AdGuard?
-              - navn: Av
-                entity: button.3_ct_adguard_102_shutdown_adguard
-                ikon: mdi:power
-                farge: var(--red)
-                bekreft: Slå av AdGuard?
+              status: sensor.3_ct_dispatcharr_100_status
               status_pa:
               - running
               tekst_pa: Kjører
               tekst_av: Stoppet
+              oppetid: sensor.3_ct_dispatcharr_100_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_dispatcharr_100_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_dispatcharr_100_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_dispatcharr_100_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_dispatcharr_100_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_dispatcharr_100_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_dispatcharr_100_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_dispatcharr_100_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_dispatcharr_100_start_dispatcharr
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_dispatcharr_100_stop_dispatcharr
+                ikon: mdi:stop
+                bekreft: Stoppe Dispatcharr?
+              - navn: Restart
+                entity: button.3_ct_dispatcharr_100_reboot_dispatcharr
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Dispatcharr?
+              - navn: Av
+                entity: button.3_ct_dispatcharr_100_shutdown_dispatcharr
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Dispatcharr?
             - type: custom:gap-card
               height: 36
-          - title: Homarr
+          - title: Radio
             cards:
             - type: custom:ki-enhet-card
-              navn: Homarr
+              navn: Radio
               figur: boks
-              status: sensor.3_ct_homarr_101_status
-              oppetid: sensor.3_ct_homarr_101_uptime
-              maalinger:
-              - navn: CPU
-                entity: sensor.3_ct_homarr_101_cpu_usage
-                enhet: '%'
-              info:
-              - navn: RAM
-                entity: sensor.3_ct_homarr_101_ram_used
-              - navn: Disk
-                entity: sensor.3_ct_homarr_101_disk_used
-              - navn: Nett RX
-                entity: sensor.3_ct_homarr_101_network_rx
-              - navn: Nett TX
-                entity: sensor.3_ct_homarr_101_network_tx
-              knapper:
-              - navn: Start
-                entity: button.3_ct_homarr_101_start_homarr
-                ikon: mdi:play
-                farge: var(--green)
-              - navn: Stopp
-                entity: button.3_ct_homarr_101_stop_homarr
-                ikon: mdi:stop
-                bekreft: Stoppe Homarr?
-              - navn: Restart
-                entity: button.3_ct_homarr_101_reboot_homarr
-                ikon: mdi:restart
-                farge: var(--orange)
-                bekreft: Restarte Homarr?
-              - navn: Av
-                entity: button.3_ct_homarr_101_shutdown_homarr
-                ikon: mdi:power
-                farge: var(--red)
-                bekreft: Slå av Homarr?
+              status: sensor.3_ct_radio_102_status
               status_pa:
               - running
               tekst_pa: Kjører
               tekst_av: Stoppet
+              oppetid: sensor.3_ct_radio_102_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_radio_102_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_radio_102_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_radio_102_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_radio_102_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_radio_102_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_radio_102_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_radio_102_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_radio_102_start_radio
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_radio_102_stop_radio
+                ikon: mdi:stop
+                bekreft: Stoppe Radio?
+              - navn: Restart
+                entity: button.3_ct_radio_102_reboot_radio
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Radio?
+              - navn: Av
+                entity: button.3_ct_radio_102_shutdown_radio
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Radio?
+            - type: custom:gap-card
+              height: 36
+          - title: Tunarr
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Tunarr
+              figur: boks
+              status: sensor.3_ct_tunarr_103_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_tunarr_103_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_tunarr_103_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_tunarr_103_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_tunarr_103_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_tunarr_103_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_tunarr_103_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_tunarr_103_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_tunarr_103_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_tunarr_103_start_tunarr
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_tunarr_103_stop_tunarr
+                ikon: mdi:stop
+                bekreft: Stoppe Tunarr?
+              - navn: Restart
+                entity: button.3_ct_tunarr_103_reboot_tunarr
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Tunarr?
+              - navn: Av
+                entity: button.3_ct_tunarr_103_shutdown_tunarr
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Tunarr?
+            - type: custom:gap-card
+              height: 36
+          - title: Speedtest
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Speedtest
+              figur: boks
+              status: sensor.3_ct_speedtest_tracker_104_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_speedtest_tracker_104_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_speedtest_tracker_104_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_speedtest_tracker_104_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_speedtest_tracker_104_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_speedtest_tracker_104_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_speedtest_tracker_104_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_speedtest_tracker_104_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_speedtest_tracker_104_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_speedtest_tracker_104_start_speedtest_tracker
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_speedtest_tracker_104_stop_speedtest_tracker
+                ikon: mdi:stop
+                bekreft: Stoppe Speedtest?
+              - navn: Restart
+                entity: button.3_ct_speedtest_tracker_104_reboot_speedtest_tracker
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Speedtest?
+              - navn: Av
+                entity: button.3_ct_speedtest_tracker_104_shutdown_speedtest_tracker
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Speedtest?
+            - type: custom:gap-card
+              height: 36
+          - title: Zigbee2MQTT
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Zigbee2MQTT
+              figur: boks
+              status: sensor.3_ct_zigbee2mqtt_105_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_zigbee2mqtt_105_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_zigbee2mqtt_105_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_zigbee2mqtt_105_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_zigbee2mqtt_105_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_zigbee2mqtt_105_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_zigbee2mqtt_105_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_zigbee2mqtt_105_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_zigbee2mqtt_105_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_zigbee2mqtt_105_start_zigbee2mqtt
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_zigbee2mqtt_105_stop_zigbee2mqtt
+                ikon: mdi:stop
+                bekreft: Stoppe Zigbee2MQTT?
+              - navn: Restart
+                entity: button.3_ct_zigbee2mqtt_105_reboot_zigbee2mqtt
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Zigbee2MQTT?
+              - navn: Av
+                entity: button.3_ct_zigbee2mqtt_105_shutdown_zigbee2mqtt
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Zigbee2MQTT?
+            - type: custom:gap-card
+              height: 36
+          - title: n8n
+            cards:
+            - type: custom:ki-enhet-card
+              navn: n8n
+              figur: boks
+              status: sensor.3_ct_n8n_107_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_n8n_107_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_n8n_107_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_n8n_107_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_n8n_107_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_n8n_107_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_n8n_107_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_n8n_107_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_n8n_107_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_n8n_107_start_n8n
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_n8n_107_stop_n8n
+                ikon: mdi:stop
+                bekreft: Stoppe n8n?
+              - navn: Restart
+                entity: button.3_ct_n8n_107_reboot_n8n
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte n8n?
+              - navn: Av
+                entity: button.3_ct_n8n_107_shutdown_n8n
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av n8n?
+            - type: custom:gap-card
+              height: 36
+          - title: Pi-hole
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Pi-hole
+              figur: boks
+              status: sensor.3_ct_pihole_108_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_pihole_108_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_pihole_108_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_pihole_108_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_pihole_108_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_pihole_108_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_pihole_108_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_pihole_108_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_pihole_108_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_pihole_108_start_pihole
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_pihole_108_stop_pihole
+                ikon: mdi:stop
+                bekreft: Stoppe Pi-hole?
+              - navn: Restart
+                entity: button.3_ct_pihole_108_reboot_pihole
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Pi-hole?
+              - navn: Av
+                entity: button.3_ct_pihole_108_shutdown_pihole
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Pi-hole?
+            - type: custom:gap-card
+              height: 36
+          - title: Yubal
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Yubal
+              figur: boks
+              status: sensor.3_ct_yubal_110_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_yubal_110_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_yubal_110_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_yubal_110_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_yubal_110_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_yubal_110_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_yubal_110_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_yubal_110_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_yubal_110_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_yubal_110_start_yubal
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_yubal_110_stop_yubal
+                ikon: mdi:stop
+                bekreft: Stoppe Yubal?
+              - navn: Restart
+                entity: button.3_ct_yubal_110_reboot_yubal
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Yubal?
+              - navn: Av
+                entity: button.3_ct_yubal_110_shutdown_yubal
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Yubal?
             - type: custom:gap-card
               height: 36
           - title: HomeBridge
@@ -775,104 +1461,251 @@ cards:
             - type: custom:ki-enhet-card
               navn: HomeBridge
               figur: boks
-              status: sensor.3_ct_homebridge_103_status
-              oppetid: sensor.3_ct_homebridge_103_uptime
-              maalinger:
-              - navn: CPU
-                entity: sensor.3_ct_homebridge_103_cpu_usage
-                enhet: '%'
-              info:
-              - navn: RAM
-                entity: sensor.3_ct_homebridge_103_ram_used
-              - navn: Disk
-                entity: sensor.3_ct_homebridge_103_disk_used
-              - navn: Nett RX
-                entity: sensor.3_ct_homebridge_103_network_rx
-              - navn: Nett TX
-                entity: sensor.3_ct_homebridge_103_network_tx
-              knapper:
-              - navn: Start
-                entity: button.3_ct_homebridge_103_start_homebridge
-                ikon: mdi:play
-                farge: var(--green)
-              - navn: Stopp
-                entity: button.3_ct_homebridge_103_stop_homebridge
-                ikon: mdi:stop
-                bekreft: Stoppe HomeBridge?
-              - navn: Restart
-                entity: button.3_ct_homebridge_103_reboot_homebridge
-                ikon: mdi:restart
-                farge: var(--orange)
-                bekreft: Restarte HomeBridge?
-              - navn: Av
-                entity: button.3_ct_homebridge_103_shutdown_homebridge
-                ikon: mdi:power
-                farge: var(--red)
-                bekreft: Slå av HomeBridge?
+              status: sensor.3_ct_homebridge_112_status
               status_pa:
               - running
               tekst_pa: Kjører
               tekst_av: Stoppet
+              oppetid: sensor.3_ct_homebridge_112_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_homebridge_112_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_homebridge_112_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_homebridge_112_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_homebridge_112_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_homebridge_112_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_homebridge_112_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_homebridge_112_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_homebridge_112_start_homebridge
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_homebridge_112_stop_homebridge
+                ikon: mdi:stop
+                bekreft: Stoppe HomeBridge?
+              - navn: Restart
+                entity: button.3_ct_homebridge_112_reboot_homebridge
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte HomeBridge?
+              - navn: Av
+                entity: button.3_ct_homebridge_112_shutdown_homebridge
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av HomeBridge?
+            - type: custom:gap-card
+              height: 36
+          - title: RustFS
+            cards:
+            - type: custom:ki-enhet-card
+              navn: RustFS
+              figur: boks
+              status: sensor.3_ct_rustfs_113_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.3_ct_rustfs_113_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.3_ct_rustfs_113_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.3_ct_rustfs_113_ram_used
+              - navn: RAM totalt
+                entity: sensor.3_ct_rustfs_113_ram_total
+              - navn: Disk brukt
+                entity: sensor.3_ct_rustfs_113_disk_used
+              - navn: Disk totalt
+                entity: sensor.3_ct_rustfs_113_disk_total
+              - navn: Nett RX
+                entity: sensor.3_ct_rustfs_113_network_rx
+              - navn: Nett TX
+                entity: sensor.3_ct_rustfs_113_network_tx
+              knapper:
+              - navn: Start
+                entity: button.3_ct_rustfs_113_start_rustfs
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.3_ct_rustfs_113_stop_rustfs
+                ikon: mdi:stop
+                bekreft: Stoppe RustFS?
+              - navn: Restart
+                entity: button.3_ct_rustfs_113_reboot_rustfs
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte RustFS?
+              - navn: Av
+                entity: button.3_ct_rustfs_113_shutdown_rustfs
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av RustFS?
             - type: custom:gap-card
               height: 36
       - title: VM
         cards:
-        - type: custom:ki-enhet-card
-          navn: Home Assistant OS
-          figur: boks
-          status: sensor.4_vm_haos_16_3_104_status
-          oppetid: sensor.4_vm_haos_16_3_104_uptime
-          maalinger:
-          - navn: CPU
-            entity: sensor.4_vm_haos_16_3_104_cpu_usage
-            enhet: '%'
-          info:
-          - navn: RAM
-            entity: sensor.4_vm_haos_16_3_104_ram_used
-          - navn: RAM totalt
-            entity: sensor.4_vm_haos_16_3_104_ram_total
-          - navn: Disk totalt
-            entity: sensor.4_vm_haos_16_3_104_disk_total
-          - navn: Nett RX
-            entity: sensor.4_vm_haos_16_3_104_network_rx
-          - navn: Nett TX
-            entity: sensor.4_vm_haos_16_3_104_network_tx
-          knapper:
-          - navn: Start
-            entity: button.4_vm_haos_16_3_104_start_haos_16_3
-            ikon: mdi:play
-            farge: var(--green)
-          - navn: Stopp
-            entity: button.4_vm_haos_16_3_104_stop_haos_16_3
-            ikon: mdi:stop
-            bekreft: Stoppe Home Assistant OS?
-          - navn: Restart
-            entity: button.4_vm_haos_16_3_104_reboot_haos_16_3
-            ikon: mdi:restart
-            farge: var(--orange)
-            bekreft: Restarte Home Assistant OS?
-          - navn: Pause
-            entity: button.4_vm_haos_16_3_104_pause_haos_16_3
-            ikon: mdi:pause
-          - navn: Fortsett
-            entity: button.4_vm_haos_16_3_104_resume_haos_16_3
-            ikon: mdi:play-pause
-          - navn: Av
-            entity: button.4_vm_haos_16_3_104_shutdown_haos_16_3
-            ikon: mdi:power
-            farge: var(--red)
-            bekreft: Slå av Home Assistant OS?
-          status_pa:
-          - running
-          tekst_pa: Kjører
-          tekst_av: Stoppet
-        - type: custom:gap-card
-          height: 36
+        - type: custom:ki-tabs-card
+          align: center
+          tabs:
+          - title: HAOS 18.2
+            cards:
+            - type: custom:ki-enhet-card
+              navn: HAOS 18.2
+              figur: boks
+              status: sensor.4_vm_haos_18_2_115_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.4_vm_haos_18_2_115_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.4_vm_haos_18_2_115_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.4_vm_haos_18_2_115_ram_used
+              - navn: RAM totalt
+                entity: sensor.4_vm_haos_18_2_115_ram_total
+              - navn: Disk totalt
+                entity: sensor.4_vm_haos_18_2_115_disk_total
+              - navn: Nett RX
+                entity: sensor.4_vm_haos_18_2_115_network_rx
+              - navn: Nett TX
+                entity: sensor.4_vm_haos_18_2_115_network_tx
+              knapper:
+              - navn: Start
+                entity: button.4_vm_haos_18_2_115_start_haos_18_2
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.4_vm_haos_18_2_115_stop_haos_18_2
+                ikon: mdi:stop
+                bekreft: Stoppe HAOS 18.2?
+              - navn: Restart
+                entity: button.4_vm_haos_18_2_115_reboot_haos_18_2
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte HAOS 18.2?
+              - navn: Pause
+                entity: button.4_vm_haos_18_2_115_pause_haos_18_2
+                ikon: mdi:pause
+              - navn: Fortsett
+                entity: button.4_vm_haos_18_2_115_resume_haos_18_2
+                ikon: mdi:play-pause
+              - navn: Dvale
+                entity: button.4_vm_haos_18_2_115_hibernate_haos_18_2
+                ikon: mdi:moon-waning-crescent
+              - navn: Av
+                entity: button.4_vm_haos_18_2_115_shutdown_haos_18_2
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av HAOS 18.2?
+              - navn: Reset
+                entity: button.4_vm_haos_18_2_115_reset_haos_18_2
+                ikon: mdi:restart-alert
+                farge: var(--red)
+                bekreft: Tvangsreset av HAOS 18.2? Kan gi datatap.
+            - type: custom:gap-card
+              height: 36
+          - title: Servarr
+            cards:
+            - type: custom:ki-enhet-card
+              navn: Servarr
+              figur: boks
+              status: sensor.4_vm_servarr_117_status
+              status_pa:
+              - running
+              tekst_pa: Kjører
+              tekst_av: Stoppet
+              oppetid: sensor.4_vm_servarr_117_uptime
+              maalinger:
+              - navn: CPU
+                entity: sensor.4_vm_servarr_117_cpu_usage
+                enhet: '%'
+              info:
+              - navn: RAM brukt
+                entity: sensor.4_vm_servarr_117_ram_used
+              - navn: RAM totalt
+                entity: sensor.4_vm_servarr_117_ram_total
+              - navn: Disk totalt
+                entity: sensor.4_vm_servarr_117_disk_total
+              - navn: Nett RX
+                entity: sensor.4_vm_servarr_117_network_rx
+              - navn: Nett TX
+                entity: sensor.4_vm_servarr_117_network_tx
+              knapper:
+              - navn: Start
+                entity: button.4_vm_servarr_117_start_servarr
+                ikon: mdi:play
+                farge: var(--green)
+              - navn: Stopp
+                entity: button.4_vm_servarr_117_stop_servarr
+                ikon: mdi:stop
+                bekreft: Stoppe Servarr?
+              - navn: Restart
+                entity: button.4_vm_servarr_117_reboot_servarr
+                ikon: mdi:restart
+                farge: var(--orange)
+                bekreft: Restarte Servarr?
+              - navn: Pause
+                entity: button.4_vm_servarr_117_pause_servarr
+                ikon: mdi:pause
+              - navn: Fortsett
+                entity: button.4_vm_servarr_117_resume_servarr
+                ikon: mdi:play-pause
+              - navn: Dvale
+                entity: button.4_vm_servarr_117_hibernate_servarr
+                ikon: mdi:moon-waning-crescent
+              - navn: Av
+                entity: button.4_vm_servarr_117_shutdown_servarr
+                ikon: mdi:power
+                farge: var(--red)
+                bekreft: Slå av Servarr?
+              - navn: Reset
+                entity: button.4_vm_servarr_117_reset_servarr
+                ikon: mdi:restart-alert
+                farge: var(--red)
+                bekreft: Tvangsreset av Servarr? Kan gi datatap.
+            - type: custom:gap-card
+              height: 36
       - title: Lagring
         cards:
         - type: custom:ki-enhet-card
+          navn: Flash
+          figur: boks
+          undertekst: Proxmox-lagring
+          maalinger:
+          - navn: Bruk
+            entity: sensor.5_storage_flash_usage
+            enhet: '%'
+          info:
+          - navn: Brukt
+            entity: sensor.5_storage_flash_used
+          - navn: Ledig
+            entity: sensor.5_storage_flash_free
+          - navn: Totalt
+            entity: sensor.5_storage_flash_total
+          - navn: Type
+            entity: sensor.5_storage_flash_type
+        - type: custom:gap-card
+          height: 6
+        - type: custom:ki-enhet-card
           navn: local
           figur: boks
+          undertekst: Proxmox-lagring
           maalinger:
           - navn: Bruk
             entity: sensor.5_storage_local_usage
@@ -884,29 +1717,67 @@ cards:
             entity: sensor.5_storage_local_free
           - navn: Totalt
             entity: sensor.5_storage_local_total
-          undertekst: Proxmox-lagring
+          - navn: Type
+            entity: sensor.5_storage_local_type
         - type: custom:gap-card
           height: 6
         - type: custom:ki-enhet-card
-          navn: local-lvm
+          navn: tank (ZFS)
           figur: boks
+          undertekst: Proxmox-lagring
           maalinger:
           - navn: Bruk
-            entity: sensor.5_storage_local_lvm_usage
+            entity: sensor.5_storage_tank_usage
             enhet: '%'
           info:
           - navn: Brukt
-            entity: sensor.5_storage_local_lvm_used
+            entity: sensor.5_storage_tank_used
           - navn: Ledig
-            entity: sensor.5_storage_local_lvm_free
+            entity: sensor.5_storage_tank_free
           - navn: Totalt
-            entity: sensor.5_storage_local_lvm_total
-          undertekst: Proxmox-lagring
+            entity: sensor.5_storage_tank_total
+          - navn: Type
+            entity: sensor.5_storage_tank_type
         - type: custom:gap-card
           height: 6
-        - type: custom:ki-sensor-card
-          entity: sensor.6_mounted_disks_pve_mounted_disks
-          navn: Monterte disker
-          ikon: mdi:harddisk
+        - type: custom:ki-enhet-card
+          navn: unraid
+          figur: boks
+          undertekst: Proxmox-lagring
+          maalinger:
+          - navn: Bruk
+            entity: sensor.5_storage_unraid_usage
+            enhet: '%'
+          info:
+          - navn: Brukt
+            entity: sensor.5_storage_unraid_used
+          - navn: Ledig
+            entity: sensor.5_storage_unraid_free
+          - navn: Totalt
+            entity: sensor.5_storage_unraid_total
+          - navn: Type
+            entity: sensor.5_storage_unraid_type
         - type: custom:gap-card
-          height: 36
+          height: 6
+        - type: custom:ki-enhet-card
+          navn: unraid_proxmox
+          figur: boks
+          undertekst: Proxmox-lagring
+          maalinger:
+          - navn: Bruk
+            entity: sensor.5_storage_unraid_proxmox_usage
+            enhet: '%'
+          info:
+          - navn: Brukt
+            entity: sensor.5_storage_unraid_proxmox_used
+          - navn: Ledig
+            entity: sensor.5_storage_unraid_proxmox_free
+          - navn: Totalt
+            entity: sensor.5_storage_unraid_proxmox_total
+          - navn: Type
+            entity: sensor.5_storage_unraid_proxmox_type
+        - type: custom:gap-card
+          height: 6
+        - type: custom:gap-card
+          height: 30
+  sticky: true
