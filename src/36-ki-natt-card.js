@@ -12,8 +12,12 @@
  * navn_natt: Nattmodus   ikon_natt: mdi:sleep
  * navn_helg: Helgemodus  ikon_helg: mdi:airplane-takeoff
  * tekst_pa: På           tekst_av: Av        tekst_natt: God natt
+ * tekst_morgen: God morgen   morgen_fra: '05:00'   morgen_til: '12:00'   morgen: true
+ *
+ * Fra morgen_fra til morgen_til bytter nattkortet til morgenutgaven: soloppgang i stedet for måne,
+ * vinduene tennes ett etter ett, fugler i stedet for Z-er. Teksten blir «God morgen».
  */
-const KI_NATT_VERSJON = "2.0.0";
+const KI_NATT_VERSJON = "2.1.0";
 
 const KI_NATT_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -124,6 +128,33 @@ const KI_NATT_STIL = `
   .nk.natt .roeyk { animation:royk 7s ease-out infinite; } .nk.natt .r2 { animation-delay:2.3s; } .nk.natt .r3 { animation-delay:4.6s; }
   @keyframes royk { 0% { opacity:0; transform:translate(0,0) scale(.5); } 20% { opacity:.22; } 100% { opacity:0; transform:translate(-14px,-40px) scale(1.8); } }
   .roeyk, .z { transform-box:fill-box; transform-origin:center; }
+  /* morgenutgaven – soloppgang, vinduene tennes, fugler */
+  .nk.morgen .nattlag { color:#fff4e6;
+    background:radial-gradient(75% 115% at 18% 118%, #ffb877 0%, rgba(255,184,119,0) 58%), linear-gradient(168deg,#2b3a70 0%,#6b5590 46%,#c97f7c 78%,#f2a878 100%); }
+  .nk.morgen .tekst { text-shadow:0 1px 12px rgba(48,24,44,.5); }
+  .nk.morgen .tekst .n { opacity:.85; } .nk.morgen .tekst .sub { opacity:.82; }
+  .nk.morgen .helgpille { background:rgba(255,244,230,.18); }
+  .nk.morgen .stj, .nk.morgen .maane, .nk.morgen .maaneglod { opacity:0 !important; animation:none !important; }
+  .sol, .fugl { opacity:0; }
+  .sol { transform:translateY(52px); }
+  .nk.natt.morgen .sol { opacity:1; transform:none; transition:transform 2.6s var(--myk) .2s, opacity 1.4s ease .2s; }
+  .solglod { opacity:0; } .nk.natt.morgen .solglod { opacity:.6; transition:opacity 2.4s ease 1s; }
+  .nk.natt.morgen .solstraler { animation:snurr 46s linear infinite; transform-box:fill-box; transform-origin:center; }
+  @keyframes snurr { to { transform:rotate(360deg); } }
+  .nk.natt.morgen .hus { animation:none; }
+  .nk.natt.morgen .lysglod { opacity:0; transition:opacity 1.6s ease; }
+  .nk.natt.morgen .z { animation:none; opacity:0; }
+  .nk.natt.morgen .vindu { animation:tennes .7s ease forwards; }
+  .nk.natt.morgen .vindu.v2 { animation-delay:.6s; } .nk.natt.morgen .vindu.v3 { animation-delay:1.1s; }
+  .nk.natt.morgen .vindu.v1 { animation-delay:1.7s; }
+  .nk.natt.morgen .vindu.nattlys { animation:tennes .7s ease .1s forwards; }
+  @keyframes tennes { 0% { fill:#262b52; } 60% { fill:#ffe9b0; } 100% { fill:#ffd27a; } }
+  .fugl { transform-box:fill-box; transform-origin:center; }
+  .nk.natt.morgen .fugl { animation:flyforbi 9s linear infinite, vinge .5s ease-in-out infinite alternate; }
+  .nk.natt.morgen .f2 { animation-delay:1.3s, .2s; } .nk.natt.morgen .f3 { animation-delay:2.2s, .35s; }
+  @keyframes flyforbi { 0% { opacity:0; transform:translate(0,0) scale(.8); } 12% { opacity:.75; } 85% { opacity:.5; } 100% { opacity:0; transform:translate(-130px,-38px) scale(1); } }
+  @keyframes vinge { from { transform:scaleY(.65); } to { transform:scaleY(1.25); } }
+
   .feil { padding:16px; border-radius:24px; background:var(--gray200); font-size:14px; opacity:.8; }
   @media (max-width:380px) { .scene { width:58%; } .tekst { max-width:48%; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
@@ -131,8 +162,15 @@ const KI_NATT_STIL = `
 
 const KI_NATT_HUS = `<svg viewBox="0 0 200 180" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
   <defs><radialGradient id="mg"><stop offset="0" stop-color="#fdf3d0" stop-opacity=".7"/><stop offset="1" stop-color="#fdf3d0" stop-opacity="0"/></radialGradient>
-    <radialGradient id="lg"><stop offset="0" stop-color="#ffd27a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient></defs>
+    <radialGradient id="lg"><stop offset="0" stop-color="#ffd27a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sg"><stop offset="0" stop-color="#ffd9a0" stop-opacity=".85"/><stop offset="1" stop-color="#ffd9a0" stop-opacity="0"/></radialGradient></defs>
   <g class="maane"><circle class="maaneglod" cx="56" cy="36" r="34" fill="url(#mg)"/><path d="M66 22a17 17 0 1 0 6 25 14 14 0 1 1-6-25z" fill="#fdf3d0"/></g>
+  <g class="sol"><circle class="solglod" cx="44" cy="132" r="58" fill="url(#sg)"/>
+    <g class="solstraler" opacity=".5"><path d="M44 96v-14M44 168v14M8 132h-14M80 132h14M19 107l-10-10M69 157l10 10M69 107l10-10M19 157l-10 10" stroke="#ffe6bd" stroke-width="3" stroke-linecap="round"/></g>
+    <circle cx="44" cy="132" r="21" fill="#ffdba6"/></g>
+  <g class="fugler"><path class="fugl f1" d="M150 54q6-6 12 0q6-6 12 0" fill="none" stroke="#3a2b3f" stroke-width="2.4" stroke-linecap="round"/>
+    <path class="fugl f2" d="M168 40q5-5 10 0q5-5 10 0" fill="none" stroke="#3a2b3f" stroke-width="2.2" stroke-linecap="round"/>
+    <path class="fugl f3" d="M182 66q4-4 8 0q4-4 8 0" fill="none" stroke="#3a2b3f" stroke-width="2" stroke-linecap="round"/></g>
   <ellipse cx="120" cy="182" rx="120" ry="20" fill="#11152d"/>
   <path d="M38 170 l14-40 14 40z M44 150 l8-26 8 26z" fill="#1a1f40"/>
   <g class="hus">
@@ -183,7 +221,8 @@ class KiNattCard extends HTMLElement {
   setConfig(c) {
     if (!c || !c.natt) throw new Error("Sett natt: til bryteren for nattmodus");
     this._c = { navn_natt: "Nattmodus", ikon_natt: "mdi:sleep", navn_helg: "Helgemodus", ikon_helg: "mdi:airplane-takeoff",
-      tekst_pa: "På", tekst_av: "Av", tekst_natt: "God natt", ...c };
+      tekst_pa: "På", tekst_av: "Av", tekst_natt: "God natt", tekst_morgen: "God morgen",
+      morgen: true, morgen_fra: "05:00", morgen_til: "12:00", ...c };
     this._bygget = false; this._oppdater();
   }
   set hass(h) {
@@ -205,6 +244,20 @@ class KiNattCard extends HTMLElement {
     this._oppdater();
     this._h.callService(["switch", "input_boolean", "light", "fan"].includes(d) ? d : "homeassistant", "toggle", { entity_id: id });
   }
+  /* natt eller morgen – morgen fra morgen_fra til morgen_til */
+  _morgen() {
+    const c = this._c; if (!c.morgen) return false;
+    const min = (t) => { const [h, m] = String(t).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+    const n = new Date(), na = n.getHours() * 60 + n.getMinutes(), a = min(c.morgen_fra), b = min(c.morgen_til);
+    return a <= b ? na >= a && na < b : na >= a || na < b;
+  }
+  /* Sjekker hvert minutt om vi har krysset morgengrensen */
+  _tikk() {
+    clearInterval(this._ti);
+    this._ti = setInterval(() => { if (this._morgen() !== this._sisteMorgen) this._oppdater(); }, 60000);
+  }
+  disconnectedCallback() { clearInterval(this._ti); clearTimeout(this._ft); }
+  connectedCallback() { if (this._bygget) this._tikk(); }
   _mer(id) { this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
 
   _flis(id, navn, ikon, ekstra, mini) {
@@ -225,7 +278,7 @@ class KiNattCard extends HTMLElement {
             ${c.helg ? `<span class="helgpille" data-a="${c.helg}" data-hold="${c.helg}" role="switch" aria-checked="true" tabindex="0" hidden><ha-icon icon="${kiNattEsc(c.ikon_helg)}"></ha-icon>${kiNattEsc(c.navn_helg)}</span>` : ""}
             <div class="stor">${kiNattEsc(c.tekst_natt)}</div><div class="sub"></div></div>
           <div class="scene">${KI_NATT_HUS}</div><div class="blaff"></div></div></div>`;
-    this._koble(); this._bygget = true;
+    this._koble(); this._tikk(); this._bygget = true;
   }
   _koble() {
     const r = this.shadowRoot, finn = (e, a) => { for (const el of e.composedPath()) { if (el === r) break; if (el.nodeType === 1 && el.hasAttribute(a)) return el; } return null; };
@@ -253,7 +306,11 @@ class KiNattCard extends HTMLElement {
     if (!h.states[c.natt]) { this._bygget = false; this.shadowRoot.innerHTML = `<style>${KI_NATT_STIL}</style><div class="feil">Fant ikke ${kiNattEsc(c.natt)}. Sett natt: til bryteren for nattmodus.</div>`; return; }
     if (!this._bygget) this._bygg();
     const r = this.shadowRoot, natt = this._pa(c.natt), helg = !!c.helg && this._pa(c.helg);
-    r.querySelector(".nk").classList.toggle("natt", natt);
+    const morgen = natt && this._morgen(); this._sisteMorgen = this._morgen();
+    const nk = r.querySelector(".nk");
+    nk.classList.toggle("natt", natt); nk.classList.toggle("morgen", morgen);
+    const stor = r.querySelector(".stor"), st = morgen ? c.tekst_morgen : c.tekst_natt;
+    if (stor.textContent !== st) stor.textContent = st;
     const dag = r.querySelector(".dag"), nl = r.querySelector(".nattlag");
     dag.setAttribute("aria-hidden", String(natt)); nl.setAttribute("aria-hidden", String(!natt));
     nl.setAttribute("aria-checked", String(natt)); nl.tabIndex = natt ? 0 : -1;

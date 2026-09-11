@@ -191,12 +191,19 @@ navn_helg: Helgemodus
 ikon_natt: mdi:sleep
 ikon_helg: mdi:airplane-takeoff
 tekst_natt: God natt
+tekst_morgen: God morgen
+morgen: true                    # slå av med false
+morgen_fra: '05:00'
+morgen_til: '12:00'
 tekst_pa: På
 tekst_av: Av
 ```
 Når nattmodus er av vises en liten nattflis (huset med lys i vinduene, måne og stjerner) ved siden av
 helgemodus-flisen. Når den slås på vokser nattkortet ut av den lille flisen og dekker begge:
 vinduene slukkes ett etter ett, månen stiger, huset puster og det kommer Z-er fra loftsvinduet.
+Fra `morgen_fra` til `morgen_til` bytter kortet til morgenutgaven mens nattmodus fortsatt er på: soloppgang
+i stedet for måne, vinduene tennes ett etter ett, fugler i stedet for Z-er, og teksten blir «God morgen».
+Kortet sjekker klokka hvert minutt og bytter av seg selv.
 Trykk på nattkortet slår av nattmodus igjen, og kortet trekker seg tilbake til den lille flisen. Har egen visuell editor.
 
 ### ki-planter-card
