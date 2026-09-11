@@ -1,4 +1,4 @@
-/* ki-cards v2.42.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.44.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.42.0";
+  KI.VERSION = "2.44.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5001,12 +5001,15 @@ try {
  *    attributt: weather            # les et attributt i stedet for tilstanden
  *    enhet: °
  *    mellomrom: false              # mellomrom mellom tall og enhet
+ *    tusenskille: false            # tusenskille i tallet (3860 i stedet for 3 860)
  *    ikon: auto                    # auto | mdi:... | emoji | /local/bilde.png | attributt:current.icon
  *    ikon_plassering: slutt        # start | slutt
  *    små_bokstaver: true
  *    tekst: 'Ute er det {pille}.'  # {pille} er der pillen settes inn
  *    path: '#vaer'
- *  pris / effekt / lys / kalender / ringeklokke / laser / planter / bursdag: samme mønster
+ *  pris: { billig: 0.80, dyr: 0.85, ord: true }   # grønn prikk til og med billig, rød over dyr
+ *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
+ *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
  *  setninger:                      # egne setninger med betingelse (alias: ekstra)
  *    - vis: "states['sensor.x'].state == '0'"      # JS-uttrykk, eller:
@@ -5025,27 +5028,32 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.0.0";
+const KI_PROSA_VERSJON = "2.2.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
   storrelse: "1.4em",
   vaer: { entity: "weather.forecast_home", enhet: "°", mellomrom: false, ikon: "auto", ikon_plassering: "slutt",
-          små_bokstaver: true, tekst: "Ute er det {pille}.", path: "#vaer" },
+          små_bokstaver: true, tekst: "Ute er det {pille}.", path: "#weather" },
   pris: { entity: "sensor.norgespris_pris_na", enhet: "kr", mellomrom: true, desimaler: 2,
+          billig: 0.80, dyr: 0.85,           /* grønn prikk til og med billig, rød over dyr */
+          ord: false, ord_billig: "billig", ord_normal: "", ord_dyr: "dyrt",
           tekst: "Strømmen koster {pille}", path: "?tab=priser#strom" },
   spot: "sensor.totalpris_inkludert_grid_el_company_og_stromstotte",
-  effekt: { entity: "sensor.strommaler_effekt", enhet: "W", mellomrom: false, desimaler: 0,
+  effekt: { entity: "sensor.strommaler_effekt", enhet: "W", mellomrom: false, desimaler: 0, tusenskille: false,
             tekst: "og vi bruker {pille}", path: "?tab=forbruk#strom" },
-  lys: { entity: "auto", ikon: "💡", tekst: "med {pille} på", path: "#lys" },
+  lys: { entity: "auto", ikon: "💡", tekst: "med {pille} på", path: "#lys",
+         tekst_null: "ingen lys", skjul_null: false,
+         /* ikonet følger hvor mange lys som står på */
+         ikon_trinn: [{ fra: 0, ikon: "🌙" }, { fra: 1, ikon: "💡" }, { fra: 4, ikon: "🔆" }, { fra: 8, ikon: "✨" }] },
   lys_ekskluder: [],
   kalender: { entity: "sensor.alle_kalendere", ikon: "⏰", tekst: "Vi har {pille} i dag.", path: "#kalender" },
   apparater: [
     { navn: "Oppvaskmaskinen", aktiv: { entity: "input_select.oppvaskmaskin_status", state: "Vasker" },
-      verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, ikon: "🍽️", animasjon: "snurr",
+      verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false, ikon: "🍽️", animasjon: "snurr",
       tekst: "{navn} vasker {pille} nå.", path: "#kjokken" },
     { navn: "Vaskemaskinen", aktiv: { entity: "sensor.vaskemaskin_power", over: 10 },
-      verdi: "sensor.vaskegang_vaskemaskin_effekt", enhet: "W", mellomrom: false, ikon: "🧺", animasjon: "snurr",
+      verdi: "sensor.vaskegang_vaskemaskin_effekt", enhet: "W", mellomrom: false, tusenskille: false, ikon: "🧺", animasjon: "snurr",
       tekst: "{navn} vasker {pille} nå.", path: "#vaskegang" }],
   hjemkomst: [{ navn: "Mamma", aktiv: "input_boolean.ki_cybele_pa_vei_hjem_fra_jobb",
                 reisetid: "sensor.cybele_reisetid_fra_job", ikon: "🚗", animasjon: "hopp",
@@ -5101,7 +5109,8 @@ const KI_PROSA_STIL = `
 `;
 
 const kiPEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const kiPNf = (v, d = 0) => (v === null || v === undefined || v === "" || isNaN(v)) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d });
+const kiPNf = (v, d = 0, tusen = true) => (v === null || v === undefined || v === "" || isNaN(v)) ? "–"
+  : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: tusen !== false });
 const kiPFlertall = (n, en, fl) => `${n} ${n === 1 ? en : fl}`;
 const kiPGlob = (m, s) => !m || new RegExp("^" + m.split("*").map((x) => x.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(s);
 const kiPJs = (() => { const c = {}; return (expr, h) => { try { return (c[expr] || (c[expr] = new Function("states", "hass", "return (" + expr + ");")))(h.states, h); } catch (e) { return undefined; } }; })();
@@ -5133,7 +5142,7 @@ class KiProsaCard extends HTMLElement {
     /* apparater og hjemkomst: fyll ut hvert element med standardnøklene */
     const fyll = (liste, std) => (liste || []).map((x) => ({ ...std, ...x }));
     k.apparater = b.apparater === false ? [] : fyll(b.apparater || KI_PROSA_STD.apparater,
-      { enhet: "W", mellomrom: false, animasjon: "snurr", tekst: "{navn} vasker {pille} nå." });
+      { enhet: "W", mellomrom: false, tusenskille: false, animasjon: "snurr", tekst: "{navn} vasker {pille} nå." });
     k.hjemkomst = b.hjemkomst === false ? [] : fyll(b.hjemkomst || KI_PROSA_STD.hjemkomst,
       { ikon: "🚗", animasjon: "hopp", tekst: "{navn} kommer hjem ca. kl {pille}." });
     k.setninger = [].concat(b.setninger || [], b.ekstra || []);   /* ekstra er gammelt navn */
@@ -5247,7 +5256,7 @@ class KiProsaCard extends HTMLElement {
         const s = this._st(d.entity);
         let v = d.attributt ? (s ? s.attributes[d.attributt] : undefined) : (s ? s.state : undefined);
         const n = parseFloat(v);
-        if (!isNaN(n) && String(v).trim() !== "" && d.tall !== false) v = kiPNf(n, d.desimaler ?? 0);
+        if (!isNaN(n) && String(v).trim() !== "" && d.tall !== false) v = kiPNf(n, d.desimaler ?? 0, d.tusenskille);
         const enhet = d.enhet !== undefined ? d.enhet : (s && s.attributes.unit_of_measurement) || "";
         tekst = (v === undefined || v === null || v === "" ? "–" : String(v)) + (enhet ? (d.mellomrom === false ? "" : " ") + enhet : "");
       }
@@ -5280,7 +5289,15 @@ class KiProsaCard extends HTMLElement {
     const v = d.attributt ? st.attributes[d.attributt] : st.state;
     const n = parseFloat(v); return isNaN(n) ? null : n;
   }
+  /* Grønn, gul eller rød prikk: faste grenser hvis de finnes, ellers spotprisen i dag */
   _prisTone(c) {
+    const p = c.pris || {};
+    if (p.billig !== undefined || p.dyr !== undefined) {
+      const v = this._tallAv(p);
+      if (v === null) return null;
+      const billig = p.billig ?? p.dyr, dyr = p.dyr ?? p.billig;
+      return v <= billig ? "var(--green)" : v > dyr ? "var(--red)" : "var(--yellow)";
+    }
     const id = typeof c.spot === "string" ? c.spot : (c.spot && c.spot.entity);
     const s = this._st(id), r = s && s.attributes.raw_today;
     if (!Array.isArray(r) || !r.length) return null;
@@ -5304,14 +5321,25 @@ class KiProsaCard extends HTMLElement {
     /* pris, effekt og lys settes sammen til én setning av de bitene som finnes */
     const bit = [];
     if (c.pris && this._tallAv(c.pris) !== null) {
-      const tone = this._prisTone(c);
-      bit.push(this._setning(c.pris.tekst, this._pille({ ...c.pris, prikk: tone || undefined })));
+      const tone = this._prisTone(c), p = c.pris;
+      let suffiks = p.suffiks;
+      if (p.ord) {
+        const v = this._tallAv(p), billig = p.billig ?? 0, dyr = p.dyr ?? billig;
+        const ord = v <= billig ? p.ord_billig : v > dyr ? p.ord_dyr : p.ord_normal;
+        if (ord) suffiks = [suffiks, "(" + ord + ")"].filter(Boolean).join(" ");
+      }
+      bit.push(this._setning(p.tekst, this._pille({ ...p, suffiks, prikk: tone || undefined })));
     }
     if (c.effekt) { const w = this._tallAv(c.effekt); if (w !== null && w > 0) bit.push(this._setning(c.effekt.tekst, this._pille(c.effekt))); }
     if (c.lys) {
       const v = c.lys.entity;
       const n = v === "auto" ? this._lysene().filter((id) => this._on(id)).length : this._tallAv(c.lys) || 0;
-      if (v === "auto" || n) bit.push(this._setning(c.lys.tekst, this._pille(c.lys, kiPEsc(kiPFlertall(n, c.lys.entall || "lys", c.lys.flertall || "lys")))));
+      if (n > 0 || c.lys.skjul_null === false) {
+        const trinn = (c.lys.ikon_trinn || []).filter((t) => n >= (t.fra ?? 0)).sort((a, b) => (a.fra ?? 0) - (b.fra ?? 0)).pop();
+        const ikon = trinn ? trinn.ikon : c.lys.ikon;
+        const tekst = n === 0 && c.lys.tekst_null ? c.lys.tekst_null : kiPFlertall(n, c.lys.entall || "lys", c.lys.flertall || "lys");
+        bit.push(this._setning(c.lys.tekst, this._pille({ ...c.lys, ikon }, kiPEsc(tekst))));
+      }
     }
     if (bit.length) {
       /* første bit skal ikke begynne med «og» eller «med» når de foregående mangler */
@@ -5334,7 +5362,7 @@ class KiProsaCard extends HTMLElement {
     /* apparater */
     (c.apparater || []).forEach((a) => {
       if (!this._aktiv(a.aktiv)) return;
-      const p = this._pille({ entity: a.verdi, enhet: a.enhet, mellomrom: a.mellomrom, desimaler: a.desimaler ?? 0,
+      const p = this._pille({ entity: a.verdi, enhet: a.enhet, mellomrom: a.mellomrom, tusenskille: a.tusenskille, desimaler: a.desimaler ?? 0,
         ikon: a.ikon, animasjon: a.animasjon, ikon_plassering: a.ikon_plassering, path: a.path, mer: a.path ? undefined : a.verdi, stil: a.stil });
       deler.push(`<span class="ny">${this._setning(a.tekst, p, { navn: a.navn })}</span>`);
     });
@@ -5448,21 +5476,31 @@ class KiProsaCardEditor extends HTMLElement {
     const grupper = [
       ["", "Generelt", [["storrelse", "Tekststørrelse", "text"]]],
       ["vaer", "Vær", [["entity", "Entitet", "entity"], ["attributt", "Attributt", "text"], ["enhet", "Enhet", "text"],
+        ["desimaler", "Desimaler", "number"], ["mellomrom", "Mellomrom før enhet", "bool"],
         ["ikon", "Ikon (auto, mdi:…, emoji, /local/…, attributt:current.icon)", "text"],
-        ["ikon_plassering", "Ikonplassering (start/slutt)", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+        ["ikon_plassering", "Ikonplassering (start/slutt)", "text"], ["tekst", "Setning", "text"],
+        ["path", "Trykk går til (f.eks. #weather)", "text"]]],
       ["pris", "Strømpris", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
+        ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
+        ["billig", "Billig til og med (kr)", "number"], ["dyr", "Dyrt over (kr)", "number"],
+        ["ord", "Skriv billig/dyrt i pillen", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["spot", "Spotpris (fargeprikk)", [["entity", "Entitet", "entity"]]],
-      ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"],
+      ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
+        ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon (uten trinn)", "text"],
+        ["tekst_null", "Tekst når ingen lys er på", "text"], ["skjul_null", "Vis også når ingen lys er på", "bool"],
+        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"]]],
-      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"]]],
+      ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+        ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+        ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
       ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"], ["ikon", "Ikon", "text"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"], ["navn", "Navn-sensor", "entity"],
-        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"]]],
+        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
     ];
     for (const [gren, tittel, felter] of grupper) {
       const boks = document.createElement("div"); boks.className = "gr";
@@ -5474,6 +5512,13 @@ class KiProsaCardEditor extends HTMLElement {
           el = document.createElement("ha-entity-picker");
           el.hass = this._h; el.value = this._les(gren, felt) || ""; el.label = etikett; el.allowCustomEntity = true;
           el.addEventListener("value-changed", (e) => this._sett(gren, felt, e.detail.value));
+        } else if (type === "bool") {
+          el = document.createElement("ha-formfield");
+          el.label = etikett;
+          const sw = document.createElement("ha-switch");
+          sw.checked = this._les(gren, felt) !== false;
+          sw.addEventListener("change", (e) => this._sett(gren, felt, e.target.checked));
+          el.appendChild(sw);
         } else {
           el = document.createElement("ha-textfield");
           el.label = etikett; el.value = String(this._les(gren, felt) ?? "");

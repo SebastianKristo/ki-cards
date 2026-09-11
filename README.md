@@ -393,6 +393,13 @@ setninger med betingelse (`vis:` som JS-uttrykk eller `nar:` med entitet og ters
 samme mulighetene som de innebygde. Pillen kan hente verdien fra tilstand, attributt eller en `mal:` med
 `{sensor.x}`-plassholdere, og vise emoji, mdi-ikon eller et bilde (for eksempel værikonene i `/local/`).
 Trykk på en pille navigerer eller kjører tjenesten, langt trykk åpner more-info eller `hold:`-tjenesten.
+Strømprisen får grønn, gul eller rød prikk etter `billig` og `dyr` – med Norgespris er grensene 0,80 og
+0,85 kr som standard, og `ord: true` skriver «(billig)» eller «(dyrt)» rett i pillen. Har du satt `spot:` og
+fjernet grensene, farges prikken i stedet etter hvor dyr timen er i forhold til resten av døgnet. Lysikonet
+bytter etter hvor mange lys som står på – måne når alt er slukket, lyspære, sterkere pære og stjerner når
+huset lyser – og trinnene settes i `ikon_trinn` med emoji, mdi-ikoner eller bilder. Tall formateres med
+`desimaler`, `mellomrom` (før enheten) og `tusenskille`, og effekt og apparater står uten tusenskille så det
+blir «3860W». Hver bit har `path` for popupen trykket skal åpne – været peker som standard på `#weather`.
 Den visuelle editoren dekker alle de innebygde bitene med tekst- og entitetsfelt og en av-bryter per bit;
 apparater, hjemkomst og egne setninger settes i YAML.
 
