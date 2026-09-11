@@ -8,10 +8,13 @@
  * status_pa: [home, on, online, running]    # standardverdier som betyr «oppe»
  * oppetid: sensor.oslo_dream_machine_pro_oppetid
  * maalinger: [{navn: CPU, entity: sensor..., enhet: '%', maks: 100}]
- * info: [{navn: Klienter, entity: sensor...}]
+ * info: [{navn: Klienter, entity: sensor...}]         # vises som rader i ett panel med minigraf
+ * info_stil: rader        # rader (standard) | fliser (som før)
+ * graf: sensor.x          # eller {entity, navn, enhet, maks, farge}: stor graf øverst i panelet
+ * timer: 24               # historikkvindu for grafene
  * knapper: [{navn: Restart, entity: button..., ikon: mdi:restart, farge: var(--orange), bekreft: Restarte?}]
  */
-const KI_ENHET_VERSJON = "1.0.0";
+const KI_ENHET_VERSJON = "1.1.0";
 
 const KI_ENHET_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -78,7 +81,33 @@ const KI_ENHET_STIL = `
   .hero.nede .kryss { opacity:.9; animation:kryssinn .5s var(--fjaer) both; }
   @keyframes kryssinn { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:.9; } }
 
-  /* ---- info og knapper ---- */
+  /* ---- info som samlet panel med grafer (standard) ---- */
+  .panel { background:var(--gray200); border-radius:var(--ha-card-border-radius,24px); padding:4px 14px 8px; overflow:hidden; }
+  .stor { position:relative; margin:8px 0 2px; }
+  .stor .topp { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; padding:0 2px 2px; }
+  .stor .sverdi { font-size:24px; font-weight:300; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stor .snavn { font-size:12px; opacity:.5; }
+  .stor svg { display:block; width:100%; height:70px; overflow:visible; }
+  .stor .omrade { fill:var(--graf, var(--active-big,#ee95ff)); opacity:.15; }
+  .stor .linje { fill:none; stroke:var(--graf, var(--active-big,#ee95ff)); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .stor .punkt { fill:var(--graf, var(--active-big,#ee95ff)); }
+  .stor .rute { stroke:currentColor; stroke-opacity:.09; }
+  .stor text { font-size:9.5px; fill:currentColor; opacity:.38; }
+  .rad { display:grid; grid-template-columns:1fr minmax(0,84px) auto; align-items:center; gap:12px; padding:9px 2px; min-width:0; cursor:pointer; }
+  .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+  .rad.uten { grid-template-columns:1fr auto; }
+  .rad:active { opacity:.7; }
+  .rad .rn { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:.85; }
+  .rad .rv { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
+  .rad.varsel .rv { color:var(--red,#e8657a); }
+  .mini svg { display:block; width:100%; height:24px; overflow:visible; }
+  .mini .l { fill:none; stroke:currentColor; stroke-opacity:.5; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .mini .a { fill:currentColor; opacity:.09; }
+  .mini .p { fill:currentColor; opacity:.7; }
+  .mini .flat { stroke:currentColor; stroke-opacity:.16; stroke-width:1.6; stroke-dasharray:2 4; }
+  .mini .bnd { fill:currentColor; opacity:.14; } .mini .bnd.f { opacity:.55; }
+
+  /* ---- info som fliser (info_stil: fliser) ---- */
   .info { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; }
   .ifl { background:var(--gray200); border-radius:18px; padding:12px 14px; min-width:0; }
   .ifl .n { font-size:12px; font-weight:500; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -162,11 +191,97 @@ class KiEnhetCard extends HTMLElement {
     this._maal = (c.maalinger || []).slice(0, 4);
     this._info = c.info || [];
     this._kn = c.knapper || [];
+    this._stil = c.info_stil === "fliser" ? "fliser" : "rader";
+    this._graf = c.graf ? (typeof c.graf === "string" ? { entity: c.graf } : c.graf) : null;
+    this._timer = c.timer ?? 24;
+    this._hist = null;
     this._bygget = false; this._oppdater();
   }
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
     if (!g || !this._bygget || this._ider().some((id) => g.states[id] !== h.states[id])) this._oppdater();
+    if (!g) { this._hentHist(); this._histTimer = setInterval(() => this._hentHist(), 5 * 60000); }
+  }
+  disconnectedCallback() { if (this._histTimer) clearInterval(this._histTimer); }
+
+  /* --- historikk for minigrafene og den store grafen --- */
+  _grafIder() {
+    if (this._stil !== "rader") return this._graf ? [this._graf.entity] : [];
+    const ids = this._info.filter((x) => x.entity && x.graf !== false && !x.attributt).map((x) => x.entity);
+    if (this._graf && this._graf.entity) ids.unshift(this._graf.entity);
+    return [...new Set(ids)];
+  }
+  async _hentHist() {
+    const ids = this._grafIder(); if (!this._h || !ids.length) return;
+    const start = new Date(Date.now() - this._timer * 3600000).toISOString();
+    try {
+      const res = await this._h.callApi("GET", `history/period/${start}?filter_entity_id=${ids.join(",")}&minimal_response&no_attributes`);
+      const d = {};
+      (res || []).forEach((arr) => { if (arr && arr.length) d[arr[0].entity_id] = arr.map((x) => [new Date(x.last_changed || x.last_updated).getTime(), x.state]); });
+      this._hist = d; if (this._bygget) this._tegnGrafer();
+    } catch (e) { this._hist = {}; }
+  }
+  _serie(id, maks) {
+    const rå = (this._hist || {})[id] || [];
+    const pts = rå.map(([t, v]) => [t, parseFloat(String(v).replace(",", "."))]).filter((p) => isFinite(p[1]));
+    if (!pts.length) return null;
+    const now = Date.now(), t0 = now - this._timer * 3600000;
+    pts.push([now, pts[pts.length - 1][1]]);
+    const ys = pts.map((p) => p[1]);
+    let lo = Math.min(...ys), hi = maks ?? Math.max(...ys);
+    if (maks !== undefined && maks !== null) lo = Math.min(lo, 0);
+    if (hi - lo < 1e-9) { hi = lo + 1; lo -= 1; }
+    const pad = (hi - lo) * 0.12;
+    return { pts, t0, now, lo: lo - pad, hi: hi + pad };
+  }
+  _miniSvg(id, maks) {
+    const rå = (this._hist || {})[id] || [];
+    const digital = rå.length && rå.every(([, v]) => ["on", "off", "unavailable", "unknown"].includes(v));
+    const W = 84, H = 24;
+    if (digital) {
+      const bånd = []; let på = null; const now = Date.now();
+      rå.forEach(([t, v]) => { if (v === "on" && på === null) på = t; if (v !== "on" && på !== null) { bånd.push([på, t]); på = null; } });
+      if (på !== null) bånd.push([på, now]);
+      const t0 = now - this._timer * 3600000;
+      const x = (t) => 1 + ((Math.max(t0, Math.min(now, t)) - t0) / (now - t0)) * (W - 2);
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><rect class="bnd" x="1" y="7" width="${W - 2}" height="10" rx="5"/>
+        ${bånd.map(([a, b]) => `<rect class="bnd f" x="${x(a).toFixed(1)}" y="7" width="${Math.max(1.5, x(b) - x(a)).toFixed(1)}" height="10" rx="5"/>`).join("")}</svg>`;
+    }
+    const s = this._serie(id, maks);
+    if (!s) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line class="flat" x1="1" y1="12" x2="${W - 1}" y2="12"/></svg>`;
+    const x = (t) => 1 + ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * (W - 2);
+    const y = (v) => 3 + (1 - (v - s.lo) / (s.hi - s.lo)) * (H - 6);
+    const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const sis = s.pts[s.pts.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <path class="a" d="${d} L${x(s.now).toFixed(1)},${H} L${x(s.pts[0][0]).toFixed(1)},${H} Z"/>
+      <path class="l" d="${d}" vector-effect="non-scaling-stroke"/>
+      <circle class="p" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="1.7"/></svg>`;
+  }
+  _storSvg() {
+    const g = this._graf, W = 320, H = 70;
+    const s = g ? this._serie(g.entity, g.maks) : null;
+    if (!s) return `<line class="rute" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/>`;
+    const x = (t) => ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * W;
+    const y = (v) => 5 + (1 - (v - s.lo) / (s.hi - s.lo)) * (H - 20);
+    const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const sis = s.pts[s.pts.length - 1];
+    const midt = y(s.lo + (s.hi - s.lo) / 2).toFixed(1);
+    const merker = [0, 1, 2, 3, 4].map((i) => { const t = s.t0 + (i / 4) * (s.now - s.t0);
+      return `<text x="${x(t).toFixed(1)}" y="${H - 1}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`; }).join("");
+    return `<line class="rute" x1="0" y1="${midt}" x2="${W}" y2="${midt}"/>
+      <path class="omrade" d="${d} L${x(s.now).toFixed(1)},${H - 13} L${x(s.pts[0][0]).toFixed(1)},${H - 13} Z"/>
+      <path class="linje" d="${d}" vector-effect="non-scaling-stroke"/>
+      <circle class="punkt" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="2.5"/>${merker}`;
+  }
+  _tegnGrafer() {
+    const r = this.shadowRoot; if (!r) return;
+    if (this._graf) { const el = r.querySelector(".stor svg"); if (el) el.innerHTML = this._storSvg(); }
+    if (this._stil !== "rader") return;
+    this._info.forEach((x, i) => {
+      const el = r.querySelector(`[data-mini="${i}"]`); if (!el || !x.entity) return;
+      el.innerHTML = this._miniSvg(x.entity, x.maks);
+    });
   }
   get hass() { return this._h; }
 
@@ -231,7 +346,18 @@ class KiEnhetCard extends HTMLElement {
           <div class="figur">${KI_ENHET_FIGUR[c.figur] || KI_ENHET_FIGUR.server}</div>
         </div>
 
-        ${this._info.length ? `<div class="info">${this._info.map((x, i) =>
+        ${(this._info.length || this._graf) && this._stil === "rader" ? `<div class="panel" ${this._graf && this._graf.farge ? `style="--graf:${kiEnhetEsc(this._graf.farge)}"` : ""}>
+          ${this._graf ? `<div class="stor" data-info="graf"><div class="topp"><div class="sverdi">–</div>
+            <div class="snavn">${kiEnhetEsc(this._graf.navn || "")}${this._graf.navn ? " · " : ""}siste ${this._timer} t</div></div>
+            <svg viewBox="0 0 320 70" preserveAspectRatio="none"></svg></div>` : ""}
+          ${this._info.map((x, i) => {
+            const graf = !!x.entity && x.graf !== false && !x.attributt;
+            return `<div class="rad ${graf ? "" : "uten"}" data-info="${i}" tabindex="0">
+              <div class="rn">${kiEnhetEsc(x.navn || "")}</div>
+              ${graf ? `<div class="mini" data-mini="${i}"></div>` : ""}
+              <div class="rv">–</div></div>`;
+          }).join("")}
+        </div>` : this._info.length ? `<div class="info">${this._info.map((x, i) =>
           `<div class="ifl ${x.entity ? "trykk" : ""}" data-info="${i}"><div class="n">${kiEnhetEsc(x.navn || "")}</div><div class="v">–</div></div>`).join("")}</div>` : ""}
 
         ${this._kn.length ? `<div class="knapper">${this._kn.map((k, i) =>
@@ -246,7 +372,8 @@ class KiEnhetCard extends HTMLElement {
     r.querySelectorAll("[data-ring]").forEach((el) => el.addEventListener("click", (e) => {
       e.stopPropagation(); this._mer(this._maal[+el.dataset.ring].entity);
     }));
-    r.querySelectorAll("[data-info]").forEach((el) => el.addEventListener("click", () => this._mer(this._info[+el.dataset.info].entity)));
+    r.querySelectorAll("[data-info]").forEach((el) => el.addEventListener("click", () =>
+      this._mer(el.dataset.info === "graf" ? (this._graf || {}).entity : (this._info[+el.dataset.info] || {}).entity)));
     r.querySelectorAll("[data-kn]").forEach((el) => el.addEventListener("click", () => this._trykk(this._kn[+el.dataset.kn])));
     this._O = O; this._bygget = true;
   }
@@ -285,16 +412,23 @@ class KiEnhetCard extends HTMLElement {
       const tl = el.querySelector(".tall"); if (tl.textContent !== tekst) tl.textContent = tekst;
     });
 
-    /* infofliser */
+    /* stor graf: verdien over grafen */
+    if (this._graf) {
+      const sv = r.querySelector(".stor .sverdi");
+      if (sv) { const v = this._verdi(this._graf); if (sv.textContent !== v) sv.textContent = v; }
+    }
+
+    /* infofliser / inforader */
     this._info.forEach((x, i) => {
       const el = r.querySelector(`[data-info="${i}"]`); if (!el) return;
       const v = this._verdi(x);
-      const vd = el.querySelector(".v"); if (vd.textContent !== v) vd.textContent = v;
+      const vd = el.querySelector(".v") || el.querySelector(".rv"); if (vd && vd.textContent !== v) vd.textContent = v;
       let varsel = false;
       if (x.varsel_over !== undefined) { const n = this._tall(x.entity); varsel = n !== null && n > x.varsel_over; }
       if (x.varsel_er !== undefined) { const s = this._st(x.entity); varsel = !!s && String(s.state) === String(x.varsel_er); }
       el.classList.toggle("varsel", varsel);
     });
+    this._tegnGrafer();
 
     /* knapper som er brytere viser tilstand */
     this._kn.forEach((k, i) => {

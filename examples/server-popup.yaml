@@ -1,6 +1,5 @@
-# Server-popupen med de faktiske entitetene fra UniFi, Unraid og Proxmox.
-# Bygget med ki-enhet-card, ki-wifi-card, ki-porter-card, ki-sensor-card,
-# ki-toggle-card og ki-tabs-card.
+# Server-popup (#server) bygget med ki-cards: ki-enhet-card (hero + samlet infopanel med grafer),
+# ki-wifi-card, ki-porter-card, ki-panel-card og ki-tabs-card.
 type: custom:bubble-card
 card_type: pop-up
 name: Server
@@ -14,22 +13,12 @@ button_type: name
 bg_blur: '5'
 shadow_opacity: '20'
 bg_opacity: '98'
-styles: |+
-  .bubble-pop-up-container {
-    --vertical-stack-card-gap: 0px!important;
-  }
-  #header-container > div > div { background: var(--gray000)!important; }
-  #header-container > button { background: none; }
-  .icon-container { background-color: var(--gray1000)!important; }
-  .icon-container > ha-icon { color: var(--black)!important; opacity: 1!important; }
-  .bubble-icon { --mdc-icon-size: 24px !important; }
-  .bubble-name {
-    font-size: 30px !important;
-    font-weight: 500;
-    line-height: 1.4 !important;
-    padding: 8px 0 !important;
-  }
-  .bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%; }
+styles: ".bubble-pop-up-container {\n  --vertical-stack-card-gap: 0px!important;\n}\n#header-container > div > div { background:\
+  \ var(--gray000)!important; }\n#header-container > button { background: none; }\n.icon-container { background-color: var(--gray1000)!important;\
+  \ }\n.icon-container > ha-icon { color: var(--black)!important; opacity: 1!important; }\n.bubble-icon { --mdc-icon-size:\
+  \ 24px !important; }\n.bubble-name {\n  font-size: 30px !important;\n  font-weight: 500;\n  line-height: 1.4 !important;\n\
+  \  padding: 8px 0 !important;\n}\n.bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%;\
+  \ }\n"
 cards:
 - type: custom:ki-tabs-card
   align: center
@@ -90,6 +79,10 @@ cards:
             ikon: mdi:restart
             farge: var(--orange)
             bekreft: Restarte Dream Machine Pro?
+          graf:
+            entity: sensor.oslo_dream_machine_pro_google_wan_latency
+            navn: WAN-latens Google
+            enhet: ' ms'
         - type: custom:gap-card
           height: 36
       - title: Switch
@@ -297,6 +290,11 @@ cards:
       - navn: Minne
         entity: sensor.home_assistant_core_memory_percent
         enhet: '%'
+      graf:
+        entity: sensor.processor_use
+        navn: CPU
+        enhet: ' %'
+        maks: 100
     - type: custom:gap-card
       height: 36
   - title: Unraid
@@ -357,105 +355,79 @@ cards:
             tekst:
               'on': Gyldig
               'off': Ugyldig
+          graf:
+            entity: sensor.d_day_darling_cpu_utilisation
+            navn: CPU
+            enhet: ' %'
+            maks: 100
         - type: custom:gap-card
           height: 6
-        - type: custom:ki-section-card
-          title: Paritet
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_parity_valid
+        - type: custom:ki-panel-card
+          tittel: Paritet
+          entiteter:
+          - entity: binary_sensor.d_day_darling_parity_valid
             navn: Paritet
             ikon: mdi:check-decagram
             tekst:
               'on': Gyldig
               'off': Ugyldig
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_parity_check_running
+          - entity: binary_sensor.d_day_darling_parity_check_running
             navn: Paritetssjekk
             ikon: mdi:progress-check
             tekst:
               'on': Kjører
               'off': Ikke i gang
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_parity_progress
+          - entity: sensor.d_day_darling_parity_progress
             navn: Framdrift
             ikon: mdi:percent
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_parity_check_speed
+          - entity: sensor.d_day_darling_parity_check_speed
             navn: Hastighet
             ikon: mdi:speedometer
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_parity_check_elapsed
+          - entity: sensor.d_day_darling_parity_check_elapsed
             navn: Brukt tid
             ikon: mdi:timer-outline
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_last_parity_check
+          - entity: sensor.d_day_darling_last_parity_check
             navn: Siste sjekk
             ikon: mdi:calendar-check
         - type: custom:gap-card
           height: 6
-        - type: custom:ki-section-card
-          title: Helse
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_disks_missing
+        - type: custom:ki-panel-card
+          tittel: Helse
+          entiteter:
+          - entity: binary_sensor.d_day_darling_disks_missing
             navn: Disker mangler
             ikon: mdi:harddisk-remove
             tekst:
               'on': Ja
               'off': Nei
-            merke_over: 0
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_disks_invalid
+            varsel_over: 0
+          - entity: binary_sensor.d_day_darling_disks_invalid
             navn: Disker ugyldige
             ikon: mdi:alert-circle-outline
             tekst:
               'on': Ja
               'off': Nei
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_disks_disabled
+          - entity: binary_sensor.d_day_darling_disks_disabled
             navn: Disker deaktivert
             ikon: mdi:harddisk-off
             tekst:
               'on': Ja
               'off': Nei
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_filesystems_unmountable
+          - entity: binary_sensor.d_day_darling_filesystems_unmountable
             navn: Filsystem
             ikon: mdi:folder-alert-outline
             tekst:
               'on': Feil
               'off': OK
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_mover_active
+          - entity: binary_sensor.d_day_darling_mover_active
             navn: Mover
             ikon: mdi:swap-vertical
             tekst:
               'on': Kjører
               'off': Hviler
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: binary_sensor.d_day_darling_safe_mode
+          - entity: binary_sensor.d_day_darling_safe_mode
             navn: Sikker modus
             ikon: mdi:shield-half-full
             tekst:
@@ -766,140 +738,88 @@ cards:
           height: 36
       - title: Delinger
         cards:
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_aoosar_x_linux_usage
+        - type: custom:ki-panel-card
+          entiteter:
+          - entity: sensor.d_day_darling_share_aoosar_x_linux_usage
             navn: Aoosar X Linux
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_appdata_usage
+          - entity: sensor.d_day_darling_share_appdata_usage
             navn: Appdata
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_data_usage
+          - entity: sensor.d_day_darling_share_data_usage
             navn: Data
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_docker_usage
+          - entity: sensor.d_day_darling_share_docker_usage
             navn: Docker
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_domains_usage
+          - entity: sensor.d_day_darling_share_domains_usage
             navn: Domains
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_isos_usage
+          - entity: sensor.d_day_darling_share_isos_usage
             navn: Isos
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_media_usage
+          - entity: sensor.d_day_darling_share_media_usage
             navn: Media
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_nextcloud_usage
+          - entity: sensor.d_day_darling_share_nextcloud_usage
             navn: Nextcloud
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_proxmox_usage
+          - entity: sensor.d_day_darling_share_proxmox_usage
             navn: Proxmox
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_radio_usage
+          - entity: sensor.d_day_darling_share_radio_usage
             navn: Radio
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_rune_usage
+          - entity: sensor.d_day_darling_share_rune_usage
             navn: Rune
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_skogen_usage
+          - entity: sensor.d_day_darling_share_skogen_usage
             navn: Skogen
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_share_system_usage
+          - entity: sensor.d_day_darling_share_system_usage
             navn: System
             ikon: mdi:folder-outline
             enhet: ' %'
-            stolpe: true
             maks: 100
         - type: custom:gap-card
           height: 6
-        - type: custom:ki-section-card
-          title: Nettverk br0
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_network_br0_inbound
+        - type: custom:ki-panel-card
+          tittel: Nettverk br0
+          entiteter:
+          - entity: sensor.d_day_darling_network_br0_inbound
             navn: Inn
             ikon: mdi:download
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_network_br0_outbound
+          - entity: sensor.d_day_darling_network_br0_outbound
             navn: Ut
             ikon: mdi:upload
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_network_br0_speed
+          - entity: sensor.d_day_darling_network_br0_speed
             navn: Hastighet
             ikon: mdi:speedometer
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.d_day_darling_network_br0_ip_address
+          - entity: sensor.d_day_darling_network_br0_ip_address
             navn: IP
             ikon: mdi:ip-network
         - type: custom:gap-card
@@ -1029,32 +949,24 @@ cards:
             ikon: mdi:power
             farge: var(--red)
             bekreft: Slå av hele Proxmox-noden? Dette stopper alt.
+          graf:
+            entity: sensor.1_node_pve_load_average
+            navn: Load average
         - type: custom:gap-card
           height: 6
-        - type: custom:ki-section-card
-          title: Fysiske disker
-        - type: grid
-          columns: 2
-          square: false
-          cards:
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.2_disks_pve_asint_as806_1tb_size
+        - type: custom:ki-panel-card
+          tittel: Fysiske disker
+          entiteter:
+          - entity: sensor.2_disks_pve_asint_as806_1tb_size
             navn: ASint AS806 1TB
             ikon: mdi:harddisk
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.2_disks_pve_hgst_hus724040ala640_size
+          - entity: sensor.2_disks_pve_hgst_hus724040ala640_size
             navn: HGST 4TB
             ikon: mdi:harddisk
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.2_disks_pve_kingston_snv2s500g_size
+          - entity: sensor.2_disks_pve_kingston_snv2s500g_size
             navn: Kingston 500G
             ikon: mdi:harddisk
-          - type: custom:ki-sensor-card
-            storrelse: liten
-            entity: sensor.6_mounted_disks_pve_mounted_disks
+          - entity: sensor.6_mounted_disks_pve_mounted_disks
             navn: Monterte disker
             ikon: mdi:database
         - type: custom:gap-card

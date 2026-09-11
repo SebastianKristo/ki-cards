@@ -1,5 +1,5 @@
 /* ki-tabs-card – faner med kort i hver fane.
-   style: pills (piller) | scroll (rullbar fanerad med pil-hint) | dropdown (pille som åpner meny)
+   style: pills (piller) | scroll (rullbar fanerad) | dropdown (pille som åpner meny)
           | auto (piller når de får plass, ellers scroll – standard)
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
@@ -42,16 +42,13 @@
           scroll-snap-type:x proximity; overscroll-behavior-x:contain; }
         .spor::-webkit-scrollbar { display:none; }
         .spor .tab { scroll-snap-align:center; flex:0 0 auto; }
-        .fade { position:absolute; top:2px; bottom:2px; width:34px; pointer-events:none; opacity:0; transition:opacity .18s; border-radius:999px; }
-        .fade.v { left:2px; background:linear-gradient(to right, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
-        .fade.h { right:2px; background:linear-gradient(to left, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
-        .scroller.mer-v .fade.v, .scroller.mer-h .fade.h { opacity:1; }
-        .pil { position:absolute; top:50%; transform:translateY(-50%); width:26px; height:26px; border:0; border-radius:50%; cursor:pointer;
-          background:var(--active-big); color:rgba(70,58,64,.95); display:none; align-items:center; justify-content:center;
-          --mdc-icon-size:18px; box-shadow:0 2px 8px rgba(0,0,0,.45); padding:0; z-index:2; }
-        .pil.v { left:4px; } .pil.h { right:4px; }
-        .scroller.mer-v .pil.v, .scroller.mer-h .pil.h { display:flex; }
-        @media (hover:none) { .pil { display:none !important; } }
+        /* kantene toner ut selve pillene med en maske – ingen mørk boks over innholdet */
+        .scroller.mer-h .spor { mask-image:linear-gradient(to right, #000 calc(100% - 46px), transparent 100%);
+          -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 46px), transparent 100%); }
+        .scroller.mer-v .spor { mask-image:linear-gradient(to right, transparent 0, #000 46px);
+          -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px); }
+        .scroller.mer-v.mer-h .spor { mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%);
+          -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%); }
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
@@ -83,9 +80,6 @@
             <div class="spor" role="tablist">
               ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
-            <div class="fade v"></div><div class="fade h"></div>
-            <button class="pil v" aria-label="Bla til venstre"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-            <button class="pil h" aria-label="Bla til høyre"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
             ${tabs.map(t => `<button class="tab">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
@@ -109,8 +103,6 @@
       this._kanter = kanter;
       if (spor) {
         spor.addEventListener("scroll", kanter, { passive: true });
-        r.querySelector(".pil.v").addEventListener("click", () => spor.scrollBy({ left: -spor.clientWidth * 0.7, behavior: "smooth" }));
-        r.querySelector(".pil.h").addEventListener("click", () => spor.scrollBy({ left: spor.clientWidth * 0.7, behavior: "smooth" }));
         /* vannrett museskroll på hjul, som i en fanerad */
         spor.addEventListener("wheel", e => {
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;

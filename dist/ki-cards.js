@@ -1,4 +1,4 @@
-/* ki-cards v2.38.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.39.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.38.0";
+  KI.VERSION = "2.39.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -513,7 +513,7 @@ try {
 /* ===== 12-ki-tabs-card ===== */
 try {
 /* ki-tabs-card – faner med kort i hver fane.
-   style: pills (piller) | scroll (rullbar fanerad med pil-hint) | dropdown (pille som åpner meny)
+   style: pills (piller) | scroll (rullbar fanerad) | dropdown (pille som åpner meny)
           | auto (piller når de får plass, ellers scroll – standard)
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
@@ -556,16 +556,13 @@ try {
           scroll-snap-type:x proximity; overscroll-behavior-x:contain; }
         .spor::-webkit-scrollbar { display:none; }
         .spor .tab { scroll-snap-align:center; flex:0 0 auto; }
-        .fade { position:absolute; top:2px; bottom:2px; width:34px; pointer-events:none; opacity:0; transition:opacity .18s; border-radius:999px; }
-        .fade.v { left:2px; background:linear-gradient(to right, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
-        .fade.h { right:2px; background:linear-gradient(to left, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
-        .scroller.mer-v .fade.v, .scroller.mer-h .fade.h { opacity:1; }
-        .pil { position:absolute; top:50%; transform:translateY(-50%); width:26px; height:26px; border:0; border-radius:50%; cursor:pointer;
-          background:var(--active-big); color:rgba(70,58,64,.95); display:none; align-items:center; justify-content:center;
-          --mdc-icon-size:18px; box-shadow:0 2px 8px rgba(0,0,0,.45); padding:0; z-index:2; }
-        .pil.v { left:4px; } .pil.h { right:4px; }
-        .scroller.mer-v .pil.v, .scroller.mer-h .pil.h { display:flex; }
-        @media (hover:none) { .pil { display:none !important; } }
+        /* kantene toner ut selve pillene med en maske – ingen mørk boks over innholdet */
+        .scroller.mer-h .spor { mask-image:linear-gradient(to right, #000 calc(100% - 46px), transparent 100%);
+          -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 46px), transparent 100%); }
+        .scroller.mer-v .spor { mask-image:linear-gradient(to right, transparent 0, #000 46px);
+          -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px); }
+        .scroller.mer-v.mer-h .spor { mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%);
+          -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%); }
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
@@ -597,9 +594,6 @@ try {
             <div class="spor" role="tablist">
               ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
-            <div class="fade v"></div><div class="fade h"></div>
-            <button class="pil v" aria-label="Bla til venstre"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-            <button class="pil h" aria-label="Bla til høyre"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
             ${tabs.map(t => `<button class="tab">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
@@ -623,8 +617,6 @@ try {
       this._kanter = kanter;
       if (spor) {
         spor.addEventListener("scroll", kanter, { passive: true });
-        r.querySelector(".pil.v").addEventListener("click", () => spor.scrollBy({ left: -spor.clientWidth * 0.7, behavior: "smooth" }));
-        r.querySelector(".pil.h").addEventListener("click", () => spor.scrollBy({ left: spor.clientWidth * 0.7, behavior: "smooth" }));
         /* vannrett museskroll på hjul, som i en fanerad */
         spor.addEventListener("wheel", e => {
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
@@ -4003,10 +3995,13 @@ try {
  * status_pa: [home, on, online, running]    # standardverdier som betyr «oppe»
  * oppetid: sensor.oslo_dream_machine_pro_oppetid
  * maalinger: [{navn: CPU, entity: sensor..., enhet: '%', maks: 100}]
- * info: [{navn: Klienter, entity: sensor...}]
+ * info: [{navn: Klienter, entity: sensor...}]         # vises som rader i ett panel med minigraf
+ * info_stil: rader        # rader (standard) | fliser (som før)
+ * graf: sensor.x          # eller {entity, navn, enhet, maks, farge}: stor graf øverst i panelet
+ * timer: 24               # historikkvindu for grafene
  * knapper: [{navn: Restart, entity: button..., ikon: mdi:restart, farge: var(--orange), bekreft: Restarte?}]
  */
-const KI_ENHET_VERSJON = "1.0.0";
+const KI_ENHET_VERSJON = "1.1.0";
 
 const KI_ENHET_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -4073,7 +4068,33 @@ const KI_ENHET_STIL = `
   .hero.nede .kryss { opacity:.9; animation:kryssinn .5s var(--fjaer) both; }
   @keyframes kryssinn { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:.9; } }
 
-  /* ---- info og knapper ---- */
+  /* ---- info som samlet panel med grafer (standard) ---- */
+  .panel { background:var(--gray200); border-radius:var(--ha-card-border-radius,24px); padding:4px 14px 8px; overflow:hidden; }
+  .stor { position:relative; margin:8px 0 2px; }
+  .stor .topp { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; padding:0 2px 2px; }
+  .stor .sverdi { font-size:24px; font-weight:300; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stor .snavn { font-size:12px; opacity:.5; }
+  .stor svg { display:block; width:100%; height:70px; overflow:visible; }
+  .stor .omrade { fill:var(--graf, var(--active-big,#ee95ff)); opacity:.15; }
+  .stor .linje { fill:none; stroke:var(--graf, var(--active-big,#ee95ff)); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .stor .punkt { fill:var(--graf, var(--active-big,#ee95ff)); }
+  .stor .rute { stroke:currentColor; stroke-opacity:.09; }
+  .stor text { font-size:9.5px; fill:currentColor; opacity:.38; }
+  .rad { display:grid; grid-template-columns:1fr minmax(0,84px) auto; align-items:center; gap:12px; padding:9px 2px; min-width:0; cursor:pointer; }
+  .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+  .rad.uten { grid-template-columns:1fr auto; }
+  .rad:active { opacity:.7; }
+  .rad .rn { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:.85; }
+  .rad .rv { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
+  .rad.varsel .rv { color:var(--red,#e8657a); }
+  .mini svg { display:block; width:100%; height:24px; overflow:visible; }
+  .mini .l { fill:none; stroke:currentColor; stroke-opacity:.5; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .mini .a { fill:currentColor; opacity:.09; }
+  .mini .p { fill:currentColor; opacity:.7; }
+  .mini .flat { stroke:currentColor; stroke-opacity:.16; stroke-width:1.6; stroke-dasharray:2 4; }
+  .mini .bnd { fill:currentColor; opacity:.14; } .mini .bnd.f { opacity:.55; }
+
+  /* ---- info som fliser (info_stil: fliser) ---- */
   .info { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; }
   .ifl { background:var(--gray200); border-radius:18px; padding:12px 14px; min-width:0; }
   .ifl .n { font-size:12px; font-weight:500; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -4157,11 +4178,97 @@ class KiEnhetCard extends HTMLElement {
     this._maal = (c.maalinger || []).slice(0, 4);
     this._info = c.info || [];
     this._kn = c.knapper || [];
+    this._stil = c.info_stil === "fliser" ? "fliser" : "rader";
+    this._graf = c.graf ? (typeof c.graf === "string" ? { entity: c.graf } : c.graf) : null;
+    this._timer = c.timer ?? 24;
+    this._hist = null;
     this._bygget = false; this._oppdater();
   }
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
     if (!g || !this._bygget || this._ider().some((id) => g.states[id] !== h.states[id])) this._oppdater();
+    if (!g) { this._hentHist(); this._histTimer = setInterval(() => this._hentHist(), 5 * 60000); }
+  }
+  disconnectedCallback() { if (this._histTimer) clearInterval(this._histTimer); }
+
+  /* --- historikk for minigrafene og den store grafen --- */
+  _grafIder() {
+    if (this._stil !== "rader") return this._graf ? [this._graf.entity] : [];
+    const ids = this._info.filter((x) => x.entity && x.graf !== false && !x.attributt).map((x) => x.entity);
+    if (this._graf && this._graf.entity) ids.unshift(this._graf.entity);
+    return [...new Set(ids)];
+  }
+  async _hentHist() {
+    const ids = this._grafIder(); if (!this._h || !ids.length) return;
+    const start = new Date(Date.now() - this._timer * 3600000).toISOString();
+    try {
+      const res = await this._h.callApi("GET", `history/period/${start}?filter_entity_id=${ids.join(",")}&minimal_response&no_attributes`);
+      const d = {};
+      (res || []).forEach((arr) => { if (arr && arr.length) d[arr[0].entity_id] = arr.map((x) => [new Date(x.last_changed || x.last_updated).getTime(), x.state]); });
+      this._hist = d; if (this._bygget) this._tegnGrafer();
+    } catch (e) { this._hist = {}; }
+  }
+  _serie(id, maks) {
+    const rå = (this._hist || {})[id] || [];
+    const pts = rå.map(([t, v]) => [t, parseFloat(String(v).replace(",", "."))]).filter((p) => isFinite(p[1]));
+    if (!pts.length) return null;
+    const now = Date.now(), t0 = now - this._timer * 3600000;
+    pts.push([now, pts[pts.length - 1][1]]);
+    const ys = pts.map((p) => p[1]);
+    let lo = Math.min(...ys), hi = maks ?? Math.max(...ys);
+    if (maks !== undefined && maks !== null) lo = Math.min(lo, 0);
+    if (hi - lo < 1e-9) { hi = lo + 1; lo -= 1; }
+    const pad = (hi - lo) * 0.12;
+    return { pts, t0, now, lo: lo - pad, hi: hi + pad };
+  }
+  _miniSvg(id, maks) {
+    const rå = (this._hist || {})[id] || [];
+    const digital = rå.length && rå.every(([, v]) => ["on", "off", "unavailable", "unknown"].includes(v));
+    const W = 84, H = 24;
+    if (digital) {
+      const bånd = []; let på = null; const now = Date.now();
+      rå.forEach(([t, v]) => { if (v === "on" && på === null) på = t; if (v !== "on" && på !== null) { bånd.push([på, t]); på = null; } });
+      if (på !== null) bånd.push([på, now]);
+      const t0 = now - this._timer * 3600000;
+      const x = (t) => 1 + ((Math.max(t0, Math.min(now, t)) - t0) / (now - t0)) * (W - 2);
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><rect class="bnd" x="1" y="7" width="${W - 2}" height="10" rx="5"/>
+        ${bånd.map(([a, b]) => `<rect class="bnd f" x="${x(a).toFixed(1)}" y="7" width="${Math.max(1.5, x(b) - x(a)).toFixed(1)}" height="10" rx="5"/>`).join("")}</svg>`;
+    }
+    const s = this._serie(id, maks);
+    if (!s) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line class="flat" x1="1" y1="12" x2="${W - 1}" y2="12"/></svg>`;
+    const x = (t) => 1 + ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * (W - 2);
+    const y = (v) => 3 + (1 - (v - s.lo) / (s.hi - s.lo)) * (H - 6);
+    const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const sis = s.pts[s.pts.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <path class="a" d="${d} L${x(s.now).toFixed(1)},${H} L${x(s.pts[0][0]).toFixed(1)},${H} Z"/>
+      <path class="l" d="${d}" vector-effect="non-scaling-stroke"/>
+      <circle class="p" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="1.7"/></svg>`;
+  }
+  _storSvg() {
+    const g = this._graf, W = 320, H = 70;
+    const s = g ? this._serie(g.entity, g.maks) : null;
+    if (!s) return `<line class="rute" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/>`;
+    const x = (t) => ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * W;
+    const y = (v) => 5 + (1 - (v - s.lo) / (s.hi - s.lo)) * (H - 20);
+    const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const sis = s.pts[s.pts.length - 1];
+    const midt = y(s.lo + (s.hi - s.lo) / 2).toFixed(1);
+    const merker = [0, 1, 2, 3, 4].map((i) => { const t = s.t0 + (i / 4) * (s.now - s.t0);
+      return `<text x="${x(t).toFixed(1)}" y="${H - 1}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`; }).join("");
+    return `<line class="rute" x1="0" y1="${midt}" x2="${W}" y2="${midt}"/>
+      <path class="omrade" d="${d} L${x(s.now).toFixed(1)},${H - 13} L${x(s.pts[0][0]).toFixed(1)},${H - 13} Z"/>
+      <path class="linje" d="${d}" vector-effect="non-scaling-stroke"/>
+      <circle class="punkt" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="2.5"/>${merker}`;
+  }
+  _tegnGrafer() {
+    const r = this.shadowRoot; if (!r) return;
+    if (this._graf) { const el = r.querySelector(".stor svg"); if (el) el.innerHTML = this._storSvg(); }
+    if (this._stil !== "rader") return;
+    this._info.forEach((x, i) => {
+      const el = r.querySelector(`[data-mini="${i}"]`); if (!el || !x.entity) return;
+      el.innerHTML = this._miniSvg(x.entity, x.maks);
+    });
   }
   get hass() { return this._h; }
 
@@ -4226,7 +4333,18 @@ class KiEnhetCard extends HTMLElement {
           <div class="figur">${KI_ENHET_FIGUR[c.figur] || KI_ENHET_FIGUR.server}</div>
         </div>
 
-        ${this._info.length ? `<div class="info">${this._info.map((x, i) =>
+        ${(this._info.length || this._graf) && this._stil === "rader" ? `<div class="panel" ${this._graf && this._graf.farge ? `style="--graf:${kiEnhetEsc(this._graf.farge)}"` : ""}>
+          ${this._graf ? `<div class="stor" data-info="graf"><div class="topp"><div class="sverdi">–</div>
+            <div class="snavn">${kiEnhetEsc(this._graf.navn || "")}${this._graf.navn ? " · " : ""}siste ${this._timer} t</div></div>
+            <svg viewBox="0 0 320 70" preserveAspectRatio="none"></svg></div>` : ""}
+          ${this._info.map((x, i) => {
+            const graf = !!x.entity && x.graf !== false && !x.attributt;
+            return `<div class="rad ${graf ? "" : "uten"}" data-info="${i}" tabindex="0">
+              <div class="rn">${kiEnhetEsc(x.navn || "")}</div>
+              ${graf ? `<div class="mini" data-mini="${i}"></div>` : ""}
+              <div class="rv">–</div></div>`;
+          }).join("")}
+        </div>` : this._info.length ? `<div class="info">${this._info.map((x, i) =>
           `<div class="ifl ${x.entity ? "trykk" : ""}" data-info="${i}"><div class="n">${kiEnhetEsc(x.navn || "")}</div><div class="v">–</div></div>`).join("")}</div>` : ""}
 
         ${this._kn.length ? `<div class="knapper">${this._kn.map((k, i) =>
@@ -4241,7 +4359,8 @@ class KiEnhetCard extends HTMLElement {
     r.querySelectorAll("[data-ring]").forEach((el) => el.addEventListener("click", (e) => {
       e.stopPropagation(); this._mer(this._maal[+el.dataset.ring].entity);
     }));
-    r.querySelectorAll("[data-info]").forEach((el) => el.addEventListener("click", () => this._mer(this._info[+el.dataset.info].entity)));
+    r.querySelectorAll("[data-info]").forEach((el) => el.addEventListener("click", () =>
+      this._mer(el.dataset.info === "graf" ? (this._graf || {}).entity : (this._info[+el.dataset.info] || {}).entity)));
     r.querySelectorAll("[data-kn]").forEach((el) => el.addEventListener("click", () => this._trykk(this._kn[+el.dataset.kn])));
     this._O = O; this._bygget = true;
   }
@@ -4280,16 +4399,23 @@ class KiEnhetCard extends HTMLElement {
       const tl = el.querySelector(".tall"); if (tl.textContent !== tekst) tl.textContent = tekst;
     });
 
-    /* infofliser */
+    /* stor graf: verdien over grafen */
+    if (this._graf) {
+      const sv = r.querySelector(".stor .sverdi");
+      if (sv) { const v = this._verdi(this._graf); if (sv.textContent !== v) sv.textContent = v; }
+    }
+
+    /* infofliser / inforader */
     this._info.forEach((x, i) => {
       const el = r.querySelector(`[data-info="${i}"]`); if (!el) return;
       const v = this._verdi(x);
-      const vd = el.querySelector(".v"); if (vd.textContent !== v) vd.textContent = v;
+      const vd = el.querySelector(".v") || el.querySelector(".rv"); if (vd && vd.textContent !== v) vd.textContent = v;
       let varsel = false;
       if (x.varsel_over !== undefined) { const n = this._tall(x.entity); varsel = n !== null && n > x.varsel_over; }
       if (x.varsel_er !== undefined) { const s = this._st(x.entity); varsel = !!s && String(s.state) === String(x.varsel_er); }
       el.classList.toggle("varsel", varsel);
     });
+    this._tegnGrafer();
 
     /* knapper som er brytere viser tilstand */
     this._kn.forEach((k, i) => {
@@ -4543,6 +4669,324 @@ if (!customElements.get("ki-porter-card")) window.KI.define("ki-porter-card", Ki
 window.customCards = window.customCards || [];
 if (!window.customCards.some((k) => k.type === "ki-porter-card")) window.customCards.push({ type: "ki-porter-card", name: "KI Porter", description: "Switch-porter med aktivitet, av/på eller strømsykling", preview: true });
 } catch (e) { console.error("ki-cards: 45-ki-porter-card feilet", e); }
+
+/* ===== 46-ki-panel-card ===== */
+try {
+/* ki-panel-card – ett samlet panel i stedet for mange små sensorfliser.
+ * Del av ki-cards-bundelen; ingen avhengigheter og kan brukes alene.
+ *
+ * type: custom:ki-panel-card
+ * tittel: Paritet
+ * timer: 24                  # historikkvindu for grafene
+ * graf: sparkline            # sparkline | ingen  (per rad kan overstyres)
+ * hovedgraf:                 # valgfri stor graf øverst
+ *   entity: sensor.x
+ *   navn: Framdrift
+ *   enhet: ' %'
+ *   maks: 100
+ * kolonner: 1                # 1 | 2  (2 = tettere rutenett uten grafer)
+ * entiteter:
+ *   - sensor.x                                   # kort form
+ *   - entity: sensor.y
+ *     navn: Hastighet
+ *     ikon: mdi:speedometer
+ *     enhet: ' MB/s'
+ *     desimaler: 1
+ *     maks: 200              # for stolpe/sparkline-skala
+ *     graf: false
+ *     tekst: { 'on': Kjører, 'off': Hviler }
+ *     varsel_over: 80        # rød verdi over
+ *     ok_naar: 'on'          # grønn prikk når tilstanden er denne
+ */
+const KI_PANEL_VERSJON = "1.0.0";
+
+const KI_PANEL_STIL = `
+  :host { display:block; --myk:cubic-bezier(.2,.8,.2,1); }
+  * { box-sizing:border-box; }
+  .kort { border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); color:var(--gray1000);
+    padding:6px 14px 10px; overflow:hidden; }
+  .hode { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:10px 2px 6px; }
+  .hode h3 { margin:0; font-size:13px; font-weight:600; opacity:.55; letter-spacing:.02em; }
+  .hode .sub { font-size:12px; font-weight:500; opacity:.45; white-space:nowrap; }
+
+  /* stor graf */
+  .stor { position:relative; margin:2px 0 6px; }
+  .stor .topp { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; padding:0 2px 2px; }
+  .stor .verdi { font-size:26px; font-weight:300; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stor .verdi .e { font-size:13px; font-weight:500; opacity:.6; }
+  .stor .navn { font-size:12.5px; opacity:.55; }
+  .stor svg { display:block; width:100%; height:78px; overflow:visible; }
+  .stor .omrade { fill:var(--graf, var(--active-big,#ee95ff)); opacity:.16; }
+  .stor .linje { fill:none; stroke:var(--graf, var(--active-big,#ee95ff)); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .stor .punkt { fill:var(--graf, var(--active-big,#ee95ff)); }
+  .stor .rute { stroke:currentColor; stroke-opacity:.09; stroke-width:1; }
+  .akse { font-size:9.5px; fill:currentColor; opacity:.4; }
+
+  /* rader */
+  .rader { display:grid; }
+  .rad { display:grid; grid-template-columns:1fr minmax(0,86px) auto; align-items:center; gap:12px; padding:9px 2px; min-width:0; }
+  .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+  .rad.uten-graf { grid-template-columns:1fr auto; }
+  .rad.press { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .rad.press:active { opacity:.7; }
+  .navn { display:flex; align-items:center; gap:8px; min-width:0; font-size:14px; }
+  .navn ha-icon { --mdc-icon-size:18px; opacity:.55; flex:none; }
+  .navn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prikk { width:8px; height:8px; border-radius:50%; background:rgba(128,128,128,.45); flex:none; }
+  .prikk.ok { background:var(--green,#7ee081); }
+  .prikk.feil { background:var(--red,#e8657a); }
+  .prikk.aktiv { background:var(--active-big,#ee95ff); animation:puls 2.2s ease-in-out infinite; }
+  @keyframes puls { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+  .verdi { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
+  .verdi .e { font-size:11.5px; font-weight:500; opacity:.55; margin-left:1px; }
+  .verdi.varsel { color:var(--red,#e8657a); }
+  .verdi.dim { font-weight:500; opacity:.7; }
+
+  .mini { height:26px; }
+  .mini svg { display:block; width:100%; height:26px; overflow:visible; }
+  .mini .l { fill:none; stroke:currentColor; stroke-opacity:.55; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .mini .a { fill:currentColor; opacity:.1; }
+  .mini .p { fill:currentColor; opacity:.75; }
+  .mini .flat { stroke:currentColor; stroke-opacity:.18; stroke-width:1.6; stroke-dasharray:2 4; }
+  .mini .stolpe { fill:currentColor; opacity:.14; }
+  .mini .stolpe.fyll { opacity:.6; }
+
+  /* to kolonner: tett rutenett uten grafer */
+  .rader.to { grid-template-columns:1fr 1fr; column-gap:14px; }
+  .rader.to .rad { grid-template-columns:1fr auto; }
+  .rader.to .rad:nth-child(2) { border-top:0; }
+
+  .feil-kort { padding:16px; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); font-size:14px; opacity:.8; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+`;
+
+const kiPanelEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const kiPanelNum = (v) => { const n = parseFloat(v); return isFinite(n) && /^-?\d/.test(String(v).trim()) ? n : null; };
+
+class KiPanelCard extends HTMLElement {
+  static getConfigElement() { return document.createElement("ki-panel-card-editor"); }
+  static getStubConfig() { return { tittel: "Panel", entiteter: [] }; }
+
+  setConfig(c) {
+    if (!c) throw new Error("konfigurasjon mangler");
+    const liste = c.entiteter || c.entities || [];
+    this._c = { timer: 24, graf: "sparkline", kolonner: 1, ...c, entiteter: liste.map(e => (typeof e === "string" ? { entity: e } : e)) };
+    if (!this._c.entiteter.length && !this._c.hovedgraf) throw new Error("entiteter mangler");
+    this._bygget = false; this._hist = null;
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+  }
+
+  set hass(h) {
+    const forst = !this._hass;
+    this._hass = h;
+    if (!this._bygget) { this._bygg(); this._hentHistorikk(); }
+    else if (this._endret(h)) this._tegn();
+    if (forst) this._timer = setInterval(() => this._hentHistorikk(), 5 * 60000);
+  }
+  get hass() { return this._hass; }
+  disconnectedCallback() { if (this._timer) clearInterval(this._timer); }
+  getCardSize() { return 1 + Math.ceil(this._c.entiteter.length / (this._c.kolonner === 2 ? 2 : 1)) * 0.6 + (this._c.hovedgraf ? 2 : 0); }
+
+  _ider() {
+    const ids = this._c.entiteter.map(e => e.entity).filter(Boolean);
+    if (this._c.hovedgraf && this._c.hovedgraf.entity) ids.unshift(this._c.hovedgraf.entity);
+    return [...new Set(ids)];
+  }
+  /* bare re-tegn når egne entiteter faktisk har endret seg (objekt-referanse) */
+  _endret(h) {
+    const f = this._forrige || {}; let endret = false; const ny = {};
+    for (const id of this._ider()) { const st = h.states[id]; ny[id] = st; if (st !== f[id]) endret = true; }
+    this._forrige = ny; return endret;
+  }
+
+  async _hentHistorikk() {
+    const h = this._hass, ids = this._ider().filter(id => {
+      const e = this._c.entiteter.find(x => x.entity === id);
+      if (this._c.hovedgraf && this._c.hovedgraf.entity === id) return true;
+      if (e && e.graf === false) return false;
+      return this._c.graf !== "ingen";
+    });
+    if (!h || !ids.length) return;
+    const start = new Date(Date.now() - this._c.timer * 3600000).toISOString();
+    try {
+      const res = await h.callApi("GET", `history/period/${start}?filter_entity_id=${ids.join(",")}&minimal_response&no_attributes`);
+      const data = {};
+      (res || []).forEach(arr => { if (arr && arr.length) data[arr[0].entity_id] = arr.map(x => [new Date(x.last_changed || x.last_updated).getTime(), x.state]); });
+      this._hist = data; this._tegn();
+    } catch (e) { this._hist = {}; }
+  }
+
+  _bygg() {
+    this._bygget = true;
+    this.shadowRoot.innerHTML = `<style>${KI_PANEL_STIL}</style><div class="kort"></div>`;
+    this._tegn();
+  }
+
+  /* ---------- verdier ---------- */
+  _les(e) {
+    const st = this._hass && this._hass.states[e.entity];
+    if (!st) return { mangler: true, tekst: "—", tall: null, tilstand: null };
+    const raw = st.state;
+    if (e.tekst && e.tekst[raw] !== undefined) return { tekst: String(e.tekst[raw]), tall: null, tilstand: raw, st };
+    const n = kiPanelNum(raw);
+    if (n === null) return { tekst: raw === "unavailable" ? "utilgjengelig" : raw === "unknown" ? "ukjent" : raw, tall: null, tilstand: raw, st };
+    const d = e.desimaler ?? (Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2);
+    const enhet = e.enhet ?? (st.attributes.unit_of_measurement ? " " + st.attributes.unit_of_measurement : "");
+    return { tekst: n.toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }), enhet, tall: n, tilstand: raw, st };
+  }
+  _prikk(e, v) {
+    if (v.mangler) return "";
+    if (e.ok_naar !== undefined) return v.tilstand === String(e.ok_naar) ? "ok" : "feil";
+    if (e.tekst || v.tilstand === "on" || v.tilstand === "off") {
+      if (v.tilstand === "on") return e.varsel_naar_pa ? "feil" : "aktiv";
+      if (v.tilstand === "off") return "";
+    }
+    return "";
+  }
+
+  /* ---------- grafer ---------- */
+  _serie(id, maks) {
+    const rå = (this._hist || {})[id] || [];
+    const pts = rå.map(([t, s]) => [t, kiPanelNum(s)]).filter(p => p[1] !== null);
+    if (!pts.length) return null;
+    const now = Date.now(), t0 = now - this._c.timer * 3600000;
+    pts.push([now, pts[pts.length - 1][1]]);
+    const ys = pts.map(p => p[1]);
+    let lo = Math.min(...ys), hi = maks ?? Math.max(...ys);
+    if (maks !== undefined && maks !== null) lo = Math.min(lo, 0);
+    if (hi - lo < 1e-9) { hi = lo + 1; lo -= 1; }
+    const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+    return { pts, t0, now, lo, hi };
+  }
+  _mini(id, maks, digital) {
+    const s = this._serie(id, maks);
+    if (!s) return `<svg viewBox="0 0 86 26" preserveAspectRatio="none"><line class="flat" x1="2" y1="13" x2="84" y2="13"></line></svg>`;
+    const W = 86, H = 26, x = t => 2 + ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * (W - 4);
+    const y = v => 3 + (1 - (v - s.lo) / (s.hi - s.lo)) * (H - 6);
+    if (digital) {
+      const bånd = []; let på = null;
+      ((this._hist || {})[id] || []).forEach(([t, st]) => { if (st === "on" && på === null) på = t; if (st !== "on" && på !== null) { bånd.push([på, t]); på = null; } });
+      if (på !== null) bånd.push([på, s.now]);
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <rect class="stolpe" x="2" y="8" width="${W - 4}" height="10" rx="5"></rect>
+        ${bånd.map(([a, b]) => `<rect class="stolpe fyll" x="${x(a).toFixed(1)}" y="8" width="${Math.max(1.5, x(b) - x(a)).toFixed(1)}" height="10" rx="5"></rect>`).join("")}
+      </svg>`;
+    }
+    const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    const sis = s.pts[s.pts.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <path class="a" d="${d} L${x(s.now).toFixed(1)},${H} L${x(s.pts[0][0]).toFixed(1)},${H} Z"></path>
+      <path class="l" d="${d}" vector-effect="non-scaling-stroke"></path>
+      <circle class="p" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="1.8"></circle>
+    </svg>`;
+  }
+  _stor(g) {
+    const v = this._les(g);
+    const s = this._serie(g.entity, g.maks);
+    const W = 320, H = 78;
+    let inner = `<line class="rute" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"></line>`;
+    if (s) {
+      const x = t => ((Math.max(s.t0, Math.min(s.now, t)) - s.t0) / (s.now - s.t0)) * W;
+      const y = val => 6 + (1 - (val - s.lo) / (s.hi - s.lo)) * (H - 22);
+      const d = s.pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+      const sis = s.pts[s.pts.length - 1];
+      const timer = this._c.timer;
+      const merker = [];
+      for (let i = 0; i <= 4; i++) {
+        const t = s.t0 + (i / 4) * (s.now - s.t0);
+        merker.push(`<text class="akse" x="${(x(t)).toFixed(1)}" y="${H - 1}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}">${new Date(t).getHours().toString().padStart(2, "0")}</text>`);
+      }
+      inner = `<line class="rute" x1="0" y1="${y(s.lo + (s.hi - s.lo) / 2).toFixed(1)}" x2="${W}" y2="${y(s.lo + (s.hi - s.lo) / 2).toFixed(1)}"></line>
+        <path class="omrade" d="${d} L${x(s.now).toFixed(1)},${H - 14} L${x(s.pts[0][0]).toFixed(1)},${H - 14} Z"></path>
+        <path class="linje" d="${d}" vector-effect="non-scaling-stroke"></path>
+        <circle class="punkt" cx="${x(sis[0]).toFixed(1)}" cy="${y(sis[1]).toFixed(1)}" r="2.6"></circle>
+        ${merker.join("")}`;
+    }
+    return `<div class="stor" ${g.entity ? `data-mer="${g.entity}"` : ""} style="${g.farge ? `--graf:${g.farge};` : ""}">
+      <div class="topp">
+        <div class="verdi">${kiPanelEsc(v.tekst)}${v.enhet ? `<span class="e">${kiPanelEsc(v.enhet)}</span>` : ""}</div>
+        <div class="navn">${kiPanelEsc(g.navn || (v.st ? v.st.attributes.friendly_name : "") || "")}${s ? ` · siste ${this._c.timer} t` : ""}</div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${inner}</svg>
+    </div>`;
+  }
+
+  _tegn() {
+    if (!this._hass || !this.shadowRoot) return;
+    const c = this._c, rot = this.shadowRoot.querySelector(".kort");
+    if (!rot) return;
+    const to = c.kolonner === 2;
+    const rader = c.entiteter.map(e => {
+      const v = this._les(e);
+      const digital = !!e.tekst || v.tilstand === "on" || v.tilstand === "off";
+      const graf = !to && c.graf !== "ingen" && e.graf !== false;
+      const prikk = this._prikk(e, v);
+      const varsel = v.tall !== null && e.varsel_over !== undefined && v.tall > e.varsel_over;
+      return `<div class="rad ${graf ? "" : "uten-graf"} press" data-mer="${e.entity}" tabindex="0">
+        <div class="navn">${e.ikon ? `<ha-icon icon="${e.ikon}"></ha-icon>` : prikk ? `<i class="prikk ${prikk}"></i>` : ""}<span>${kiPanelEsc(e.navn || (v.st ? v.st.attributes.friendly_name : e.entity))}</span></div>
+        ${graf ? `<div class="mini">${this._mini(e.entity, e.maks, digital)}</div>` : ""}
+        <div class="verdi ${varsel ? "varsel" : ""} ${v.tall === null ? "dim" : ""}">${kiPanelEsc(v.tekst)}${v.enhet ? `<span class="e">${kiPanelEsc(v.enhet)}</span>` : ""}</div>
+      </div>`;
+    }).join("");
+    rot.innerHTML = `
+      ${c.tittel || c.undertittel ? `<div class="hode"><h3>${kiPanelEsc(c.tittel || "")}</h3>${c.undertittel ? `<div class="sub">${kiPanelEsc(c.undertittel)}</div>` : ""}</div>` : ""}
+      ${c.hovedgraf ? this._stor(typeof c.hovedgraf === "string" ? { entity: c.hovedgraf } : c.hovedgraf) : ""}
+      <div class="rader ${to ? "to" : ""}">${rader}</div>`;
+    rot.querySelectorAll("[data-mer]").forEach(el => {
+      const gå = (ev) => { ev && ev.stopPropagation(); this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.mer }, bubbles: true, composed: true })); };
+      el.addEventListener("click", gå);
+      el.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); gå(ev); } });
+    });
+  }
+}
+window.KI.define("ki-panel-card", KiPanelCard);
+
+/* ---------------- enkel visuell editor ---------------- */
+class KiPanelCardEditor extends HTMLElement {
+  setConfig(c) { this._c = { ...c }; this._tegn(); }
+  set hass(h) { this._hass = h; this._tegn(); }
+  _ut() { this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._c }, bubbles: true, composed: true })); }
+  _tegn() {
+    if (!this._hass || this._bygget) return;
+    this._bygget = true;
+    this.innerHTML = `<div style="display:grid;gap:12px"></div>`;
+    const rot = this.firstElementChild;
+    const skjema = document.createElement("ha-form");
+    skjema.hass = this._hass;
+    skjema.schema = [
+      { name: "tittel", selector: { text: {} } },
+      { name: "undertittel", selector: { text: {} } },
+      { name: "entiteter", selector: { entity: { multiple: true } } },
+      { name: "hovedgraf", selector: { entity: { domain: ["sensor", "number"] } } },
+      { name: "timer", selector: { number: { min: 1, max: 168, step: 1, mode: "box" } } },
+      { name: "kolonner", selector: { select: { options: [{ value: 1, label: "Én kolonne med grafer" }, { value: 2, label: "To kolonner, tett" }], mode: "dropdown" } } },
+      { name: "graf", selector: { select: { options: [{ value: "sparkline", label: "Minigraf per rad" }, { value: "ingen", label: "Ingen grafer" }], mode: "dropdown" } } },
+    ];
+    skjema.computeLabel = (s) => ({ tittel: "Tittel", undertittel: "Undertittel", entiteter: "Entiteter", hovedgraf: "Stor graf (valgfri)", timer: "Timer historikk", kolonner: "Oppsett", graf: "Grafer" }[s.name] || s.name);
+    const norm = (c) => ({ ...c, entiteter: (c.entiteter || []).map(e => (typeof e === "string" ? e : e.entity)) });
+    skjema.data = norm(this._c);
+    skjema.addEventListener("value-changed", (e) => {
+      const v = e.detail.value;
+      const gamle = (this._c.entiteter || []).map(x => (typeof x === "string" ? { entity: x } : x));
+      this._c = { ...this._c, ...v, entiteter: (v.entiteter || []).map(id => gamle.find(g => g.entity === id) || { entity: id }) };
+      if (!this._c.hovedgraf) delete this._c.hovedgraf;
+      this._ut();
+    });
+    rot.appendChild(skjema);
+    const hjelp = document.createElement("div");
+    hjelp.style.cssText = "font-size:12px;opacity:.6;line-height:1.5";
+    hjelp.textContent = "Navn, ikon, enhet, tekstkart og varsel_over settes per entitet i YAML-editoren.";
+    rot.appendChild(hjelp);
+  }
+}
+window.KI.define("ki-panel-card-editor", KiPanelCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some(c => c.type === "ki-panel-card")) {
+  window.customCards.push({ type: "ki-panel-card", name: "KI Panel", preview: true,
+    description: `Ett panel med flere sensorer: rader med minigraf, verdi og status, valgfri stor graf (v${KI_PANEL_VERSJON})` });
+}
+} catch (e) { console.error("ki-cards: 46-ki-panel-card feilet", e); }
 
 /* ===== 50-ki-rom-card ===== */
 try {

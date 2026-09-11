@@ -44,6 +44,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-panel-card.svg" width="28" align="absmiddle"> | `ki-panel-card` | KI Panel | Ett samlet panel i stedet for mange små sensorfliser: rader med minigraf, verdi og status, valgfri stor graf |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
@@ -171,6 +172,30 @@ action:
     skip_condition: true
 ```
 
+### ki-panel-card
+Ett panel som erstatter en hel rute med små sensorfliser. Hver rad viser navn, minigraf fra historikken og
+verdien til høyre; `on`/`off`-entiteter får bånd i stedet for linje. `hovedgraf` gir en stor arealgraf øverst.
+```yaml
+type: custom:ki-panel-card
+tittel: Paritet
+timer: 24                 # historikkvindu
+graf: sparkline           # sparkline | ingen
+kolonner: 1               # 2 = tett rutenett uten grafer
+hovedgraf:
+  entity: sensor.d_day_darling_parity_progress
+  navn: Framdrift
+  enhet: ' %'
+  maks: 100
+entiteter:
+  - sensor.d_day_darling_parity_check_speed
+  - entity: binary_sensor.d_day_darling_parity_valid
+    navn: Paritet
+    tekst: { 'on': Gyldig, 'off': Ugyldig }
+  - entity: sensor.d_day_darling_disk_cach_errors
+    navn: Feil
+    varsel_over: 0
+```
+
 ### ki-sensor-card
 ```yaml
 type: custom:ki-sensor-card
@@ -242,6 +267,10 @@ knapper:
     entity: light.havets_24_poe_250w_led     # brytere lyser opp når de er på
     ikon: mdi:led-outline
 ```
+`info:` vises som ett samlet panel med rader og minigraf (`info_stil: fliser` gir de gamle flisene), og
+`graf: sensor.x` (eller `{entity, navn, enhet, maks, farge}`) legger en stor arealgraf øverst i panelet.
+`timer: 24` styrer historikkvinduet.
+
 Et 180 px hero i samme høyde som `ki-natt-card`: navn med pulserende statuspille, oppetid og fastvare som
 undertekst, opptil fire ringmålere som fyller seg opp med fargeterskler, og en figur til høyre som lever etter
 hva slags enhet det er – ruteren sender wifi-bølger og pakker som glir forbi, switchen blinker i portlysene,
