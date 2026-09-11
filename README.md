@@ -184,12 +184,14 @@ Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
 ```yaml
 type: custom:ki-natt-card
 natt: switch.nattmodus          # påkrevd
-helg: switch.ki_helgemodus      # valgfri
+helg: input_boolean.innendors_privace_mode   # valgfri andre flis: privatmodus eller helgemodus
 vekking: sensor.neste_vekking   # valgfri: tidsstempel eller «07:00»
 navn_natt: Nattmodus
-navn_helg: Helgemodus
+navn_helg: Privatmodus          # standard: Privatmodus når entiteten ser ut som privatmodus, ellers Helgemodus
 ikon_natt: mdi:sleep
-ikon_helg: mdi:airplane-takeoff
+ikon_helg: mdi:cctv-off         # standard: mdi:cctv-off for privatmodus, mdi:airplane-takeoff for helgemodus
+privat: true                    # overstyr gjenkjenningen
+tekst_privat: Kameraene er av
 tekst_natt: God natt
 tekst_morgen: God morgen
 morgen: true                    # slå av med false
@@ -204,6 +206,13 @@ vinduene slukkes ett etter ett, månen stiger, huset puster og det kommer Z-er f
 Fra `morgen_fra` til `morgen_til` bytter kortet til morgenutgaven mens nattmodus fortsatt er på: soloppgang
 i stedet for måne, vinduene tennes ett etter ett, fugler i stedet for Z-er, og teksten blir «God morgen».
 Kortet sjekker klokka hvert minutt og bytter av seg selv.
+
+Den andre flisen kjenner igjen privatmodus for innendørskameraene på entitets-id-en eller navnet
+(`privac`, `privat`, `kamera`, `camera`) og får da sin egen animasjon: når modusen er av panorerer
+kameraet sakte, linsa lyser blått, lyskjeglen pulserer og opptaksprikken blinker rødt. Når den slås på
+faller lokket over linsa, øyet lukkes, en hengelås kommer til syne med teksten «Kameraene er av», og
+flisen blir rolig grønn. Er det fortsatt helgemodus du bruker, oppfører flisen seg som før – sett
+`privat: false` hvis navnet forvirrer gjenkjenningen.
 Trykk på nattkortet slår av nattmodus igjen, og kortet trekker seg tilbake til den lille flisen. Har egen visuell editor.
 
 ### ki-planter-card

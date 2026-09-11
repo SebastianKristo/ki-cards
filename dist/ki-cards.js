@@ -1,4 +1,4 @@
-/* ki-cards v2.26.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.27.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.26.0";
+  KI.VERSION = "2.27.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1372,13 +1372,19 @@ try {
  * vekking: sensor.neste_vekking      # valgfri: tidsstempel eller «07:00»
  * navn_natt: Nattmodus   ikon_natt: mdi:sleep
  * navn_helg: Helgemodus  ikon_helg: mdi:airplane-takeoff
+ *
+ * Den andre flisen kan også være privatmodus for innendørskameraene:
+ *   helg: input_boolean.innendors_privace_mode   (oppdages automatisk på navnet, ellers privat: true)
+ * Av: kameraet speider, linsa panorerer og opptaksprikken blinker rødt.
+ * På: lokket faller over linsa, øyet lukkes og flisen blir rolig grønn.
  * tekst_pa: På           tekst_av: Av        tekst_natt: God natt
+ * tekst_privat: Kameraene er av
  * tekst_morgen: God morgen   morgen_fra: '05:00'   morgen_til: '12:00'   morgen: true
  *
  * Fra morgen_fra til morgen_til bytter nattkortet til morgenutgaven: soloppgang i stedet for måne,
  * vinduene tennes ett etter ett, fugler i stedet for Z-er. Teksten blir «God morgen».
  */
-const KI_NATT_VERSJON = "2.1.0";
+const KI_NATT_VERSJON = "2.2.0";
 
 const KI_NATT_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1387,7 +1393,8 @@ const KI_NATT_STIL = `
   [tabindex]:focus-visible { outline:2px solid var(--active-big, #ee95ff); outline-offset:2px; }
   .nk { display:grid; height:180px; --gap:var(--grid-card-gap,8px); --hoyre:calc(50% + var(--gap) / 2); --origo:25%; }
   .nk.en { --hoyre:0px; --origo:50%; }
-  .lag { grid-area:1/1; min-width:0; }
+  .lag { grid-area:1/1; min-width:0; position:relative; }
+  .dag { z-index:1; } .nattlag { z-index:2; }
   .dag { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--gap); }
   .nk.en .dag { grid-template-columns:1fr; }
   .nk.natt .dag { pointer-events:none; }
@@ -1430,6 +1437,45 @@ const KI_NATT_STIL = `
   .bf.pa .fly { animation:fly 2.8s ease-in-out infinite; }
   @keyframes fly { 0%,100% { transform:translate(0,0) rotate(0); } 45% { transform:translate(3px,-3px) rotate(-6deg); } }
   @keyframes inn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+  /* privatflisen – kameraet som lukker øyet */
+  .bf.privat.av { background:var(--gray200); color:var(--gray1000); --knott:var(--gray200); }
+  .bf.privat.pa { color:#e8fbf4; --knott:#0d2a26;
+    background:radial-gradient(85% 120% at 80% 115%, #1d5a4c 0%, transparent 62%), linear-gradient(165deg,#0e2622 0%,#123b34 58%,#17493c 100%); }
+  .bf.privat.pa .ic { background:rgba(232,251,244,.12); }
+  .bf.privat .n, .bf.privat .s, .bf.privat .ic, .bf.privat .t { position:relative; z-index:2; }
+  .bf.privat .kamscene { position:absolute; right:52px; top:20px; width:66%; max-width:126px; height:52%; pointer-events:none; }
+  .bf.privat .kamscene svg { position:absolute; right:0; bottom:0; width:100%; height:100%; overflow:visible; }
+  .bf.privat .bakke { position:absolute; left:0; right:0; bottom:0; height:34%; pointer-events:none;
+    background:linear-gradient(to top, rgba(9,22,20,.5), rgba(9,22,20,0)); }
+  .bf.privat.av .bakke { background:linear-gradient(to top, rgba(18,18,22,.55), rgba(18,18,22,0)); }
+
+  .kam { transform-box:fill-box; transform-origin:74% 22%; }
+  .bf.privat.av .kam { animation:speid 7s ease-in-out infinite; }
+  @keyframes speid { 0%,100% { transform:rotate(-11deg); } 50% { transform:rotate(13deg); } }
+  .kjegle { opacity:0; transform-box:fill-box; transform-origin:76% 24%; }
+  .bf.privat.av .kjegle { opacity:.26; animation:kjegleblaff 3.4s ease-in-out infinite; }
+  @keyframes kjegleblaff { 0%,100% { opacity:.16; } 50% { opacity:.32; } }
+  .rec { fill:var(--red,#e8657a); opacity:0; }
+  .bf.privat.av .rec { animation:recblink 1.9s steps(1,end) infinite; }
+  @keyframes recblink { 0%,49% { opacity:1; } 50%,100% { opacity:.12; } }
+  .iris { fill:#8ad6ff; transition:opacity .5s ease .15s; }
+  .bf.privat.pa .iris { opacity:.12; }
+  .glans { fill:#fff; opacity:.7; transition:opacity .4s ease; }
+  .bf.privat.pa .glans { opacity:0; }
+  .lokk { fill:#0c2622; opacity:1; transform-box:fill-box; transform-origin:50% 0; transform:scaleY(0); transition:transform .55s var(--fjaer) .05s; }
+  .bf.privat.pa .lokk { transform:scaleY(1); }
+  .oye { opacity:0; stroke-dasharray:44; stroke-dashoffset:44; }
+  .bf.privat.pa .oye { opacity:.95; stroke-dashoffset:0; transition:opacity .3s ease .45s, stroke-dashoffset .7s var(--myk) .45s; }
+  .laas { position:absolute; left:20px; bottom:92px; width:26px; height:32px; opacity:0; transform:scale(.4) translateY(6px); z-index:1;
+    display:flex; align-items:flex-end; color:#bff1e0; }
+  .laas svg { width:100%; height:auto; }
+  .bf.privat.pa .laas { opacity:.92; transform:none; transition:opacity .4s ease .55s, transform .6s var(--fjaer) .55s; }
+  .laastekst { position:absolute; left:20px; bottom:70px; font-size:12px; font-weight:500; opacity:0; white-space:nowrap; z-index:1; }
+  .bf.privat.pa .laastekst { opacity:.66; transition:opacity .4s ease .7s; }
+  .bf.privat.pa .ro { animation:ropust 6s ease-in-out infinite; }
+  @keyframes ropust { 0%,100% { opacity:.16; transform:scale(1); } 50% { opacity:.3; transform:scale(1.12); } }
+  .ro { transform-box:fill-box; transform-origin:center; opacity:.16; }
 
   /* nattflisen – liten utgave av nattkortet */
   .bf.mini, .bf.mini.av, .bf.mini.pa { color:#eef0ff; --knott:#eef0ff;
@@ -1566,6 +1612,25 @@ const KI_NATT_MINIHUS = `<svg viewBox="0 0 160 110" preserveAspectRatio="xMaxYMa
   <path d="M83 76v14M76 83h14M109 76v14M102 83h14" stroke="#2c2f5c" stroke-width="1.4"/>
 </svg>`;
 
+const KI_NATT_KAMERA = `<svg viewBox="0 0 160 110" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+  <defs><linearGradient id="kk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8ad6ff" stop-opacity=".9"/><stop offset="1" stop-color="#8ad6ff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="kr"><stop offset="0" stop-color="#5fe0bd" stop-opacity=".8"/><stop offset="1" stop-color="#5fe0bd" stop-opacity="0"/></radialGradient></defs>
+  <circle class="ro" cx="104" cy="46" r="44" fill="url(#kr)"/>
+  <path d="M138 12h6v26h-6z" fill="currentColor" opacity=".22"/>
+  <path d="M126 24h30v5h-30z" fill="currentColor" opacity=".22"/>
+  <g class="kam">
+    <path class="kjegle" d="M116 40 L36 86 L30 66 L112 26 Z" fill="url(#kk)"/>
+    <rect x="104" y="22" width="44" height="30" rx="12" fill="currentColor" opacity=".35"/>
+    <rect x="104" y="22" width="44" height="30" rx="12" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="2"/>
+    <circle cx="118" cy="37" r="11" fill="#0e1322"/>
+    <circle class="iris" cx="118" cy="37" r="7"/>
+    <circle class="glans" cx="115" cy="34" r="2.4"/>
+    <rect class="lokk" x="106" y="25" width="24" height="24" rx="11" fill="currentColor" opacity=".9"/>
+    <path class="oye" d="M108 37q10 9 20 0" fill="none" stroke="#7fe3c6" stroke-width="2.6" stroke-linecap="round"/>
+    <circle class="rec" cx="141" cy="30" r="3.4"/>
+  </g>
+</svg>`;
+
 const KI_NATT_MINISTJERNER = [[10, 16], [24, 34], [36, 12], [50, 26], [62, 8], [18, 52]];
 
 const KI_NATT_STJERNER = [[8, 14], [18, 30], [30, 10], [41, 24], [52, 8], [63, 34], [72, 16], [86, 9], [93, 28], [58, 22], [36, 40], [79, 40]];
@@ -1581,7 +1646,7 @@ class KiNattCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || !c.natt) throw new Error("Sett natt: til bryteren for nattmodus");
-    this._c = { navn_natt: "Nattmodus", ikon_natt: "mdi:sleep", navn_helg: "Helgemodus", ikon_helg: "mdi:airplane-takeoff",
+    this._c = { navn_natt: "Nattmodus", ikon_natt: "mdi:sleep",
       tekst_pa: "På", tekst_av: "Av", tekst_natt: "God natt", tekst_morgen: "God morgen",
       morgen: true, morgen_fra: "05:00", morgen_til: "12:00", ...c };
     this._bygget = false; this._oppdater();
@@ -1621,22 +1686,33 @@ class KiNattCard extends HTMLElement {
   connectedCallback() { if (this._bygget) this._tikk(); }
   _mer(id) { this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
 
-  _flis(id, navn, ikon, ekstra, mini) {
-    return `<div class="bf${mini ? " mini" : ""}" data-a="${id}" data-hold="${id}" role="switch" tabindex="0" aria-label="${kiNattEsc(navn)}">
+  /* Kjenner igjen privatmodus på entitets-id eller navn, med mulighet for å overstyre */
+  _erPrivat() {
+    const c = this._c;
+    if (c.privat !== undefined) return !!c.privat;
+    return /privac|privat|kamera|camera/i.test(String(c.helg || "") + " " + String(c.navn_helg || ""));
+  }
+  _flis(id, navn, ikon, ekstra, mini, privat) {
+    return `<div class="bf${mini ? " mini" : ""}${privat ? " privat" : ""}" data-a="${id}" data-hold="${id}" role="switch" tabindex="0" aria-label="${kiNattEsc(navn)}">
+      ${privat ? `<div class="kamscene">${KI_NATT_KAMERA}</div><div class="bakke"></div>
+        <div class="laas"><svg viewBox="0 0 26 32" aria-hidden="true"><rect x="1" y="12" width="24" height="19" rx="5" fill="currentColor"/><path d="M6 12V9a7 7 0 0 1 14 0v3" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="13" cy="21" r="2.4" fill="#0e2622"/></svg></div>
+        <div class="laastekst">${kiNattEsc(this._c.tekst_privat || "Kameraene er av")}</div>` : ""}
       ${mini ? KI_NATT_MINISTJERNER.map(([x, y], i) => `<i class="stj" style="left:${x}%;top:${y}%;animation-delay:-${(i * 0.81).toFixed(2)}s"></i>`).join("")
         + `<div class="miniscene">${KI_NATT_MINIHUS}</div><div class="bakke"></div>` : ""}
       <div class="n">${kiNattEsc(navn)}</div><div class="ic"><ha-icon icon="${kiNattEsc(ikon)}" class="${ekstra || ""}"></ha-icon></div>
       <div class="s"><span></span></div><div class="t"><div class="bryt"><i></i></div></div></div>`;
   }
+  _navn2() { const c = this._c; return c.navn_helg || (this._erPrivat() ? "Privatmodus" : "Helgemodus"); }
+  _ikon2() { const c = this._c; return c.ikon_helg || (this._erPrivat() ? "mdi:cctv-off" : "mdi:airplane-takeoff"); }
   _bygg() {
-    const c = this._c;
+    const c = this._c, priv = this._erPrivat();
     this.shadowRoot.innerHTML = `<style>${KI_NATT_STIL}</style>
       <div class="nk ${c.helg ? "" : "en"}">
-        <div class="lag dag">${this._flis(c.natt, c.navn_natt, c.ikon_natt, "", true)}${c.helg ? this._flis(c.helg, c.navn_helg, c.ikon_helg, "fly") : ""}</div>
+        <div class="lag dag">${this._flis(c.natt, c.navn_natt, c.ikon_natt, "", true)}${c.helg ? this._flis(c.helg, this._navn2(), this._ikon2(), priv ? "" : "fly", false, priv) : ""}</div>
         <div class="lag nattlag" data-a="${c.natt}" data-hold="${c.natt}" role="switch" aria-label="${kiNattEsc(c.navn_natt)} er på. Trykk for å slå av.">
           ${KI_NATT_STJERNER.map(([x, y], i) => `<i class="stj" style="left:${x}%;top:${y}%;animation-delay:-${((i * 0.73) % 4.5).toFixed(2)}s"></i>`).join("")}
           <div class="tekst"><div class="n">${kiNattEsc(c.navn_natt)}</div>
-            ${c.helg ? `<span class="helgpille" data-a="${c.helg}" data-hold="${c.helg}" role="switch" aria-checked="true" tabindex="0" hidden><ha-icon icon="${kiNattEsc(c.ikon_helg)}"></ha-icon>${kiNattEsc(c.navn_helg)}</span>` : ""}
+            ${c.helg ? `<span class="helgpille${priv ? " privatpille" : ""}" data-a="${c.helg}" data-hold="${c.helg}" role="switch" aria-checked="true" tabindex="0" hidden><ha-icon icon="${kiNattEsc(this._ikon2())}"></ha-icon>${kiNattEsc(this._navn2())}</span>` : ""}
             <div class="stor">${kiNattEsc(c.tekst_natt)}</div><div class="sub"></div></div>
           <div class="scene">${KI_NATT_HUS}</div><div class="blaff"></div></div></div>`;
     this._koble(); this._tikk(); this._bygget = true;
@@ -1694,7 +1770,7 @@ class KiNattCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { natt: "Nattmodus", helg: "Helgemodus", vekking: "Neste vekking (valgfri)", navn_natt: "Navn nattmodus", navn_helg: "Navn helgemodus", tekst_natt: "Tekst i nattkortet" };
+      const n = { natt: "Nattmodus", helg: "Andre flis (helgemodus / privatmodus)", vekking: "Neste vekking (valgfri)", navn_natt: "Navn nattmodus", navn_helg: "Navn andre flis", tekst_natt: "Tekst i nattkortet" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: e.detail.value }, bubbles: true, composed: true })));
       this.appendChild(this._f);
