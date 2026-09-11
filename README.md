@@ -308,42 +308,93 @@ Porter som fliser i rutenett. `switch`-porter lyser blått med blinkende aktivit
 ### ki-prosa-card
 ```yaml
 type: custom:ki-prosa-card
-# Alt er valgfritt – standardene peker på entitetene i huset. Sett en nøkkel til false for å skru av biten.
-vaer: weather.forecast_home
-pris: sensor.norgespris_pris_na
-spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # gir fargeprikk på prisen
-effekt: sensor.strommaler_effekt
-lys: auto                       # auto finner lys som står på
-lys_ekskluder: ['light.wled_*']
-kalender: sensor.alle_kalendere
-planter: auto
-laser: auto
-natt: [23, 6]
-ringeklokke: input_boolean.ki_ringeklokke_varsel_aktiv
 storrelse: 1.4em
-apparater:
-  - navn: Oppvaskmaskinen
-    aktiv: {entity: input_select.oppvaskmaskin_status, state: Vasker}
-    verdi: sensor.oppvaskmaskin_power
-    ikon: 🍽️
-    path: '#kjokken'
-hjemkomst:
-  - navn: Mamma
-    aktiv: input_boolean.ki_cybele_pa_vei_hjem_fra_jobb
-    reisetid: sensor.cybele_reisetid_fra_job
+# Hver bit kan være: false (av), en entitets-id, eller et objekt med det du vil overstyre.
+vaer:
+  entity: sensor.dashboard_index
+  attributt: weather              # les attributt i stedet for tilstand
+  enhet: °
+  mellomrom: false                # mellomrom mellom tall og enhet
+  desimaler: 0
+  ikon: attributt:current.icon    # auto | mdi:… | emoji | /local/… | attributt:sti
+  ikon_plassering: slutt          # start | slutt
+  små_bokstaver: true
+  tekst: 'Ute er det {pille}.'    # {pille} er der pillen settes inn
+  path: '#vaer'
+pris:
+  entity: sensor.norgespris_pris_na
+  enhet: kr
+  desimaler: 2
+  tekst: 'Strømmen koster {pille}'
+  path: '?tab=priser#strom'
+spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # fargeprikk etter hvor dyr timen er
+effekt:
+  entity: sensor.strommaler_effekt
+  enhet: W
+  mellomrom: false                # gir «3 860W»
+  tekst: 'og vi bruker {pille}'
+lys:
+  entity: auto                    # auto teller lysene som står på
+  ikon: 💡
+  tekst: 'med {pille} på'
+lys_ekskluder: ['light.wled_*']
+kalender: {entity: sensor.alle_kalendere, ikon: ⏰, tekst: 'Vi har {pille} i dag.'}
+ringeklokke: {entity: input_boolean.ki_ringeklokke_varsel_aktiv, tekst: '{pille} Noen ringer på døren!'}
+laser: {entity: auto, natt: [23, 6], tekst: 'Lås alle dørene {pille}'}
+planter:
+  entity: sensor.planter_trenger_vann    # eller auto for ki_planter-integrasjonen
+  attributt: trenger_vann_tekst
+  tekst: '{pille} trenger vann.'
 bursdag:
   vis: binary_sensor.vis_bursdagskort
   skjult: input_boolean.bursdagskort_skjult
   navn: sensor.dagens_bursdager
-ekstra:
-  - tekst: Søppel tømmes i dag
-    vis: "states['sensor.x'].state == '0'"
-    path: '#soppel'
+  tekst: 'I dag har {pille} bursdag! 🎉'
+apparater:
+  - navn: Oppvaskmaskinen
+    aktiv: {entity: input_select.oppvaskmaskin_status, state: Vasker}   # state | over | under
+    verdi: sensor.oppvaskmaskin_power
+    enhet: W
+    mellomrom: false
+    ikon: 🍽️
+    animasjon: snurr
+    tekst: '{navn} vasker {pille} nå.'
+    path: '#kjokken'
+hjemkomst:
+  - navn: Mamma
+    aktiv: input_boolean.ki_cybele_pa_vei_hjem_fra_jobb
+    reisetid: sensor.cybele_reisetid_fra_job     # minutter, legges til klokka nå
+    tekst: '{navn} kommer hjem ca. kl {pille}.'
+setninger:                        # egne setninger (gammelt navn: ekstra)
+  - vis: "states['sensor.soppel'].state == '0'"   # JS-uttrykk med states/hass
+    tekst: 'Søppel tømmes {pille}'
+    pille: {mal: 'i dag', ikon: 🗑️, path: '#soppel'}
+  - nar: {entity: sensor.strommaler_effekt, over: 3000}   # enklere betingelse
+    tekst: 'Høyt forbruk: {pille}'
+    pille:
+      entity: sensor.strommaler_effekt
+      enhet: W
+      mellomrom: false
+      stil: varsel                # vanlig | varsel | gradient | glans
+      animasjon: ingen            # ingen | snurr | hopp | vink
+      tjeneste: script.spar_strom # trykk
+      data: {}
+      hold: script.vis_detaljer   # langt trykk (ellers more-info)
 ```
 Forsideteksten satt sammen av det som faktisk skjer i huset: temperatur ute, strømpris med fargeprikk etter
 hvor dyr timen er, forbruk nå, lys som står på, dagens avtaler, apparater som kjører, noen på vei hjem,
-bursdager og ringeklokka. Setningene kommer og går etter tilstanden, med en myk animasjon når en ny dukker
-opp. Trykk på en pille navigerer eller kjører handlingen, langt trykk åpner more-info. Har egen visuell editor.
+planter som trenger vann, bursdager, ringeklokka og låser som står åpne om natta. Setningene kommer og går
+etter tilstanden, med en myk animasjon når en ny dukker opp.
+
+Alt er konfigurerbart: hver bit tar enten en entitets-id, `false` for å skru den av, eller et objekt der du
+bytter tekst, ikon, enhet, desimaler, mellomrom og hva trykket skal gjøre. Mangler en bit, faller setningen
+naturlig sammen – står bare forbruket igjen, skriver kortet «Vi bruker 3 860W.» I `setninger:` lager du egne
+setninger med betingelse (`vis:` som JS-uttrykk eller `nar:` med entitet og terskel) og en pille som har de
+samme mulighetene som de innebygde. Pillen kan hente verdien fra tilstand, attributt eller en `mal:` med
+`{sensor.x}`-plassholdere, og vise emoji, mdi-ikon eller et bilde (for eksempel værikonene i `/local/`).
+Trykk på en pille navigerer eller kjører tjenesten, langt trykk åpner more-info eller `hold:`-tjenesten.
+Den visuelle editoren dekker alle de innebygde bitene med tekst- og entitetsfelt og en av-bryter per bit;
+apparater, hjemkomst og egne setninger settes i YAML.
 
 ### ki-media-card
 ```yaml
