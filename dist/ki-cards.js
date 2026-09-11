@@ -1,4 +1,4 @@
-/* ki-cards v2.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.25.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.24.0";
+  KI.VERSION = "2.25.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1362,9 +1362,9 @@ try {
 /* ki-natt-card – nattmodus og helgemodus, om natten et sovende hus.
  * Del av ki-cards-bundelen; har ingen avhengigheter til KI-hjelperne og kan også brukes alene.
  *
- * Dag (nattmodus av): brytefliser for nattmodus og helgemodus i template_toggle_card-stilen.
- * Natt (nattmodus på): ett nattkort med et hus som sovner – vinduene slukkes ett etter ett,
- * månen stiger, huset puster, røyk fra pipa og Z-er fra loftsvinduet.
+ * Dag (nattmodus av): en liten nattflis med huset vårt vått av lys, ved siden av helgemodus-flisen.
+ * Natt (nattmodus på): nattkortet vokser ut av den lille flisen og dekker begge – vinduene slukkes
+ * ett etter ett, månen stiger, huset puster, røyk fra pipa og Z-er fra loftsvinduet.
  *
  * type: custom:ki-natt-card
  * natt: switch.nattmodus
@@ -1374,19 +1374,34 @@ try {
  * navn_helg: Helgemodus  ikon_helg: mdi:airplane-takeoff
  * tekst_pa: På           tekst_av: Av        tekst_natt: God natt
  */
-const KI_NATT_VERSJON = "1.0.0";
+const KI_NATT_VERSJON = "2.0.0";
 
 const KI_NATT_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   * { box-sizing:border-box; }
   [data-a] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
   [tabindex]:focus-visible { outline:2px solid var(--active-big, #ee95ff); outline-offset:2px; }
-  .nk { display:grid; height:180px; }
-  .lag { grid-area:1/1; min-width:0; transition:opacity .45s var(--myk), transform .55s var(--fjaer), visibility 0s linear 0s; }
-  .nk.natt .dag, .nk:not(.natt) .nattlag { opacity:0; visibility:hidden; pointer-events:none; transition:opacity .3s ease, transform .35s ease, visibility 0s linear .35s; }
-  .nk.natt .dag { transform:scale(.96); } .nk:not(.natt) .nattlag { transform:scale(1.03); }
-  .dag { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--grid-card-gap,8px); }
-  .dag.en { grid-template-columns:1fr; }
+  .nk { display:grid; height:180px; --gap:var(--grid-card-gap,8px); --hoyre:calc(50% + var(--gap) / 2); --origo:25%; }
+  .nk.en { --hoyre:0px; --origo:50%; }
+  .lag { grid-area:1/1; min-width:0; }
+  .dag { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--gap); }
+  .nk.en .dag { grid-template-columns:1fr; }
+  .nk.natt .dag { pointer-events:none; }
+
+  /* nattlaget klippes til nattflisen når det er av, og vokser ut over begge når det slås på */
+  .nattlag { clip-path:inset(0 var(--hoyre) 0 0 round var(--ha-card-border-radius,24px));
+    opacity:0; pointer-events:none; will-change:clip-path;
+    transition:clip-path .5s var(--myk), opacity .28s ease .22s; }
+  .nk.natt .nattlag { clip-path:inset(0 0 0 0 round var(--ha-card-border-radius,24px));
+    opacity:1; pointer-events:auto; transition:clip-path .85s var(--fjaer), opacity .22s ease; }
+  .nk.natt .dag .mini { opacity:0; transition:opacity .35s ease .12s; }
+  /* på vei ut: bare bakgrunnen trekker seg sammen, innholdet forsvinner først */
+  .nk:not(.natt) .nattlag .tekst, .nk:not(.natt) .nattlag .scene, .nk:not(.natt) .nattlag .stj { opacity:0; transition:opacity .16s ease; }
+  .dag .mini { transition:opacity .3s ease .25s; }
+  .blaff { position:absolute; left:var(--origo); top:50%; width:70px; height:70px; margin:-35px 0 0 -35px; border-radius:50%;
+    background:radial-gradient(circle, rgba(238,240,255,.5) 0%, transparent 70%); opacity:0; pointer-events:none; z-index:3; }
+  .nk.natt .blaff { animation:blaff 1.2s ease-out both; }
+  @keyframes blaff { 0% { opacity:.85; transform:scale(.25); } 100% { opacity:0; transform:scale(4.5); } }
 
   /* brytefliser – template_toggle_card */
   .bf { position:relative; height:180px; padding:4px 4px 12px 20px; border-radius:var(--ha-card-border-radius,24px);
@@ -1411,6 +1426,27 @@ const KI_NATT_STIL = `
   .bf.pa .fly { animation:fly 2.8s ease-in-out infinite; }
   @keyframes fly { 0%,100% { transform:translate(0,0) rotate(0); } 45% { transform:translate(3px,-3px) rotate(-6deg); } }
   @keyframes inn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+  /* nattflisen – liten utgave av nattkortet */
+  .bf.mini, .bf.mini.av, .bf.mini.pa { color:#eef0ff; --knott:#eef0ff;
+    background:radial-gradient(90% 120% at 85% 110%, #3a2e6a 0%, transparent 60%), linear-gradient(165deg,#141a36 0%,#1d2146 55%,#2a2352 100%); }
+  .bf.mini .ic { background:rgba(238,240,255,.12); }
+  .bf.mini .bryt { color:rgba(238,240,255,.26); }
+  .bf.mini.pa { --knott:#0f132c; }
+  .bf.mini.pa .bryt { color:var(--green); }
+  .bf.mini .n, .bf.mini .s, .bf.mini .ic, .bf.mini .t { position:relative; z-index:2; }
+  .bf.mini .bryt { box-shadow:inset 0 0 0 1px rgba(238,240,255,.22); }
+  .bf.mini .miniscene { position:absolute; right:-10px; top:2px; width:58%; max-width:150px; height:72%; pointer-events:none; opacity:.95; }
+  .bf.mini .bakke { position:absolute; left:0; right:0; bottom:0; height:34%; pointer-events:none;
+    background:linear-gradient(to top, rgba(12,16,38,.55), rgba(12,16,38,0)); }
+  .bf.mini .miniscene svg { position:absolute; right:0; bottom:0; width:100%; height:100%; overflow:visible; }
+  .bf.mini .stj { opacity:.3; animation:blunk 5s ease-in-out infinite; }
+  .bf.mini .mvindu { fill:#ffd27a; animation:mglim 4s ease-in-out infinite; }
+  @keyframes mglim { 0%,100% { fill:#ffd27a; } 50% { fill:#ffe9b0; } }
+  .bf.mini .mglod { opacity:.5; animation:mpust 5s ease-in-out infinite; }
+  @keyframes mpust { 0%,100% { opacity:.4; } 50% { opacity:.7; } }
+  .bf.mini .mmaane { animation:mflyt 9s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+  @keyframes mflyt { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
 
   /* nattkortet */
   .nattlag { position:relative; height:180px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate; color:#eef0ff;
@@ -1475,6 +1511,25 @@ const KI_NATT_HUS = `<svg viewBox="0 0 200 180" preserveAspectRatio="xMaxYMax me
     <text class="z z1" x="118" y="86" font-size="11">z</text><text class="z z2" x="118" y="86" font-size="14">z</text><text class="z z3" x="118" y="86" font-size="17">Z</text>
   </g></svg>`;
 
+const KI_NATT_MINIHUS = `<svg viewBox="0 0 160 110" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+  <defs><radialGradient id="mmg"><stop offset="0" stop-color="#fdf3d0" stop-opacity=".6"/><stop offset="1" stop-color="#fdf3d0" stop-opacity="0"/></radialGradient>
+    <radialGradient id="mlg"><stop offset="0" stop-color="#ffd27a" stop-opacity=".5"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient></defs>
+  <g class="mmaane"><circle cx="26" cy="24" r="20" fill="url(#mmg)"/><path d="M33 13a11 11 0 1 0 4 17 9 9 0 0 1-4-17z" fill="#fdf3d0"/></g>
+  <path d="M18 104 l9-26 9 26z" fill="#1a1f40"/>
+  <path d="M10 108 Q60 96 100 104 T160 100 V110 H10 Z" fill="#171c3c"/>
+  <ellipse class="mglod" cx="96" cy="80" rx="46" ry="28" fill="url(#mlg)"/>
+  <rect x="122" y="42" width="8" height="18" rx="2" fill="#2c2f5c"/>
+  <path d="M62 70 L96 42 L130 70 Z" fill="#383b72"/>
+  <path d="M59 72 L96 41 L133 72" fill="none" stroke="#4a4d8c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="68" y="68" width="56" height="40" fill="#2c2f5c"/>
+  <circle class="mvindu" cx="96" cy="58" r="5"/>
+  <rect class="mvindu" x="76" y="76" width="14" height="14" rx="2"/><rect class="mvindu" x="102" y="76" width="14" height="14" rx="2"/>
+  <rect x="100" y="94" width="16" height="14" rx="2" fill="#22254a"/>
+  <path d="M83 76v14M76 83h14M109 76v14M102 83h14" stroke="#2c2f5c" stroke-width="1.4"/>
+</svg>`;
+
+const KI_NATT_MINISTJERNER = [[10, 16], [24, 34], [36, 12], [50, 26], [62, 8], [18, 52]];
+
 const KI_NATT_STJERNER = [[8, 14], [18, 30], [30, 10], [41, 24], [52, 8], [63, 34], [72, 16], [86, 9], [93, 28], [58, 22], [36, 40], [79, 40]];
 const kiNattEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const kiNattKl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
@@ -1513,22 +1568,24 @@ class KiNattCard extends HTMLElement {
   }
   _mer(id) { this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
 
-  _flis(id, navn, ikon, ekstra) {
-    return `<div class="bf" data-a="${id}" data-hold="${id}" role="switch" tabindex="0" aria-label="${kiNattEsc(navn)}">
+  _flis(id, navn, ikon, ekstra, mini) {
+    return `<div class="bf${mini ? " mini" : ""}" data-a="${id}" data-hold="${id}" role="switch" tabindex="0" aria-label="${kiNattEsc(navn)}">
+      ${mini ? KI_NATT_MINISTJERNER.map(([x, y], i) => `<i class="stj" style="left:${x}%;top:${y}%;animation-delay:-${(i * 0.81).toFixed(2)}s"></i>`).join("")
+        + `<div class="miniscene">${KI_NATT_MINIHUS}</div><div class="bakke"></div>` : ""}
       <div class="n">${kiNattEsc(navn)}</div><div class="ic"><ha-icon icon="${kiNattEsc(ikon)}" class="${ekstra || ""}"></ha-icon></div>
       <div class="s"><span></span></div><div class="t"><div class="bryt"><i></i></div></div></div>`;
   }
   _bygg() {
     const c = this._c;
     this.shadowRoot.innerHTML = `<style>${KI_NATT_STIL}</style>
-      <div class="nk">
-        <div class="lag dag ${c.helg ? "" : "en"}">${this._flis(c.natt, c.navn_natt, c.ikon_natt)}${c.helg ? this._flis(c.helg, c.navn_helg, c.ikon_helg, "fly") : ""}</div>
+      <div class="nk ${c.helg ? "" : "en"}">
+        <div class="lag dag">${this._flis(c.natt, c.navn_natt, c.ikon_natt, "", true)}${c.helg ? this._flis(c.helg, c.navn_helg, c.ikon_helg, "fly") : ""}</div>
         <div class="lag nattlag" data-a="${c.natt}" data-hold="${c.natt}" role="switch" aria-label="${kiNattEsc(c.navn_natt)} er på. Trykk for å slå av.">
           ${KI_NATT_STJERNER.map(([x, y], i) => `<i class="stj" style="left:${x}%;top:${y}%;animation-delay:-${((i * 0.73) % 4.5).toFixed(2)}s"></i>`).join("")}
           <div class="tekst"><div class="n">${kiNattEsc(c.navn_natt)}</div>
             ${c.helg ? `<span class="helgpille" data-a="${c.helg}" data-hold="${c.helg}" role="switch" aria-checked="true" tabindex="0" hidden><ha-icon icon="${kiNattEsc(c.ikon_helg)}"></ha-icon>${kiNattEsc(c.navn_helg)}</span>` : ""}
             <div class="stor">${kiNattEsc(c.tekst_natt)}</div><div class="sub"></div></div>
-          <div class="scene">${KI_NATT_HUS}</div></div></div>`;
+          <div class="scene">${KI_NATT_HUS}</div><div class="blaff"></div></div></div>`;
     this._koble(); this._bygget = true;
   }
   _koble() {

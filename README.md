@@ -194,9 +194,10 @@ tekst_natt: God natt
 tekst_pa: På
 tekst_av: Av
 ```
-Når nattmodus er av vises to brytefliser i `ki-toggle-card`-stilen. Når den slås på tar nattkortet over:
+Når nattmodus er av vises en liten nattflis (huset med lys i vinduene, måne og stjerner) ved siden av
+helgemodus-flisen. Når den slås på vokser nattkortet ut av den lille flisen og dekker begge:
 vinduene slukkes ett etter ett, månen stiger, huset puster og det kommer Z-er fra loftsvinduet.
-Trykk på nattkortet slår av nattmodus igjen. Har egen visuell editor.
+Trykk på nattkortet slår av nattmodus igjen, og kortet trekker seg tilbake til den lille flisen. Har egen visuell editor.
 
 ### ki-planter-card
 ```yaml
