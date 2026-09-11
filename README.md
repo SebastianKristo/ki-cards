@@ -186,8 +186,8 @@ Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
 ### ki-media-card
 ```yaml
 type: custom:ki-media-card
-media: media_player.squeezebox_radio
-visning: full                   # full (alt) | naa (bare topplinja, f.eks. over faner)
+media: media_player.squeezebox_radio   # eller en liste; da velges den som spiller
+visning: full                   # full (alt) | stor (180 px med omslag) | naa (bare topplinja)
 navn: Sonos
 ikon: mdi:speaker               # vises når det ikke finnes omslag
 radio:                          # vannrett rad med kanaler
@@ -211,7 +211,12 @@ ken-burns-bevegelse, og kortets farge hentes fra omslaget (dominerende farge sam
 eller mørk tekst etter lysstyrken). Omslaget roterer sakte mens noe spilles, en utjevner animeres ved
 avspilling og står stille ved pause, lange titler ruller forbi, og framdriften tikker hvert sekund ut fra
 `media_position` og `media_position_updated_at`. `visning: naa` gir bare denne linja – fin å legge over
-et fanesett. Full visning legger til kanalrad (den kanalen som går er markert med bølger), transport der
+et fanesett. `visning: stor` gir et 180 px hero i samme høyde som `ki-natt-card`: omslaget som avrundet
+flis til høyre med langsom svevebevegelse, et glans-sveip over coveret, pulserende ringer bak, kildepille
+med spillernavn og kanal eller app, stor tittel som ruller, artist eller episode, framdrift med tider der
+varigheten er kjent og en levende bølgerad når det er radio, pluss play/pause og neste direkte i kortet.
+Oppgir du flere spillere i `media`, velger kortet den som spiller (så TV-en tar over når du ser film, og
+Sonos når musikken går). Full visning legger til kanalrad (den kanalen som går er markert med bølger), transport der
 play-knappen pulserer under avspilling og shuffle/repeat følger tilstanden, samt volumslider med
 gruppeknapper.
 

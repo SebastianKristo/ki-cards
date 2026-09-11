@@ -25,9 +25,12 @@ styles: |+
 cards:
   # Nå spilles – ligger over fanene og viser hva som går, uansett fane
   - type: custom:ki-media-card
-    media: media_player.squeezebox_radio
-    visning: naa
-    navn: Sonos
+    visning: stor
+    media:
+      - media_player.stue_tv
+      - media_player.squeezebox_radio
+    navn: Media
+    ikon: mdi:speaker
   - type: custom:gap-card
     height: 12
   - type: custom:ki-tabs-card
