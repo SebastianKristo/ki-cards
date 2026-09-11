@@ -8,9 +8,10 @@
  * i_dag: sensor.tv_seertid_i_dag          # timer som desimaltall
  * maned: sensor.tv_seertid_denne_maned
  * kilder: [Plex, NRK TV, TV 2 Play]       # eller [{navn: Plex, kilde: plex}]
+ * apper:  [{navn: Netflix, kilde: Netflix, farge: "#e50914"}]   # app-fliser under fjernkontrollen
  * apper: { com.netflix.Netflix: Netflix } # legges til standardlista
  */
-const KI_FJK_VERSJON = "1.0.0";
+const KI_FJK_VERSJON = "1.1.0";
 
 const KI_FJK_APPER = {
   "com.netflix.Netflix": "Netflix", "com.apple.TVWatchList": "Apple TV+", "com.apple.TVMovies": "Filmer",
@@ -95,6 +96,21 @@ const KI_FJK_STIL = `
 
   /* ---- kilder ---- */
   .kilder { display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(128px, 1fr)); }
+  .apper { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px; margin:0 -2px; scroll-snap-type:x proximity; }
+  .apper::-webkit-scrollbar { display:none; }
+  .app { position:relative; flex:none; width:76px; height:76px; border:0; border-radius:24px; cursor:pointer; scroll-snap-align:start;
+    background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600; line-height:1.15; padding:8px 6px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; overflow:hidden;
+    transition:transform .14s var(--fjaer), box-shadow .2s; }
+  .app::before { content:""; position:absolute; inset:0; background:var(--app-farge, transparent); opacity:.22; transition:opacity .25s; }
+  .app > * { position:relative; z-index:1; }
+  .app:active { transform:scale(.93); }
+  .app.apen { box-shadow:inset 0 0 0 2px var(--active-big,#ee95ff); }
+  .app.apen::before { opacity:.42; }
+  .app ha-icon { --mdc-icon-size:24px; opacity:.9; }
+  .app .prikk { position:absolute; top:8px; right:8px; width:7px; height:7px; border-radius:50%; background:var(--active-big,#ee95ff);
+    opacity:0; transform:scale(.4); transition:opacity .25s, transform .3s var(--fjaer); }
+  .app.apen .prikk { opacity:1; transform:none; }
   .kilde { border:0; text-align:left; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:14px; font-weight:500;
     padding:12px 20px; border-radius:16px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px;
     transition:background .25s, color .25s, transform .12s var(--fjaer); }
@@ -126,6 +142,7 @@ class KiFjernkontrollCard extends HTMLElement {
     this._c = { navn: "Apple TV", ikon: "mdi:apple", ...c };
     this._apper = { ...KI_FJK_APPER, ...(c.apper || {}) };
     this._kilder = (c.kilder || []).map((k) => typeof k === "string" ? { navn: k, kilde: k } : { navn: k.navn || k.kilde, kilde: k.kilde || k.navn });
+    this._appliste = (c.apper_liste || c.snarveier || []).map((a) => typeof a === "string" ? { navn: a, kilde: a } : a);
     this._bygget = false; this._oppdater();
   }
   set hass(h) {
@@ -281,6 +298,11 @@ class KiFjernkontrollCard extends HTMLElement {
           <button data-lyd="volume_up" aria-label="Volum opp"><ha-icon icon="mdi:volume-plus"></ha-icon></button>
         </div>` : ""}
 
+        ${this._appliste.length ? `<div class="apper">${this._appliste.map((a, i) =>
+          `<button class="app" data-app="${i}" style="${a.farge ? `--app-farge:${kiFjkEsc(a.farge)}` : ""}">
+            ${a.ikon ? `<ha-icon icon="${kiFjkEsc(a.ikon)}"></ha-icon>` : ""}<span>${kiFjkEsc(a.navn)}</span>
+            <span class="prikk"></span></button>`).join("")}</div>` : ""}
+
         ${this._kilder.length ? `<div class="kilder">${this._kilder.map((k) =>
           `<button class="kilde" data-kilde="${kiFjkEsc(k.kilde)}">${kiFjkEsc(k.navn)}<ha-icon icon="mdi:check"></ha-icon></button>`).join("")}</div>` : ""}
       </div>`;
@@ -303,6 +325,12 @@ class KiFjernkontrollCard extends HTMLElement {
       else this._hold(b, k);
     });
     r.querySelectorAll(".kilde").forEach((b) => b.addEventListener("click", () => this._velgKilde(b.dataset.kilde)));
+    r.querySelectorAll(".app").forEach((b) => b.addEventListener("click", () => {
+      const a = this._appliste[+b.dataset.app];
+      if (a.skript || a.tjeneste) { const [d, s2] = String(a.skript || a.tjeneste).split("."); this._vibrer(10); this._h.callService(d, s2, a.data || {}); }
+      else if (a.kommando) this._send(a.kommando);
+      else if (a.kilde) this._velgKilde(a.kilde);
+    }));
     this._bygget = true;
   }
 
@@ -344,6 +372,14 @@ class KiFjernkontrollCard extends HTMLElement {
     const kilde = s.attributes.source;
     r.querySelectorAll(".kilde").forEach((b) => b.classList.toggle("valgt",
       !!kilde && String(kilde).toLowerCase() === String(b.dataset.kilde).toLowerCase()));
+    /* app er «åpen» når kilden, app_id eller app_name peker på den */
+    const app_id = s.attributes.app_id, app_navn = (app_id && this._apper[app_id]) || s.attributes.app_name || "";
+    r.querySelectorAll(".app").forEach((b) => {
+      const a = this._appliste[+b.dataset.app], n = String(a.navn || "").toLowerCase();
+      const treff = (a.app_id && a.app_id === app_id)
+        || (!!n && (String(app_navn).toLowerCase() === n || String(kilde || "").toLowerCase() === String(a.kilde || n).toLowerCase()));
+      b.classList.toggle("apen", pa && !!treff);
+    });
   }
 }
 if (!customElements.get("ki-fjernkontroll-card")) customElements.define("ki-fjernkontroll-card", KiFjernkontrollCard);

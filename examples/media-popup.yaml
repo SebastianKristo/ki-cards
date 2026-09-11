@@ -1,0 +1,134 @@
+# Media-popup: nå spilles over fanene, TV-fane med fjernkontroll + app-fliser,
+# musikkfane med radiokanaler, transport, volum og gruppe
+type: custom:bubble-card
+card_type: pop-up
+name: Media
+icon: mdi:television-classic
+hash: '#media'
+is_sidebar_hidden: true
+margin_top_mobile: 50px
+margin_top_desktop: 50px
+card_layout: large
+button_type: name
+bg_blur: '5'
+shadow_opacity: '20'
+bg_opacity: '98'
+styles: |+
+  .bubble-pop-up-container { --vertical-stack-card-gap: 0px!important; }
+  #header-container > div > div { background: var(--gray000)!important; }
+  #header-container > button { background: none; }
+  .icon-container { background-color: var(--gray1000)!important; }
+  .icon-container > ha-icon { color: var(--black)!important; opacity: 1!important; }
+  .bubble-icon { --mdc-icon-size: 24px !important; }
+  .bubble-name { font-size: 30px !important; font-weight: 500; line-height: 1.4 !important; padding: 8px 0 !important; }
+  .bubble-close-button { background-color: var(--gray200) !important; border-radius: 50%; }
+cards:
+  # Nå spilles – ligger over fanene og viser hva som går, uansett fane
+  - type: custom:ki-media-card
+    media: media_player.squeezebox_radio
+    visning: naa
+    navn: Sonos
+  - type: custom:gap-card
+    height: 12
+  - type: custom:ki-tabs-card
+    tabs:
+      - title: TV
+        cards:
+          - type: custom:ki-fjernkontroll-card
+            media: media_player.stue_tv
+            fjernkontroll: remote.stue_tv
+            navn: Apple TV
+            i_dag: sensor.tv_seertid_i_dag          # uten disse vises ikke seertiden
+            maned: sensor.tv_seertid_denne_maned
+            maks_i_dag: 6
+            maks_maned: 90
+            apper_liste:
+              - navn: Netflix
+                kilde: Netflix
+                app_id: com.netflix.Netflix
+                farge: '#e50914'
+              - navn: YouTube
+                kilde: YouTube
+                farge: '#ff0000'
+              - navn: Plex
+                kilde: plex
+                farge: '#e5a00d'
+              - navn: NRK TV
+                kilde: NRK TV
+                farge: '#00b9f2'
+              - navn: TV 2 Play
+                kilde: TV 2 Play
+                farge: '#2b6ef2'
+              - navn: Telia Play
+                kilde: Telia Play
+                farge: '#990ae3'
+      - title: Musikk
+        cards:
+          - type: custom:ki-media-card
+            media: media_player.squeezebox_radio
+            navn: Sonos
+            radio:
+              - navn: NRK P1
+                skript: script.nrk_p1
+                ikon: mdi:radio
+              - navn: NRK Jazz
+                skript: script.nrk_jazz
+                ikon: mdi:music-clef-treble
+              - navn: NRK P3
+                skript: script.nrk_p3
+                ikon: mdi:radio
+              - navn: P24-7 MIX
+                skript: script.p24
+                ikon: mdi:playlist-music
+              - navn: NRK mp3
+                skript: script.nrk_mp3
+                ikon: mdi:radio
+              - navn: P4
+                skript: script.p4
+                ikon: mdi:radio
+            kontroll:
+              play_pause: script.sonos_nede_play_pause
+              neste: script.sonos_nede_next
+              forrige: script.sonos_previous
+              shuffle: script.sonos_nede_shuffle
+              repeat: script.sonos_nede_repeat
+            grupper:
+              - navn: Oppe
+                entity: input_boolean.sonos_group_oppe
+          - type: custom:gap-card
+            height: 12
+          - type: custom:ki-toggle-card
+            entity: input_boolean.kiosk_mode
+            name: Disko
+            label: Diskolys
+            icon: mdi:alarm-light-outline
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: input_boolean.kiosk_mode
+                state: 'on'
+            card:
+              type: grid
+              columns: 5
+              square: true
+              cards:
+                - type: custom:ki-action-card
+                  name: '1'
+                  action:
+                    service: script.disco_preset_1
+                - type: custom:ki-action-card
+                  name: '2'
+                  action:
+                    service: script.disco_preset_2
+                - type: custom:ki-action-card
+                  name: '3'
+                  action:
+                    service: script.disco_preset_3
+                - type: custom:ki-action-card
+                  name: '4'
+                  action:
+                    service: script.disco_preset_4
+                - type: custom:ki-action-card
+                  name: '5'
+                  action:
+                    service: script.disco_preset_5

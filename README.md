@@ -39,6 +39,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-media-card.svg" width="28" align="absmiddle"> | `ki-media-card` | KI Media | Nå spilles med levende omslag, radiokanaler, transport og volum |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
@@ -182,6 +183,38 @@ total_increasing, ellers puls. Animasjonen leses av verdien: søylene hopper hø
 stiger, bølgen står som en vannstand på `verdi / maks`, og pulsringene går raskere ved høye verdier.
 Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
 
+### ki-media-card
+```yaml
+type: custom:ki-media-card
+media: media_player.squeezebox_radio
+visning: full                   # full (alt) | naa (bare topplinja, f.eks. over faner)
+navn: Sonos
+ikon: mdi:speaker               # vises når det ikke finnes omslag
+radio:                          # vannrett rad med kanaler
+  - navn: NRK P1
+    skript: script.nrk_p1
+    ikon: mdi:radio
+  - navn: Plex
+    kilde: plex                 # eller select_source i stedet for skript
+kontroll:                       # egne skript i stedet for media_player-tjenestene
+  play_pause: script.sonos_nede_play_pause
+  neste: script.sonos_nede_next
+  forrige: script.sonos_previous
+  shuffle: script.sonos_nede_shuffle
+  repeat: script.sonos_nede_repeat
+grupper:
+  - navn: Oppe
+    entity: input_boolean.sonos_group_oppe
+```
+Topplinja er den samme 66 px-pillen som før, men omslaget ligger som bakgrunn i uskarp, langsom
+ken-burns-bevegelse, og kortets farge hentes fra omslaget (dominerende farge samples på et lerret, med lys
+eller mørk tekst etter lysstyrken). Omslaget roterer sakte mens noe spilles, en utjevner animeres ved
+avspilling og står stille ved pause, lange titler ruller forbi, og framdriften tikker hvert sekund ut fra
+`media_position` og `media_position_updated_at`. `visning: naa` gir bare denne linja – fin å legge over
+et fanesett. Full visning legger til kanalrad (den kanalen som går er markert med bølger), transport der
+play-knappen pulserer under avspilling og shuffle/repeat følger tilstanden, samt volumslider med
+gruppeknapper.
+
 ### ki-fjernkontroll-card
 ```yaml
 type: custom:ki-fjernkontroll-card
@@ -194,6 +227,12 @@ maned: sensor.tv_seertid_denne_maned
 maks_i_dag: 6                         # full stolpe
 maks_maned: 90
 kilder: [Plex, NRK TV, Telia Play]    # eller [{navn: Plex, kilde: plex}]
+apper_liste:                          # app-fliser under fjernkontrollen
+  - navn: Netflix
+    kilde: Netflix                    # select_source; eller skript: / kommando:
+    app_id: com.netflix.Netflix       # markerer flisen som åpen
+    farge: '#e50914'
+    ikon: mdi:movie-open
 apper:                                # legges til den innebygde app-id-lista
   com.min.app: Mitt navn
 ```
@@ -206,7 +245,8 @@ I stedet for piltastene er navigeringen en rund styreflate som Apple TV-fjernkon
 (lang sveip gir flere steg), trykk for velg, med ringpuls der du trykker og pilene som lyser opp i retningen
 du drar. Piltaster og Enter virker også. Under ligger tilbake, hjem, Siri og en play/pause-knapp som følger
 tilstanden, en volumrad der minus og pluss gjentar når du holder inne, og kildene som fliser der den aktive
-er markert. Har egen visuell editor.
+er markert, og app-flisene ligger som en vannrett rad med merkefarge, der appen som er åpen får ring og
+prikk. Seertiden vises bare når `i_dag` eller `maned` er satt. Har egen visuell editor.
 
 ### ki-vaer-card
 ```yaml
