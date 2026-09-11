@@ -35,6 +35,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-helse-card.svg" width="28" align="absmiddle"> | `ki-helse-card` | KI Helse | Aktivitet, hjerte, søvn og kropp fra Apple Health |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
@@ -64,6 +65,21 @@ Eksempler: `examples/sovn-popup.yaml` (søvn + vekking), `planter-popup.yaml`, `
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vekking-card.svg" width="28" align="absmiddle"> | `ki-vekking-card` | Vekkealarm fra ki-sovn v2: neste alarm, ukedager med tid, lys, person, betingelser, test (mode: list / tile) |
 
 Ikonene ligger i `brand/` som SVG og PNG (256 px).
+
+### ki-bursdag-card
+```yaml
+type: custom:ki-bursdag-card
+regex: birthday|bursdag   # regex mot entity_id (standard), eller entities: [...]
+antall: 3                 # i Kommende
+visning: tabs             # tabs | kommende | aar
+icon: mdi:cake-variant
+background: var(--gray200)
+navn:                     # valgfri overstyring av navn per sensor
+  sensor.birthday_sebastian: Sebastian
+```
+Leser `date`/`birthday`-attributt + `age_at_next_birthday` fra Birthdays-integrasjonen, men tåler også
+sensorer der tilstanden er dager igjen eller en dato. Rad: «Navn fyller N» / «Fredag 20. september · om 9 dager».
+Trykk på en rad åpner more-info.
 
 ### ki-toggle-card
 ```yaml

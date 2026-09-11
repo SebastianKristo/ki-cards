@@ -1,0 +1,15 @@
+# Bursdager – erstatter post-kortet i samme stil (ikon-sirkel, hovedtekst, undertekst, --gray200)
+type: custom:ki-bursdag-card
+regex: birthday|bursdag        # matches mot entity_id, uavhengig av store/små bokstaver
+antall: 3                      # antall i «Kommende»
+visning: tabs                  # tabs (Kommende / Hele året) | kommende | aar
+icon: mdi:cake-variant
+background: var(--gray200)
+margin: 12px
+# Valgfritt: egne navn per sensor, eller eksplisitt liste i stedet for regex
+# navn:
+#   sensor.birthday_sebastian: Sebastian
+# entities:
+#   - entity: sensor.birthday_sebastian
+#     name: Sebastian
+#     icon: mdi:party-popper
