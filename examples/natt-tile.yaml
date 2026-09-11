@@ -1,0 +1,5 @@
+# Nattkort – to brytefliser om dagen, sovende hus om natten
+type: custom:ki-natt-card
+natt: switch.nattmodus
+helg: switch.ki_helgemodus
+vekking: sensor.neste_vekking

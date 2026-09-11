@@ -36,6 +36,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
@@ -148,6 +149,24 @@ action:
   data:
     skip_condition: true
 ```
+
+### ki-natt-card
+```yaml
+type: custom:ki-natt-card
+natt: switch.nattmodus          # påkrevd
+helg: switch.ki_helgemodus      # valgfri
+vekking: sensor.neste_vekking   # valgfri: tidsstempel eller «07:00»
+navn_natt: Nattmodus
+navn_helg: Helgemodus
+ikon_natt: mdi:sleep
+ikon_helg: mdi:airplane-takeoff
+tekst_natt: God natt
+tekst_pa: På
+tekst_av: Av
+```
+Når nattmodus er av vises to brytefliser i `ki-toggle-card`-stilen. Når den slås på tar nattkortet over:
+vinduene slukkes ett etter ett, månen stiger, huset puster og det kommer Z-er fra loftsvinduet.
+Trykk på nattkortet slår av nattmodus igjen. Har egen visuell editor.
 
 ### ki-planter-card
 ```yaml
