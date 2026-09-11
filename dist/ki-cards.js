@@ -1,4 +1,4 @@
-/* ki-cards v2.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.37.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.36.0";
+  KI.VERSION = "2.37.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -514,7 +514,7 @@ try {
 try {
 /* ki-tabs-card – faner med kort i hver fane.
    style: pills (piller) | dropdown (én pille som åpner meny) | auto (piller, dropdown når de ikke får plass – standard)
-   sticky: true holder fanelinja øverst når innholdet scroller. */
+   sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
   class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
@@ -543,7 +543,8 @@ try {
         :host(.ki-meny-apen) { z-index:99; }
         .wrap { display:flex; flex-direction:column; gap:${c.gap ?? 12}px; max-width:100%; }
         .bar { display:flex; justify-content:${c.align || "center"}; position:relative; z-index:6; max-width:100%;
-          ${sticky ? "position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; background:var(--ki-tabs-bg, var(--gray000, #000)); border-radius:0 0 18px 18px;" : ""} }
+          ${sticky ? `position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; border-radius:0 0 18px 18px;
+            background:${c.bg || "var(--ki-tabs-bg, transparent)"}; ${c.bg ? "" : "backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);"}` : ""} }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
