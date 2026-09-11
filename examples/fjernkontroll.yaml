@@ -1,0 +1,24 @@
+# Erstatter TV-stabelen: seertid-button-card, Apple TV-status, D-pad-grid,
+# paper-buttons-row for volum og local-conditional-card med kildeknapper
+type: custom:ki-fjernkontroll-card
+media: media_player.stue_tv
+fjernkontroll: remote.stue_tv
+navn: Apple TV
+ikon: mdi:apple
+i_dag: sensor.tv_seertid_i_dag
+maned: sensor.tv_seertid_denne_maned
+maks_i_dag: 6          # full stolpe ved 6 timer
+maks_maned: 90
+kilder:
+  - Plex
+  - NRK TV
+  - Telia Play
+  - TV 2 Play
+  - Youtube
+# Ulikt navn og kildestreng:
+# kilder:
+#   - navn: Plex
+#     kilde: plex
+# Egne appnavn i tillegg til de innebygde:
+# apper:
+#   com.min.app: Mitt navn

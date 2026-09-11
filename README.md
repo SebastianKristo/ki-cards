@@ -38,6 +38,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
@@ -180,6 +181,32 @@ nederst og enheten som liten hevet tekst. `animasjon: auto` velger søyler for W
 total_increasing, ellers puls. Animasjonen leses av verdien: søylene hopper høyere og raskere når forbruket
 stiger, bølgen står som en vannstand på `verdi / maks`, og pulsringene går raskere ved høye verdier.
 Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
+
+### ki-fjernkontroll-card
+```yaml
+type: custom:ki-fjernkontroll-card
+media: media_player.stue_tv
+fjernkontroll: remote.stue_tv
+navn: Apple TV
+ikon: mdi:apple
+i_dag: sensor.tv_seertid_i_dag        # timer som desimaltall
+maned: sensor.tv_seertid_denne_maned
+maks_i_dag: 6                         # full stolpe
+maks_maned: 90
+kilder: [Plex, NRK TV, Telia Play]    # eller [{navn: Plex, kilde: plex}]
+apper:                                # legges til den innebygde app-id-lista
+  com.min.app: Mitt navn
+```
+Statuslinja er den samme pillen som før – lilla når spilleren er på, rød når den er av – men appnavnet slås
+opp fra en innebygd liste over Apple TV-app-id-er (Netflix, Apple TV+, HBO Max, Disney+, NRK, TV 2 Play,
+Telia Play, Viaplay, Prime Video, Plex, Spotify, YouTube), og en liten utjevner animeres mens noe spilles og
+står stille ved pause. Seertid i dag og denne måneden vises som `tt:mm:ss` med en stolpe mot `maks_*`.
+
+I stedet for piltastene er navigeringen en rund styreflate som Apple TV-fjernkontrollen: sveip for retning
+(lang sveip gir flere steg), trykk for velg, med ringpuls der du trykker og pilene som lyser opp i retningen
+du drar. Piltaster og Enter virker også. Under ligger tilbake, hjem, Siri og en play/pause-knapp som følger
+tilstanden, en volumrad der minus og pluss gjentar når du holder inne, og kildene som fliser der den aktive
+er markert. Har egen visuell editor.
 
 ### ki-vaer-card
 ```yaml
