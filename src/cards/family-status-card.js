@@ -27,6 +27,12 @@ const DEFAULT_CONFIG = {
   name_color: "var(--gray1000)",
   home_icon: "mdi:lighthouse",
   home_color: "var(--blue)",
+  // Når noen er hjemme vises søvntilstanden i stedet for stedet
+  show_sleep_badge: true,
+  sleep_icon: "mdi:sleep",
+  sleep_color: "var(--purple, #6f6bd8)",
+  awake_icon: "",            // tom = bruk home_icon
+  awake_color: "",           // tom = bruk home_color
   default_icon: "mdi:airplane",
   default_color: "var(--blue)",
   // Popup
@@ -114,6 +120,9 @@ class FamilyStatusCard extends LitElement {
       name_color: "var(--gray1000)",
       home_icon: "mdi:lighthouse",
       home_color: "var(--blue)",
+      show_sleep_badge: true,
+      sleep_icon: "mdi:sleep",
+      sleep_color: "var(--purple, #6f6bd8)",
       default_icon: "mdi:airplane",
       default_color: "var(--blue)",
       tap_behavior: "dialog",
@@ -251,6 +260,14 @@ class FamilyStatusCard extends LitElement {
     const isHome = presenceState && presenceState.state === "on";
 
     if (isHome) {
+      /* Hjemme: vis søvntilstanden hvis personen har en søvnbryter */
+      if (cfg.show_sleep_badge !== false && personConfig.sleep_switch) {
+        const sover = this._isOn(personConfig.sleep_switch);
+        if (sover) {
+          return { icon: cfg.sleep_icon || "mdi:sleep", color: cfg.sleep_color || cfg.home_color };
+        }
+        return { icon: cfg.awake_icon || cfg.home_icon, color: cfg.awake_color || cfg.home_color };
+      }
       return { icon: cfg.home_icon, color: cfg.home_color };
     }
 
@@ -1187,6 +1204,17 @@ class FamilyStatusCardEditor extends LitElement {
             <div class="field-row">
               ${this._icon("Ikon", "home_icon")} ${this._color("Farge", "home_color")}
             </div>
+            ${this._switch("Vis søvntilstand i stedet når personen er hjemme", "show_sleep_badge")}
+            ${this._config.show_sleep_badge !== false
+              ? html`
+                  <div class="field-row">
+                    ${this._icon("Ikon sover", "sleep_icon")} ${this._color("Farge sover", "sleep_color")}
+                  </div>
+                  <div class="field-row">
+                    ${this._icon("Ikon våken", "awake_icon")} ${this._color("Farge våken", "awake_color")}
+                  </div>
+                `
+              : ""}
             <div class="subheading">Badge når ingen sone treffer</div>
             <div class="field-row">
               ${this._icon("Ikon", "default_icon")} ${this._color("Farge", "default_color")}
