@@ -37,6 +37,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-rom-card.svg" width="28" align="absmiddle"> | `ki-rom-card` | KI Rom | Auto-bygd rom-popup fra [ki-rom](https://github.com/SebastianKristo/ki-rom): genererer samme kort som i dashbordet (expander, lys, enheter, klima, media, sensorer …) fra `sensor.<rom>_oversikt`. `ki-rom-popups` lager én bubble-card pop-up per rom |
@@ -149,6 +150,35 @@ action:
   data:
     skip_condition: true
 ```
+
+### ki-sensor-card
+```yaml
+type: custom:ki-sensor-card
+entity: sensor.strommaler_effekt
+navn: Forbruk nå            # undertekst (sub_text)
+ikon: mdi:home-lightning-bolt
+storrelse: stor             # stor (160 px) | liten (66 px)
+animasjon: auto             # auto | soyler | boelge | puls | ingen
+maks: 4000                  # referanse for animasjon og stolpe
+enhet: W                    # standard: enheten til sensoren
+desimaler: 0                # standard: 0 for W og store tall, ellers 1
+alt: sensor.strompris       # høyrestilt tilleggstekst: entitet eller fri tekst
+stolpe: false               # tynn framdriftsstolpe nederst
+verdi: "Av"                 # overstyrer tallet helt
+bakgrunn: var(--gray200)
+tekstfarge: var(--gray1000)
+merke_over: 3000            # rød pulsprikk over denne verdien
+nivaa:                      # farge og merke ved terskler (siste treff vinner)
+  - over: 3000
+    farge: var(--red)
+    bakgrunn: var(--gray200)
+    merke: true
+```
+Samme geometri som `universal_sensor_ny`: ikonsirkelen øverst til venstre, undertekst, stor tynn tallverdi
+nederst og enheten som liten hevet tekst. `animasjon: auto` velger søyler for W/kW/A, bølge for Wh/kWh og
+total_increasing, ellers puls. Animasjonen leses av verdien: søylene hopper høyere og raskere når forbruket
+stiger, bølgen står som en vannstand på `verdi / maks`, og pulsringene går raskere ved høye verdier.
+Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
 
 ### ki-natt-card
 ```yaml

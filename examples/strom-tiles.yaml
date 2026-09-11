@@ -1,0 +1,22 @@
+# Erstatter de to universal_sensor_ny-kortene for strøm
+type: grid
+square: false
+columns: 2
+cards:
+  - type: custom:ki-sensor-card
+    entity: sensor.strommaler_effekt
+    navn: Forbruk nå
+    ikon: mdi:home-lightning-bolt
+    animasjon: soyler          # søylene hopper raskere når forbruket stiger
+    maks: 4000
+    nivaa:
+      - over: 3000
+        farge: var(--red)
+        merke: true
+  - type: custom:ki-sensor-card
+    entity: sensor.strommaler_powercalc_energy_daily
+    navn: Dagens forbruk
+    ikon: mdi:lightning-bolt
+    animasjon: boelge          # kortet fylles opp utover døgnet
+    maks: 25
+    desimaler: 1
