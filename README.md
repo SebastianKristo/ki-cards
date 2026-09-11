@@ -205,6 +205,12 @@ kontroll:                       # egne skript i stedet for media_player-tjeneste
 grupper:
   - navn: Oppe
     entity: input_boolean.sonos_group_oppe
+i_dag: sensor.tv_seertid_i_dag          # seertid som pille under omslaget i stor visning
+maned: sensor.tv_seertid_denne_maned
+tid:                                    # eller egne sensorer per spiller
+  media_player.stue_tv:
+    i_dag: sensor.tv_seertid_i_dag
+    maned: sensor.tv_seertid_denne_maned
 ```
 Topplinja er den samme 66 px-pillen som før, men omslaget ligger som bakgrunn i uskarp, langsom
 ken-burns-bevegelse, og kortets farge hentes fra omslaget (dominerende farge samples på et lerret, med lys
@@ -214,7 +220,9 @@ avspilling og står stille ved pause, lange titler ruller forbi, og framdriften 
 et fanesett. `visning: stor` gir et 180 px hero i samme høyde som `ki-natt-card`: omslaget som avrundet
 flis til høyre med langsom svevebevegelse, et glans-sveip over coveret, pulserende ringer bak, kildepille
 med spillernavn og kanal eller app, stor tittel som ruller, artist eller episode, framdrift med tider der
-varigheten er kjent og en levende bølgerad når det er radio, pluss play/pause og neste direkte i kortet.
+varigheten er kjent og en levende bølgerad når det er radio, pluss play/pause og neste direkte i kortet. Under omslaget kan seertiden ligge som én samlet pille –
+timer og minutter i dag, og måneden som dempet tillegg – med en svak puls mens det spilles. Med `tid:`
+følger tallene den aktive spilleren, så TV-seertiden vises når TV-en går.
 Oppgir du flere spillere i `media`, velger kortet den som spiller (så TV-en tar over når du ser film, og
 Sonos når musikken går). Full visning legger til kanalrad (den kanalen som går er markert med bølger), transport der
 play-knappen pulserer under avspilling og shuffle/repeat følger tilstanden, samt volumslider med

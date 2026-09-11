@@ -31,6 +31,10 @@ cards:
       - media_player.squeezebox_radio
     navn: Media
     ikon: mdi:speaker
+    tid:
+      media_player.stue_tv:
+        i_dag: sensor.tv_seertid_i_dag
+        maned: sensor.tv_seertid_denne_maned
   - type: custom:gap-card
     height: 12
   - type: custom:ki-tabs-card

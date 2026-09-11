@@ -1,4 +1,4 @@
-/* ki-cards v2.31.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
+/* ki-cards v2.32.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.31.0";
+  KI.VERSION = "2.32.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1230,8 +1230,12 @@ try {
  * radio: [{navn: NRK P1, skript: script.nrk_p1}]
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
+ * i_dag: sensor.tv_seertid_i_dag          # seertid i timer, vises som pille i stor visning
+ * maned: sensor.tv_seertid_denne_maned
+ * tid:                                    # egne sensorer per spiller
+ *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.1.0";
+const KI_MEDIA_VERSJON = "1.2.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1285,10 +1289,23 @@ const KI_MEDIA_STIL = `
   .hero .skygge { position:absolute; inset:0; z-index:-1; pointer-events:none;
     background:linear-gradient(100deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 52%, rgba(0,0,0,0) 74%); opacity:0; transition:opacity .8s; }
   .hero.harbilde .skygge { opacity:1; }
-  .hkilde { grid-area:kilde; display:flex; align-items:center; gap:8px; min-width:0; }
+  .hkilde { grid-area:kilde; display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
+  .hpille { min-width:0; overflow:hidden; }
+  .hpille .pnavn { overflow:hidden; text-overflow:ellipsis; }
   .hpille { display:inline-flex; align-items:center; gap:6px; padding:4px 11px 4px 6px; border-radius:999px;
     background:rgba(250,251,252,.16); font-size:12px; font-weight:600; --mdc-icon-size:15px; white-space:nowrap; }
   .hero.harbilde .hpille { background:rgba(0,0,0,.22); }
+  .hhoyre { grid-area:om; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+  .hstat { display:flex; flex:none; }
+  .hstat .sp { display:inline-flex; align-items:center; gap:5px; padding:4px 11px 4px 8px; border-radius:999px;
+    background:rgba(250,251,252,.13); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap;
+    --mdc-icon-size:14px; }
+  .hero.harbilde .hstat .sp { background:rgba(0,0,0,.24); }
+  .hstat .sp em { font-style:normal; font-weight:500; opacity:.6; }
+  .hstat ha-icon { opacity:.7; }
+  .hstat .sp.stiger { animation:statpuls 2.6s ease-in-out infinite; }
+  @keyframes statpuls { 0%,100% { box-shadow:0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow:0 0 0 3px rgba(255,255,255,.12); } }
+  @media (max-width:400px) { .hstat .sp em { display:none; } .hstat .sp { padding:4px 9px 4px 7px; } }
   .htekst { grid-area:tekst; align-self:center; min-width:0; display:grid; gap:3px; align-content:center; }
   .htittel { font-size:1.55em; line-height:1.15; font-weight:400; min-width:0; }
   .hartist { font-size:14px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1305,7 +1322,7 @@ const KI_MEDIA_STIL = `
     transition:transform .12s var(--fjaer), background .2s; }
   .hero.harbilde .hknapp { background:rgba(0,0,0,.26); }
   .hknapp:active { transform:scale(.9); }
-  .hom { grid-area:om; position:relative; align-self:center; width:116px; height:116px; border-radius:20px; overflow:hidden;
+  .hom { position:relative; width:116px; height:116px; border-radius:20px; overflow:hidden;
     background:rgba(128,128,128,.18); box-shadow:0 14px 34px rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center;
     animation:hsvev 7s ease-in-out infinite alternate; }
   @keyframes hsvev { from { transform:translateY(-3px) rotate(-.6deg); } to { transform:translateY(3px) rotate(.6deg); } }
@@ -1320,7 +1337,9 @@ const KI_MEDIA_STIL = `
     border:2px solid currentColor; opacity:0; animation:hringut 3s ease-out infinite; }
   .hero.spiller .hring::after { animation-delay:1.5s; }
   @keyframes hringut { 0% { transform:scale(1); opacity:.4; } 100% { transform:scale(1.22); opacity:0; } }
-  @media (max-width:400px) { .hero { grid-template-columns:1fr 96px; padding:16px; } .hom { width:96px; height:96px; } .htittel { font-size:1.35em; } }
+  .hhoyre.medstat .hom { width:104px; height:104px; }
+  @media (max-width:400px) { .hero { grid-template-columns:1fr 96px; padding:16px; } .hom { width:96px; height:96px; }
+    .hhoyre.medstat .hom { width:88px; height:88px; } .htittel { font-size:1.35em; } }
 
   /* ---- transport ---- */
   .transport { display:flex; align-items:center; justify-content:center; gap:10px; }
@@ -1393,7 +1412,8 @@ class KiMediaCard extends HTMLElement {
   }
   set hass(h) {
     const g = this._h; this._h = h; const c = this._c; if (!c) return;
-    const ids = [...(this._spillere || []), ...(c.grupper || []).map((g2) => g2.entity)].filter(Boolean);
+    const tid = Object.values(c.tid || {}).flatMap((t) => [t.i_dag, t.maned]);
+    const ids = [...(this._spillere || []), ...(c.grupper || []).map((g2) => g2.entity), c.i_dag, c.maned, ...tid].filter(Boolean);
     if (!g || !this._bygget || ids.some((id) => g.states[id] !== h.states[id])) this._oppdater();
   }
   get hass() { return this._h; }
@@ -1473,6 +1493,17 @@ class KiMediaCard extends HTMLElement {
     this._kall("play_pause", "media_play_pause");
     if (s) { /* raskt svar i grensesnittet */ }
   }
+  /* Seertid for den aktive spilleren: tid-kartet først, ellers i_dag/maned */
+  _tidkilder() {
+    const c = this._c, kart = c.tid || {}, egen = kart[this._id()] || {};
+    return { i_dag: egen.i_dag || (Object.keys(kart).length ? null : c.i_dag), maned: egen.maned || (Object.keys(kart).length ? null : c.maned) };
+  }
+  _timer(id) {
+    const s = id && this._h && this._h.states[id], n = s ? parseFloat(s.state) : NaN;
+    if (!isFinite(n)) return null;
+    const t = Math.floor(n), m = Math.round((n - t) * 60);
+    return m === 60 ? `${t + 1}:00` : `${t}:${String(m).padStart(2, "0")}`;
+  }
   _mer() { this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: this._id() }, bubbles: true, composed: true })); }
 
   _byggStor() {
@@ -1493,7 +1524,10 @@ class KiMediaCard extends HTMLElement {
           <button class="hknapp" data-t="spill" aria-label="Spill eller pause"><ha-icon icon="mdi:play"></ha-icon></button>
           <button class="hknapp" data-t="neste" aria-label="Neste"><ha-icon icon="mdi:skip-next"></ha-icon></button>
         </div>
-        <div class="hom"><div class="hring"></div><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
+        <div class="hhoyre">
+          <div class="hom"><div class="hring"></div><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
+          <span class="hstat"></span>
+        </div>
       </div>`;
     const r = this.shadowRoot, hero = r.querySelector(".hero");
     hero.addEventListener("click", (e) => { if (!e.target.closest(".hknapp")) this._mer(); });
@@ -1607,6 +1641,17 @@ class KiMediaCard extends HTMLElement {
     }
 
     const sover = ["off", "idle", "standby", "unavailable", "unknown"].includes(s.state);
+
+    /* seertid som piller, med puls på «i dag» mens det spilles */
+    const kilder = this._tidkilder(), idag = this._timer(kilder.i_dag), mnd = this._timer(kilder.maned);
+    const statEl = r.querySelector(".hstat");
+    /* én samlet pille: i dag, og måneden som dempet tillegg */
+    const stat = idag || mnd
+      ? `<span class="sp ${this._spiller() ? "stiger" : ""}" title="Seertid i dag${mnd ? " og denne måneden" : ""}">
+          <ha-icon icon="mdi:clock-outline"></ha-icon>${idag || "–"}${mnd ? `<em>· ${mnd}</em>` : ""}</span>`
+      : "";
+    if (statEl.innerHTML !== stat) statEl.innerHTML = stat;
+    r.querySelector(".hhoyre").classList.toggle("medstat", !!stat);
     /* kildepille: spillernavn, og app eller kanal når det finnes */
     const navn = c.navn || (this._h.states[this._id()].attributes.friendly_name) || "Media";
     const kilde = a.media_channel || a.app_name || a.source || "";
@@ -1730,7 +1775,8 @@ class KiMediaCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { media: "Mediaspiller", visning: "Visning", navn: "Navn", ikon: "Ikon uten omslag" };
+      const n = { media: "Mediaspiller", visning: "Visning", navn: "Navn", ikon: "Ikon uten omslag",
+        i_dag: "Seertid i dag", maned: "Seertid denne måned" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -1744,6 +1790,8 @@ class KiMediaCardEditor extends HTMLElement {
         { value: "stor", label: "Stor (180 px med omslag)" },
         { value: "naa", label: "Bare nå spilles" }] } } },
       { name: "navn", selector: { text: {} } }, { name: "ikon", selector: { icon: {} } },
+      { name: "i_dag", selector: { entity: { domain: ["sensor"] } } },
+      { name: "maned", selector: { entity: { domain: ["sensor"] } } },
     ];
   }
 }
