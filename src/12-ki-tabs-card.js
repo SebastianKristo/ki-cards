@@ -1,5 +1,6 @@
 /* ki-tabs-card – faner med kort i hver fane.
-   style: pills (piller) | dropdown (én pille som åpner meny) | auto (piller, dropdown når de ikke får plass – standard)
+   style: pills (piller) | scroll (rullbar fanerad med pil-hint) | dropdown (pille som åpner meny)
+          | auto (piller når de får plass, ellers scroll – standard)
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
   class SkTabsCard extends KI.Card {
@@ -32,6 +33,25 @@
           ${sticky ? `position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; border-radius:0 0 18px 18px;
             background:${c.bg || "var(--ki-tabs-bg, transparent)"}; ${c.bg ? "" : "backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);"}` : ""} }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
+        /* rullbar rad: piller i full bredde, sveipbar, med fade og pil-hint i kantene */
+        .scroller { position:relative; display:none; width:100%; min-width:0; }
+        .bar.scroll { justify-content:stretch; }
+        .bar.scroll .scroller { display:block; }
+        .spor { display:flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+          overflow-x:auto; overflow-y:hidden; scroll-behavior:smooth; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+          scroll-snap-type:x proximity; overscroll-behavior-x:contain; }
+        .spor::-webkit-scrollbar { display:none; }
+        .spor .tab { scroll-snap-align:center; flex:0 0 auto; }
+        .fade { position:absolute; top:2px; bottom:2px; width:34px; pointer-events:none; opacity:0; transition:opacity .18s; border-radius:999px; }
+        .fade.v { left:2px; background:linear-gradient(to right, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
+        .fade.h { right:2px; background:linear-gradient(to left, var(--ki-fade, rgba(0,0,0,.55)), transparent); }
+        .scroller.mer-v .fade.v, .scroller.mer-h .fade.h { opacity:1; }
+        .pil { position:absolute; top:50%; transform:translateY(-50%); width:26px; height:26px; border:0; border-radius:50%; cursor:pointer;
+          background:var(--active-big); color:rgba(70,58,64,.95); display:none; align-items:center; justify-content:center;
+          --mdc-icon-size:18px; box-shadow:0 2px 8px rgba(0,0,0,.45); padding:0; z-index:2; }
+        .pil.v { left:4px; } .pil.h { right:4px; }
+        .scroller.mer-v .pil.v, .scroller.mer-h .pil.h { display:flex; }
+        @media (hover:none) { .pil { display:none !important; } }
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
@@ -59,6 +79,14 @@
           <div class="tabs pills" role="tablist">
             ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
+          <div class="scroller">
+            <div class="spor" role="tablist">
+              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            </div>
+            <div class="fade v"></div><div class="fade h"></div>
+            <button class="pil v" aria-label="Bla til venstre"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+            <button class="pil h" aria-label="Bla til høyre"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+          </div>
           <div class="tabs pills measure" aria-hidden="true">
             ${tabs.map(t => `<button class="tab">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
@@ -71,6 +99,25 @@
       </div>`;
       const r = this.shadowRoot;
       r.querySelectorAll(".tab[data-i]").forEach(b => b.addEventListener("click", () => this._select(+b.dataset.i)));
+      const spor = r.querySelector(".spor"), scroller = r.querySelector(".scroller");
+      const kanter = () => {
+        if (!spor) return;
+        const mer = spor.scrollWidth - spor.clientWidth;
+        scroller.classList.toggle("mer-v", spor.scrollLeft > 4);
+        scroller.classList.toggle("mer-h", spor.scrollLeft < mer - 4);
+      };
+      this._kanter = kanter;
+      if (spor) {
+        spor.addEventListener("scroll", kanter, { passive: true });
+        r.querySelector(".pil.v").addEventListener("click", () => spor.scrollBy({ left: -spor.clientWidth * 0.7, behavior: "smooth" }));
+        r.querySelector(".pil.h").addEventListener("click", () => spor.scrollBy({ left: spor.clientWidth * 0.7, behavior: "smooth" }));
+        /* vannrett museskroll på hjul, som i en fanerad */
+        spor.addEventListener("wheel", e => {
+          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+          const mer = spor.scrollWidth - spor.clientWidth; if (mer <= 0) return;
+          e.preventDefault(); spor.scrollLeft += e.deltaY;
+        }, { passive: false });
+      }
       r.querySelectorAll(".item").forEach(el => { const go = () => { this._select(+el.dataset.i); this._toggleMenu(false); }; el.addEventListener("click", go); KI.key(el, go); });
       r.querySelector(".dd").addEventListener("click", e => { e.stopPropagation(); this._toggleMenu(); });
       this._docClick = (e) => { if (this._menuOpen && !e.composedPath().includes(this)) this._toggleMenu(false); };
@@ -78,11 +125,12 @@
 
       this._mode = style;
       if (style === "auto") {
+        const smal = c.dropdown_under ?? 0;   // sett f.eks. 360 for å falle til nedtrekk på svært smale skjermer
         const apply = () => {
           const bar = r.querySelector(".bar"), m = r.querySelector(".measure");
           if (!bar || !m) return;
           const fits = m.scrollWidth <= bar.clientWidth - 4;
-          this._setMode(fits ? "pills" : "dropdown");
+          this._setMode(fits ? "pills" : (smal && bar.clientWidth < smal ? "dropdown" : "scroll"));
         };
         this._ro = new ResizeObserver(apply); this._ro.observe(r.querySelector(".bar"));
         requestAnimationFrame(apply);
@@ -100,10 +148,22 @@
       }
     }
     _setMode(mode) {
+      if (this._mode === mode && this._modeSatt) return;
+      this._mode = mode; this._modeSatt = true;
       const r = this.shadowRoot; const pills = r.querySelector(".tabs.pills:not(.measure)"), dd = r.querySelector(".dd");
       pills.style.display = mode === "pills" ? "" : "none";
       dd.style.display = mode === "dropdown" ? "" : "none";
+      r.querySelector(".bar").classList.toggle("scroll", mode === "scroll");
       if (mode !== "dropdown") this._toggleMenu(false);
+      if (mode === "scroll") requestAnimationFrame(() => { this._rullTil(this._active); this._kanter && this._kanter(); });
+    }
+    /* hold den valgte fanen synlig i den rullbare raden */
+    _rullTil(i) {
+      const spor = this.shadowRoot.querySelector(".spor");
+      const b = spor && spor.querySelector(`.tab[data-i="${i}"]`);
+      if (!spor || !b || !spor.clientWidth) return;
+      const mal = b.offsetLeft - (spor.clientWidth - b.offsetWidth) / 2;
+      spor.scrollTo({ left: Math.max(0, mal), behavior: this._modeSatt ? "smooth" : "auto" });
     }
     _renderDd() {
       const t = this._config.tabs[this._active] || {};
@@ -158,10 +218,11 @@
       r.querySelectorAll(".item").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
       r.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", +p.dataset.i === i));
       this._renderDd();
+      if (this._mode === "scroll") this._rullTil(i);
       KI.fire(this, "ki-tab-changed", { index: i });
     }
     getCardSize() { return 4; }
   }
   customElements.define("ki-tabs-card", SkTabsCard);
-  KI.register("ki-tabs-card", "KI Tabs", "Faner som piller eller nedtrekksmeny, med kort i hver fane");
+  KI.register("ki-tabs-card", "KI Tabs", "Faner som piller, rullbar rad eller nedtrekksmeny, med kort i hver fane");
 })(window.KI);

@@ -66,7 +66,7 @@ Eksempler: `examples/sovn-popup.yaml` (søvn + vekking), `planter-popup.yaml`, `
 |---|---|---|
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-toggle-card.svg" width="28" align="absmiddle"> | `ki-toggle-card` | Bryter som rad (`size: row`) eller flis (`size: tile`) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-toggle-list-card.svg" width="28" align="absmiddle"> | `ki-toggle-list-card` | Liste av `ki-toggle-card` fra filter (erstatter auto-entities) |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-tabs-card.svg" width="28" align="absmiddle"> | `ki-tabs-card` | Faner som piller eller nedtrekksmeny (`style: auto` bytter selv når de ikke får plass), `sticky: true
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-tabs-card.svg" width="28" align="absmiddle"> | `ki-tabs-card` | Faner som piller, rullbar rad eller nedtrekksmeny (`style: auto` går fra piller til rullbar rad når de ikke får plass), `sticky: true
 # bg: var(--gray200)   # bakgrunn bak fanelinja når den er festet (standard: gjennomsiktig med blur)` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-section-card.svg" width="28" align="absmiddle"> | `ki-section-card` | Liten seksjonstittel |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-slider-card.svg" width="28" align="absmiddle"> | `ki-slider-card` | Etikett, slider og verdi for `input_number` / `number` |
@@ -123,7 +123,11 @@ item:                     # standardvalg sendt til hvert ki-toggle-card
 ```yaml
 type: custom:ki-tabs-card
 default: 0
-align: center             # center | flex-start | flex-end
+style: auto               # auto | pills | scroll | dropdown
+align: center             # center | flex-start | flex-end (gjelder pills)
+sticky: true              # fest fanelinja øverst når innholdet scroller
+# bg: var(--gray200)      # bakgrunn bak festet fanelinje (standard: gjennomsiktig med blur)
+# dropdown_under: 360     # fall til nedtrekk på skjermer smalere enn dette (standard: aldri)
 tabs:
   - title: Automasjoner
     icon: mdi:robot       # valgfri
@@ -131,6 +135,11 @@ tabs:
       - type: custom:ki-section-card
         title: Hei
 ```
+`style: auto` viser pillene når alle fanene får plass, og bytter ellers til **scroll**: en rullbar fanerad i
+full bredde som du sveiper i, med toning og blapil i kantene og vannrett museskroll på hjul. Den valgte fanen
+rulles alltid inn i midten. `style: scroll` tvinger raden, `style: dropdown` tvinger nedtrekksmenyen, og
+`dropdown_under: 360` gir nedtrekk bare på svært smale skjermer.
+
 Nedtrekksmenyen ligger i fast posisjon og plasseres etter knappen, så den ikke blir klippet av kort under
 eller av foreldre med `overflow: hidden` (for eksempel bubble-card-popupene). Den vender oppover hvis det er
 mer plass over knappen, får egen rulling når den er høyere enn skjermen, og lukkes ved klikk utenfor,
@@ -531,7 +540,7 @@ riktig i HACS.
 oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversjon.
 
 ## v2.0.0
-- `ki-tabs-card`: `style: auto|pills|dropdown`, `sticky: true`, `align`, `gap`.
+- `ki-tabs-card`: `style: auto|pills|scroll|dropdown`, `sticky: true`, `bg`, `align`, `gap`, `dropdown_under`.
 - Alle ki-kort har lås mot horisontal overflyt (`max-width: 100%; overflow: hidden`) – ingen kort «sklir» ut av popupen lenger.
 - `ki-vekking-card`, `ki-sovn-card` og `ki-planter-card` finner entitetene sine selv via markørattributtet `integrasjon` fra
   [ki-sovn v2](https://github.com/SebastianKristo/ki-sovn) og [ki-planter](https://github.com/SebastianKristo/ki-planter).
