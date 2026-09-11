@@ -1,0 +1,19 @@
+# Erstatter css-swipe-card + button-card + paper-buttons-row + mysmart-weather-card
+type: custom:ki-vaer-card
+naa: sensor.weather_forecast_v2      # current: temperature, feels_like, condition, wind_desc, precipitation
+vaer: weather.forecast_home          # prognoser (time/døgn) og uv_index
+sol: sun.sun
+maane: sensor.oslo_moon_phase
+visning: alle                        # alle | naa | himmel | timer | dager
+timer: 24
+dager: 6
+hopp_forste: false                   # true for å hoppe over i dag i døgnlista
+
+# Vil du beholde de separate kortene i stabelen, bruk visning: per kort:
+# - type: custom:ki-vaer-card
+#   visning: naa
+#   naa: sensor.weather_forecast_v2
+#   sol: sun.sun
+# - type: custom:ki-vaer-card
+#   visning: timer
+#   vaer: weather.forecast_home

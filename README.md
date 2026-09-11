@@ -37,6 +37,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sensor-card.svg" width="28" align="absmiddle"> | `ki-sensor-card` | KI Sensor | Universelt sensorkort i `universal_sensor_ny`-stilen, med levende bakgrunn: søyler, bølge eller puls |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-planter-card.svg" width="28" align="absmiddle"> | `ki-planter-card` | KI Planter | Vanning av planter fra [ki-planter](https://github.com/SebastianKristo/ki-planter): finner plantene selv, `sted:` filtrerer (mode: list / tile) |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-sovn-card.svg" width="28" align="absmiddle"> | `ki-sovn-card` | KI Søvn | Søvnstatus per person fra [ki-sovn](https://github.com/SebastianKristo/ki-sovn) (mode: list / tile) |
@@ -179,6 +180,29 @@ nederst og enheten som liten hevet tekst. `animasjon: auto` velger søyler for W
 total_increasing, ellers puls. Animasjonen leses av verdien: søylene hopper høyere og raskere når forbruket
 stiger, bølgen står som en vannstand på `verdi / maks`, og pulsringene går raskere ved høye verdier.
 Nye tall rulles inn. Trykk åpner more-info. Har egen visuell editor.
+
+### ki-vaer-card
+```yaml
+type: custom:ki-vaer-card
+naa: sensor.weather_forecast_v2   # sensor med attributtet current (temperature, feels_like, condition, wind_desc, precipitation)
+vaer: weather.forecast_home       # prognoser og uv_index
+sol: sun.sun
+maane: sensor.oslo_moon_phase
+visning: alle                     # alle | naa | himmel | timer | dager
+timer: 24
+dager: 6
+hopp_forste: false
+tittel: Været nå
+```
+Fire faner i ett kort. **Nå** har samme oppsett som `universal_sensor_ny`-væreflisen – stor tynn temperatur med
+følt temperatur, tilstand, vind og nedbør – men den statiske met-ikonet er byttet ut med en levende himmel som
+leses av tilstandsteksten: sola pulserer med roterende stråler, skyer drifter, regndråper faller (tettere ved
+kraftig regn), snøfnugg daler og svinger, lynet blinker ved torden, tåkebanker glir forbi og vindkast stryker
+over. Etter solnedgang bytter scenen til måne og blinkende stjerner.
+**Sol og måne** viser en bue der sola står på dagens posisjon mellom oppgang og nedgang, månefasen tegnet som
+faktisk opplyst del, og UV-indeks med farge og markør. **Timer** og **Dager** henter prognosene via
+`weather/subscribe_forecast` (faller tilbake på `forecast`-attributtet) og tegner temperaturkurven inn med
+nedbørstolper, og døgnlista som min–maks-spenn. Har egen visuell editor.
 
 ### ki-natt-card
 ```yaml
