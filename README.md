@@ -40,6 +40,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-media-card.svg" width="28" align="absmiddle"> | `ki-media-card` | KI Media | Nå spilles med levende omslag, radiokanaler, transport og volum |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-prosa-card.svg" width="28" align="absmiddle"> | `ki-prosa-card` | KI Prosa | Forsidetekst som skriver seg selv, med levende piller for vær, pris, forbruk, apparater og varsler |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
@@ -303,6 +304,46 @@ bekreft: Strømsykle {port}?
 ```
 Porter som fliser i rutenett. `switch`-porter lyser blått med blinkende aktivitetsprikk og kan slås av og på;
 `button`-porter kjører strømsykling og får et lysstrøk mens det skjer.
+
+### ki-prosa-card
+```yaml
+type: custom:ki-prosa-card
+# Alt er valgfritt – standardene peker på entitetene i huset. Sett en nøkkel til false for å skru av biten.
+vaer: weather.forecast_home
+pris: sensor.norgespris_pris_na
+spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # gir fargeprikk på prisen
+effekt: sensor.strommaler_effekt
+lys: auto                       # auto finner lys som står på
+lys_ekskluder: ['light.wled_*']
+kalender: sensor.alle_kalendere
+planter: auto
+laser: auto
+natt: [23, 6]
+ringeklokke: input_boolean.ki_ringeklokke_varsel_aktiv
+storrelse: 1.4em
+apparater:
+  - navn: Oppvaskmaskinen
+    aktiv: {entity: input_select.oppvaskmaskin_status, state: Vasker}
+    verdi: sensor.oppvaskmaskin_power
+    ikon: 🍽️
+    path: '#kjokken'
+hjemkomst:
+  - navn: Mamma
+    aktiv: input_boolean.ki_cybele_pa_vei_hjem_fra_jobb
+    reisetid: sensor.cybele_reisetid_fra_job
+bursdag:
+  vis: binary_sensor.vis_bursdagskort
+  skjult: input_boolean.bursdagskort_skjult
+  navn: sensor.dagens_bursdager
+ekstra:
+  - tekst: Søppel tømmes i dag
+    vis: "states['sensor.x'].state == '0'"
+    path: '#soppel'
+```
+Forsideteksten satt sammen av det som faktisk skjer i huset: temperatur ute, strømpris med fargeprikk etter
+hvor dyr timen er, forbruk nå, lys som står på, dagens avtaler, apparater som kjører, noen på vei hjem,
+bursdager og ringeklokka. Setningene kommer og går etter tilstanden, med en myk animasjon når en ny dukker
+opp. Trykk på en pille navigerer eller kjører handlingen, langt trykk åpner more-info. Har egen visuell editor.
 
 ### ki-media-card
 ```yaml
