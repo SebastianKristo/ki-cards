@@ -360,3 +360,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.20.0
 - `ki-hjem-card`: innebygde faner `aktuelt:` (TV, støvsuger, vaskemaskin, oppvaskmaskin – samme kort som før) og `batterier:` (auto-entities, vises bare ved lavt batteri), også i editoren.
+
+## v2.20.1
+- `ki-hjem-card`: eget navn per rom (`navn: Cybele<br>Soverom`, også i editoren) og plasserings-UI i editoren – to kolonner per etasje, flytt rom med ▲▼ og ◀▶ (skriver `kolonne`/`rekkefolge`).

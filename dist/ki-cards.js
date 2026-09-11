@@ -1,4 +1,4 @@
-/* ki-cards v2.20.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-10 */
+/* ki-cards v2.20.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-11 */
 import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
@@ -8,7 +8,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.20.0";
+  KI.VERSION = "2.20.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -2904,7 +2904,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.3.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.3.1  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -2984,6 +2984,7 @@ try {
     if (it.rom || it.kind) {
       const base = it.rom ? (romCfg[it.rom] || {}) : {};
       const cfg = { type: 'custom:ki-rom-tile-card', ...base, ...it };
+      if (typeof cfg.navn === 'string') cfg.navn = cfg.navn.replace(/\\n|\n/g, '<br>');
       // spesialfliser (kalender, lås, alarm …) legges rett inn som button-card-konfig: css-swipe-card
       // mister hele swipen hvis kalender-flisen kommer via wrapperen
       const KI = window.KI || {};
@@ -3277,6 +3278,7 @@ try {
           const r = a.area_id;
           s.push({ name: 'r_' + r, type: 'constant', label: a.rom || r });
           s.push({ name: 'rom_' + r + '_vis', selector: { boolean: {} } });
+          s.push({ name: 'rom_' + r + '_navn', selector: { text: {} } });
           s.push({ name: 'rom_' + r + '_size', selector: { select: { mode: 'dropdown', options: SIZES } } });
           s.push({ name: 'rom_' + r + '_kolonne', selector: { select: { mode: 'dropdown', options: [{ value: 'auto', label: 'Automatisk' }, { value: 'venstre', label: 'Venstre' }, { value: 'hoyre', label: 'Høyre' }] } } });
           s.push({ name: 'rom_' + r + '_rekkefolge', selector: { number: { min: 0, max: 99, mode: 'box' } } });
@@ -3306,6 +3308,7 @@ try {
         f.rom.forEach((a) => {
           const o = rc[a.area_id] || {};
           d['rom_' + a.area_id + '_vis'] = !o.skjul;
+          d['rom_' + a.area_id + '_navn'] = o.navn;
           d['rom_' + a.area_id + '_size'] = o.size || 'big';
           d['rom_' + a.area_id + '_kolonne'] = o.kolonne || 'auto';
           d['rom_' + a.area_id + '_rekkefolge'] = o.rekkefolge;
@@ -3353,8 +3356,9 @@ try {
         if (Object.keys(e).length) fc[f.key] = e;
         f.rom.forEach((a) => {
           const r = a.area_id; const o = { ...((prev.rom || {})[r] || {}) };
-          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path;
+          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn;
           if (v['rom_' + r + '_vis'] === false) o.skjul = true;
+          if (v['rom_' + r + '_navn']) o.navn = v['rom_' + r + '_navn'];
           if (v['rom_' + r + '_size'] && v['rom_' + r + '_size'] !== 'big') o.size = v['rom_' + r + '_size'];
           if (v['rom_' + r + '_kolonne'] && v['rom_' + r + '_kolonne'] !== 'auto') o.kolonne = v['rom_' + r + '_kolonne'];
           const rk = v['rom_' + r + '_rekkefolge'];
@@ -3371,8 +3375,65 @@ try {
       return out;
     }
 
+    // ---- plasserings-UI: to kolonner per etasje, flytt rom med piler
+    _renderLayout() {
+      if (!this._layout) {
+        this._layout = document.createElement('div');
+        this._layout.style.cssText = 'margin:0 0 16px 0;font-family:var(--paper-font-body1_-_font-family)';
+        this._layout.addEventListener('click', (ev) => {
+          const b = ev.target.closest('button[data-rom]'); if (!b) return;
+          this._flytt(b.dataset.rom, b.dataset.dir, b.dataset.etasje);
+        });
+        this.insertBefore(this._layout, this.firstChild);
+      }
+      const cfg = this._config || {};
+      const SIZE_TXT = { big: 'Stor', big_plain: 'Stor u/klima', small: 'Medium', row: 'Liten' };
+      const chip = (t, etasje) => `<div style="display:flex;align-items:center;gap:4px;background:var(--secondary-background-color);border-radius:10px;padding:6px 8px;margin:4px 0">
+          <span style="flex:1;font-size:13px"><b>${t.label}</b><br><span style="opacity:.6;font-size:11px">${SIZE_TXT[t.size] || t.size}</span></span>
+          <button data-rom="${t.rom}" data-dir="opp" data-etasje="${etasje}" title="Opp">▲</button>
+          <button data-rom="${t.rom}" data-dir="ned" data-etasje="${etasje}" title="Ned">▼</button>
+          <button data-rom="${t.rom}" data-dir="bytt" data-etasje="${etasje}" title="Bytt kolonne">◀▶</button>
+        </div>`;
+      const floors = this._floors().filter((f) => ((cfg.etasje_innstillinger || {})[f.key] || {}).vis !== false);
+      let html = '<div style="font-weight:500;margin-bottom:4px">Plassering av rom</div><div style="font-size:12px;opacity:.7;margin-bottom:8px">▲▼ flytter innen kolonnen, ◀▶ bytter kolonne. Størrelse endres i feltene under.</div>';
+      floors.forEach((f) => {
+        const rom = f.rom.filter((a) => !((cfg.rom || {})[a.area_id] || {}).skjul).sort((x, y) => ((cfg.rom || {})[x.area_id]?.rekkefolge ?? 50) - ((cfg.rom || {})[y.area_id]?.rekkefolge ?? 50) || (x.rom || '').localeCompare(y.rom || '', 'nb'));
+        const kol = columnsFor(rom, cfg);
+        const label = (t) => { const o = (cfg.rom || {})[t.rom] || {}; const a = f.rom.find((x) => x.area_id === t.rom) || {}; return (o.navn || a.rom || t.rom).replace(/<br>|\\n/g, ' '); };
+        html += `<div style="font-size:13px;font-weight:500;margin:10px 0 4px">${((cfg.etasje_innstillinger || {})[f.key] || {}).navn || f.navn}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>${kol.venstre.map((t) => chip({ ...t, label: label(t) }, f.key)).join('') || '<div style="opacity:.5;font-size:12px">tom</div>'}</div>
+            <div>${kol.hoyre.map((t) => chip({ ...t, label: label(t) }, f.key)).join('') || '<div style="opacity:.5;font-size:12px">tom</div>'}</div>
+          </div>`;
+      });
+      this._layout.innerHTML = html;
+      this._layout.querySelectorAll('button').forEach((b) => { b.style.cssText = 'border:none;background:var(--primary-color);color:var(--text-primary-color);border-radius:6px;padding:2px 5px;font-size:11px;cursor:pointer'; });
+    }
+
+    _flytt(rom, dir, etasjeKey) {
+      const cfg = JSON.parse(JSON.stringify(this._config || {}));
+      cfg.rom = cfg.rom || {};
+      const f = this._floors().find((x) => x.key === etasjeKey); if (!f) return;
+      const liste = f.rom.filter((a) => !(cfg.rom[a.area_id] || {}).skjul).sort((x, y) => (cfg.rom[x.area_id]?.rekkefolge ?? 50) - (cfg.rom[y.area_id]?.rekkefolge ?? 50) || (x.rom || '').localeCompare(y.rom || '', 'nb'));
+      const kol = columnsFor(liste, cfg);
+      // lås nåværende plassering eksplisitt (kolonne + rekkefølge) så flyttingen blir forutsigbar
+      const cols = { venstre: kol.venstre.map((t) => t.rom), hoyre: kol.hoyre.map((t) => t.rom) };
+      const side = cols.venstre.includes(rom) ? 'venstre' : 'hoyre';
+      const idx = cols[side].indexOf(rom);
+      if (dir === 'opp' && idx > 0) { cols[side].splice(idx, 1); cols[side].splice(idx - 1, 0, rom); }
+      if (dir === 'ned' && idx < cols[side].length - 1) { cols[side].splice(idx, 1); cols[side].splice(idx + 1, 0, rom); }
+      if (dir === 'bytt') { cols[side].splice(idx, 1); cols[side === 'venstre' ? 'hoyre' : 'venstre'].splice(Math.min(idx, cols[side === 'venstre' ? 'hoyre' : 'venstre'].length), 0, rom); }
+      let n = 1;
+      ['venstre', 'hoyre'].forEach((k) => cols[k].forEach((r) => { cfg.rom[r] = { ...(cfg.rom[r] || {}), kolonne: k, rekkefolge: n++ }; }));
+      this._config = cfg;
+      this._lastData = null;
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
+      this._render();
+    }
+
     _render() {
       if (!this._hass || !this._config) return;
+      this._renderLayout();
       if (!this._form) {
         this._form = document.createElement('ha-form');
         this._form.computeLabel = (sc) => {
@@ -3385,7 +3446,7 @@ try {
           };
           if (m[n]) return m[n];
           if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
-          if (n.startsWith('rom_')) return { vis: 'Vis rom', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash' }[n.split('_').pop()] || n;
+          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash' }[n.split('_').pop()] || n;
           return sc.label || n;
         };
         this._form.addEventListener('value-changed', (ev) => {
