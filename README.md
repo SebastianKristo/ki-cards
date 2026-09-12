@@ -728,6 +728,19 @@ Kortet har UI-editor: legg til «KI Rom» i en popup, velg rom i nedtrekkslisten
 
 `ki-rom-popups` lager én bubble-card pop-up per rom (`#<area_id>`) med farge per rom og per-rom-overstyring – ett kort erstatter alle rom-popupene. Se `examples/alle-rom-popups.yaml` og `examples/rom-popup.yaml`.
 
+Viser en stikkontakt 0 W selv om den har en effektsensor, er den ikke paret riktig i integrasjonen. Kortet
+leter da selv etter en sensor med samme navn og `device_class: power` – `switch.fryseskap` finner
+`sensor.fryseskap_power` – og hopper over sensorer som egentlig måler energi (kWh). Stemmer det fortsatt
+ikke, settes paret i kortet:
+
+```yaml
+type: custom:ki-rom-card
+rom: vaskegang
+effekt_par:
+  switch.fryseskap: sensor.fryseskap_power
+  switch.noe_annet: false      # false fjerner effektvisningen for den bryteren
+```
+
 ## ki-rom-tile-card
 
 Flisene på forsiden (Stue, Kjøkken, Gang, Pult … med temperatur, fukt, termostat-stepper og «!»-varsel) generert fra `sensor.<rom>_oversikt` – samme button-card-konfig som før.

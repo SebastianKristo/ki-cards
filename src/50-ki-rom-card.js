@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.7.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.8.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
@@ -586,6 +586,36 @@
   // ------------------------------------------------------------ generator
   const LIST_KEYS = ['lys', 'media', 'brytere', 'vifter', 'klima', 'gardiner', 'sensorer', 'skript', 'scener', 'temperatur', 'fuktighet', 'lysniva', 'effekt', 'effekt_andre'];
 
+  /* Finner effektsensoren til en bryter når integrasjonen ikke har paret dem.
+     Prøver kjente navnemønstre på samme slug: switch.fryseskap -> sensor.fryseskap_power. */
+  function finnEffekt(hass, entity) {
+    const slug = String(entity).split('.')[1];
+    if (!slug) return null;
+    const kandidater = [
+      `sensor.${slug}_power`, `sensor.${slug}_effekt`, `sensor.${slug}_current_power_w`,
+      `sensor.${slug}_power_w`, `sensor.${slug}_watt`, `sensor.${slug}_forbruk_na`,
+    ];
+    for (const id of kandidater) {
+      const st = hass.states[id];
+      if (st && String(st.attributes.device_class || '') === 'power') return id;
+      if (st && /^w$|watt/i.test(String(st.attributes.unit_of_measurement || ''))) return id;
+    }
+    return null;
+  }
+
+  /* Parer bryter og effektsensor: eksplisitt `effekt_par` i kortet først,
+     så det integrasjonen har paret, til slutt navnegjetting. */
+  function parEffekt(hass, ov, cfg) {
+    const par = cfg.effekt_par || {};
+    [...(ov.brytere || []), ...(ov.vifter || [])].forEach((d) => {
+      if (!d || typeof d !== 'object') return;
+      if (par[d.entity]) { d.effekt = par[d.entity] === false ? null : par[d.entity]; return; }
+      const st = d.effekt ? hass.states[d.effekt] : null;
+      const brukbar = st && String(st.attributes.device_class || '') === 'power';
+      if (!brukbar) { const funnet = finnEffekt(hass, d.entity); if (funnet) d.effekt = funnet; }
+    });
+  }
+
   function mergeOversikt(ovStates, skjul) {
     const hide = new Set([].concat(skjul || []));
     const ov = {};
@@ -603,6 +633,7 @@
 
   function generate(hass, ovStates, cfg) {
     const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], cfg.skjul);
+    parEffekt(hass, ov, cfg);
     const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
     const roomName = roomNames.length === 1 ? (cfg.navn || roomNames[0]) : roomNames;
     const s = cfg.seksjoner;
