@@ -1,4 +1,4 @@
-/* ki-cards v2.73.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.74.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.73.0";
+  KI.VERSION = "2.74.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8869,7 +8869,7 @@ try {
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "3.0.0";
+const KI_VANN_VERSJON = "3.1.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -8935,13 +8935,19 @@ const KI_VANN_STIL = `
   .spreder { transform-box:fill-box; transform-origin:50% 100%; }
   .scene.vanner .spreder { animation:va-vipp 3.2s ease-in-out infinite alternate; }
   @keyframes va-vipp { from { transform:rotate(-13deg); } to { transform:rotate(13deg); } }
-  .straale { opacity:0; }
-  .scene.vanner .straale { animation:va-straale 3.2s ease-in-out infinite alternate; }
-  @keyframes va-straale { 0% { opacity:.55; transform:rotate(-13deg); } 100% { opacity:.55; transform:rotate(13deg); } }
-  .sdrape { opacity:0; }
-  .scene.vanner .sdrape { animation:va-sprut 1.5s ease-in infinite; }
-  @keyframes va-sprut { 0% { opacity:0; transform:translate(0,0) scale(.6); } 20% { opacity:.9; }
-    100% { opacity:0; transform:translate(var(--dx,60px), var(--dy,40px)) scale(1); } }
+  /* hele strålegruppa svinger med hodet – strålen og dråpene henger sammen */
+  .stralegruppe { opacity:0; transform-box:view-box; }
+  .scene.vanner .stralegruppe { opacity:1; animation:va-sving 3.2s ease-in-out infinite alternate; }
+  @keyframes va-sving { from { transform:rotate(-13deg); } to { transform:rotate(13deg); } }
+  .straale { opacity:.85; }
+  .sdrape { opacity:0; transform-box:view-box; }
+  .scene.vanner .sdrape { animation:va-sprut 1.4s ease-out infinite; }
+  /* dråpene kastes ut langs buen og faller ned igjen */
+  @keyframes va-sprut {
+    0% { opacity:0; transform:translate(0,0) scale(.45); }
+    12% { opacity:.95; }
+    45% { transform:translate(calc(var(--dx,40px) * .55), calc(var(--dy,22px) * -1)) scale(.9); }
+    100% { opacity:0; transform:translate(var(--dx,40px), calc(var(--dy,22px) * .9)) scale(.8); } }
   .vaatt { opacity:0; transition:opacity 1.4s ease; } .scene.vanner .vaatt { opacity:.5; }
   .snofnugg { opacity:0; } .scene.vinter .snofnugg { animation:va-sno linear infinite; }
   @keyframes va-sno { 0% { opacity:0; transform:translateY(-10px); } 15% { opacity:.9; }
@@ -9006,6 +9012,34 @@ const KI_VANN_STIL = `
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .prog .t { grid-area:t; padding-right:14px; font-size:12px; opacity:.7; font-variant-numeric:tabular-nums; }
   .hint { font-size:11px; opacity:.55; padding:0 4px 4px; }
+  /* skjema for å lage og endre programmer */
+  .nyprog { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:13px; font-weight:600;
+    border-radius:16px; padding:12px; cursor:pointer; width:100%; }
+  .nyprog:active { transform:scale(.98); }
+  .skjema { background:var(--gray200); border-radius:20px; padding:14px; display:grid; gap:12px; }
+  .skjema .rad { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; }
+  .skjema label { font-size:12px; opacity:.6; display:block; margin-bottom:4px; }
+  .skjema input[type=text], .skjema input[type=time], .skjema input[type=number], .skjema input[type=date] {
+    width:100%; background:var(--gray100); border:0; border-radius:12px; color:var(--gray1000);
+    font:inherit; font-size:14px; padding:10px 12px; }
+  .dager { display:flex; gap:5px; flex-wrap:wrap; }
+  .dag { border:0; background:var(--gray100); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
+    border-radius:999px; padding:8px 0; cursor:pointer; flex:1 1 36px; min-width:36px; }
+  .dag.valgt { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .bryterrad { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; }
+  .velg { display:inline-flex; padding:2px; gap:3px; border-radius:999px; background:var(--gray100); }
+  .velg button { border:0; background:none; color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
+    padding:7px 12px; border-radius:999px; cursor:pointer; opacity:.65; }
+  .velg button.valgt { background:var(--gray1000); color:var(--gray100); opacity:1; }
+  .sonevalg { display:grid; gap:6px; }
+  .sonerad2 { display:grid; grid-template-columns:26px 1fr 74px; gap:8px; align-items:center; font-size:13px; }
+  .sonerad2 input[type=checkbox] { width:18px; height:18px; accent-color:var(--active-big,#ee95ff); }
+  .skjemaknapper { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .sk { border:0; border-radius:14px; padding:12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    background:var(--gray100); color:var(--gray1000); }
+  .sk.lagre { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .sk.slett { color:var(--red,#e8657a); }
+  .progknapp { border:0; background:none; color:inherit; cursor:pointer; padding:6px; --mdc-icon-size:20px; opacity:.7; }
   .tom { padding:18px; font-size:13px; opacity:.6; text-align:center; }
   .nokkel { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:8px; min-width:0; }
   .nk .v { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -9069,11 +9103,12 @@ const kiVaScene = () => {
     return `<path class="straa" d="M${x} 150 q2 -${h / 2} 0 -${h}" stroke="#5fbf7a" stroke-width="2.4" fill="none"
       stroke-linecap="round" style="animation-delay:-${((i * 0.21) % 3.4).toFixed(2)}s;opacity:${(0.55 + (i % 4) * 0.12).toFixed(2)}"/>`;
   }).join("");
-  const sprut = Array.from({ length: 12 }, (_, i) => {
-    const vinkel = -60 + i * 10, lengde = 42 + ((i * 13) % 26);
-    const dx = Math.cos((vinkel * Math.PI) / 180) * lengde, dy = Math.sin((vinkel * Math.PI) / 180) * lengde + 30;
-    return `<circle class="sdrape" cx="250" cy="112" r="${2 + (i % 3) * 0.6}" fill="#bfe9ff"
-      style="--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;animation-delay:-${((i * 0.12) % 1.5).toFixed(2)}s"/>`;
+  /* Dråpene ligger inne i samme gruppe som strålen, slik at de kastes ut fra
+     dysa og svinger med den i stedet for å falle ned fra himmelen. */
+  const sprut = Array.from({ length: 10 }, (_, i) => {
+    const lengde = 30 + ((i * 11) % 26), hoyde = 10 + ((i * 7) % 10);
+    return `<circle class="sdrape" cx="250" cy="110" r="${1.8 + (i % 3) * 0.5}" fill="#bfe9ff"
+      style="--dx:${lengde.toFixed(0)}px;--dy:${hoyde.toFixed(0)}px;animation-delay:-${((i * 0.15) % 1.5).toFixed(2)}s"/>`;
   }).join("");
   const sno = Array.from({ length: 16 }, (_, i) =>
     `<circle class="snofnugg" cx="${12 + i * 20}" cy="-6" r="${1.6 + (i % 3) * 0.5}" fill="#fff"
@@ -9096,11 +9131,13 @@ const kiVaScene = () => {
     <g class="blomst" style="animation-delay:-3.1s"><path d="M148 156v-14" stroke="#5fbf7a" stroke-width="2.2" fill="none"/>
       <circle cx="148" cy="140" r="4.5" fill="#ffd98a"/></g>
     ${straa}
-    <g class="straale" transform-origin="250px 112px">
-      <path d="M250 112 q34 -44 76 -30" stroke="#bfe9ff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
-      <path d="M250 112 q26 -38 58 -34" stroke="#bfe9ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".4"/>
+    <g class="stralegruppe" transform-origin="250px 110px">
+      <g class="straale">
+        <path d="M250 110 q30 -34 62 -16" stroke="#bfe9ff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
+        <path d="M250 110 q24 -28 48 -18" stroke="#bfe9ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".4"/>
+      </g>
+      ${sprut}
     </g>
-    ${sprut}
     <g class="spreder" transform-origin="250px 150px">
       <rect x="246" y="112" width="8" height="40" rx="4" fill="#dce8f0"/>
       <circle cx="250" cy="110" r="7" fill="#eaf6ff"/><circle cx="250" cy="110" r="3" fill="#6aa9c9"/>
@@ -9468,9 +9505,133 @@ class KiVanningCard extends HTMLElement {
     </div>`).join("");
   }
 
+  /* Skjema for å lage eller endre et program. Bare i ventilmodus, der KI Vanning
+     selv styrer klokka. */
+  _skjema() {
+    const d = this._nyttProgram;
+    const dager = [["man", "M"], ["tir", "T"], ["ons", "O"], ["tor", "T"], ["fre", "F"], ["lor", "L"], ["son", "S"]];
+    const soner = this._soner();
+    const valgt = (e) => (d.soner || []).find((z) => z.entity === e);
+    return `<div class="skjema">
+      <div class="rad">
+        <div><label>Navn</label><input type="text" data-f="navn" value="${kiVaEsc(d.navn || "")}" placeholder="Morgen"></div>
+        <div><label>Starter</label><input type="time" data-f="tid" value="${kiVaEsc(d.tid || "06:00")}"></div>
+      </div>
+
+      <div>
+        <div class="bryterrad"><span>Hyppighet</span>
+          <span class="velg">
+            <button data-m="dager" class="${d.intervall ? "" : "valgt"}">Ukedager</button>
+            <button data-m="intervall" class="${d.intervall ? "valgt" : ""}">Intervall</button>
+          </span></div>
+        ${d.intervall ? `<div class="rad" style="margin-top:8px">
+            <div><label>Hver … dag</label><input type="number" min="1" max="30" data-f="intervall" value="${d.intervall}"></div>
+            <div><label>Første gang</label><input type="date" data-f="start_dato" value="${kiVaEsc(d.start_dato || "")}"></div>
+          </div>`
+          : `<div class="dager" style="margin-top:8px">${dager.map(([k, t]) =>
+              `<button class="dag ${(d.dager || []).includes(k) ? "valgt" : ""}" data-dag="${k}">${t}</button>`).join("")}</div>`}
+      </div>
+
+      <div>
+        <div class="bryterrad"><span>Sonene kjører</span>
+          <span class="velg">
+            <button data-s="etter" class="${d.samtidig ? "" : "valgt"}">Etter hverandre</button>
+            <button data-s="samtidig" class="${d.samtidig ? "valgt" : ""}">Samtidig</button>
+          </span></div>
+      </div>
+
+      <div class="sonevalg">
+        <label>Soner og minutter</label>
+        ${soner.map((z) => { const v = valgt(z.bryter); return `<div class="sonerad2">
+          <input type="checkbox" data-sone="${kiVaEsc(z.bryter)}" ${v ? "checked" : ""}>
+          <span>${kiVaEsc(z.navn)}</span>
+          <input type="number" min="1" max="180" data-min="${kiVaEsc(z.bryter)}" value="${v ? v.min : 10}">
+        </div>`; }).join("")}
+      </div>
+
+      <div class="bryterrad"><span>Bare i feriemodus</span>
+        <span class="velg">
+          <button data-fe="nei" class="${d.ferie ? "" : "valgt"}">Nei</button>
+          <button data-fe="ja" class="${d.ferie ? "valgt" : ""}">Ja</button>
+        </span></div>
+
+      <div class="skjemaknapper">
+        <button class="sk" data-skjema="avbryt">Avbryt</button>
+        <button class="sk lagre" data-skjema="lagre">Lagre</button>
+      </div>
+      ${d._finnes ? `<button class="sk slett" data-skjema="slett">Slett programmet</button>` : ""}
+    </div>`;
+  }
+
+  _koblSkjema(r) {
+    const d = this._nyttProgram; if (!d) return;
+    const tegn = () => this._tegn();
+    r.querySelectorAll(".skjema [data-f]").forEach((el) => el.addEventListener("change", () => {
+      const f = el.dataset.f;
+      d[f] = f === "intervall" ? Number(el.value) : el.value;
+    }));
+    r.querySelectorAll("[data-dag]").forEach((el) => el.addEventListener("click", () => {
+      d.dager = d.dager || [];
+      const k = el.dataset.dag;
+      d.dager = d.dager.includes(k) ? d.dager.filter((x) => x !== k) : [...d.dager, k];
+      tegn();
+    }));
+    r.querySelectorAll("[data-m]").forEach((el) => el.addEventListener("click", () => {
+      d.intervall = el.dataset.m === "intervall" ? (d.intervall || 2) : 0;
+      if (!d.intervall && !(d.dager || []).length) d.dager = ["man", "tor"];
+      tegn();
+    }));
+    r.querySelectorAll("[data-s]").forEach((el) => el.addEventListener("click", () => {
+      d.samtidig = el.dataset.s === "samtidig"; tegn();
+    }));
+    r.querySelectorAll("[data-fe]").forEach((el) => el.addEventListener("click", () => {
+      d.ferie = el.dataset.fe === "ja"; tegn();
+    }));
+    const lesSoner = () => {
+      const ut = [];
+      r.querySelectorAll("[data-sone]").forEach((boks) => {
+        if (!boks.checked) return;
+        const e = boks.dataset.sone;
+        const min = r.querySelector(`[data-min="${e}"]`);
+        ut.push({ entity: e, min: Number(min && min.value) || 10 });
+      });
+      return ut;
+    };
+    r.querySelectorAll("[data-sone], [data-min]").forEach((el) =>
+      el.addEventListener("change", () => { d.soner = lesSoner(); }));
+    r.querySelectorAll("[data-skjema]").forEach((el) => el.addEventListener("click", () => {
+      const hva = el.dataset.skjema;
+      if (hva === "avbryt") { this._nyttProgram = null; return tegn(); }
+      if (hva === "slett") {
+        this._ki_tjeneste("slett_program", { navn: d._opprinnelig || d.navn });
+        this._nyttProgram = null; return tegn();
+      }
+      d.soner = d.soner && d.soner.length ? d.soner : lesSoner();
+      const navnFelt = r.querySelector('[data-f="navn"]');
+      const tidFelt = r.querySelector('[data-f="tid"]');
+      this._ki_tjeneste("lag_program", {
+        navn: (navnFelt && navnFelt.value) || d.navn || "Nytt program",
+        tid: (tidFelt && tidFelt.value) || d.tid || "06:00",
+        dager: d.intervall ? [] : (d.dager || []),
+        intervall: d.intervall || 0,
+        start_dato: d.start_dato || "",
+        soner: d.soner || [],
+        samtidig: !!d.samtidig,
+        ferie: !!d.ferie,
+        aktiv: d.aktiv !== false,
+      });
+      this._nyttProgram = null; tegn();
+    }));
+  }
+
   _panelProgrammer() {
     const p = this._programmer();
-    if (!p.length) return `<div class="tom">Fant ingen programmer.</div>`;
+    const ventil = this._ventilmodus();
+    if (ventil && this._nyttProgram) return this._skjema();
+    if (!p.length) {
+      return (ventil ? `<button class="nyprog" data-nytt="1">+  Lag ditt første program</button>` : "")
+        + `<div class="tom">Fant ingen programmer.</div>`;
+    }
     const ki = this._ki();
     const plan = (ki && ki.programmer) || [];
     const aktiv = this._aktivSone();
@@ -9502,13 +9663,17 @@ class KiVanningCard extends HTMLElement {
         <div class="ic"><ha-icon icon="${gaar ? "mdi:play-circle" : av ? "mdi:calendar-remove" : "mdi:calendar-clock"}"></ha-icon></div>
         <div class="n">${kiVaEsc(x.navn)}${pl && pl.i_dag ? ' <span class="knagg">i dag</span>' : ""}</div>
         <div class="l">${gaar ? "Kjører nå" : av ? "Deaktivert" : under || "Aktivert"}</div>
-        <div class="t">${av ? "av" : "på"}</div>
+        <div class="t">${ventil ? `<button class="progknapp" data-rediger="${kiVaEsc(x.navn)}"><ha-icon icon="mdi:pencil"></ha-icon></button>`
+          : (av ? "av" : "på")}</div>
       </div>
       ${pl && pl.soner.length ? `<div class="pdetalj">${pl.soner.map((z) =>
         `<span class="pz ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">${kiVaEsc(z.navn)} ${z.min}m</span>`).join("")}</div>` : ""}
       ${gaar && gjort ? `<div class="pstolpe"><i style="width:${gjort.toFixed(1)}%"></i></div>` : ""}`;
-    }).join("") + `<div class="hint">${this._ventilmodus()
-      ? "Trykk = kjør programmet nå" : "Trykk = av eller på · hold = kjør programmet nå"}</div>`;
+    }).join("")
+      + (ventil ? `<button class="nyprog" data-nytt="1">+  Nytt program</button>` : "")
+      + `<div class="hint">${ventil
+        ? "Trykk = kjør programmet nå · blyanten åpner innstillingene"
+        : "Trykk = av eller på · hold = kjør programmet nå"}</div>`;
   }
 
   _tikk() {
@@ -9630,8 +9795,24 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", (e) => {
       if (e.target.closest("[data-min]")) return; this._mer(el.dataset.e);
     }));
+    r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
+      const forste = this._soner()[0];
+      this._nyttProgram = { navn: "", tid: "06:00", dager: ["man", "tor"], intervall: 0, samtidig: false,
+        ferie: false, soner: forste ? [{ entity: forste.bryter, min: 10 }] : [] };
+      this._tegn();
+    }));
+    r.querySelectorAll("[data-rediger]").forEach((el) => el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const navn = el.dataset.rediger;
+      const ki = this._ki();
+      const pl = ((ki && ki.program_historikk) || []).find((x) => x.navn === navn) || { navn };
+      this._nyttProgram = { ...pl, _finnes: true, _opprinnelig: navn,
+        soner: (pl.soner || []).map((z) => ({ entity: z.entity, min: z.min })) };
+      this._tegn();
+    }));
     r.querySelectorAll("[data-kjorprog]").forEach((el) =>
       el.addEventListener("click", () => this._ki_tjeneste("kjor_program", { program: el.dataset.kjorprog })));
+    this._koblSkjema(r);
     r.querySelectorAll("[data-prog]").forEach((el) => {
       let t = null, holdt = false;
       const start = () => { holdt = false; t = setTimeout(() => { holdt = true; this._tjeneste("run_program", {}, el.dataset.kjor); }, 500); };

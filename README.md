@@ -363,6 +363,11 @@ som står på planen i dag – trykk slår av eller på, hold kjører programmet
 og år, fordelingen per sone med kalibrert L/min bak hvert navn, og hageslangen som egen post. Har egen
 visuell editor.
 
+Styrer [KI Vanning](https://github.com/SebastianKristo/ki-vanning) ventilene selv, får Programmer-fanen en
+knapp for å lage programmer rett i kortet: navn og klokkeslett, ukedager eller «hver N. dag» med startdato,
+om sonene skal kjøre etter hverandre eller samtidig, minutter per sone, og om programmet bare skal gå i
+feriemodus. Blyanten på et program åpner det samme skjemaet for endring og sletting.
+
 ### ki-strompris-card
 ```yaml
 type: custom:ki-strompris-card
