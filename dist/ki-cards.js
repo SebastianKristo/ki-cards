@@ -1,4 +1,4 @@
-/* ki-cards v3.13.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.14.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.13.1";
+  KI.VERSION = "3.14.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4351,7 +4351,12 @@ try {
       const next = ps.filter(p => p.left !== null && p.left > 0).sort((a, b) => a.left - b.left)[0];
       const forkl = due.length ? due.map(p => p.name).join(", ") + " trenger vann" + (next ? ` · neste: ${next.name} ${next.txt.toLowerCase()}` : "") : next ? `Neste: ${next.name} ${next.txt.toLowerCase()}` : "Legg til planter i KI Planter.";
       const okPct = ps.length ? ((ps.length - due.length) / ps.length) * 100 : 0;
-      this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
+      this.shadowRoot.innerHTML = `<style>${KI.pro}
+        /* scenen står tettere enn ringraden gjorde – gi den litt mer luft */
+        .wrap > .scene-hero { margin-bottom:14px; }
+        .wrap > .scene-hero ~ .switch { margin-bottom:14px; }
+        .wrap > .scene-hero ki-plante-scene-card { display:block; }
+      </style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         ${c.scene && customElements.get("ki-plante-scene-card")
           ? `<div class="scene-hero"></div>`
@@ -9508,8 +9513,9 @@ const KI_VANN_STIL = `
   .hurtig { display:grid; grid-template-columns:repeat(auto-fit, minmax(72px, 1fr)); gap:8px; }
   .hk span { overflow:hidden; text-overflow:ellipsis; max-width:100%; white-space:nowrap; }
   .hk { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:500;
-    border-radius:24px; padding:14px 4px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px;
+    border-radius:24px; padding:14px 6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px;
     --mdc-icon-size:24px; transition:transform .12s var(--fjaer), background .2s; }
+  .hk span { line-height:1.2; text-align:center; overflow-wrap:anywhere; }
   .hk:active { transform:scale(.95); }
   .hk.pa { background:var(--gray1000); color:var(--gray100); }
   .hk.skjult { display:none; }
@@ -9517,9 +9523,9 @@ const KI_VANN_STIL = `
 
   /* ---- faner ---- */
   .faner { display:flex; justify-content:center; }
-  .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
-    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
+  .skinne { display:inline-flex; gap:4px; padding:3px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:15px; font-weight:500;
+    padding:9px 22px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
@@ -9780,7 +9786,15 @@ class KiVanningCard extends HTMLElement {
     const g = this._h; this._h = h; if (!this._c) return;
     if (!g) { this._tegn(); return; }
     const ids = this._ider();
-    if (!this._bygget || ids.some((id) => g.states[id] !== h.states[id])) this._tegn();
+    if (!this._bygget || ids.some((id) => g.states[id] !== h.states[id])) { this._tegn(); return; }
+    /* regnpause, hovedbryter og planleggeren ligger i oversiktssensorens
+       attributter – de endrer seg uten at entitets-objektet byttes ut */
+    const nokkel = (x) => {
+      const ki = this._kiFra(x);
+      return ki ? [ki.regnpause, ki.regnpause_minutter, ki.anlegg,
+        ki.planlegger && ki.planlegger.program].join("|") : "";
+    };
+    if (nokkel(g) !== nokkel(h)) this._tegn();
   }
   connectedCallback() { clearInterval(this._ur); this._ur = setInterval(() => this._tikk(), 1000); }
   disconnectedCallback() { clearInterval(this._ur); }
@@ -9995,12 +10009,25 @@ class KiVanningCard extends HTMLElement {
     const pa = !(ki && ki.anlegg === false);
     this._ki_tjeneste("sett_anlegg", { pa: !pa });
   }
+  /* oversikten slik den så ut i en gitt hass – brukt til å oppdage endringer */
+  _kiFra(h) {
+    if (!h || !h.states) return null;
+    const id = Object.keys(h.states).find((x) => {
+      const a = h.states[x].attributes || {};
+      return a.integrasjon === "ki_vanning" && a.ki_type === "oversikt";
+    });
+    return id ? h.states[id].attributes : null;
+  }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
   _veksle(id) { if (navigator.vibrate) navigator.vibrate(8); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
 
   /* ---------- oppbygging ---------- */
   _bygg() {
     const c = this._c, faner = c.faner;
+    const kiNa = this._ki();
+    const anleggId = this._ventilmodus() ? this._kiEnt("anlegg") : null;
+    const anleggPa = anleggId ? this._on(anleggId)
+      : !(kiNa && kiNa.anlegg === false);
     const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer", forbruk: "Forbruk", innstillinger: "Mer" };
     const gress = Array.from({ length: 26 }, (_, i) =>
       `<i style="left:${(i * 4 + 1)}%;height:${8 + ((i * 7) % 14)}px;animation-delay:-${((i * 0.19) % 2.6).toFixed(2)}s"></i>`).join("");
@@ -10027,7 +10054,9 @@ class KiVanningCard extends HTMLElement {
           <button class="hk" data-h="regn24"><ha-icon icon="mdi:weather-rainy"></ha-icon><span>Regn 24t</span></button>
           <button class="hk" data-h="regn0"><ha-icon icon="mdi:weather-sunny"></ha-icon><span>Nullstill</span></button>
           <button class="hk skjult" data-h="program"><ha-icon icon="mdi:play-circle"></ha-icon><span>Kjør program</span></button>
-          <button class="hk" data-h="vinter"><ha-icon icon="mdi:power"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegget"}</span></button>
+          <button class="hk ${anleggPa ? "pa" : ""}" data-h="vinter">
+            <ha-icon icon="${c.vinter ? "mdi:snowflake" : anleggPa ? "mdi:power" : "mdi:power-off"}"></ha-icon>
+            <span>${c.vinter ? "Vintermodus" : anleggPa ? "Anlegget på" : "Anlegget av"}</span></button>
         </div>
 
         ${faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${faner.map((f) =>
@@ -10508,8 +10537,19 @@ class KiVanningCard extends HTMLElement {
 
   _tegnResten(r, c, s) {
     const vk = r.querySelector('[data-h="vinter"]');
-    if (vk) { const pa = c.vinter ? this._on(c.vinter) : !this._on(s.aktiv); vk.classList.toggle("pa", pa);
-      vk.querySelector("span").textContent = c.vinter ? "Vintermodus" : (this._on(s.aktiv) ? "Slå av anlegg" : "Slå på anlegg"); }
+    if (vk) {
+      const ki = this._ki();
+      const anleggId = this._ventilmodus() ? this._kiEnt("anlegg") : null;
+      /* på = anlegget står på; i vintermodus er det vinterbryteren som gjelder */
+      const pa = c.vinter ? this._on(c.vinter)
+        : anleggId ? this._on(anleggId)
+        : this._ventilmodus() ? !(ki && ki.anlegg === false)
+        : this._on(s.aktiv);
+      vk.classList.toggle("pa", pa);
+      vk.querySelector("span").textContent = c.vinter ? "Vintermodus" : pa ? "Anlegget på" : "Anlegget av";
+      const ikon = vk.querySelector("ha-icon");
+      if (ikon) ikon.setAttribute("icon", c.vinter ? "mdi:snowflake" : pa ? "mdi:power" : "mdi:power-off");
+    }
 
     const sett = (navn, html) => { const el = r.querySelector(`.panel[data-p="${navn}"]`); if (el) el.innerHTML = html; };
     if (c.faner.includes("naa")) sett("naa", this._panelNaa());
@@ -22940,7 +22980,9 @@ class KiK2Card extends HTMLElement {
       .status { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:14px;
         background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:16px; }
       /* scenevisning: bildet fyller hele raden, uten ramme rundt */
-      .status.scene { display:block; background:none; padding:0; border-radius:0; }
+      .status.scene { display:block; background:none; padding:0; border-radius:0; margin-bottom:8px; }
+      .status.scene + * { margin-top:2px; }
+      .status.scene ki-k2-scene-card { display:block; }
       .ring { position:relative; width:88px; height:88px; cursor:pointer; }
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }

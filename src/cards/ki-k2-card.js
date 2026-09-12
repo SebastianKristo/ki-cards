@@ -696,7 +696,9 @@ class KiK2Card extends HTMLElement {
       .status { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:14px;
         background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:16px; }
       /* scenevisning: bildet fyller hele raden, uten ramme rundt */
-      .status.scene { display:block; background:none; padding:0; border-radius:0; }
+      .status.scene { display:block; background:none; padding:0; border-radius:0; margin-bottom:8px; }
+      .status.scene + * { margin-top:2px; }
+      .status.scene ki-k2-scene-card { display:block; }
       .ring { position:relative; width:88px; height:88px; cursor:pointer; }
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }

@@ -27,7 +27,12 @@
       const next = ps.filter(p => p.left !== null && p.left > 0).sort((a, b) => a.left - b.left)[0];
       const forkl = due.length ? due.map(p => p.name).join(", ") + " trenger vann" + (next ? ` · neste: ${next.name} ${next.txt.toLowerCase()}` : "") : next ? `Neste: ${next.name} ${next.txt.toLowerCase()}` : "Legg til planter i KI Planter.";
       const okPct = ps.length ? ((ps.length - due.length) / ps.length) * 100 : 0;
-      this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
+      this.shadowRoot.innerHTML = `<style>${KI.pro}
+        /* scenen står tettere enn ringraden gjorde – gi den litt mer luft */
+        .wrap > .scene-hero { margin-bottom:14px; }
+        .wrap > .scene-hero ~ .switch { margin-bottom:14px; }
+        .wrap > .scene-hero ki-plante-scene-card { display:block; }
+      </style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         ${c.scene && customElements.get("ki-plante-scene-card")
           ? `<div class="scene-hero"></div>`
