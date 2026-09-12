@@ -20,7 +20,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.7.1";
+const KI_MEDIA_VERSJON = "1.7.2";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -177,9 +177,11 @@ const KI_MEDIA_STIL = `
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  /* rosa spor hele veien: dempet bak, full farge på det fylte */
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
-    background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%),
-      color-mix(in srgb, var(--active-big,#ee95ff) 24%, transparent) var(--p,0%) 100%); }
+    background-color:rgba(238,149,255,.3);
+    background-image:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), transparent var(--p,0%) 100%);
+    background-repeat:no-repeat; }
   .vnavn:active { opacity:.6; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
     background:var(--gray1000); border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
