@@ -20,7 +20,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.7.2";
+const KI_MEDIA_VERSJON = "1.8.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -165,10 +165,10 @@ const KI_MEDIA_STIL = `
   .prikker i.valgt { opacity:.95; transform:scale(1.15); }
   .mangler-side { display:flex; align-items:center; justify-content:center; height:180px; border-radius:24px;
     background:var(--gray200); color:var(--gray1000); font-size:13px; opacity:.7; text-align:center; padding:20px; }
-  /* står rett på popup-bakgrunnen, uten egen kortflate */
-  .volum { display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center;
-    background:none; border-radius:0; padding:10px 4px; }
-  .vnavn { font-size:14px; font-weight:500; opacity:.85; white-space:nowrap; }
+  /* samme oppsett som volumraden i rom-popupen: 90px navn, spor, 50px prosent */
+  .volum { display:grid; grid-template-columns:90px 1fr 50px; align-items:center;
+    background:none; border-radius:0; padding:6px 0; }
+  .vnavn { font-size:14px; font-weight:500; justify-self:start; padding:0 12px; white-space:nowrap; }
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
   .vknapp:active { transform:scale(.92); }
@@ -177,17 +177,17 @@ const KI_MEDIA_STIL = `
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  /* rosa spor hele veien: dempet bak, full farge på det fylte */
+  /* spor i --gray100, framdrift i --active-big, hvit rund gripeknapp */
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
-    background-color:rgba(238,149,255,.3);
+    background-color:var(--gray100);
     background-image:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), transparent var(--p,0%) 100%);
     background-repeat:no-repeat; }
   .vnavn:active { opacity:.6; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
-    background:var(--gray1000); border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
+    background:var(--gray1000); border:0; cursor:grab; }
   input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000);
-    border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
-  .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; text-align:right; min-width:42px; }
+    border:0; cursor:grab; }
+  .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; justify-self:end; }
 
   /* ---- radiokanaler ---- */
   .radio { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px; margin:0 -2px; scroll-snap-type:x proximity; }
@@ -527,7 +527,7 @@ class KiMediaCard extends HTMLElement {
     if (vol && document.activeElement !== vol) {
       const v = Math.round((a.volume_level || 0) * 100);
       vol.value = v; vol.style.setProperty("--p", v + "%");
-      const t = r.querySelector(".vtall"); if (t) t.textContent = v + " %";
+      const t = r.querySelector(".vtall"); if (t) t.textContent = v + "%";
     }
     this._merkKanal(a, this._spiller() || this._pause());
     this._merkGrupper();
@@ -607,7 +607,7 @@ class KiMediaCard extends HTMLElement {
         <div class="volum">
           <span class="vnavn" data-v="av" role="button" tabindex="0">Volum</span>
           <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum">
-          <div class="vtall">0 %</div>
+          <div class="vtall">0%</div>
         </div>
         ${(c.grupper || []).length ? `<div class="gruppe">${(c.grupper || []).map((g, i) =>
           `<button class="gknapp" data-g="${i}">${kiMediaEsc(g.navn)}</button>`).join("")}</div>` : ""}` : ""}
@@ -675,7 +675,7 @@ class KiMediaCard extends HTMLElement {
     const vol = r.querySelector('input[type=range]');
     if (vol) {
       vol.addEventListener("input", () => {
-        r.querySelector(".vtall").textContent = vol.value + " %";
+        r.querySelector(".vtall").textContent = vol.value + "%";
         vol.style.setProperty("--p", vol.value + "%");
       });
       vol.addEventListener("change", () => this._h.callService("media_player", "volume_set",
@@ -816,7 +816,7 @@ class KiMediaCard extends HTMLElement {
     if (vol && a.volume_level !== undefined && document.activeElement !== vol) {
       const p = Math.round(a.volume_level * 100);
       vol.value = p; vol.style.setProperty("--p", p + "%");
-      r.querySelector(".vtall").textContent = p + " %";
+      r.querySelector(".vtall").textContent = p + "%";
     }
     const mute2 = r.querySelector('[data-v="av"]');
     if (mute2 && mute2.classList.contains("vnavn")) {

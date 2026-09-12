@@ -757,8 +757,9 @@ Kontrollkortet under kan følge det du sveiper til: `folg: true` gjør at kanale
 alltid gjelder spilleren som vises i hero-kortet. Da trenger du ingen egen velger i kontrollkortet.
 
 I hero-visningen er knappen ved siden av «neste» en av/på-knapp for spilleren, mens kontrollkortet har
-play/pause i midten. Volumraden er den samme som i media-delen av `ki-rom-card`: etiketten «Volum» til
-venstre (trykk for å dempe), tynt spor med lilla fyll, og prosenten til høyre.
+play/pause i midten. Volumraden er bygget som volumraden i rom-popupen: 90 px til navnet, sporet i midten og 50 px til
+prosenten. Sporet er 8 px høyt i `--gray100`, framdriften i `--active-big`, og gripeknappen en hvit sirkel
+på 18 px. Trykk på «Volum» demper.
 
 `spillknapp: av_pa` bytter midtknappen i transportraden fra play/pause til av/på – standard i
 `visning: kontroll`. Volumraden har demp, ned, slider og opp med prosenten til høyre. Radiokanaler kan peke
