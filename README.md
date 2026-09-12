@@ -407,7 +407,7 @@ filter øverst. Listen oppdateres hvert femte minutt.
 type: custom:ki-hytte-card
 sted: Strömstad                 # velger riktig sted når du har flere
 # oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
-faner: [kalender, opphold, statistikk]
+faner: [kalender, opphold, helger, statistikk]
 ```
 Viser hyttebesøkene fra [KI Hyttebesøk](https://github.com/SebastianKristo/ki-hyttebesok). Øverst et
 statuskort med hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
@@ -418,6 +418,8 @@ dagen i striper. Planlagte turer får stiplet kant, i dag er markert, og du blar
 **Opphold** lister planlagte turer øverst og historikken under, med navn, datoer og antall netter.
 **Statistikk** viser netter per måned som stablede søyler per person, og et kort per person med netter og
 besøk i år.
+**Helger** svarer på hvor dere var helg for helg: ukenummer, datoer, og hvilke personer som var på hvilket
+sted – med «Samlet» når alle var samme sted. Krever at hjemmet er merket som *Hjemme* i integrasjonen.
 
 ### ki-vanning-card
 ```yaml

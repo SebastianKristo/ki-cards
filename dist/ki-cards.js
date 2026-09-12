@@ -1,4 +1,4 @@
-/* ki-cards v2.89.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.90.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.89.0";
+  KI.VERSION = "2.90.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -10360,10 +10360,11 @@ try {
  * type: custom:ki-hytte-card
  * sted: Strömstad                 # velger riktig oversiktssensor når du har flere
  * oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
- * faner: [kalender, opphold, statistikk]
+ * faner: [kalender, opphold, statistikk, helger]
+ * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "1.1.0";
+const KI_HYTTE_VERSJON = "1.2.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10454,6 +10455,21 @@ const KI_HYTTE_STIL = `
   .pkort { background:var(--gray200); border-radius:20px; padding:14px 16px; display:grid;
     grid-template-columns:36px 1fr min-content; gap:12px; align-items:center; }
   .pkort .stor { font-size:20px; font-weight:400; font-variant-numeric:tabular-nums; }
+
+  /* ---- helger ---- */
+  .helg { background:var(--gray200); border-radius:18px; padding:14px 16px; display:grid; gap:8px; }
+  .helg .topp { display:flex; align-items:baseline; gap:10px; }
+  .helg .uke { font-size:15px; font-weight:600; }
+  .helg .dato { font-size:12px; opacity:.55; }
+  .helg .sammen { margin-left:auto; font-size:10px; font-weight:700; padding:3px 8px; border-radius:7px;
+    background:rgba(255,255,255,.1); }
+  .helg .steder { display:grid; gap:6px; }
+  .helg .sted { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; font-size:13px; }
+  .helg .sted .navn { display:flex; align-items:center; gap:7px; font-weight:500; }
+  .helg .sted .navn i { width:9px; height:9px; border-radius:3px; }
+  .helg .folk { display:flex; gap:-6px; }
+  .helg .folk .prikk { width:24px; height:24px; font-size:11px; margin-left:-7px; border-color:var(--gray200); }
+  .helg .folk .prikk:first-child { margin-left:0; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; } }
 `;
 
@@ -10496,8 +10512,13 @@ class KiHytteCard extends HTMLElement {
   }
   _data() { const s = this._h && this._id() ? this._h.states[this._id()] : null; return s ? s.attributes : null; }
   _farge(navn, d) {
-    const p = ((d && d.personer) || []).find((x) => String(x.navn).toLowerCase() === String(navn).toLowerCase());
-    return (p && p.farge) || "var(--gray400)";
+    const liste = (d && d.personer) || [];
+    const p = liste.find((x) => String(x.navn || x).toLowerCase() === String(navn).toLowerCase());
+    if (p && p.farge) return p.farge;
+    /* helgeoversikten har bare navn – gi hver person sin faste farge */
+    const alle = liste.map((x) => String(x.navn || x));
+    const i = Math.max(0, alle.indexOf(String(navn)));
+    return ["var(--green)", "var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 5];
   }
   _mer() { const id = this._id(); if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
 
@@ -10576,6 +10597,45 @@ class KiHytteCard extends HTMLElement {
     </div>`).join("")}`;
   }
 
+  /* Helgeoversikten kommer fra hjemme-oppføringen og dekker alle stedene */
+  _helgedata() {
+    const h = this._h; if (!h) return null;
+    const id = this._c.helger || Object.keys(h.states).find((x) => {
+      const a = h.states[x].attributes || {};
+      return a.integrasjon === "ki_hyttebesok" && a.ki_type === "helger";
+    });
+    return id && h.states[id] ? h.states[id].attributes : null;
+  }
+  _stedFarge(sted, d) {
+    const hytte = (d.steder || []).find((s) => s.sted === sted);
+    if (hytte && hytte.rolle === "hjem") return "var(--green)";
+    const i = Math.max(0, (d.steder || []).findIndex((s) => s.sted === sted));
+    return ["var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 4];
+  }
+  _helger() {
+    const d = this._helgedata();
+    if (!d || !(d.helger || []).length)
+      return `<div class="tom">Fant ingen helgeoversikt. Merk hjemmet som «Hjemme» i KI Hyttebesøk.</div>`;
+    const mnd = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+    const kort = (h) => {
+      const lor = new Date(h.lordag), son = new Date(h.sondag);
+      const dato = lor.getMonth() === son.getMonth()
+        ? `${lor.getDate()}.–${son.getDate()}. ${mnd[son.getMonth()]}`
+        : `${lor.getDate()}. ${mnd[lor.getMonth()]} – ${son.getDate()}. ${mnd[son.getMonth()]}`;
+      const steder = Object.keys(h.steder || {});
+      return `<div class="helg">
+        <div class="topp"><span class="uke">Uke ${h.uke}</span><span class="dato">${kiHyEsc(dato)}</span>
+          ${h.sammen && steder.length ? `<span class="sammen">Samlet</span>` : ""}</div>
+        <div class="steder">${steder.map((s) => `<div class="sted">
+          <span class="navn"><i style="background:${kiHyEsc(this._stedFarge(s, d))}"></i>${kiHyEsc(s)}</span>
+          <span class="folk">${(h.steder[s] || []).map((p) =>
+            `<span class="prikk" style="background:${kiHyEsc(this._farge(p, d))}" title="${kiHyEsc(p)}">${kiHyEsc(p.slice(0, 1))}</span>`).join("")}</span>
+        </div>`).join("")}</div>
+      </div>`;
+    };
+    return (d.helger || []).map(kort).join("");
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const d = this._data();
@@ -10585,7 +10645,7 @@ class KiHytteCard extends HTMLElement {
       this._bygget = false;
       return;
     }
-    const navn = { kalender: "Kalender", opphold: "Opphold", statistikk: "Statistikk" };
+    const navn = { kalender: "Kalender", opphold: "Opphold", statistikk: "Statistikk", helger: "Helger" };
     const her = d.her_naa || [];
     const siste = d.siste;
     const hero = `<div class="hero ${her.length ? "her" : ""}" role="button" tabindex="0">
@@ -10620,7 +10680,8 @@ class KiHytteCard extends HTMLElement {
         ${c.faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${c.faner.map((f) =>
           `<button class="fane ${f === this._fane ? "valgt" : ""}" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
         ${c.faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}">${
-          f === "kalender" ? this._kalender(d) : f === "opphold" ? this._opphold(d) : this._statistikk(d)}</div>`).join("")}
+          f === "kalender" ? this._kalender(d) : f === "opphold" ? this._opphold(d)
+          : f === "helger" ? this._helger() : this._statistikk(d)}</div>`).join("")}
       </div>`;
 
     if (html !== this._forrige) { this.shadowRoot.innerHTML = html; this._forrige = html; this._kobl(); }

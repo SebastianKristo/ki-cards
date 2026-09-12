@@ -1,10 +1,5 @@
 ## Nytt
 
-**ki-lansering-card 1.3.0**
-- `bursdag: true` legger kommende bursdager inn som egne sider i samme sveip som neste lansering. Ballonger som svever, lys som flakker, og konfetti når dagen er i dag
-- Har noen bursdag i dag, er bursdagssiden den som vises først
-- Kortet sier fra hvilken visning det står i, så post- og bursdagskortene under skjuler seg på Serier, Filmer og Kalender
-
-## Rettet
-
-- Navnet på bursdagssensorene ryddes bedre: «Rune's Birthday», «Bursdag Rune» og `rune_bursdag` blir alle til «Rune». Den løse s-en foran navnet er borte
+**ki-hytte-card 1.2.0**
+- Ny fane **Helger**: hvor dere var helg for helg, med ukenummer, datoer og hvilke personer som var på hvilket sted. «Samlet» når alle var samme sted, og hjemstedet får grønn farge
+- Henter oversikten fra `sensor.<hjemsted>_helger` i KI Hyttebesøk 1.2.0, og finner sensoren selv
