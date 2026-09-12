@@ -1,4 +1,4 @@
-/* ki-cards v2.74.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.75.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.74.0";
+  KI.VERSION = "2.75.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8221,7 +8221,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.4.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.5.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -8238,7 +8238,10 @@ try {
  *  etasje_innstillinger: { <etasje_id>: { vis: false, rekkefolge: 2, navn: '1. etg',
  *                            flytt_til: ute } }   # hele etasjen legges i en annen fane
  *  rom: { garasje: { etasje: ute } }              # ett rom flyttes til en annen etasjefane
- *  aktuelt: { tv: media_player.stue_tv, stovsuger: vacuum.x, vaskemaskin: sensor.x, oppvaskmaskin: sensor.x, ekstra: [...] }
+ *  aktuelt: { tv: media_player.stue_tv, stovsuger: vacuum.x, vaskemaskin: sensor.x, oppvaskmaskin: sensor.x,
+ *             ekstra: [...],                     # ferdige kort som alltid vises
+ *             sesong: [ { fra: '11-01', til: '03-01', kind: navigate, ikon: mdi:pine-tree,
+ *                         main_text: Jul, path: '#jul' } ] }   # vises bare i perioden
  *  batterier: true              # eller { terskel: 30, monster: 'sensor.*_battery_plus' }
  *  Alt over kan settes i UI-editoren (rom: vis/størrelse/plassering/rekkefølge/farge).
  *  rom:                   # per-rom-overstyring brukt overalt (auto-faner og fliser)
@@ -8457,6 +8460,21 @@ try {
 
   // ---- Aktuelt-fanen: TV, støvsuger (bare når den vasker), vaskemaskin/oppvaskmaskin (bare når de går)
   const VACC = '@keyframes vacc {\n    0% { transform: rotate(0deg) translate(0); }\n    20% { transform: rotate(-5deg) translate(-3px, 3px); }\n    40% { transform: rotate(-12deg) translate(-3px, -3px); }\n    60% { transform: translate(3px, 3px); }\n    80% { transform: rotate(12deg) translate(3px, -3px); }\n    100% { transform: rotate(0deg) translate(0); }\n}\n';
+  /* «fra» og «til» er MM-DD (eller YYYY-MM-DD). Perioden kan gå over nyttår:
+     11-01 til 03-01 betyr fra 1. november til 1. mars. */
+  function iPerioden(fra, til, nå = new Date()) {
+    const tall = (x) => {
+      const d = String(x || '').match(/(\d{1,2})[-./](\d{1,2})$/);
+      return d ? Number(d[1]) * 100 + Number(d[2]) : null;
+    };
+    const f = tall(fra), t = tall(til);
+    const i_dag = (nå.getMonth() + 1) * 100 + nå.getDate();
+    if (f === null && t === null) return true;
+    if (f === null) return i_dag <= t;
+    if (t === null) return i_dag >= f;
+    return f <= t ? (i_dag >= f && i_dag <= t) : (i_dag >= f || i_dag <= t);
+  }
+
   function aktueltTab(cfg) {
     const a = (typeof cfg.aktuelt === 'object' && cfg.aktuelt) || {};
     const cards = [];
@@ -8490,6 +8508,16 @@ try {
     if (a.vaskemaskin) cards.push(maskin(a.vaskemaskin, 'Vaskemaskin', 'mdi:washing-machine', a.vaskemaskin_path || '#bad_nede', 'universal_sensor'));
     if (a.oppvaskmaskin) cards.push(maskin(a.oppvaskmaskin, 'Oppvaskmaskin', 'mdi:dishwasher', a.oppvaskmaskin_path || '#kjokken', 'universal_bar'));
     (a.ekstra || []).forEach((c) => cards.push(c));
+    /* sesongkort: jul, vanning, brøyting … vises bare mellom to datoer */
+    (a.sesong || []).forEach((x) => {
+      if (!iPerioden(x.fra, x.til)) return;
+      if (x.entity && x.vis_nar && curHass) {
+        const st = curHass.states[x.entity];
+        if (!st || st.state !== String(x.vis_nar)) return;
+      }
+      const kort = x.card || x.type ? (x.card || x) : item({ kind: x.kind || 'navigate', ...x }, cfg.rom || {});
+      if (kort) cards.push(kort);
+    });
     if (!cards.length) return null;
     return { title: a.title || 'Aktuelt', icon: '', card: { type: 'vertical-stack', cards: [{ type: 'grid', square: false, columns: 2, cards }] } };
   }
@@ -8821,7 +8849,9 @@ try {
       if (same && this._card) { this._forward(hass); return; }
       this._lastList = list;
       const ovs = list.map((st) => st.entity_id + ':' + (st.attributes.etasje_id || '') + ':' + (st.attributes.rom || '')).join(',');
-      const sig = this._cfgStr + '|' + ovs;
+      /* datoen er med i signaturen slik at sesongkortene dukker opp og forsvinner ved midnatt */
+      const dag = new Date().toISOString().slice(0, 10);
+      const sig = this._cfgStr + '|' + ovs + '|' + dag;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._forward(hass);
     }

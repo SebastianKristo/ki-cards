@@ -838,6 +838,31 @@ etasje_innstillinger:
 Flytter du alle rommene ut av en etasje, faller fanen bort av seg selv. Plasseringsverktøyet i editoren
 følger den samme inndelingen.
 
+Aktuelt-fanen kan ha kort som bare vises i en periode av året – jul, vanningssesong, brøyting:
+
+```yaml
+aktuelt:
+  tv: media_player.stue_tv
+  sesong:
+    - fra: '11-01'          # 1. november
+      til: '03-01'          # til 1. mars – perioden kan gå over nyttår
+      kind: navigate
+      ikon: mdi:pine-tree
+      main_text: Jul
+      sub_text: Lys og kalender
+      path: '#jul'
+    - fra: '05-01'
+      til: '09-15'
+      kind: navigate
+      ikon: mdi:sprinkler
+      main_text: Vanning
+      path: '#vanning'
+```
+
+Datoene er `MM-DD`, og går perioden over nyttår, forstår kortet det. Vil du ha en ekstra betingelse, legger du
+til `entity:` og `vis_nar:` – da må entiteten i tillegg ha den tilstanden. Kortet tar med dagens dato i sin egen
+signatur, så kortene dukker opp og forsvinner ved midnatt uten at du må laste dashbordet på nytt.
+
 ## Feilsøking
 
 Vises «Custom element doesn't exist: ki-…-card» for flere kort samtidig, er som regel hele bundelen stoppet:
