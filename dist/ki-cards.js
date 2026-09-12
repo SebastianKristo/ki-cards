@@ -1,4 +1,4 @@
-/* ki-cards v2.48.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.49.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.48.1";
+  KI.VERSION = "2.49.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -554,6 +554,7 @@ try {
 /* ki-tabs-card – faner med kort i hver fane.
    style: pills (piller) | scroll (rullbar fanerad) | dropdown (pille som åpner meny)
           | auto (piller når de får plass, ellers scroll – standard)
+   tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
   class SkTabsCard extends KI.Card {
@@ -582,7 +583,8 @@ try {
         :host { overflow:visible; position:relative; }
         :host(.ki-meny-apen) { z-index:99; }
         .wrap { display:flex; flex-direction:column; gap:${c.gap ?? 12}px; max-width:100%; }
-        .bar { display:flex; justify-content:${c.align || "center"}; position:relative; z-index:6; max-width:100%;
+        .bar { display:flex; align-items:center; justify-content:${c.tittel ? "space-between" : (c.align || "center")};
+          gap:10px; position:relative; z-index:6; max-width:100%;
           ${sticky ? `position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; border-radius:0 0 18px 18px;
             background:${c.bg || "var(--ki-tabs-bg, transparent)"}; ${c.bg ? "" : "backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);"}` : ""} }
         .tabs { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
@@ -620,12 +622,15 @@ try {
         .item .n { flex:1; }
         .item .cnt { font-size:12px; opacity:.55; }
         .measure { position:absolute; visibility:hidden; pointer-events:none; left:0; top:0; }
+        .tittel { font-size:${c.tittel_storrelse || "16px"}; font-weight:500; color:var(--gray1000); flex:0 1 auto;
+          min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:2px; }
         .panel { display:none; min-width:0; max-width:100%; } .panel.active { display:block; }
         .stack { display:grid; gap:8px; min-width:0; }
         @media (prefers-reduced-motion: reduce) { .tab, .dd, .dd .chev { transition:none; } }
       </style>
       <div class="wrap">
         <div class="bar">
+          ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist">
             ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>

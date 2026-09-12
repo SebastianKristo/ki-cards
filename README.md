@@ -128,7 +128,9 @@ item:                     # standardvalg sendt til hvert ki-toggle-card
 type: custom:ki-tabs-card
 default: 0
 style: auto               # auto | pills | scroll | dropdown
-align: center             # center | flex-start | flex-end (gjelder pills)
+align: center
+tittel: Strømpriser          # overskrift til venstre på samme linje som fanene
+tittel_storrelse: 16px             # center | flex-start | flex-end (gjelder pills)
 sticky: true              # fest fanelinja øverst når innholdet scroller
 # bg: var(--gray200)      # bakgrunn bak festet fanelinje (standard: gjennomsiktig med blur)
 # dropdown_under: 360     # fall til nedtrekk på skjermer smalere enn dette (standard: aldri)
