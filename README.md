@@ -765,6 +765,22 @@ effekt_par:
   switch.noe_annet: false      # false fjerner effektvisningen for den bryteren
 ```
 
+Flere klimaenheter vises som en swipe med prikker under, én side per enhet – samme oppsett som spillerne i
+Media. `klima_layout: liste` stabler dem i stedet, og `klima_hoyde` styrer høyden.
+
+Panelovner og andre varmekilder som ikke ligger i klima-lista fra integrasjonen, tas med slik:
+
+```yaml
+type: custom:ki-rom-card
+rom: stue
+klima_ekstra:
+  - climate.panelovn_stue                                   # egen termostat
+  - {entity: switch.panelovn_gang, effekt: sensor.panelovn_gang_power}   # ovn på smartplugg
+```
+
+De havner i samme swipe som varmepumpa, watt-summen i overskriften tar dem med, og de fjernes fra
+«Enheter» så de ikke står to steder. Uten `effekt:` leter kortet selv etter `sensor.<navn>_power`.
+
 ## ki-rom-tile-card
 
 Flisene på forsiden (Stue, Kjøkken, Gang, Pult … med temperatur, fukt, termostat-stepper og «!»-varsel) generert fra `sensor.<rom>_oversikt` – samme button-card-konfig som før.

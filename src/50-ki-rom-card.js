@@ -1,10 +1,13 @@
 /* ============================================================================
- * ki-rom-card  v1.9.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.10.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
  *  media_layout: swipe            # flere spillere: swipe (standard) | liste
  *  klima_layout: swipe            # flere klimaenheter: swipe (standard) | liste
+ *  klima_ekstra:                  # ta med enheter som ikke ligger i klima-lista, f.eks. panelovner
+ *    - climate.panelovn_stue
+ *    - { entity: switch.panelovn_gang, effekt: sensor.panelovn_gang_power }
  *  gap: 8                         # px mellom kortene
  *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
  *  skjul: [light.kjokken_spot_1, switch.x]                             # enheter som ikke skal vises
@@ -352,7 +355,10 @@
     },
   });
 
-  function sectionEnheter(hass, ov, roomName, palette) {
+  function sectionEnheter(hass, ov, roomName, palette, cfg) {
+    const flyttet = new Set([].concat((cfg && cfg.klima_ekstra) || [])
+      .map((x) => (typeof x === 'string' ? x : x && x.entity)).filter(Boolean));
+    ov = { ...ov, brytere: ov.brytere.filter((d) => !flyttet.has(d.entity)), vifter: ov.vifter.filter((d) => !flyttet.has(d.entity)) };
     if (!ov.brytere.length && !ov.vifter.length) return null;
     const wIds = unike([...ov.brytere, ...ov.vifter].map((d) => d.effekt).concat(ov.effekt_andre || []));
     const cards = [
@@ -427,10 +433,19 @@
   }
 
   function sectionKlima(hass, ov, cfg, roomName) {
-    if (!ov.klima.length) return null;
+    /* Panelovner og andre varmekilder kan legges til med klima_ekstra – enten som
+       climate-entitet eller som bryter med egen effektsensor. */
+    const ekstra = [].concat(cfg.klima_ekstra || [])
+      .map((x) => (typeof x === 'string' ? { entity: x } : x))
+      .filter((d) => d && d.entity && hass.states[d.entity])
+      .map((d) => ({ ...d, effekt: d.effekt || finnEffekt(hass, d.entity) }));
+    const enheter = [...ov.klima, ...ekstra.filter((d) => !ov.klima.some((k) => k.entity === d.entity))];
+    if (!enheter.length) return null;
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
-    const wIds = unike(ov.klima.map((d) => d.effekt));
-    const cards = ov.klima.map((d) => climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix));
+    const wIds = unike(enheter.map((d) => d.effekt));
+    const cards = enheter.map((d) => (d.entity.startsWith('climate.')
+      ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix)
+      : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
       body = [{ square: false, type: 'grid', columns: 1, cards }];
@@ -656,7 +671,7 @@
       gardiner: () => sectionGardiner(hass, ov, roomName),
       scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra),
       lys: () => sectionLys(hass, ov, roomName),
-      enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE),
+      enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE, cfg),
       klima: () => sectionKlima(hass, ov, cfg, roomName),
       media: () => sectionMedia(hass, ov, roomName, cfg),
       sensorer: () => sectionSensorer(hass, ov, roomName),
