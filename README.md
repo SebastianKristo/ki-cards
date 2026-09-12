@@ -867,3 +867,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.54.0
 - `ki-strompris-card` 2.5.0: faerre klokkeslett paa den vannrette aksen naar kortet er smalt, og Norgespris kan regnes ut time for time fra nettleiesatsene (`nettleie_dag`, `nettleie_natt`, `dagtimer_fra/til`, valgfri `norgespris_energi`). Da tegnes Norgespris som trapp i stedet for flat strek, og I morgen-fanen viser prisen selv foer spotprisen er klar.
+
+## v2.55.0
+- `ki-strompris-card` 2.5.1: retter at kortet ikke ble tegnet i det hele tatt (tilordning til en `const` da Norgespris-kurven kom inn i 2.5.0).

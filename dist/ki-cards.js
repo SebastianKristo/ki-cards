@@ -1,4 +1,4 @@
-/* ki-cards v2.54.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.55.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.54.0";
+  KI.VERSION = "2.55.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5775,7 +5775,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.5.0";
+const KI_SP_VERSJON = "2.5.1";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -6049,7 +6049,8 @@ class KiStromprisCard extends HTMLElement {
   }
 
   _innhold() {
-    const c = this._c, np = this._np(), pkt = this._punkter();
+    const c = this._c, np = this._np();
+    let pkt = this._punkter();
     const naa = Date.now(), spotSt = this._st(this._spot());
     const spotNaa = pkt && pkt.length ? (pkt.find((p) => p.t <= naa && naa < p.slutt) || {}).v : (spotSt ? parseFloat(spotSt.state) * this._skala() : null);
     const sparTime = np !== null && spotNaa !== undefined && spotNaa !== null ? spotNaa - np : null;
