@@ -1,8 +1,5 @@
-## Endret
+## Nytt
 
-**ki-jul-card 1.4.0**
-- Nedtellingskortet er like høyt som julekortet, 200 px, så de står likt i sveipet
-- Trykk på julekortet styrer nå **julesesong-bryteren** fra KI Lys i stedet for å slå av og på hvert enkelt lys. Finnes ikke bryteren, tas lysene direkte som før. `sesong:` peker på en annen bryter om du vil
-- Teksten nederst ligger ikke lenger oppå snøen: en mørk tone under gjør «God jul» og lystellingen lesbar
-- Hekken er tegnet på nytt – fyldigere, foran snøen, med større pærer i slyngen
-- Nissen er tegnet om: rød drakt med belte, hvitt skjegg, lue med dusk, og sekken ved siden av
+**ki-media-card 1.10.0**
+- `kilder:` viser inngangene til forsterkere og receivere med `source_list` i stedet for radiokanaler – for eksempel AirPlay, Net Radio, CD og Phono på RN602-en. Inngangen som er valgt nå lyser opp, og trykk kaller `media_player.select_source`
+- Sett per spiller (`{media_player.rn602_stue: [...]}`) eller `kilder: auto` for hele lista. Spillere uten kilder viser radiokanalene som før, så samme kontrollkort passer til både Sonos og receiveren

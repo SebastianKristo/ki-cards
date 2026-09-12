@@ -1,4 +1,4 @@
-/* ki-cards v3.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.7.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.6.0";
+  KI.VERSION = "3.7.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1379,6 +1379,8 @@ try {
  *         # flere spillere: sveip mellom dem, med prikker under
  * sveip: false            # bytt tilbake til pillerad i stedet for sveiping
  * folg: true              # kontrollkortet følger spilleren du sveiper til i hero-kortet
+ * kilder: auto            # spillere med source_list viser inngangene sine i stedet for radiokanaler
+ *   # eller per spiller:  { media_player.rn602_stue: [AirPlay, Net Radio, CD, Phono] }
  * spillknapp: av_pa                                 # av_pa | spill – midtknappen i transportraden
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
@@ -1387,7 +1389,7 @@ try {
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.8.1";
+const KI_MEDIA_VERSJON = "1.10.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1567,7 +1569,8 @@ const KI_MEDIA_STIL = `
     transition:transform .14s var(--fjaer), background .25s, color .25s; }
   .kanal:active { transform:scale(.94); }
   .kanal ha-icon { --mdc-icon-size:22px; opacity:.8; }
-  .kanal.spiller { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .kanal.spiller, .kanal.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .kanal.lyder .bolge { opacity:.5; }
   .kanal .bolge { position:absolute; left:0; right:0; bottom:0; height:16px; display:flex; align-items:flex-end;
     justify-content:center; gap:2px; opacity:0; }
   .kanal.spiller .bolge { opacity:.5; }
@@ -1927,9 +1930,35 @@ class KiMediaCard extends HTMLElement {
       b.classList.toggle("pa", g.entity ? !!pa : Array.isArray(pa) && pa.includes(g.spiller));
     });
   }
+  /* Inngangene til spilleren – for forsterkere med source_list.
+     «kilder: auto» tar hele lista, eller du gir din egen liste per spiller. */
+  _kilder() {
+    const c = this._c, id = this._id();
+    if (!c.kilder || !id || !this._h) return [];
+    const st = this._h.states[id];
+    const alle = (st && st.attributes.source_list) || [];
+    let valgt = c.kilder;
+    if (valgt && typeof valgt === "object" && !Array.isArray(valgt)) valgt = valgt[id];
+    if (valgt === "auto" || valgt === true) valgt = alle;
+    if (!Array.isArray(valgt)) return [];
+    return valgt
+      .map((x) => (typeof x === "string" ? { navn: x, kilde: x } : { navn: x.navn || x.kilde, ...x }))
+      .filter((x) => !alle.length || alle.includes(x.kilde));
+  }
+  _settKilde(kilde) {
+    if (navigator.vibrate) navigator.vibrate(10);
+    this._h.callService("media_player", "select_source", { entity_id: this._id(), source: kilde });
+  }
+
   _merkKanal(a, lyder) {
     const r = this.shadowRoot;
     const kilde = String(a.media_channel || a.source || a.media_title || "").toLowerCase();
+    /* inngangen som er valgt nå lyser opp */
+    r.querySelectorAll("[data-kilde]").forEach((b) => {
+      const aktiv = String(b.dataset.kilde).toLowerCase() === String(a.source || "").toLowerCase();
+      b.classList.toggle("pa", aktiv);
+      b.classList.toggle("lyder", aktiv && lyder);
+    });
     r.querySelectorAll("[data-radio]").forEach((b) => {
       const v = this._radio[+b.dataset.radio], n = String(v.navn || "").toLowerCase();
       b.classList.toggle("spiller", !!lyder && !!n && (kilde.includes(n) || (n.includes(kilde) && kilde.length > 2)));
@@ -1958,7 +1987,12 @@ class KiMediaCard extends HTMLElement {
           <div class="framdrift"><i></i></div>
         </div>`}
 
-        ${full && this._radio.length ? `<div class="radio">${this._radio.map((r, i) =>
+        ${full && this._kilder().length ? `<div class="radio">${this._kilder().map((k) =>
+          `<button class="kanal" data-kilde="${kiMediaEsc(k.kilde)}">
+            ${k.ikon ? `<ha-icon icon="${kiMediaEsc(k.ikon)}"></ha-icon>` : ""}
+            <span>${kiMediaEsc(k.navn)}</span>
+            <span class="bolge"><i></i><i></i><i></i><i></i></span></button>`).join("")}</div>`
+        : full && this._radio.length ? `<div class="radio">${this._radio.map((r, i) =>
           `<button class="kanal" data-radio="${i}">${r.ikon ? `<ha-icon icon="${kiMediaEsc(r.ikon)}"></ha-icon>` : ""}
             <span>${kiMediaEsc(r.navn)}</span>
             <span class="bolge"><i></i><i></i><i></i><i></i></span></button>`).join("")}</div>` : ""}
@@ -1994,6 +2028,7 @@ class KiMediaCard extends HTMLElement {
       this._spillere = [this._valgt];
       this._bygg(); this._oppdater();
     }));
+    r.querySelectorAll("[data-kilde]").forEach((b) => b.addEventListener("click", () => this._settKilde(b.dataset.kilde)));
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const v = this._radio[+b.dataset.radio];

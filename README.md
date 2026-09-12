@@ -795,6 +795,20 @@ på 18 px. Trykk på «Volum» demper.
 på `skript:` eller `entity:` – knapp, bryter, scene eller script virker, og en ren streng spilles som
 `media_content_id`.
 
+Forsterkere og receivere med `source_list` kan vise inngangene i stedet for radiokanaler:
+
+```yaml
+kilder:
+  media_player.rn602_stue:
+    - {navn: AirPlay, kilde: AirPlay, ikon: mdi:apple-airplay}
+    - {navn: CD, kilde: CD, ikon: mdi:disc}
+    - {navn: Phono, kilde: Phono, ikon: mdi:album}
+```
+
+`kilder: auto` tar hele `source_list`. Inngangen som er valgt nå lyser opp, og trykk kaller
+`media_player.select_source`. Står kortet på en spiller uten kilder, vises radiokanalene som før – så samme
+kort passer til både Sonos og receiveren.
+
 ### ki-fjernkontroll-card
 ```yaml
 type: custom:ki-fjernkontroll-card
