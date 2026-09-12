@@ -25,6 +25,9 @@ prefix: creality_k2
 hoyde: 210
 # demo: skriver   # se kortet med eksempeldata
 ```
+Samme kort kan stå som hero inne i `ki-k2-card`: sett `scene: true` der, så erstatter bildet ringraden
+med statusteksten. `scene_hoyde` styrer høyden.
+
 Printeren tegnet som et levende bilde, ment øverst i 3D-popupen. Skrivehodet går fram og tilbake langs
 portalen, filamenttråden strekker seg ned mot emnet, vifta snurrer og spolen roterer mens den skriver. Emnet
 på platen vokser etter framdriften, og over sengen flimrer det varme når dysa eller plata er varm.
@@ -938,6 +941,9 @@ hoyde: 210
 # natt: false      # tving dag- eller nattbilde
 # demo: tort       # se kortet med eksempeldata
 ```
+Kortet kan også stå som hero inne i `ki-planter-pro-card`: sett `scene: true` der, så bytter det ut
+ringraden øverst med dette bildet. `scene_hoyde` og `scene_natt` sendes videre.
+
 Vinduskarmen med plantene dine, hentet fra [KI Planter](https://github.com/SebastianKristo/ki-planter). Sola
 vandrer sakte over vinduet, lysstripene faller inn i rommet, støv driver i lyset og bladene vaier hver i sin
 takt. En plante som trenger vann henger litt, får lysere jord, og det faller dråper ned i potta. Etter klokka

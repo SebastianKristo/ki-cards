@@ -169,6 +169,10 @@ class KiK2Card extends HTMLElement {
   _statusHtml() {
     ["print_status", "print_progress", "print_time_left", "print_job_time", "working_layer", "total_layers", "current_object"]
       .forEach((x) => this._watched.add(this.s(x)));
+    /* «scene» bytter ut ringraden med det levende printerbildet */
+    if (this._config.scene && customElements.get("ki-k2-scene-card")) {
+      return `<div class="status scene" id="status"></div>`;
+    }
     return `
       <div class="status" id="status">
         <div class="ring" data-action="more" data-entity="${this.s("print_progress")}">
@@ -471,6 +475,24 @@ class KiK2Card extends HTMLElement {
     const boks = this._root.getElementById("status");
     boks.dataset.tilstand = raw === "paused" ? "pauset" : raw === "error" ? "feil" : aktiv ? "aktiv" : "rolig";
 
+    /* scenevisning: sett inn printerbildet og la det holde seg oppdatert */
+    if (boks.classList.contains("scene")) {
+      if (!this._sceneEl) {
+        this._sceneEl = document.createElement("ki-k2-scene-card");
+        this._sceneEl.setConfig({
+          prefix: this._config.prefix,
+          hoyde: this._config.scene_hoyde || 200,
+          status: this.s("print_status"), framdrift: this.s("print_progress"),
+          gjenstaar: this.s("print_time_left"), lag: this.s("working_layer"),
+          av_lag: this.s("total_layers"), filnavn: this.s("current_object"),
+          dyse: this.s("nozzle_temperature"), seng: this.s("bed_temperature"),
+        });
+        boks.appendChild(this._sceneEl);
+      }
+      this._sceneEl.hass = h;
+      return;
+    }
+
     const pro = Number((h.states[this.s("print_progress")] || {}).state);
     const pct = isFinite(pro) ? Math.max(0, Math.min(100, pro)) : 0;
     const omkrets = 2 * Math.PI * 43;
@@ -673,6 +695,8 @@ class KiK2Card extends HTMLElement {
       /* Status */
       .status { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:14px;
         background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:16px; }
+      /* scenevisning: bildet fyller hele raden, uten ramme rundt */
+      .status.scene { display:block; background:none; padding:0; border-radius:0; }
       .ring { position:relative; width:88px; height:88px; cursor:pointer; }
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }

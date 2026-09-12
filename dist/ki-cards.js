@@ -1,4 +1,4 @@
-/* ki-cards v3.12.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.13.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.12.0";
+  KI.VERSION = "3.13.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4353,8 +4353,10 @@ try {
       const okPct = ps.length ? ((ps.length - due.length) / ps.length) * 100 : 0;
       this.shadowRoot.innerHTML = `<style>${KI.pro}</style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
-        <div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
-          <div><div class="hero-navn">${KI.esc(navn)}${ps.some(p => (this.st(p.entity) || { attributes: {} }).attributes.grunn === "test") ? ` <span class="merke gul">test</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>
+        ${c.scene && customElements.get("ki-plante-scene-card")
+          ? `<div class="scene-hero"></div>`
+          : `<div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
+          <div><div class="hero-navn">${KI.esc(navn)}${ps.some(p => (this.st(p.entity) || { attributes: {} }).attributes.grunn === "test") ? ` <span class="merke gul">test</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div>`}</div>
         <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? ({ vinter: "❄ vinterhvile", vekst: "🌱 vekstsesong", "høysommer": "☀ høysommer", sommer: "☀ sommer" }[ps[0].sesong] || ps[0].sesong) + (ps[0].dagl ? ` · ${ps[0].dagl} t dag` : "") : ""}</span></div>
           ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}
@@ -4368,6 +4370,25 @@ try {
           <div class="knapper"><div class="knapp press" data-press="button.${sp}_send_varsel" tabindex="0">🧪 Send testvarsel</div></div></div>`; }).join("") : ""}
       </div>`;
       KI.wirePro(this, this.shadowRoot);
+      this._settInnScene();
+    }
+
+    /* Scenevisning: vinduskarmen som hero i stedet for ringen */
+    _passHass(h) { if (this._sceneEl) this._sceneEl.hass = h; }
+
+    _settInnScene() {
+      const boks = this.shadowRoot.querySelector(".scene-hero");
+      if (!boks) { this._sceneEl = null; return; }
+      if (!this._sceneEl) {
+        this._sceneEl = document.createElement("ki-plante-scene-card");
+        this._sceneEl.setConfig({
+          sted: this._config.sted,
+          hoyde: this._config.scene_hoyde || 200,
+          natt: this._config.scene_natt,
+        });
+      }
+      if (this._sceneEl.parentElement !== boks) boks.appendChild(this._sceneEl);
+      this._sceneEl.hass = this._hass;
     }
     _plant(p, adv) {
       const open = this._apen === p.entity;
@@ -22374,6 +22395,10 @@ class KiK2Card extends HTMLElement {
   _statusHtml() {
     ["print_status", "print_progress", "print_time_left", "print_job_time", "working_layer", "total_layers", "current_object"]
       .forEach((x) => this._watched.add(this.s(x)));
+    /* «scene» bytter ut ringraden med det levende printerbildet */
+    if (this._config.scene && customElements.get("ki-k2-scene-card")) {
+      return `<div class="status scene" id="status"></div>`;
+    }
     return `
       <div class="status" id="status">
         <div class="ring" data-action="more" data-entity="${this.s("print_progress")}">
@@ -22676,6 +22701,24 @@ class KiK2Card extends HTMLElement {
     const boks = this._root.getElementById("status");
     boks.dataset.tilstand = raw === "paused" ? "pauset" : raw === "error" ? "feil" : aktiv ? "aktiv" : "rolig";
 
+    /* scenevisning: sett inn printerbildet og la det holde seg oppdatert */
+    if (boks.classList.contains("scene")) {
+      if (!this._sceneEl) {
+        this._sceneEl = document.createElement("ki-k2-scene-card");
+        this._sceneEl.setConfig({
+          prefix: this._config.prefix,
+          hoyde: this._config.scene_hoyde || 200,
+          status: this.s("print_status"), framdrift: this.s("print_progress"),
+          gjenstaar: this.s("print_time_left"), lag: this.s("working_layer"),
+          av_lag: this.s("total_layers"), filnavn: this.s("current_object"),
+          dyse: this.s("nozzle_temperature"), seng: this.s("bed_temperature"),
+        });
+        boks.appendChild(this._sceneEl);
+      }
+      this._sceneEl.hass = h;
+      return;
+    }
+
     const pro = Number((h.states[this.s("print_progress")] || {}).state);
     const pct = isFinite(pro) ? Math.max(0, Math.min(100, pro)) : 0;
     const omkrets = 2 * Math.PI * 43;
@@ -22878,6 +22921,8 @@ class KiK2Card extends HTMLElement {
       /* Status */
       .status { display:grid; grid-template-columns:96px 1fr; align-items:center; gap:14px;
         background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:16px; }
+      /* scenevisning: bildet fyller hele raden, uten ramme rundt */
+      .status.scene { display:block; background:none; padding:0; border-radius:0; }
       .ring { position:relative; width:88px; height:88px; cursor:pointer; }
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }

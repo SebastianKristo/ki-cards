@@ -1,11 +1,12 @@
 ## Nytt
 
-**ki-k2-scene-card 1.0.0**
-- 3D-printeren som levende bilde, ment øverst i #3d-popupen: skrivehodet går fram og tilbake, filamenttråden strekker seg ned mot emnet, vifta snurrer og spolen roterer mens den skriver
-- Emnet på platen vokser etter framdriften, og det flimrer varme over sengen når dyse eller plate er varm
-- Fargen følger tilstanden – blå under utskrift, grønn når den er ferdig, rød ved feil, grå når den er av – og nederst går en framdriftslinje
-- Teksten viser filnavn, tid igjen, lag og temperaturer. Entitetene finnes ut fra `prefix`, med manuell overstyring for hver verdi
+**Scenene kan stå som hero i de eksisterende kortene**
 
-## Fra 3.11.0
+- `ki-planter-pro-card` med `scene: true` bytter ut ringraden øverst med vinduskarmen og plantene. `scene_hoyde` og `scene_natt` sendes videre
+- `ki-k2-card` med `scene: true` erstatter ringen og statusteksten med printerbildet, og mater det med de samme entitetene kortet allerede bruker – status, framdrift, tid igjen, lag og temperaturer
 
-`ki-plante-scene-card` – vinduskarmen med plantene dine.
+Begge kortene virker som før uten `scene`, så du kan bytte tilbake når som helst.
+
+## Fra 3.12.0
+
+`ki-k2-scene-card` – 3D-printeren som levende bilde.
