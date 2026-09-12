@@ -1,13 +1,11 @@
-## Nytt
-
-**ki-lansering-card** – kommende episoder og filmer fra Sonarr og Radarr. Det som kommer først vises som hero med bakgrunnsbilde, plakat, tittel og merkelapper for tidspunkt og episodenummer, med rating, spilletid og kanal under. Resten kommer som liste med små plakater, og med begge sensorene satt får du faner for Alle, Serier og Filmer. Trykk åpner serien eller filmen i Sonarr eller Radarr.
-
-**ki-post-card** – når posten kommer, i samme form som kalenderkortene: stor dato til venstre, ukedag over, og lilla kort på selve leveringsdagen der flagget på postkassa vaier.
-
-**ki-bursdag-pro-card** – bursdager i samme stil. Neste bursdag stort med navn og alder, resten som smalere rader med «om 23 dager» til høyre. Lilla kort og flakkende lys på kaka når dagen er i dag.
-
 ## Endret
 
-- `ki-fremover-card`: `ekstra:` leser dato fra sensorens tilstand, kan vise en relativ tekst under, og kan lage flere rader fra en attributt-liste
-- `ki-hytte-card`: synk-knapp i statuskortet og klokkeslett for siste lesing av kalenderen
-- `ki-media-card`: spillere som ikke finnes vises gjennomstreket i velgeren
+**ki-media-card 1.5.0**
+- `visning: stor` kan sveipes mellom spillerne når flere er satt opp i `velger:` eller under en fane i `fane_media:`. Prikker under viser hvor du er, og trykk på en prikk går rett dit. `sveip: false` gir pillerad i stedet
+- Volumraden er strammet inn til samme form som i media-delen av `ki-rom-card`: dempeknapp, tynt spor med lilla fyll og rund gripeknapp, prosent til høyre
+- Spillere som ikke finnes vises gjennomstreket i pilleraden
+
+## Fra 2.84.0
+
+**ki-lansering-card** – kommende episoder og filmer fra Sonarr og Radarr, med hero, plakater og faner for Alle, Serier og Filmer.
+**ki-post-card** og **ki-bursdag-pro-card** – post og bursdager i kalenderkort-stil, lilla på selve dagen.

@@ -693,8 +693,9 @@ Uten `kontroll:`-blokken brukes de vanlige `media_player`-tjenestene, og grupper
 `entity:` knytter spillerne sammen med `media_player.join` og `unjoin`.
 
 Har du flere TV-er eller radioer, lister du dem i `velger:` – eller som en liste under hver fane i
-`fane_media:`. Da tegnes en pillerad øverst i kortet, i samme form som fanene ellers, og du bytter hvilken
-spiller kortet styrer. Prikken lyser på den som spiller.
+`fane_media:`. I `visning: stor` sveiper du mellom dem, med prikker under som viser hvor du er; trykk på en
+prikk går rett dit. `sveip: false` gir en pillerad i stedet. I de andre visningene er det alltid pillerad,
+og spillere som ikke finnes vises gjennomstreket så feil entitets-id er lett å se.
 
 ```yaml
 velger:

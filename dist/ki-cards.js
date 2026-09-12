@@ -1,4 +1,4 @@
-/* ki-cards v2.84.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.85.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.84.0";
+  KI.VERSION = "2.85.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1376,7 +1376,8 @@ try {
  *   Musikk: media_player.squeezebox_radio
  * radio: [{navn: NRK P1, skript: script.nrk_p1}]      # entity: virker også (button, switch, scene, script)
  * velger: [{navn: Stue TV, entity: media_player.stue_tv}, {navn: Google TV, entity: media_player.google_tv}]
- *         # pillerad øverst som bytter hvilken spiller kortet styrer
+ *         # flere spillere: sveip mellom dem, med prikker under
+ * sveip: false            # bytt tilbake til pillerad i stedet for sveiping
  * spillknapp: av_pa                                 # av_pa | spill – midtknappen i transportraden
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
@@ -1385,7 +1386,7 @@ try {
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.4.0";
+const KI_MEDIA_VERSJON = "1.5.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1519,8 +1520,19 @@ const KI_MEDIA_STIL = `
   .vknapp2 i { width:6px; height:6px; border-radius:50%; background:var(--green,#7ee081); display:none; }
   .vknapp2.spiller i { display:block; }
   .vknapp2.mangler { opacity:.4; text-decoration:line-through; }
-  .volum { display:grid; grid-template-columns:auto auto 1fr auto 56px; gap:10px; align-items:center;
-    background:var(--gray200); border-radius:18px; padding:10px 14px; }
+  /* sveip mellom spillere */
+  .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
+  .spor { display:flex; transition:transform .35s var(--myk, cubic-bezier(.2,.8,.2,1)); will-change:transform; }
+  .spor.drar { transition:none; }
+  .side { flex:0 0 100%; min-width:0; }
+  .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
+  .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
+    transition:opacity .25s, transform .25s; cursor:pointer; }
+  .prikker i.valgt { opacity:.95; transform:scale(1.15); }
+  .mangler-side { display:flex; align-items:center; justify-content:center; height:180px; border-radius:24px;
+    background:var(--gray200); color:var(--gray1000); font-size:13px; opacity:.7; text-align:center; padding:20px; }
+  .volum { display:grid; grid-template-columns:auto 1fr 52px; gap:12px; align-items:center;
+    background:var(--gray200); border-radius:18px; padding:12px 16px; }
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
   .vknapp:active { transform:scale(.92); }
@@ -1529,13 +1541,13 @@ const KI_MEDIA_STIL = `
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:8px; margin:0; outline:none;
-    background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), var(--gray200) var(--p,0%) 100%); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; border-radius:50%;
-    background:var(--gray1000); border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
-  input[type=range]::-moz-range-thumb { width:26px; height:26px; border-radius:50%; background:var(--gray1000);
-    border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
-  .vtall { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
+    background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), var(--gray100) var(--p,0%) 100%); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--gray1000); border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
+  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000);
+    border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
+  .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; text-align:right; }
   .vtall { font-size:14px; font-weight:500; text-align:right; font-variant-numeric:tabular-nums; }
 
   /* ---- radiokanaler ---- */
@@ -1712,7 +1724,10 @@ class KiMediaCard extends HTMLElement {
 
   _byggStor() {
     const c = this._c;
+    const liste = this._velgere();
+    const sveip = liste.length > 1 && c.sveip !== false;
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
+      ${sveip ? `<div class="sveip"><div class="spor"><div class="side">` : ""}
       <div class="hero" role="button" tabindex="0">
         <div class="bakgrunn"></div><div class="skygge"></div>
         <div class="hkilde"><span class="hpille"><ha-icon class="pikon" icon="${kiMediaEsc(c.ikon)}"></ha-icon><span class="pnavn"></span></span>
@@ -1732,9 +1747,16 @@ class KiMediaCard extends HTMLElement {
           <div class="hom"><div class="hring"></div><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
           <span class="hstat"></span>
         </div>
-      </div>`;
+      </div>
+      ${sveip ? `</div></div></div>
+        <div class="prikker">${liste.map((v, i) =>
+          `<i class="${v.entity === this._id() ? "valgt" : ""}" data-p="${i}" title="${kiMediaEsc(v.navn)}"></i>`).join("")}</div>` : ""}`;
     const r = this.shadowRoot, hero = r.querySelector(".hero");
-    hero.addEventListener("click", (e) => { if (!e.target.closest(".hknapp")) this._mer(); });
+    if (sveip) this._koblSveip(r, liste);
+    hero.addEventListener("click", (e) => {
+      if (this._sveipet) { this._sveipet = false; return; }
+      if (!e.target.closest(".hknapp")) this._mer();
+    });
     hero.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
     r.querySelectorAll(".hknapp").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1745,6 +1767,59 @@ class KiMediaCard extends HTMLElement {
       el.style.animationDuration = `${(0.9 + ((i * 0.11) % 0.7)).toFixed(2)}s`;
     });
     this._bygget = true; this._start();
+  }
+
+  /* Sveip mellom spillerne: dra til siden for å bytte, prikkene viser hvor du er */
+  _koblSveip(r, liste) {
+    const boks = r.querySelector(".sveip"), spor = r.querySelector(".spor");
+    if (!boks || !spor) return;
+    const bytt = (retning) => {
+      const naa = Math.max(0, liste.findIndex((v) => v.entity === this._id()));
+      const ny = (naa + retning + liste.length) % liste.length;
+      this._valgt = liste[ny].entity;
+      this._spillere = liste.map((v) => v.entity);
+      /* la kortet gli ut, bygg om, og la det gli inn igjen */
+      spor.style.transform = `translateX(${retning > 0 ? -100 : 100}%)`;
+      setTimeout(() => {
+        this._bygg(); this._oppdater();
+        const nySpor = this.shadowRoot.querySelector(".spor");
+        if (!nySpor) return;
+        nySpor.classList.add("drar");
+        nySpor.style.transform = `translateX(${retning > 0 ? 100 : -100}%)`;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          nySpor.classList.remove("drar");
+          nySpor.style.transform = "translateX(0)";
+        }));
+      }, 180);
+    };
+
+    let x0 = null, dx = 0;
+    boks.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".hknapp")) return;
+      x0 = e.clientX; dx = 0; spor.classList.add("drar");
+    });
+    boks.addEventListener("pointermove", (e) => {
+      if (x0 === null) return;
+      dx = e.clientX - x0;
+      if (Math.abs(dx) > 6) spor.style.transform = `translateX(${dx * 0.6}px)`;
+    });
+    const slipp = () => {
+      if (x0 === null) return;
+      spor.classList.remove("drar");
+      const flyttet = Math.abs(dx) > 55;
+      spor.style.transform = "translateX(0)";
+      if (flyttet) { this._sveipet = true; bytt(dx < 0 ? 1 : -1); }
+      x0 = null; dx = 0;
+    };
+    boks.addEventListener("pointerup", slipp);
+    boks.addEventListener("pointercancel", slipp);
+    boks.addEventListener("pointerleave", slipp);
+    /* trykk på en prikk går rett til den spilleren */
+    r.querySelectorAll("[data-p]").forEach((pr) => pr.addEventListener("click", () => {
+      const ny = liste[+pr.dataset.p]; if (!ny || ny.entity === this._id()) return;
+      this._valgt = ny.entity; this._spillere = liste.map((v) => v.entity);
+      this._bygg(); this._oppdater();
+    }));
   }
 
   /* Kontroll-visning: bare kanaler, transport, volum og grupper */
@@ -1847,10 +1922,8 @@ class KiMediaCard extends HTMLElement {
         </div>
 
         <div class="volum">
-          <button class="vknapp" data-v="av" aria-label="Demp"><ha-icon icon="mdi:volume-mute"></ha-icon></button>
-          <button class="vknapp" data-v="ned" aria-label="Lavere"><ha-icon icon="mdi:volume-minus"></ha-icon></button>
+          <button class="vknapp" data-v="av" aria-label="Demp"><ha-icon icon="mdi:volume-high"></ha-icon></button>
           <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum">
-          <button class="vknapp" data-v="opp" aria-label="Høyere"><ha-icon icon="mdi:volume-plus"></ha-icon></button>
           <div class="vtall">–</div>
         </div>
         ${(c.grupper || []).length ? `<div class="gruppe">${(c.grupper || []).map((g, i) =>
