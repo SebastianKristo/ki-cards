@@ -19,6 +19,11 @@
  *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
  *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
+ *  profiler:                       # flere hus i samme kort
+ *    oslo: { ... }                 # overstyringer for Oslo
+ *    stromstad: { ... }            # overstyringer for Strömstad
+ *  profil: stromstad               # eller profil_entity: input_select.hus
+ *
  *  setninger:                      # egne setninger med betingelse (alias: ekstra)
  *    - vis: "states['sensor.x'].state == '0'"      # JS-uttrykk, eller:
  *      nar: { entity: sensor.x, over: 10 }         # state | over | under | pa
@@ -36,7 +41,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.3.0";
+const KI_PROSA_VERSJON = "2.4.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -143,6 +148,37 @@ class KiProsaCard extends HTMLElement {
   getGridOptions() { return { columns: 12, min_rows: 1 }; }
 
   setConfig(c) {
+    this._raa = c || {};
+    this._profil = null;
+    this._bygg2(this._raa);
+  }
+  /* Profiler: flere hus i samme kort. `profil: stromstad` velger én, eller
+     `profil_entity` peker på en input_select som bestemmer hvilken. */
+  _velgProfil() {
+    const r = this._raa || {};
+    if (!r.profiler) return null;
+    let navn = r.profil;
+    if (r.profil_entity && this._h) {
+      const st = this._h.states[r.profil_entity];
+      if (st && st.state) navn = st.state;
+    }
+    if (!navn) navn = Object.keys(r.profiler)[0];
+    const n = String(navn).toLowerCase().replace(/[^a-z0-9]/g, "");
+    const treff = Object.keys(r.profiler).find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === n);
+    return treff || null;
+  }
+  _sjekkProfil() {
+    const valgt = this._velgProfil();
+    if (valgt === this._profil) return false;
+    this._profil = valgt;
+    const r = this._raa || {};
+    const over = valgt ? r.profiler[valgt] : {};
+    const { profiler, profil, profil_entity, ...basis } = r;
+    this._bygg2({ ...basis, ...(over || {}) });
+    this._bygget = false;
+    return true;
+  }
+  _bygg2(c) {
     const b = c || {};
     const k = { ...KI_PROSA_STD, ...b };
     for (const n of ["vaer", "pris", "effekt", "lys", "kalender", "ringeklokke", "laser", "planter", "bursdag"])
@@ -154,13 +190,16 @@ class KiProsaCard extends HTMLElement {
     k.hjemkomst = b.hjemkomst === false ? [] : fyll(b.hjemkomst || KI_PROSA_STD.hjemkomst,
       { ikon: "🚗", animasjon: "hopp", tekst: "{navn} kommer hjem ca. kl {pille}." });
     k.setninger = [].concat(b.setninger || [], b.ekstra || []);   /* ekstra er gammelt navn */
-    this._c = k; this._bygget = false; this._tegn();
+    this._c = k; this._bygget = false;
   }
-  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); this._tegn(); }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); this._sjekkProfil(); this._tegn(); }
   disconnectedCallback() { clearInterval(this._i); }
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
-    if (!g || !this._bygget || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
+    const nyProfil = this._sjekkProfil();
+    const id2 = this._raa && this._raa.profil_entity;
+    if (nyProfil || !g || !this._bygget || (id2 && g.states[id2] !== h.states[id2])
+      || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
   }
 
   /* ------------------------------------------------------------ oppslag */
@@ -456,15 +495,23 @@ class KiProsaCardEditor extends HTMLElement {
   setConfig(c) { this._c = c || {}; this._r(); }
   set hass(h) { this._h = h; this._r(); }
   _e(v) { this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: v }, bubbles: true, composed: true })); }
-  /* Skriver en delvis overstyring inn i en gren av konfigurasjonen */
+
+  /* Skriver en delvis overstyring inn i en gren av konfigurasjonen.
+     Skjemaet bygges bare én gang – ellers mister entitetsvelgeren fokus
+     hver gang Home Assistant sender en ny hass. */
   _sett(gren, felt, verdi) {
     const c = JSON.parse(JSON.stringify(this._c || {}));
     if (gren) {
       const naa = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] && typeof c[gren] === "object" ? c[gren] : {});
-      if (verdi === "" || verdi === undefined) delete naa[felt]; else naa[felt] = verdi;
+      if (verdi === "" || verdi === undefined || verdi === null) delete naa[felt]; else naa[felt] = verdi;
       if (Object.keys(naa).length) c[gren] = naa; else delete c[gren];
-    } else if (verdi === "" || verdi === undefined) delete c[felt]; else c[felt] = verdi;
-    this._c = c; this._e(c); this._r();
+    } else if (verdi === "" || verdi === undefined || verdi === null) delete c[felt]; else c[felt] = verdi;
+    this._c = c; this._e(c); this._oppdater();
+  }
+  _av(gren, av) {
+    const c = JSON.parse(JSON.stringify(this._c || {}));
+    if (av) c[gren] = false; else delete c[gren];
+    this._c = c; this._e(c); this._oppdater();
   }
   _les(gren, felt) {
     const c = this._c || {};
@@ -474,23 +521,9 @@ class KiProsaCardEditor extends HTMLElement {
     const b = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] || {});
     return b[felt] !== undefined ? b[felt] : (std && typeof std === "object" ? std[felt] : undefined);
   }
-  _r() {
-    if (!this._h || !this._c) return;
-    if (!this._rot) {
-      this._rot = document.createElement("div");
-      this._rot.innerHTML = `<style>
-        .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
-        .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; }
-        .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .rad > * { min-width:0; }
-        .hint { font-size:12px; opacity:.6; margin:6px 0 0; }
-      </style><div class="innhold"></div>`;
-      this.appendChild(this._rot);
-    }
-    const inn = this._rot.querySelector(".innhold");
-    if (this._f) { /* bare oppdater verdier ved ny hass */ }
-    inn.innerHTML = "";
-    const grupper = [
+
+  static get GRUPPER() {
+    return [
       ["", "Generelt", [["storrelse", "Tekststørrelse", "text"]]],
       ["vaer", "Vær", [["entity", "Entitet", "entity"], ["attributt", "Attributt", "text"], ["enhet", "Enhet", "text"],
         ["desimaler", "Desimaler", "number"], ["mellomrom", "Mellomrom før enhet", "bool"],
@@ -500,8 +533,7 @@ class KiProsaCardEditor extends HTMLElement {
       ["pris", "Strømpris", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
         ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
         ["billig", "Billig til og med (kr)", "number"], ["dyr", "Dyrt over (kr)", "number"],
-        ["ord", "Skriv billig/dyrt i pillen", "bool"],
-        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+        ["ord", "Skriv billig/dyrt i pillen", "bool"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["spot", "Spotpris (fargeprikk)", [["entity", "Entitet", "entity"]]],
       ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
         ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
@@ -509,58 +541,88 @@ class KiProsaCardEditor extends HTMLElement {
       ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon (uten trinn)", "text"],
         ["tekst_null", "Tekst når ingen lys er på", "text"], ["skjul_null", "Vis også når ingen lys er på", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+        ["path", "Trykk går til", "text"]]],
       ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
         ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
-      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"],
+        ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+      ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"],
+        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"],
+        ["navn", "Navn-sensor", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
         ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
-      ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"], ["ikon", "Ikon", "text"],
-        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"], ["navn", "Navn-sensor", "entity"],
-        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
     ];
-    for (const [gren, tittel, felter] of grupper) {
+  }
+
+  _r() {
+    if (!this._h || !this._c) return;
+    if (this._rot) { this._oppdater(); return; }          /* bygges bare én gang */
+    this._rot = document.createElement("div");
+    this._rot.innerHTML = `<style>
+      .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
+      .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; }
+      .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      .rad > * { min-width:0; }
+      .hint { font-size:12px; opacity:.6; margin:6px 0 0; }
+    </style><div class="innhold"></div>`;
+    this.appendChild(this._rot);
+    const inn = this._rot.querySelector(".innhold");
+    this._felter = [];
+    for (const [gren, tittel, felter] of KiProsaCardEditor.GRUPPER) {
       const boks = document.createElement("div"); boks.className = "gr";
       const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
       const rad = document.createElement("div"); rad.className = "rad";
       for (const [felt, etikett, type] of felter) {
-        let el;
+        let el, hent, sett;
         if (type === "entity") {
           el = document.createElement("ha-entity-picker");
-          el.hass = this._h; el.value = this._les(gren, felt) || ""; el.label = etikett; el.allowCustomEntity = true;
-          el.addEventListener("value-changed", (e) => this._sett(gren, felt, e.detail.value));
+          el.hass = this._h; el.label = etikett; el.allowCustomEntity = true;
+          el.addEventListener("value-changed", (e) => { e.stopPropagation(); this._sett(gren, felt, e.detail.value); });
+          hent = () => el.value || ""; sett = (v) => { el.value = v ?? ""; };
         } else if (type === "bool") {
-          el = document.createElement("ha-formfield");
-          el.label = etikett;
+          el = document.createElement("ha-formfield"); el.label = etikett;
           const sw = document.createElement("ha-switch");
-          sw.checked = this._les(gren, felt) !== false;
           sw.addEventListener("change", (e) => this._sett(gren, felt, e.target.checked));
           el.appendChild(sw);
+          hent = () => sw.checked; sett = (v) => { sw.checked = v !== false; };
         } else {
           el = document.createElement("ha-textfield");
-          el.label = etikett; el.value = String(this._les(gren, felt) ?? "");
-          if (type === "number") el.type = "number";
-          el.addEventListener("change", (e) => this._sett(gren, felt, type === "number" ? Number(e.target.value) : e.target.value));
+          el.label = etikett; if (type === "number") el.type = "number";
+          el.addEventListener("change", (e) =>
+            this._sett(gren, felt, type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value));
+          hent = () => el.value; sett = (v) => { el.value = v ?? ""; };
         }
+        this._felter.push({ gren, felt, el, hent, sett });
         rad.appendChild(el);
       }
       boks.appendChild(rad);
       if (gren) {
-        const av = document.createElement("ha-formfield"); av.label = "Skru av denne biten";
+        const ff = document.createElement("ha-formfield"); ff.label = "Skru av denne biten";
         const sw = document.createElement("ha-switch");
-        sw.checked = this._c[gren] === false;
-        sw.addEventListener("change", (e) => {
-          const c = JSON.parse(JSON.stringify(this._c || {}));
-          if (e.target.checked) c[gren] = false; else delete c[gren];
-          this._c = c; this._e(c); this._r();
-        });
-        av.appendChild(sw); boks.appendChild(av);
+        sw.addEventListener("change", (e) => this._av(gren, e.target.checked));
+        ff.appendChild(sw); boks.appendChild(ff);
+        this._felter.push({ gren, felt: "__av", el: ff, hent: () => sw.checked, sett: (v) => { sw.checked = !!v; } });
       }
       inn.appendChild(boks);
     }
     const hint = document.createElement("p"); hint.className = "hint";
-    hint.textContent = "Apparater, hjemkomst og egne setninger (setninger:) redigeres i YAML – se README for alle nøklene.";
+    hint.textContent = "Profiler, apparater, hjemkomst og egne setninger (setninger:) redigeres i YAML – se README.";
     inn.appendChild(hint);
+    this._oppdater();
+  }
+
+  /* Fyller inn verdiene uten å bygge om skjemaet, og rører ikke feltet du skriver i */
+  _oppdater() {
+    if (!this._felter) return;
+    for (const f of this._felter) {
+      if (f.el.contains && f.el.contains(document.activeElement)) continue;
+      if (f.el === document.activeElement) continue;
+      const v = f.felt === "__av" ? this._c[f.gren] === false : this._les(f.gren, f.felt);
+      const naa = f.hent();
+      if (String(naa ?? "") !== String(v ?? "")) f.sett(v);
+      if (f.el.hass !== undefined) f.el.hass = this._h;
+    }
   }
 }
 if (!customElements.get("ki-prosa-card-editor")) customElements.define("ki-prosa-card-editor", KiProsaCardEditor);

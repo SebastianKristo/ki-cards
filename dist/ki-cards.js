@@ -1,4 +1,4 @@
-/* ki-cards v2.57.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.59.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.57.0";
+  KI.VERSION = "2.59.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5055,6 +5055,11 @@ try {
  *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
  *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
+ *  profiler:                       # flere hus i samme kort
+ *    oslo: { ... }                 # overstyringer for Oslo
+ *    stromstad: { ... }            # overstyringer for Strömstad
+ *  profil: stromstad               # eller profil_entity: input_select.hus
+ *
  *  setninger:                      # egne setninger med betingelse (alias: ekstra)
  *    - vis: "states['sensor.x'].state == '0'"      # JS-uttrykk, eller:
  *      nar: { entity: sensor.x, over: 10 }         # state | over | under | pa
@@ -5072,7 +5077,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.3.0";
+const KI_PROSA_VERSJON = "2.4.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5179,6 +5184,37 @@ class KiProsaCard extends HTMLElement {
   getGridOptions() { return { columns: 12, min_rows: 1 }; }
 
   setConfig(c) {
+    this._raa = c || {};
+    this._profil = null;
+    this._bygg2(this._raa);
+  }
+  /* Profiler: flere hus i samme kort. `profil: stromstad` velger én, eller
+     `profil_entity` peker på en input_select som bestemmer hvilken. */
+  _velgProfil() {
+    const r = this._raa || {};
+    if (!r.profiler) return null;
+    let navn = r.profil;
+    if (r.profil_entity && this._h) {
+      const st = this._h.states[r.profil_entity];
+      if (st && st.state) navn = st.state;
+    }
+    if (!navn) navn = Object.keys(r.profiler)[0];
+    const n = String(navn).toLowerCase().replace(/[^a-z0-9]/g, "");
+    const treff = Object.keys(r.profiler).find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === n);
+    return treff || null;
+  }
+  _sjekkProfil() {
+    const valgt = this._velgProfil();
+    if (valgt === this._profil) return false;
+    this._profil = valgt;
+    const r = this._raa || {};
+    const over = valgt ? r.profiler[valgt] : {};
+    const { profiler, profil, profil_entity, ...basis } = r;
+    this._bygg2({ ...basis, ...(over || {}) });
+    this._bygget = false;
+    return true;
+  }
+  _bygg2(c) {
     const b = c || {};
     const k = { ...KI_PROSA_STD, ...b };
     for (const n of ["vaer", "pris", "effekt", "lys", "kalender", "ringeklokke", "laser", "planter", "bursdag"])
@@ -5190,13 +5226,16 @@ class KiProsaCard extends HTMLElement {
     k.hjemkomst = b.hjemkomst === false ? [] : fyll(b.hjemkomst || KI_PROSA_STD.hjemkomst,
       { ikon: "🚗", animasjon: "hopp", tekst: "{navn} kommer hjem ca. kl {pille}." });
     k.setninger = [].concat(b.setninger || [], b.ekstra || []);   /* ekstra er gammelt navn */
-    this._c = k; this._bygget = false; this._tegn();
+    this._c = k; this._bygget = false;
   }
-  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); this._tegn(); }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); this._sjekkProfil(); this._tegn(); }
   disconnectedCallback() { clearInterval(this._i); }
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
-    if (!g || !this._bygget || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
+    const nyProfil = this._sjekkProfil();
+    const id2 = this._raa && this._raa.profil_entity;
+    if (nyProfil || !g || !this._bygget || (id2 && g.states[id2] !== h.states[id2])
+      || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
   }
 
   /* ------------------------------------------------------------ oppslag */
@@ -5492,15 +5531,23 @@ class KiProsaCardEditor extends HTMLElement {
   setConfig(c) { this._c = c || {}; this._r(); }
   set hass(h) { this._h = h; this._r(); }
   _e(v) { this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: v }, bubbles: true, composed: true })); }
-  /* Skriver en delvis overstyring inn i en gren av konfigurasjonen */
+
+  /* Skriver en delvis overstyring inn i en gren av konfigurasjonen.
+     Skjemaet bygges bare én gang – ellers mister entitetsvelgeren fokus
+     hver gang Home Assistant sender en ny hass. */
   _sett(gren, felt, verdi) {
     const c = JSON.parse(JSON.stringify(this._c || {}));
     if (gren) {
       const naa = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] && typeof c[gren] === "object" ? c[gren] : {});
-      if (verdi === "" || verdi === undefined) delete naa[felt]; else naa[felt] = verdi;
+      if (verdi === "" || verdi === undefined || verdi === null) delete naa[felt]; else naa[felt] = verdi;
       if (Object.keys(naa).length) c[gren] = naa; else delete c[gren];
-    } else if (verdi === "" || verdi === undefined) delete c[felt]; else c[felt] = verdi;
-    this._c = c; this._e(c); this._r();
+    } else if (verdi === "" || verdi === undefined || verdi === null) delete c[felt]; else c[felt] = verdi;
+    this._c = c; this._e(c); this._oppdater();
+  }
+  _av(gren, av) {
+    const c = JSON.parse(JSON.stringify(this._c || {}));
+    if (av) c[gren] = false; else delete c[gren];
+    this._c = c; this._e(c); this._oppdater();
   }
   _les(gren, felt) {
     const c = this._c || {};
@@ -5510,23 +5557,9 @@ class KiProsaCardEditor extends HTMLElement {
     const b = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] || {});
     return b[felt] !== undefined ? b[felt] : (std && typeof std === "object" ? std[felt] : undefined);
   }
-  _r() {
-    if (!this._h || !this._c) return;
-    if (!this._rot) {
-      this._rot = document.createElement("div");
-      this._rot.innerHTML = `<style>
-        .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
-        .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; }
-        .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .rad > * { min-width:0; }
-        .hint { font-size:12px; opacity:.6; margin:6px 0 0; }
-      </style><div class="innhold"></div>`;
-      this.appendChild(this._rot);
-    }
-    const inn = this._rot.querySelector(".innhold");
-    if (this._f) { /* bare oppdater verdier ved ny hass */ }
-    inn.innerHTML = "";
-    const grupper = [
+
+  static get GRUPPER() {
+    return [
       ["", "Generelt", [["storrelse", "Tekststørrelse", "text"]]],
       ["vaer", "Vær", [["entity", "Entitet", "entity"], ["attributt", "Attributt", "text"], ["enhet", "Enhet", "text"],
         ["desimaler", "Desimaler", "number"], ["mellomrom", "Mellomrom før enhet", "bool"],
@@ -5536,8 +5569,7 @@ class KiProsaCardEditor extends HTMLElement {
       ["pris", "Strømpris", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
         ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
         ["billig", "Billig til og med (kr)", "number"], ["dyr", "Dyrt over (kr)", "number"],
-        ["ord", "Skriv billig/dyrt i pillen", "bool"],
-        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+        ["ord", "Skriv billig/dyrt i pillen", "bool"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["spot", "Spotpris (fargeprikk)", [["entity", "Entitet", "entity"]]],
       ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
         ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
@@ -5545,58 +5577,88 @@ class KiProsaCardEditor extends HTMLElement {
       ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon (uten trinn)", "text"],
         ["tekst_null", "Tekst når ingen lys er på", "text"], ["skjul_null", "Vis også når ingen lys er på", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+        ["path", "Trykk går til", "text"]]],
       ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
         ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
-      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
+      ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"],
+        ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+      ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"],
+        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"],
+        ["navn", "Navn-sensor", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
         ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
-      ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"], ["ikon", "Ikon", "text"],
-        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"], ["navn", "Navn-sensor", "entity"],
-        ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
     ];
-    for (const [gren, tittel, felter] of grupper) {
+  }
+
+  _r() {
+    if (!this._h || !this._c) return;
+    if (this._rot) { this._oppdater(); return; }          /* bygges bare én gang */
+    this._rot = document.createElement("div");
+    this._rot.innerHTML = `<style>
+      .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
+      .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; }
+      .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      .rad > * { min-width:0; }
+      .hint { font-size:12px; opacity:.6; margin:6px 0 0; }
+    </style><div class="innhold"></div>`;
+    this.appendChild(this._rot);
+    const inn = this._rot.querySelector(".innhold");
+    this._felter = [];
+    for (const [gren, tittel, felter] of KiProsaCardEditor.GRUPPER) {
       const boks = document.createElement("div"); boks.className = "gr";
       const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
       const rad = document.createElement("div"); rad.className = "rad";
       for (const [felt, etikett, type] of felter) {
-        let el;
+        let el, hent, sett;
         if (type === "entity") {
           el = document.createElement("ha-entity-picker");
-          el.hass = this._h; el.value = this._les(gren, felt) || ""; el.label = etikett; el.allowCustomEntity = true;
-          el.addEventListener("value-changed", (e) => this._sett(gren, felt, e.detail.value));
+          el.hass = this._h; el.label = etikett; el.allowCustomEntity = true;
+          el.addEventListener("value-changed", (e) => { e.stopPropagation(); this._sett(gren, felt, e.detail.value); });
+          hent = () => el.value || ""; sett = (v) => { el.value = v ?? ""; };
         } else if (type === "bool") {
-          el = document.createElement("ha-formfield");
-          el.label = etikett;
+          el = document.createElement("ha-formfield"); el.label = etikett;
           const sw = document.createElement("ha-switch");
-          sw.checked = this._les(gren, felt) !== false;
           sw.addEventListener("change", (e) => this._sett(gren, felt, e.target.checked));
           el.appendChild(sw);
+          hent = () => sw.checked; sett = (v) => { sw.checked = v !== false; };
         } else {
           el = document.createElement("ha-textfield");
-          el.label = etikett; el.value = String(this._les(gren, felt) ?? "");
-          if (type === "number") el.type = "number";
-          el.addEventListener("change", (e) => this._sett(gren, felt, type === "number" ? Number(e.target.value) : e.target.value));
+          el.label = etikett; if (type === "number") el.type = "number";
+          el.addEventListener("change", (e) =>
+            this._sett(gren, felt, type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value));
+          hent = () => el.value; sett = (v) => { el.value = v ?? ""; };
         }
+        this._felter.push({ gren, felt, el, hent, sett });
         rad.appendChild(el);
       }
       boks.appendChild(rad);
       if (gren) {
-        const av = document.createElement("ha-formfield"); av.label = "Skru av denne biten";
+        const ff = document.createElement("ha-formfield"); ff.label = "Skru av denne biten";
         const sw = document.createElement("ha-switch");
-        sw.checked = this._c[gren] === false;
-        sw.addEventListener("change", (e) => {
-          const c = JSON.parse(JSON.stringify(this._c || {}));
-          if (e.target.checked) c[gren] = false; else delete c[gren];
-          this._c = c; this._e(c); this._r();
-        });
-        av.appendChild(sw); boks.appendChild(av);
+        sw.addEventListener("change", (e) => this._av(gren, e.target.checked));
+        ff.appendChild(sw); boks.appendChild(ff);
+        this._felter.push({ gren, felt: "__av", el: ff, hent: () => sw.checked, sett: (v) => { sw.checked = !!v; } });
       }
       inn.appendChild(boks);
     }
     const hint = document.createElement("p"); hint.className = "hint";
-    hint.textContent = "Apparater, hjemkomst og egne setninger (setninger:) redigeres i YAML – se README for alle nøklene.";
+    hint.textContent = "Profiler, apparater, hjemkomst og egne setninger (setninger:) redigeres i YAML – se README.";
     inn.appendChild(hint);
+    this._oppdater();
+  }
+
+  /* Fyller inn verdiene uten å bygge om skjemaet, og rører ikke feltet du skriver i */
+  _oppdater() {
+    if (!this._felter) return;
+    for (const f of this._felter) {
+      if (f.el.contains && f.el.contains(document.activeElement)) continue;
+      if (f.el === document.activeElement) continue;
+      const v = f.felt === "__av" ? this._c[f.gren] === false : this._les(f.gren, f.felt);
+      const naa = f.hent();
+      if (String(naa ?? "") !== String(v ?? "")) f.sett(v);
+      if (f.el.hass !== undefined) f.el.hass = this._h;
+    }
   }
 }
 if (!customElements.get("ki-prosa-card-editor")) window.KI.define("ki-prosa-card-editor", KiProsaCardEditor);
@@ -5758,6 +5820,8 @@ try {
  *
  * type: custom:ki-strompris-card
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
+ *             false                                  # uten Norgespris vises spotprisen i kr i stedet
+ * enhet: kr/kWh                                      # teksten bak det store tallet
  * spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # auto: første sensor med raw_today
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
@@ -5775,7 +5839,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.5.1";
+const KI_SP_VERSJON = "2.6.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -5878,7 +5942,8 @@ class KiStromprisCard extends HTMLElement {
   _num(id) { const s = this._st(id); if (!s) return null; const v = parseFloat(s.state); return isNaN(v) ? null : v; }
   _spot() { if (this._c.spot) return this._c.spot; const h = this._h;
     return this._auto || (this._auto = Object.keys(h.states).find((id) => id.startsWith("sensor.") && Array.isArray(h.states[id].attributes.raw_today))); }
-  _ider() { const c = this._c; return [this._spot(), c.norgespris, c.spart_dag, c.spart_ar, c.effekt].filter(Boolean); }
+  _ider() { const c = this._c; return [this._spot(), c.norgespris, c.spart_dag, c.spart_ar, c.effekt]
+    .filter((x) => typeof x === "string" && x); }
   _skala() { const s = this._st(this._spot()); if (this._c.skala !== undefined) return this._c.skala;
     return /øre|ore/i.test((s && s.attributes.unit_of_measurement) || "") ? 0.01 : 1; }
 
@@ -5916,7 +5981,12 @@ class KiStromprisCard extends HTMLElement {
     return raa.map((p) => ({ t: p.t, slutt: p.slutt, v: p.v === null ? null : p.v * k })).filter((p) => p.v !== null && !isNaN(p.v) && !isNaN(p.t));
   }
   _harMorgen() { const r = this._raa("i_morgen"); return Array.isArray(r) && r.some((p) => p.v !== null && p.v !== undefined && !isNaN(p.v)); }
-  _np() { const v = this._num(this._c.norgespris); return v === null && typeof this._c.norgespris === "number" ? this._c.norgespris : v; }
+  _np() {
+    const n = this._c.norgespris;
+    if (n === false || n === null || n === "") return null;      /* uten Norgespris: rent spotpriskort */
+    const v = this._num(n);
+    return v === null && typeof n === "number" ? n : v;
+  }
 
   /* Norgespris = fast energipris + nettleie. Nettleia er lavere om natta og i helga,
      så med dag-/nattsats kan morgendagens pris regnes ut selv før spotprisen kommer. */
@@ -6060,11 +6130,15 @@ class KiStromprisCard extends HTMLElement {
       <span class="v ${this._dag === "i_dag" ? "aktiv" : ""}" data-d="i_dag" role="button" tabindex="0">I dag</span>
       <span class="v ${this._dag === "i_morgen" ? "aktiv" : ""} ${this._harMorgen() ? "" : "tom"}" data-d="i_morgen" role="button" tabindex="0">I morgen</span></div>`;
 
+    const enhet = c.enhet || "kr/kWh";
+    /* Uten Norgespris er spotprisen hovedtallet – da er kortet et rent spotpriskort. */
+    const stort = np !== null ? np : (spotNaa === null || spotNaa === undefined ? null : spotNaa);
+    const merke = np !== null ? (c.tekst_norgespris || "Du betaler nå (Norgespris)") : (c.tekst_spot || "Spotpris nå");
     const hero = `<div class="hero">
-      <div><div class="merke">Du betaler nå (Norgespris)</div><div class="stor">${kiSpNf(np, 2)}<small>kr/kWh</small></div></div>
+      <div><div class="merke">${kiSpEsc(merke)}</div><div class="stor">${kiSpNf(stort, 2)}<small>${kiSpEsc(enhet)}</small></div></div>
       <div class="hoyre">
-        ${spotNaa !== null && spotNaa !== undefined ? `<div style="opacity:.65">Spot: ${kiSpNf(spotNaa, 2)} kr</div>` : ""}
-        ${sparTime !== null ? `<div style="margin-top:4px"><span class="spar ${sparTime < 0 ? "tap" : ""}"><ha-icon icon="mdi:${sparTime < 0 ? "trending-down" : "piggy-bank-outline"}"></ha-icon>${sparTime < 0 ? "−" : "+"}${kiSpNf(Math.abs(sparTime), 2)} kr/kWh</span></div>` : ""}
+        ${np !== null && spotNaa !== null && spotNaa !== undefined ? `<div style="opacity:.65">Spot: ${kiSpNf(spotNaa, 2)} kr</div>` : ""}
+        ${sparTime !== null ? `<div style="margin-top:4px"><span class="spar ${sparTime < 0 ? "tap" : ""}"><ha-icon icon="mdi:${sparTime < 0 ? "trending-down" : "piggy-bank-outline"}"></ha-icon>${sparTime < 0 ? "−" : "+"}${kiSpNf(Math.abs(sparTime), 2)} ${kiSpEsc(enhet)}</span></div>` : ""}
         ${effekt !== null ? `<div class="effektnaa" style="opacity:.65;margin-top:4px">${kiSpNf(effekt, 0)} W nå</div>` : ""}</div></div>`;
 
     if (!spotSt) return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span></div>${hero}
@@ -6098,6 +6172,8 @@ class KiStromprisCard extends HTMLElement {
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
       ${kunNp ? `<div class="varsel-np">Spotprisen for i morgen kommer rundt kl. 13. Grafen viser Norgespris time for time (nettleia faller om natta og i helga).</div>` : ""}
+      ${c.vis_forklaring !== false && !kunNp && np === null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span>
+        <span>snitt ${kiSpNf(snitt, 2)} ${kiSpEsc(c.enhet || "kr/kWh")}</span></div>` : ""}
       ${c.vis_forklaring !== false && !kunNp && np !== null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span><span><i style="background:repeating-linear-gradient(90deg,#7ab8ff 0 5px,transparent 5px 10px)"></i>Norgespris ${kiSpNf(np, 2)} kr</span>
         ${over !== null ? `<span>${over} av ${pkt.length} timer over Norgespris</span>` : ""}</div>` : ""}
       ${c.vis_stat !== false ? `<div class="stat">
@@ -6139,7 +6215,7 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { norgespris: "Norgespris (kr/kWh)", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
@@ -6149,6 +6225,7 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.hass = this._h;
     this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
+      { name: "enhet", selector: { text: {} } },
       { name: "spart_dag", selector: { entity: { domain: "sensor" } } }, { name: "spart_ar", selector: { entity: { domain: "sensor" } } },
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },

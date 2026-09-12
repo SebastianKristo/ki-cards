@@ -3,6 +3,8 @@
  *
  * type: custom:ki-strompris-card
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
+ *             false                                  # uten Norgespris vises spotprisen i kr i stedet
+ * enhet: kr/kWh                                      # teksten bak det store tallet
  * spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # auto: første sensor med raw_today
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
@@ -20,7 +22,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.5.1";
+const KI_SP_VERSJON = "2.6.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -123,7 +125,8 @@ class KiStromprisCard extends HTMLElement {
   _num(id) { const s = this._st(id); if (!s) return null; const v = parseFloat(s.state); return isNaN(v) ? null : v; }
   _spot() { if (this._c.spot) return this._c.spot; const h = this._h;
     return this._auto || (this._auto = Object.keys(h.states).find((id) => id.startsWith("sensor.") && Array.isArray(h.states[id].attributes.raw_today))); }
-  _ider() { const c = this._c; return [this._spot(), c.norgespris, c.spart_dag, c.spart_ar, c.effekt].filter(Boolean); }
+  _ider() { const c = this._c; return [this._spot(), c.norgespris, c.spart_dag, c.spart_ar, c.effekt]
+    .filter((x) => typeof x === "string" && x); }
   _skala() { const s = this._st(this._spot()); if (this._c.skala !== undefined) return this._c.skala;
     return /øre|ore/i.test((s && s.attributes.unit_of_measurement) || "") ? 0.01 : 1; }
 
@@ -161,7 +164,12 @@ class KiStromprisCard extends HTMLElement {
     return raa.map((p) => ({ t: p.t, slutt: p.slutt, v: p.v === null ? null : p.v * k })).filter((p) => p.v !== null && !isNaN(p.v) && !isNaN(p.t));
   }
   _harMorgen() { const r = this._raa("i_morgen"); return Array.isArray(r) && r.some((p) => p.v !== null && p.v !== undefined && !isNaN(p.v)); }
-  _np() { const v = this._num(this._c.norgespris); return v === null && typeof this._c.norgespris === "number" ? this._c.norgespris : v; }
+  _np() {
+    const n = this._c.norgespris;
+    if (n === false || n === null || n === "") return null;      /* uten Norgespris: rent spotpriskort */
+    const v = this._num(n);
+    return v === null && typeof n === "number" ? n : v;
+  }
 
   /* Norgespris = fast energipris + nettleie. Nettleia er lavere om natta og i helga,
      så med dag-/nattsats kan morgendagens pris regnes ut selv før spotprisen kommer. */
@@ -305,11 +313,15 @@ class KiStromprisCard extends HTMLElement {
       <span class="v ${this._dag === "i_dag" ? "aktiv" : ""}" data-d="i_dag" role="button" tabindex="0">I dag</span>
       <span class="v ${this._dag === "i_morgen" ? "aktiv" : ""} ${this._harMorgen() ? "" : "tom"}" data-d="i_morgen" role="button" tabindex="0">I morgen</span></div>`;
 
+    const enhet = c.enhet || "kr/kWh";
+    /* Uten Norgespris er spotprisen hovedtallet – da er kortet et rent spotpriskort. */
+    const stort = np !== null ? np : (spotNaa === null || spotNaa === undefined ? null : spotNaa);
+    const merke = np !== null ? (c.tekst_norgespris || "Du betaler nå (Norgespris)") : (c.tekst_spot || "Spotpris nå");
     const hero = `<div class="hero">
-      <div><div class="merke">Du betaler nå (Norgespris)</div><div class="stor">${kiSpNf(np, 2)}<small>kr/kWh</small></div></div>
+      <div><div class="merke">${kiSpEsc(merke)}</div><div class="stor">${kiSpNf(stort, 2)}<small>${kiSpEsc(enhet)}</small></div></div>
       <div class="hoyre">
-        ${spotNaa !== null && spotNaa !== undefined ? `<div style="opacity:.65">Spot: ${kiSpNf(spotNaa, 2)} kr</div>` : ""}
-        ${sparTime !== null ? `<div style="margin-top:4px"><span class="spar ${sparTime < 0 ? "tap" : ""}"><ha-icon icon="mdi:${sparTime < 0 ? "trending-down" : "piggy-bank-outline"}"></ha-icon>${sparTime < 0 ? "−" : "+"}${kiSpNf(Math.abs(sparTime), 2)} kr/kWh</span></div>` : ""}
+        ${np !== null && spotNaa !== null && spotNaa !== undefined ? `<div style="opacity:.65">Spot: ${kiSpNf(spotNaa, 2)} kr</div>` : ""}
+        ${sparTime !== null ? `<div style="margin-top:4px"><span class="spar ${sparTime < 0 ? "tap" : ""}"><ha-icon icon="mdi:${sparTime < 0 ? "trending-down" : "piggy-bank-outline"}"></ha-icon>${sparTime < 0 ? "−" : "+"}${kiSpNf(Math.abs(sparTime), 2)} ${kiSpEsc(enhet)}</span></div>` : ""}
         ${effekt !== null ? `<div class="effektnaa" style="opacity:.65;margin-top:4px">${kiSpNf(effekt, 0)} W nå</div>` : ""}</div></div>`;
 
     if (!spotSt) return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span></div>${hero}
@@ -343,6 +355,8 @@ class KiStromprisCard extends HTMLElement {
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
       ${kunNp ? `<div class="varsel-np">Spotprisen for i morgen kommer rundt kl. 13. Grafen viser Norgespris time for time (nettleia faller om natta og i helga).</div>` : ""}
+      ${c.vis_forklaring !== false && !kunNp && np === null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span>
+        <span>snitt ${kiSpNf(snitt, 2)} ${kiSpEsc(c.enhet || "kr/kWh")}</span></div>` : ""}
       ${c.vis_forklaring !== false && !kunNp && np !== null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span><span><i style="background:repeating-linear-gradient(90deg,#7ab8ff 0 5px,transparent 5px 10px)"></i>Norgespris ${kiSpNf(np, 2)} kr</span>
         ${over !== null ? `<span>${over} av ${pkt.length} timer over Norgespris</span>` : ""}</div>` : ""}
       ${c.vis_stat !== false ? `<div class="stat">
@@ -384,7 +398,7 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { norgespris: "Norgespris (kr/kWh)", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
@@ -394,6 +408,7 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.hass = this._h;
     this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
+      { name: "enhet", selector: { text: {} } },
       { name: "spart_dag", selector: { entity: { domain: "sensor" } } }, { name: "spart_ar", selector: { entity: { domain: "sensor" } } },
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },

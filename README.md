@@ -385,6 +385,8 @@ at det er mer å se, og `bredde_per_time` styrer hvor bredt døgnet blir. Under 
 Norgespris, snitt og når det er billigst og dyrest; mangler Norgespris-sensoren data, sier forklaringen fra
 i stedet for at linja forsvinner stille. Har egen visuell editor.
 
+Uten Norgespris blir kortet et rent spotpriskort: sett `norgespris: false`, så vises spotprisen i kroner som hovedtall, Norgespris-linja og spart-tallene forsvinner, og forklaringen viser snittet i stedet. Fint for hus utenfor Norgespris-ordningen – for eksempel hytta i Strömstad. `enhet:` bytter teksten bak tallet, og `tekst_spot:` overskriften over det.
+
 ### ki-prosa-card
 ```yaml
 type: custom:ki-prosa-card
@@ -445,6 +447,16 @@ hjemkomst:
     aktiv: input_boolean.ki_cybele_pa_vei_hjem_fra_jobb
     reisetid: sensor.cybele_reisetid_fra_job     # minutter, legges til klokka nå
     tekst: '{navn} kommer hjem ca. kl {pille}.'
+profil_entity: input_select.hus   # hvilken profil som gjelder (eller profil: stromstad)
+profiler:                         # flere hus i samme kort – overstyrer basisen over
+  oslo:
+    vaer: {entity: sensor.dashboard_index, attributt: weather}
+    pris: {entity: sensor.norgespris_pris_na}
+  stromstad:
+    vaer: {entity: weather.stromstad}
+    pris: {entity: sensor.stromstad_pris, billig: 0.4, dyr: 0.8}
+    effekt: {entity: sensor.stromstad_effekt}
+    kalender: false
 setninger:                        # egne setninger (gammelt navn: ekstra)
   - vis: "states['sensor.soppel'].state == '0'"   # JS-uttrykk med states/hass
     tekst: 'Søppel tømmes {pille}'
@@ -480,6 +492,10 @@ bytter etter hvor mange lys som står på – måne når alt er slukket, lyspær
 huset lyser – og trinnene settes i `ikon_trinn` med emoji, mdi-ikoner eller bilder. Tall formateres med
 `desimaler`, `mellomrom` (før enheten) og `tusenskille`, og effekt og apparater står uten tusenskille så det
 blir «3860W». Hver bit har `path` for popupen trykket skal åpne – været peker som standard på `#weather`.
+Med `profiler:` kan ett og samme kort dekke flere hus: hver profil er et sett overstyringer som legges oppå
+basiskonfigurasjonen. `profil: stromstad` velger fast, `profil_entity:` lar en `input_select` bestemme, og
+kortet bygger seg om når verdien endrer seg.
+
 Den visuelle editoren dekker alle de innebygde bitene med tekst- og entitetsfelt og en av-bryter per bit;
 apparater, hjemkomst og egne setninger settes i YAML.
 
