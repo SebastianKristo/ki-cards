@@ -1,4 +1,4 @@
-/* ki-cards v2.83.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.84.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.83.0";
+  KI.VERSION = "2.84.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12482,6 +12482,525 @@ try {
   }
 })();
 } catch (e) { console.error("ki-cards: 60-ki-basseng-card feilet", e); }
+
+/* ===== 61-ki-lansering-card ===== */
+try {
+/* ki-lansering-card – kommende episoder og filmer fra Sonarr og Radarr.
+ * Leser «upcoming media»-sensorene og viser dem i samme stil som resten av dashbordet.
+ *
+ * type: custom:ki-lansering-card
+ * serier: sensor.sonarr_sonarr_upcoming_media
+ * filmer: sensor.radarr_radarr_upcoming_media
+ * antall: 6                 # hvor mange i lista under heroen
+ * visning: full             # full (hero + liste) | liste | hero
+ * plakater: true            # vis plakater i lista
+ */
+const KI_LANS_VERSJON = "1.0.0";
+
+const KI_LANS_STIL = `
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .rot { display:grid; gap:12px; max-width:100%; }
+
+  /* ---- hero med bakgrunnsbilde ---- */
+  .hero { position:relative; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
+    min-height:196px; display:grid; grid-template-columns:96px 1fr; gap:14px; align-items:end;
+    padding:16px; color:#fff; cursor:pointer; background:var(--gray200); }
+  .hero .bak { position:absolute; inset:0; z-index:-2; background-size:cover; background-position:center 22%;
+    transform:scale(1.04); transition:transform 6s var(--myk); }
+  .hero:hover .bak { transform:scale(1.1); }
+  .hero::after { content:""; position:absolute; inset:0; z-index:-1;
+    background:linear-gradient(180deg, rgba(10,10,14,.15) 0%, rgba(10,10,14,.72) 58%, rgba(10,10,14,.94) 100%); }
+  .plakat { width:96px; aspect-ratio:2/3; border-radius:12px; background:var(--gray100) center/cover;
+    box-shadow:0 8px 24px rgba(0,0,0,.55); }
+  .hero .tekst { min-width:0; padding-bottom:2px; }
+  .hero .merkerad { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .merke { font-size:10.5px; font-weight:700; letter-spacing:.03em; padding:4px 9px; border-radius:8px;
+    background:rgba(255,255,255,.16); backdrop-filter:blur(6px); white-space:nowrap; }
+  .merke.naa { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+  .merke.film { background:rgba(255,214,138,.22); }
+  .hero h3 { margin:0; font-size:21px; font-weight:600; line-height:1.15; text-shadow:0 2px 12px rgba(0,0,0,.6);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hero .und { font-size:13px; opacity:.85; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hero .nar { font-size:12.5px; opacity:.7; margin-top:8px; display:flex; align-items:center; gap:8px; }
+  .hero .nar b { font-weight:600; opacity:1; }
+
+  /* ---- liste ---- */
+  .liste { background:var(--gray200); border-radius:20px; overflow:hidden; }
+  .rad { display:grid; grid-template-columns:44px 1fr min-content; gap:12px; align-items:center;
+    padding:10px 14px; border-top:1px solid rgba(255,255,255,.05); cursor:pointer; }
+  .rad:first-child { border-top:0; }
+  .rad:active { background:var(--gray100); }
+  .rad .p { width:44px; aspect-ratio:2/3; border-radius:7px; background:var(--gray100) center/cover; }
+  .rad .n { display:block; font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rad .d { display:block; font-size:12px; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    margin-top:1px; }
+  .rad > span { min-width:0; }
+  .rad .dag, .rad .dato { display:block; }
+  .rad .hoyre { text-align:right; }
+  .rad .dag { font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .rad .dato { font-size:11px; opacity:.5; white-space:nowrap; }
+  .rad.idag .dag { color:var(--active-big,#ee95ff); }
+
+  /* ---- faner ---- */
+  .faner { display:flex; justify-content:center; }
+  .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
+    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  .tom { background:var(--gray200); border-radius:20px; padding:24px; text-align:center; font-size:13px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; transition:none !important; } }
+`;
+
+const kiLaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KI_LA_MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+
+class KiLanseringCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "alle"; }
+  static getConfigElement() { return document.createElement("ki-lansering-card-editor"); }
+  static getStubConfig() { return { serier: "sensor.sonarr_sonarr_upcoming_media", filmer: "sensor.radarr_radarr_upcoming_media" }; }
+  getCardSize() { return 8; }
+
+  setConfig(c) {
+    this._c = { antall: 6, visning: "full", plakater: true, ...(c || {}) };
+    if (!this._c.serier && !this._c.filmer) throw new Error("Sett serier: eller filmer: til upcoming media-sensoren");
+    this._forrige = null;
+  }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    const ids = [this._c.serier, this._c.filmer].filter(Boolean);
+    if (!g || ids.some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); if (this._h) this._tegn(); }
+  disconnectedCallback() { clearInterval(this._i); }
+
+  /* Sonarr og Radarr legger et oppsettobjekt først i lista – det hopper vi over */
+  _les(id, type) {
+    const st = this._h && this._h.states[id];
+    if (!st || !Array.isArray(st.attributes.data)) return [];
+    return st.attributes.data
+      .filter((x) => x && x.airdate && x.title)
+      .map((x) => ({
+        type, kilde: id,
+        tittel: x.title,
+        episode: x.episode && x.episode !== "TBA" ? x.episode : "",
+        nummer: x.number || "",
+        naar: new Date(x.airdate),
+        lengde: Number(x.runtime) || 0,
+        studio: x.studio || "",
+        rating: x.rating || "",
+        sjanger: x.genres || "",
+        sammendrag: x.summary || "",
+        plakat: x.poster || "",
+        bakgrunn: x.fanart || "",
+        lenke: x.deep_link || "",
+        trailer: x.trailer || "",
+        kino: !!x.flag,                       /* Radarr: kinopremiere i stedet for digitalt */
+      }));
+  }
+  _alle() {
+    const c = this._c;
+    const ut = [...this._les(c.serier, "serie"), ...this._les(c.filmer, "film")]
+      .filter((x) => !isNaN(x.naar))
+      .sort((a, b) => a.naar - b.naar);
+    return this._fane === "alle" ? ut : ut.filter((x) => x.type === this._fane);
+  }
+
+  _naartekst(d) {
+    const nå = new Date();
+    const dag = new Date(d); dag.setHours(0, 0, 0, 0);
+    const i_dag = new Date(nå); i_dag.setHours(0, 0, 0, 0);
+    const diff = Math.round((dag - i_dag) / 86400000);
+    const kl = d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+    if (diff === 0) {
+      const min = Math.round((d - nå) / 60000);
+      if (min > 0 && min < 90) return { kort: min < 1 ? "nå" : `om ${min} min`, lang: `I dag kl. ${kl}`, naa: true };
+      return { kort: kl, lang: `I dag kl. ${kl}`, naa: min > -180 };
+    }
+    if (diff === 1) return { kort: "i morgen", lang: `I morgen kl. ${kl}` };
+    if (diff < 7) {
+      const u = d.toLocaleDateString("nb-NO", { weekday: "long" });
+      return { kort: u.slice(0, 3), lang: u.charAt(0).toUpperCase() + u.slice(1) + ` kl. ${kl}` };
+    }
+    return { kort: `${d.getDate()}. ${KI_LA_MND[d.getMonth()]}`, lang: `${d.getDate()}. ${KI_LA_MND[d.getMonth()]} kl. ${kl}` };
+  }
+  _apne(x) {
+    if (x.lenke) return window.open(x.lenke, "_blank", "noopener");
+    this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: x.kilde }, bubbles: true, composed: true }));
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const alle = this._alle();
+    const forste = alle[0];
+    const resten = alle.slice(c.visning === "liste" ? 0 : 1, (c.visning === "liste" ? 0 : 1) + Number(c.antall || 6));
+    const begge = !!c.serier && !!c.filmer;
+
+    const hero = forste && c.visning !== "liste" ? (() => {
+      const n = this._naartekst(forste.naar);
+      const bits = [forste.rating, forste.lengde ? `${forste.lengde} min` : "", forste.studio].filter(Boolean);
+      return `<div class="hero" data-i="0" role="button" tabindex="0">
+        ${forste.bakgrunn ? `<div class="bak" style="background-image:url('${kiLaEsc(forste.bakgrunn)}')"></div>` : ""}
+        ${forste.plakat ? `<div class="plakat" style="background-image:url('${kiLaEsc(forste.plakat)}')"></div>` : `<div class="plakat"></div>`}
+        <div class="tekst">
+          <div class="merkerad">
+            <span class="merke ${n.naa ? "naa" : ""}">${kiLaEsc(n.lang)}</span>
+            ${forste.type === "film" ? `<span class="merke film">${forste.kino ? "Kino" : "Film"}</span>` : ""}
+            ${forste.nummer ? `<span class="merke">${kiLaEsc(forste.nummer)}</span>` : ""}
+          </div>
+          <h3>${kiLaEsc(forste.tittel)}</h3>
+          ${forste.episode ? `<div class="und">${kiLaEsc(forste.episode)}</div>` : ""}
+          <div class="nar">${bits.map((b) => `<span>${kiLaEsc(b)}</span>`).join("<span>·</span>")}</div>
+        </div>
+      </div>`;
+    })() : "";
+
+    const i_dag = new Date(); i_dag.setHours(0, 0, 0, 0);
+    const liste = resten.length ? `<div class="liste">${resten.map((x, i) => {
+      const n = this._naartekst(x.naar);
+      const dag = new Date(x.naar); dag.setHours(0, 0, 0, 0);
+      const under = [x.episode || (x.type === "film" ? (x.kino ? "Kino" : "Film") : ""), x.nummer, x.studio]
+        .filter(Boolean).join(" · ");
+      return `<div class="rad ${dag.getTime() === i_dag.getTime() ? "idag" : ""}" data-i="${i + (c.visning === "liste" ? 0 : 1)}" role="button" tabindex="0">
+        ${c.plakater !== false ? `<span class="p" style="${x.plakat ? `background-image:url('${kiLaEsc(x.plakat)}')` : ""}"></span>` : `<span></span>`}
+        <span><span class="n">${kiLaEsc(x.tittel)}</span><span class="d">${kiLaEsc(under)}</span></span>
+        <span class="hoyre"><span class="dag">${kiLaEsc(n.kort)}</span>
+          <span class="dato">${kiLaEsc(x.naar.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }))}</span></span>
+      </div>`;
+    }).join("")}</div>` : "";
+
+    const html = `<style>${KI_LANS_STIL}</style>
+      <div class="rot">
+        ${begge ? `<div class="faner"><div class="skinne">
+          ${[["alle", "Alle"], ["serie", "Serier"], ["film", "Filmer"]].map(([k, n]) =>
+            `<button class="fane ${this._fane === k ? "valgt" : ""}" data-f="${k}">${n}</button>`).join("")}
+        </div></div>` : ""}
+        ${hero || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)}
+        ${liste}
+      </div>`;
+
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html;
+    const r = this.shadowRoot;
+    r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => {
+      const x = this._alle()[+el.dataset.i]; if (x) this._apne(x);
+    }));
+  }
+}
+if (!customElements.get("ki-lansering-card")) window.KI.define("ki-lansering-card", KiLanseringCard);
+
+class KiLanseringCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { serier: "Sonarr-sensor", filmer: "Radarr-sensor", antall: "Antall i lista",
+        visning: "Visning", plakater: "Vis plakater" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "serier", selector: { entity: { domain: "sensor" } } },
+      { name: "filmer", selector: { entity: { domain: "sensor" } } },
+      { name: "antall", selector: { number: { mode: "box", min: 1, max: 20 } } },
+      { name: "visning", selector: { select: { mode: "dropdown", options: [
+        { value: "full", label: "Hero og liste" }, { value: "liste", label: "Bare liste" },
+        { value: "hero", label: "Bare hero" }] } } },
+      { name: "plakater", selector: { boolean: {} } },
+    ];
+  }
+}
+if (!customElements.get("ki-lansering-card-editor")) window.KI.define("ki-lansering-card-editor", KiLanseringCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-lansering-card")) window.customCards.push({ type: "ki-lansering-card", name: "KI Lansering", description: "Kommende episoder og filmer fra Sonarr og Radarr", preview: true });
+} catch (e) { console.error("ki-cards: 61-ki-lansering-card feilet", e); }
+
+/* ===== 62-ki-post-card ===== */
+try {
+/* ki-post-card – når posten kommer, i samme stil som resten av dashbordet.
+ *
+ * type: custom:ki-post-card
+ * entity: sensor.nar_kommer_posten_posten_sensor_next
+ * relativ: sensor.nar_kommer_posten_posten_sensor_next_relative
+ * navn: Post
+ * tekst: Post leveres
+ * path: '#post'             # valgfritt: trykk navigerer hit
+ */
+const KI_POST_VERSJON = "1.0.0";
+
+const KI_POST_STIL = `
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
+    background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
+    display:grid; grid-template-areas:"dag ." "dato tekst"; grid-template-columns:min-content 1fr;
+    align-items:center; transition:background .4s var(--fjaer); }
+  .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
+  .kort.i_dag .dag { opacity:.75; }
+  .dato { grid-area:dato; font-size:2.6em; font-weight:300; line-height:1.05; white-space:nowrap;
+    padding-right:20px; font-variant-numeric:tabular-nums; }
+  .tekst { grid-area:tekst; min-width:0; }
+  .tekst .n { font-size:15px; font-weight:500; }
+  .tekst .u { font-size:13px; opacity:.6; margin-top:2px; }
+  .kort.i_dag .tekst .u { opacity:.75; }
+  .kasse { position:absolute; right:16px; top:50%; transform:translateY(-50%); width:74px; height:74px; opacity:.22; }
+  .kort.i_dag .kasse { opacity:.35; }
+  .flagg { transform-box:fill-box; transform-origin:bottom left; }
+  .kort.i_dag .flagg { animation:po-flagg 2.6s ease-in-out infinite; }
+  @keyframes po-flagg { 0%,100% { transform:rotate(0deg); } 50% { transform:rotate(-16deg); } }
+  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+`;
+
+const kiPoEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KI_PO_MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+
+class KiPostCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getConfigElement() { return document.createElement("ki-post-card-editor"); }
+  static getStubConfig() { return { entity: "sensor.nar_kommer_posten_posten_sensor_next" }; }
+  getCardSize() { return 2; }
+  getGridOptions() { return { columns: 12, rows: 2, min_rows: 2 }; }
+
+  setConfig(c) {
+    if (!c || !c.entity) throw new Error("Sett entity: til sensoren med neste leveringsdato");
+    this._c = { navn: "Post", tekst: "Post leveres", ...c };
+    this._forrige = null;
+  }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    const ids = [this._c.entity, this._c.relativ].filter(Boolean);
+    if (!g || ids.some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+
+  _trykk() {
+    const c = this._c;
+    if (c.path) {
+      history.pushState(null, "", c.path);
+      window.dispatchEvent(new Event("location-changed"));
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+      return;
+    }
+    this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: c.entity }, bubbles: true, composed: true }));
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const st = h.states[c.entity];
+    const d = st ? new Date(st.state) : null;
+    if (!st || !d || isNaN(d)) {
+      const tom = `<style>${KI_POST_STIL}</style><div class="tom">Fant ingen leveringsdato.</div>`;
+      if (tom !== this._forrige) { this.shadowRoot.innerHTML = tom; this._forrige = tom; }
+      return;
+    }
+    const nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const dag = new Date(d); dag.setHours(0, 0, 0, 0);
+    const diff = Math.round((dag - nå) / 86400000);
+    const rel = c.relativ && h.states[c.relativ] ? h.states[c.relativ].state : "";
+    const ukedag = d.toLocaleDateString("nb-NO", { weekday: "long" });
+    const under = rel || (diff === 0 ? "I dag" : diff === 1 ? "I morgen" : `om ${diff} dager`);
+
+    const html = `<style>${KI_POST_STIL}</style>
+      <div class="kort ${diff === 0 ? "i_dag" : ""}" role="button" tabindex="0">
+        <svg class="kasse" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
+          stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 28a10 10 0 0 1 20 0v18H12z" fill="currentColor" fill-opacity=".12"/>
+          <path d="M32 46h20V28a10 10 0 0 0-10-10H22"/>
+          <path d="M18 46v8"/>
+          <g class="flagg"><path d="M50 26v-12h8v7h-8"/></g>
+        </svg>
+        <div class="dag">${kiPoEsc(ukedag)}</div>
+        <div class="dato">${d.getDate()}. ${KI_PO_MND[d.getMonth()]}</div>
+        <div class="tekst"><div class="n">${kiPoEsc(c.tekst)}</div><div class="u">${kiPoEsc(under)}</div></div>
+      </div>`;
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html;
+    this.shadowRoot.querySelector(".kort").addEventListener("click", () => this._trykk());
+  }
+}
+if (!customElements.get("ki-post-card")) window.KI.define("ki-post-card", KiPostCard);
+
+class KiPostCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { entity: "Dato-sensor", relativ: "Relativ tekst (valgfri)", tekst: "Tekst", navn: "Navn", path: "Trykk går til" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "entity", selector: { entity: { domain: "sensor" } } },
+      { name: "relativ", selector: { entity: { domain: "sensor" } } },
+      { name: "tekst", selector: { text: {} } },
+      { name: "path", selector: { text: {} } },
+    ];
+  }
+}
+if (!customElements.get("ki-post-card-editor")) window.KI.define("ki-post-card-editor", KiPostCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-post-card")) window.customCards.push({ type: "ki-post-card", name: "KI Post", description: "Når posten kommer", preview: true });
+} catch (e) { console.error("ki-cards: 62-ki-post-card feilet", e); }
+
+/* ===== 63-ki-bursdag-pro-card ===== */
+try {
+/* ki-bursdag-pro-card – bursdager i samme stil som kalenderkortene.
+ * Leser de samme sensorene som ki-bursdag-card, men med nytt design:
+ * stor dato til venstre, navn og alder til høyre, og lilla kort på selve dagen.
+ *
+ * type: custom:ki-bursdag-pro-card
+ * entities: [sensor.bursdag_rune, sensor.bursdag_cybele]   # eller
+ * regex: birthday|bursdag                                  # finner dem selv
+ * antall: 3
+ * dager: 365            # hvor langt fram vi ser
+ */
+const KI_BDP_VERSJON = "1.0.0";
+
+const KI_BDP_STIL = `
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .rot { display:grid; gap:12px; }
+  .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
+    background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
+    display:grid; grid-template-areas:"dag ." "dato navn"; grid-template-columns:min-content 1fr; align-items:center; }
+  .kort.liten { padding:16px 20px; grid-template-areas:"dato navn dager"; grid-template-columns:min-content 1fr min-content; }
+  .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
+  .kort.i_dag .dag { opacity:.8; }
+  .dato { grid-area:dato; font-size:2.6em; font-weight:300; line-height:1.05; padding-right:20px;
+    white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .kort.liten .dato { font-size:1.6em; width:100px; }
+  .navn { grid-area:navn; min-width:0; }
+  .navn .n { font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .navn .u { font-size:13px; opacity:.6; margin-top:2px; }
+  .kort.i_dag .navn .u { opacity:.8; }
+  .dager { grid-area:dager; font-size:13px; opacity:.55; white-space:nowrap; }
+  .kake { position:absolute; right:18px; top:50%; transform:translateY(-50%); width:76px; height:76px; opacity:.2; }
+  .kort.i_dag .kake { opacity:.4; }
+  .flamme { transform-box:fill-box; transform-origin:50% 100%; }
+  .kort.i_dag .flamme { animation:bd-flamme 1.8s ease-in-out infinite; }
+  @keyframes bd-flamme { 0%,100% { transform:scaleY(1) rotate(-3deg); } 50% { transform:scaleY(1.18) rotate(3deg); } }
+  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+`;
+
+const kiBdEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KI_BD_MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+
+class KiBursdagProCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getConfigElement() { return document.createElement("ki-bursdag-pro-card-editor"); }
+  static getStubConfig() { return { antall: 3 }; }
+  getCardSize() { return 4; }
+
+  setConfig(c) { this._c = { antall: 3, dager: 365, regex: "birthday|bursdag", ...(c || {}) }; this._forrige = null; }
+  set hass(h) { const g = this._h; this._h = h; if (!this._c) return; if (!g || this._endret(g, h)) this._tegn(); }
+  _endret(g, h) { return this._ider().some((id) => g.states[id] !== h.states[id]); }
+
+  _ider() {
+    const c = this._c, h = this._h; if (!h) return [];
+    if (c.entities && c.entities.length) return c.entities.map((e) => (typeof e === "string" ? e : e.entity));
+    const re = new RegExp(c.regex, "i");
+    return Object.keys(h.states).filter((id) => id.startsWith("sensor.") && re.test(id));
+  }
+
+  /* Tåler flere sensorformater: dato i state, eller i attributtene */
+  _personer() {
+    const h = this._h, nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const ut = [];
+    this._ider().forEach((id) => {
+      const st = h.states[id]; if (!st) return;
+      const a = st.attributes || {};
+      const navn = a.friendly_name_short || a.nickname || a.name
+        || String(a.friendly_name || id).replace(/(bursdag|birthday)/i, "").trim();
+      const rå = a.next_birthday || a.next_date || a.date_of_next_birthday || a.birthday || a.date || st.state;
+      const d = new Date(rå);
+      if (isNaN(d)) return;
+      const neste = new Date(d); neste.setHours(0, 0, 0, 0);
+      if (neste < nå && a.years_old === undefined) {
+        neste.setFullYear(nå.getFullYear());
+        if (neste < nå) neste.setFullYear(nå.getFullYear() + 1);
+      }
+      const dager = Math.round((neste - nå) / 86400000);
+      if (dager < 0 || dager > Number(this._c.dager || 365)) return;
+      const alder = a.years_old !== undefined ? Number(a.years_old) + (dager === 0 ? 0 : 1)
+        : a.age !== undefined ? Number(a.age) : (a.birth_year ? neste.getFullYear() - Number(a.birth_year) : null);
+      ut.push({ id, navn, dato: neste, dager, alder });
+    });
+    return ut.sort((a, b) => a.dager - b.dager).slice(0, Number(this._c.antall || 3));
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const folk = this._personer();
+    const kort = (p, i) => {
+      const ukedag = p.dato.toLocaleDateString("nb-NO", { weekday: "long" });
+      const under = p.alder ? `fyller ${p.alder} år` : "bursdag";
+      const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen" : `om ${p.dager} dager`;
+      return `<div class="kort ${i ? "liten" : ""} ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
+        ${i ? "" : `<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
+            stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 52V38a6 6 0 0 1 6-6h28a6 6 0 0 1 6 6v14z" fill="currentColor" fill-opacity=".12"/>
+            <path d="M10 52h44M32 32V22"/>
+            <g class="flamme"><path d="M32 20c3-3 1-6 0-7-1 1-3 4 0 7z" fill="currentColor"/></g>
+            <path d="M20 32v-8M44 32v-8" opacity=".5"/>
+          </svg>`}
+        ${i ? "" : `<div class="dag">${kiBdEsc(ukedag)}</div>`}
+        <div class="dato">${p.dato.getDate()}. ${KI_BD_MND[p.dato.getMonth()]}</div>
+        <div class="navn"><div class="n">${kiBdEsc(p.navn)}</div><div class="u">${kiBdEsc(under)}</div></div>
+        ${i ? `<div class="dager">${kiBdEsc(naar)}</div>` : ""}
+      </div>`;
+    };
+    const html = `<style>${KI_BDP_STIL}</style><div class="rot">${
+      folk.length ? folk.map(kort).join("") : `<div class="tom">Ingen bursdager framover.</div>`}</div>`;
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html;
+    this.shadowRoot.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", () =>
+      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.e }, bubbles: true, composed: true }))));
+  }
+}
+if (!customElements.get("ki-bursdag-pro-card")) window.KI.define("ki-bursdag-pro-card", KiBursdagProCard);
+
+class KiBursdagProCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { antall: "Antall kort", dager: "Dager framover", regex: "Finn sensorer med (regex)" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "antall", selector: { number: { mode: "box", min: 1, max: 10 } } },
+      { name: "dager", selector: { number: { mode: "box", min: 1, max: 400 } } },
+      { name: "regex", selector: { text: {} } },
+    ];
+  }
+}
+if (!customElements.get("ki-bursdag-pro-card-editor")) window.KI.define("ki-bursdag-pro-card-editor", KiBursdagProCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-bursdag-pro-card")) window.customCards.push({ type: "ki-bursdag-pro-card", name: "KI Bursdag Pro", description: "Bursdager i kalenderkort-stil", preview: true });
+} catch (e) { console.error("ki-cards: 63-ki-bursdag-pro-card feilet", e); }
 
 /* ===== family-status-card ===== */
 window.KI.lit((LitElement, html, css) => {

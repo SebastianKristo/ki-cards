@@ -46,6 +46,9 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vanning-card.svg" width="28" align="absmiddle"> | `ki-vanning-card` | KI Vanning | OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebesok): månedskalender, opphold og statistikk |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fremover-card.svg" width="28" align="absmiddle"> | `ki-fremover-card` | KI Framover | Kommende hendelser fra kalenderne, gruppert per dag med filter per kalender |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-lansering-card.svg" width="28" align="absmiddle"> | `ki-lansering-card` | KI Lansering | Kommende episoder og filmer fra Sonarr og Radarr, med plakat og bakgrunnsbilde |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-post-card.svg" width="28" align="absmiddle"> | `ki-post-card` | KI Post | Når posten kommer |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-pro-card.svg" width="28" align="absmiddle"> | `ki-bursdag-pro-card` | KI Bursdag Pro | Bursdager i kalenderkort-stil |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
@@ -326,6 +329,39 @@ path: '#soppel'
 Samme oppsett som før – stort tall til venstre, tekst og avfallstype til høyre – men typen får en fargeprikk
 etter hva som hentes (rest, mat, papp, plast, glass, hage, farlig avfall). På selve tømmedagen fargelegges
 kortet, tallet puster, dunken rister og en søppelbil kjører over bunnen med eksos ut av røret.
+
+### ki-lansering-card
+```yaml
+type: custom:ki-lansering-card
+serier: sensor.sonarr_sonarr_upcoming_media
+filmer: sensor.radarr_radarr_upcoming_media
+antall: 6                  # hvor mange i lista under heroen
+visning: full              # full | liste | hero
+plakater: true
+```
+Leser «upcoming media»-sensorene fra Sonarr og Radarr. Det som kommer først vises som et hero-kort med
+bakgrunnsbilde, plakat, tittel, episode og merkelapper for tidspunkt, sesong og episode – pluss rating,
+spilletid og kanal. Under kommer resten som en liste med små plakater, og med begge sensorene satt får du
+faner for Alle, Serier og Filmer. Trykk åpner serien eller filmen i Sonarr eller Radarr via `deep_link`.
+
+### ki-post-card
+```yaml
+type: custom:ki-post-card
+entity: sensor.nar_kommer_posten_posten_sensor_next
+relativ: sensor.nar_kommer_posten_posten_sensor_next_relative
+tekst: Post leveres
+```
+Stor dato til venstre og ukedagen over, slik kalenderkortene er bygget. Kortet blir lilla på selve
+leveringsdagen, og da vaier flagget på postkassa.
+
+### ki-bursdag-pro-card
+```yaml
+type: custom:ki-bursdag-pro-card
+antall: 3
+regex: birthday|bursdag    # eller entities: [...]
+```
+Samme form som postkortet: den neste bursdagen står stort med ukedag, navn og alder, og resten følger som
+smalere rader med «om 23 dager» til høyre. På selve dagen blir kortet lilla og lyset på kaka flakker.
 
 ### ki-fremover-card
 ```yaml
