@@ -36,7 +36,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.2.0";
+const KI_PROSA_VERSJON = "2.3.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -194,10 +194,19 @@ class KiProsaCard extends HTMLElement {
   }
 
   /* ---------------------------------------------------------- handlinger */
+  /* Navigerer uten å laste dashbordet på nytt – se KI.navigate i basen */
   _nav(sti) {
     if (!sti || sti === "#") return;
-    if (sti.startsWith("#") || sti.includes("#")) { const [p, h] = sti.split("#"); if (p) history.pushState(null, "", location.pathname + p); location.hash = "#" + h; }
-    else { history.pushState(null, "", sti); window.dispatchEvent(new Event("location-changed")); }
+    const gammel = location.hash;
+    let url = null;
+    try { url = new URL(sti, location.origin + location.pathname + location.search); } catch (e) { /* tom */ }
+    if (url) {
+      const ny = url.pathname + url.search + url.hash;
+      if (ny !== location.pathname + location.search + location.hash) history.pushState(null, "", ny);
+    }
+    window.dispatchEvent(new Event("location-changed"));
+    try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL: gammel, newURL: location.href })); }
+    catch (e) { window.dispatchEvent(new Event("hashchange")); }
   }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
   _kjor(a, data) {

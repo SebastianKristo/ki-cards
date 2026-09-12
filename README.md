@@ -41,6 +41,8 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-media-card.svg" width="28" align="absmiddle"> | `ki-media-card` | KI Media | Nå spilles med levende omslag, radiokanaler, transport og volum |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-prosa-card.svg" width="28" align="absmiddle"> | `ki-prosa-card` | KI Prosa | Forsidetekst som skriver seg selv, med levende piller for vær, pris, forbruk, apparater og varsler |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-soppel-card.svg" width="28" align="absmiddle"> | `ki-soppel-card` | KI Søppel | Dager til neste tømming, med søppelbil og ristende dunk på tømmedagen |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-strompris-card.svg" width="28" align="absmiddle"> | `ki-strompris-card` | KI Strømpris | Døgnets priser med spotpris og Norgespris, faner for i dag og i morgen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
@@ -304,6 +306,38 @@ bekreft: Strømsykle {port}?
 ```
 Porter som fliser i rutenett. `switch`-porter lyser blått med blinkende aktivitetsprikk og kan slås av og på;
 `button`-porter kjører strømsykling og får et lysstrøk mens det skjer.
+
+### ki-soppel-card
+```yaml
+type: custom:ki-soppel-card
+entity: sensor.neste_tomming     # tilstand «2,Restavfall»
+skille: ','                      # tegnet mellom dager og type
+# eller to egne entiteter:
+# dager: sensor.dager_til_tomming
+# type: sensor.avfallstype
+tekst_idag: 'Søppel tømmes<br>i dag'
+path: '#soppel'
+```
+Samme oppsett som før – stort tall til venstre, tekst og avfallstype til høyre – men typen får en fargeprikk
+etter hva som hentes (rest, mat, papp, plast, glass, hage, farlig avfall). På selve tømmedagen fargelegges
+kortet, tallet puster, dunken rister og en søppelbil kjører over bunnen med eksos ut av røret.
+
+### ki-strompris-card
+```yaml
+type: custom:ki-strompris-card
+tittel: Strømpriser
+spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # bruker raw_today / raw_tomorrow
+norgespris: sensor.norgespris_pris_na      # egen stiplet linje, flat når den mangler timedata
+billig: 0.80                               # fargegrenser for kurven
+dyr: 0.85
+hoyde: 260
+desimaler: 2
+```
+Erstatter apexcharts-kortet, de to `local-conditional-card`-ene og `paper-buttons-row`. Faneskinnen er den
+samme pillen som `ki-tabs-card`, og «I morgen» er grået ut til morgendagens priser er klare. Kurven er en
+trappelinje som tegnes inn, fargelagt etter prisen akkurat nå, med fylt flate under, Norgespris som stiplet
+linje oppå, «Nå»-strek med pulserende punkt, og markert høyeste og laveste time. Under grafen står prisen nå,
+Norgespris, snitt og når det er billigst og dyrest. Har egen visuell editor.
 
 ### ki-prosa-card
 ```yaml

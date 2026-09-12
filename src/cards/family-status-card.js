@@ -239,12 +239,19 @@ class FamilyStatusCard extends LitElement {
 
   _navigate(path) {
     if (!path) return;
-    if (path.startsWith("#")) {
-      window.location.hash = path;
-      return;
+    /* Bytter URL med history og varsler ruteren – window.location.hash gir
+       full innlasting av dashbordet i companion-appen. */
+    const gammel = window.location.hash;
+    let url = null;
+    try { url = new URL(path, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
+    if (url) {
+      const ny = url.pathname + url.search + url.hash;
+      if (ny !== window.location.pathname + window.location.search + window.location.hash)
+        history.pushState(null, "", ny);
     }
-    history.pushState(null, "", path);
     this._fire("location-changed", { replace: false });
+    try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL: gammel, newURL: window.location.href })); }
+    catch (e) { window.dispatchEvent(new Event("hashchange")); }
   }
 
   /**

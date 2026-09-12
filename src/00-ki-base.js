@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.44.0";
+  KI.VERSION = "2.46.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -323,8 +323,24 @@ window.KI = window.KI || {};
       return Object.keys(attrs).every(k => a[k] === attrs[k]);
     }).sort();
   };
-  KI.navigate = (path) => { window.history.pushState(null, "", path); window.dispatchEvent(new Event("location-changed")); };
-  KI.go = (c) => { if (c.navigation_path) KI.navigate(c.navigation_path); else if (c.hash) window.location.hash = c.hash; };
+  /* Navigerer uten å laste dashbordet på nytt: bygger mål-URL-en, bytter den med
+     history og varsler både HA-ruteren og popup-kort som lytter på hashchange.
+     `window.location.hash = …` unngås – i companion-appen gir det full innlasting. */
+  KI.navigate = (sti) => {
+    if (!sti || sti === "#") return;
+    const gammel = window.location.hash;
+    let url = null;
+    try { url = new URL(sti, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
+    if (url) {
+      const ny = url.pathname + url.search + url.hash;
+      if (ny !== window.location.pathname + window.location.search + window.location.hash)
+        window.history.pushState(null, "", ny);
+    }
+    window.dispatchEvent(new Event("location-changed"));
+    try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL: gammel, newURL: window.location.href })); }
+    catch (e) { window.dispatchEvent(new Event("hashchange")); }
+  };
+  KI.go = (c) => { if (c.navigation_path) KI.navigate(c.navigation_path); else if (c.hash) KI.navigate(c.hash); };
   KI.press = (hass, entityId) => hass.callService("button", "press", { entity_id: entityId });
   KI.key = (el, fn) => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
   KI.hhmm = (v) => (v && v !== "unknown" && v !== "unavailable") ? String(v).slice(0, 5) : "--:--";
