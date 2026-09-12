@@ -6,10 +6,13 @@
  * vinter: input_boolean.vinter_modus_vanning
  * varigheter: [5, 10, 15, 30, 60]   # minutter på hurtigknappene
  * skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
- * faner: [naa, soner, programmer]
+ * faner: [naa, soner, programmer, forbruk]
+ * ki_vanning: sensor.ki_vanning_oversikt   # oppdages automatisk når integrasjonen er installert
+ * hero: stor                       # stor (hagescene, 190 px) | smal (den gamle linja)
+ * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "1.0.0";
+const KI_VANN_VERSJON = "2.1.0";
 
 const KI_VANN_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -42,6 +45,53 @@ const KI_VANN_STIL = `
   @keyframes va-fall { from { transform:translateY(-14px); } to { transform:translateY(120px); } }
   .hero.vanner .ic ha-icon { animation:va-puls 1.6s ease-in-out infinite; }
   @keyframes va-puls { 0%,100% { transform:scale(1); } 50% { transform:scale(1.14); } }
+
+  /* ---- stor hero: hagen ---- */
+  .scene { position:relative; height:190px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
+    color:#eaf6ff; cursor:pointer; background:linear-gradient(180deg,#1d2b3a 0%,#22415a 52%,#1d3a33 100%);
+    transition:background .8s var(--myk); }
+  .scene.vanner { background:linear-gradient(180deg,#1b3550 0%,#1e5a7a 50%,#1c4a3c 100%); }
+  .scene.vinter { background:linear-gradient(180deg,#28303c 0%,#3b4655 55%,#5b6572 100%); }
+  .scene.regn { background:linear-gradient(180deg,#222b34 0%,#2f3f4d 55%,#27403a 100%); }
+  .scene svg { position:absolute; inset:0; width:100%; height:100%; }
+  .scene .tekst { position:absolute; left:20px; right:20px; top:16px; z-index:3; pointer-events:none; }
+  .scene .tittel { font-size:17px; font-weight:600; text-shadow:0 1px 10px rgba(0,0,0,.45); }
+  .scene .under { font-size:13px; opacity:.85; margin-top:2px; text-shadow:0 1px 8px rgba(0,0,0,.45); }
+  .scene .ned { position:absolute; right:20px; top:14px; z-index:3; font-size:30px; font-weight:300;
+    font-variant-numeric:tabular-nums; text-shadow:0 2px 12px rgba(0,0,0,.5); }
+  .scene .bunn { position:absolute; left:20px; right:20px; bottom:14px; z-index:3; display:flex; align-items:center; gap:10px; }
+  .scene .bunn .sp { flex:1; height:5px; border-radius:3px; background:rgba(255,255,255,.22); overflow:hidden; }
+  .scene .bunn .sp i { display:block; height:100%; background:#fff; opacity:.85; width:0; transition:width 1s linear; }
+  .scene .bunn .tall { font-size:12px; opacity:.9; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .demo { position:absolute; right:20px; bottom:34px; z-index:4; font-size:10px; font-weight:700;
+    letter-spacing:.06em; padding:3px 8px; border-radius:6px; background:rgba(255,255,255,.2); }
+  .sol { animation:va-sol 9s ease-in-out infinite alternate; transform-box:fill-box; transform-origin:center; }
+  @keyframes va-sol { from { transform:translateY(0); } to { transform:translateY(-6px); } }
+  .sky2 { animation:va-sky 34s linear infinite alternate; transform-box:fill-box; }
+  .sky2.b { animation-duration:48s; animation-delay:-12s; }
+  @keyframes va-sky { from { transform:translateX(-6%); } to { transform:translateX(16%); } }
+  .straa { transform-box:fill-box; transform-origin:50% 100%; animation:va-straa 3.4s ease-in-out infinite alternate; }
+  .scene.vanner .straa { animation-duration:2.1s; }
+  @keyframes va-straa { from { transform:rotate(-6deg); } to { transform:rotate(6deg); } }
+  .spreder { transform-box:fill-box; transform-origin:50% 100%; }
+  .scene.vanner .spreder { animation:va-vipp 3.2s ease-in-out infinite alternate; }
+  @keyframes va-vipp { from { transform:rotate(-13deg); } to { transform:rotate(13deg); } }
+  .straale { opacity:0; }
+  .scene.vanner .straale { animation:va-straale 3.2s ease-in-out infinite alternate; }
+  @keyframes va-straale { 0% { opacity:.55; transform:rotate(-13deg); } 100% { opacity:.55; transform:rotate(13deg); } }
+  .sdrape { opacity:0; }
+  .scene.vanner .sdrape { animation:va-sprut 1.5s ease-in infinite; }
+  @keyframes va-sprut { 0% { opacity:0; transform:translate(0,0) scale(.6); } 20% { opacity:.9; }
+    100% { opacity:0; transform:translate(var(--dx,60px), var(--dy,40px)) scale(1); } }
+  .vaatt { opacity:0; transition:opacity 1.4s ease; } .scene.vanner .vaatt { opacity:.5; }
+  .snofnugg { opacity:0; } .scene.vinter .snofnugg { animation:va-sno linear infinite; }
+  @keyframes va-sno { 0% { opacity:0; transform:translateY(-10px); } 15% { opacity:.9; }
+    100% { opacity:.2; transform:translate(10px, 200px); } }
+  .regndrape { opacity:0; } .scene.regn .regndrape { animation:va-regn linear infinite; }
+  @keyframes va-regn { 0% { opacity:0; transform:translateY(-10px); } 15% { opacity:.8; }
+    100% { opacity:0; transform:translateY(200px); } }
+  .blomst { transform-box:fill-box; transform-origin:50% 100%; animation:va-straa 4.6s ease-in-out infinite alternate; }
+  .scene.vinter .blomst, .scene.vinter .straa { animation:none; opacity:.6; }
 
   /* ---- hurtigknapper ---- */
   .hurtig { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
@@ -97,11 +147,98 @@ const KI_VANN_STIL = `
   .nk { background:var(--gray200); border-radius:16px; padding:12px 14px; }
   .nk .n { font-size:12px; opacity:.55; }
   .nk .v { font-size:16px; font-weight:500; margin-top:2px; }
+  /* ---- estimat og forbruk ---- */
+  .maal { background:var(--gray200); border-radius:20px; padding:16px 18px; display:grid; gap:10px; }
+  .maal .rad { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .maal .stor { font-size:2em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; }
+  .maal .und { font-size:12px; opacity:.6; }
+  .stolpe { height:10px; border-radius:6px; background:var(--gray100); overflow:hidden; position:relative; }
+  .stolpe i { display:block; height:100%; border-radius:6px; width:0;
+    background:linear-gradient(90deg, var(--blue,#6ec6ff), #9ad9ff); transition:width 1.1s var(--myk); }
+  .stolpe.lever i::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); animation:va-sveip 2.4s ease-in-out infinite; }
+  @keyframes va-sveip { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
+  .fordeling { display:grid; gap:7px; }
+  .frad { display:grid; grid-template-columns:1fr 64px; gap:10px; align-items:center; font-size:13px; }
+  .fbar { height:8px; border-radius:5px; background:var(--gray100); overflow:hidden; }
+  .fbar i { display:block; height:100%; border-radius:5px; background:var(--blue,#6ec6ff); width:0;
+    transition:width 1s var(--myk); }
+  .frad .navn { display:flex; align-items:center; gap:7px; min-width:0; }
+  .frad .navn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .frad .tall { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  .knagg { font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; background:var(--gray100); opacity:.7; }
+  .periodefaner { display:flex; gap:6px; }
+  .pf { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
+    padding:6px 12px; border-radius:999px; cursor:pointer; opacity:.6; }
+  .pf.valgt { opacity:1; background:var(--gray1000); color:var(--gray100); }
+
+  /* ---- program med soner ---- */
+  .pdetalj { display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 10px; }
+  .pz { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(0,0,0,.16); }
+  .prog.gaar .pz.aktiv { background:var(--gray1000); color:var(--gray100); animation:va-blink 1.4s ease-in-out infinite; }
+  @keyframes va-blink { 0%,100% { opacity:1; } 50% { opacity:.6; } }
+  .pstolpe { height:4px; margin:0 12px 10px; border-radius:3px; background:rgba(0,0,0,.15); overflow:hidden; }
+  .pstolpe i { display:block; height:100%; background:currentColor; opacity:.75; width:0; transition:width 1s linear; }
+  .nedtelling { font-size:12px; opacity:.75; font-variant-numeric:tabular-nums; }
+
+  /* gress som svaier når det vannes */
+  .gress { position:absolute; left:0; right:0; bottom:0; height:26px; z-index:-1; opacity:0; transition:opacity .6s; }
+  .hero.vanner .gress { opacity:.35; }
+  .gress i { position:absolute; bottom:0; width:3px; border-radius:2px 2px 0 0; background:currentColor;
+    transform-origin:50% 100%; animation:va-svai 2.6s ease-in-out infinite alternate; }
+  @keyframes va-svai { from { transform:rotate(-8deg); } to { transform:rotate(8deg); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
 `;
 
 const kiVaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 /* Ikon etter vanningsmetode i sonenavnet */
+/* Hagen i hero-kortet: himmel, sol, bed, gress og en spreder som svinger */
+const kiVaScene = () => {
+  const straa = Array.from({ length: 34 }, (_, i) => {
+    const x = 6 + i * 9.2, h = 9 + ((i * 7) % 13);
+    return `<path class="straa" d="M${x} 150 q2 -${h / 2} 0 -${h}" stroke="#5fbf7a" stroke-width="2.4" fill="none"
+      stroke-linecap="round" style="animation-delay:-${((i * 0.21) % 3.4).toFixed(2)}s;opacity:${(0.55 + (i % 4) * 0.12).toFixed(2)}"/>`;
+  }).join("");
+  const sprut = Array.from({ length: 12 }, (_, i) => {
+    const vinkel = -60 + i * 10, lengde = 42 + ((i * 13) % 26);
+    const dx = Math.cos((vinkel * Math.PI) / 180) * lengde, dy = Math.sin((vinkel * Math.PI) / 180) * lengde + 30;
+    return `<circle class="sdrape" cx="250" cy="112" r="${2 + (i % 3) * 0.6}" fill="#bfe9ff"
+      style="--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;animation-delay:-${((i * 0.12) % 1.5).toFixed(2)}s"/>`;
+  }).join("");
+  const sno = Array.from({ length: 16 }, (_, i) =>
+    `<circle class="snofnugg" cx="${12 + i * 20}" cy="-6" r="${1.6 + (i % 3) * 0.5}" fill="#fff"
+      style="animation-duration:${(5 + (i % 4)).toFixed(1)}s;animation-delay:-${((i * 0.4) % 5).toFixed(1)}s"/>`).join("");
+  const regn = Array.from({ length: 18 }, (_, i) =>
+    `<rect class="regndrape" x="${10 + i * 18}" y="-8" width="1.6" height="11" rx="1" fill="#9fd4ff"
+      style="animation-duration:${(0.8 + (i % 4) * 0.12).toFixed(2)}s;animation-delay:-${((i * 0.17) % 1).toFixed(2)}s"/>`).join("");
+  return `<svg viewBox="0 0 320 190" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g class="sol" transform="translate(268 34)"><circle r="30" fill="#ffd98a" opacity=".18"/><circle r="15" fill="#ffe2a3"/></g>
+    <g class="sky2" opacity=".22" fill="#eaf6ff"><ellipse cx="70" cy="34" rx="26" ry="12"/><ellipse cx="92" cy="30" rx="18" ry="14"/></g>
+    <g class="sky2 b" opacity=".14" fill="#eaf6ff"><ellipse cx="180" cy="22" rx="22" ry="10"/><ellipse cx="198" cy="19" rx="14" ry="11"/></g>
+    ${sno}${regn}
+    <path d="M0 128 q80 -14 160 -4 t160 -6 V190 H0 Z" fill="#2b5c46"/>
+    <path class="vaatt" d="M0 136 q80 -12 160 -3 t160 -5 V190 H0 Z" fill="#17403a"/>
+    <g fill="#8b5e3c" opacity=".55"><ellipse cx="52" cy="150" rx="34" ry="9"/><ellipse cx="150" cy="156" rx="30" ry="8"/></g>
+    <g class="blomst" style="animation-delay:-1s"><path d="M46 150v-16" stroke="#5fbf7a" stroke-width="2.4" fill="none"/>
+      <circle cx="46" cy="131" r="5" fill="#ff9ec4"/><circle cx="46" cy="131" r="2" fill="#ffe2a3"/></g>
+    <g class="blomst" style="animation-delay:-2.3s"><path d="M60 152v-12" stroke="#5fbf7a" stroke-width="2.2" fill="none"/>
+      <circle cx="60" cy="137" r="4" fill="#c9a7ff"/></g>
+    <g class="blomst" style="animation-delay:-3.1s"><path d="M148 156v-14" stroke="#5fbf7a" stroke-width="2.2" fill="none"/>
+      <circle cx="148" cy="140" r="4.5" fill="#ffd98a"/></g>
+    ${straa}
+    <g class="straale" transform-origin="250px 112px">
+      <path d="M250 112 q34 -44 76 -30" stroke="#bfe9ff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
+      <path d="M250 112 q26 -38 58 -34" stroke="#bfe9ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".4"/>
+    </g>
+    ${sprut}
+    <g class="spreder" transform-origin="250px 150px">
+      <rect x="246" y="112" width="8" height="40" rx="4" fill="#dce8f0"/>
+      <circle cx="250" cy="110" r="7" fill="#eaf6ff"/><circle cx="250" cy="110" r="3" fill="#6aa9c9"/>
+      <ellipse cx="250" cy="152" rx="16" ry="5" fill="#1d3a33" opacity=".6"/>
+    </g>
+  </svg>`;
+};
+
 const kiVaIkon = (t) => /drypp/i.test(t) ? "mdi:water-outline" : /spreder|spr\b/i.test(t) ? "mdi:sprinkler-variant" : "mdi:sprinkler";
 
 class KiVanningCard extends HTMLElement {
@@ -112,7 +249,8 @@ class KiVanningCard extends HTMLElement {
 
   setConfig(c) {
     this._c = { varigheter: [5, 10, 15, 30, 60], skjul_ubrukte: true, navn_kort: true,
-                faner: ["naa", "soner", "programmer"], ...(c || {}) };
+                faner: ["naa", "soner", "programmer", "forbruk"], ...(c || {}) };
+    this._periode = "i_dag";
     this._fane = this._c.faner[0]; this._bygget = false; this._tegn();
   }
   set hass(h) {
@@ -124,26 +262,91 @@ class KiVanningCard extends HTMLElement {
   connectedCallback() { clearInterval(this._ur); this._ur = setInterval(() => this._tikk(), 1000); }
   disconnectedCallback() { clearInterval(this._ur); }
 
-  _st(id) { return id && this._h ? this._h.states[id] : null; }
+  /* Demomodus: kortet tegnes med eksempeldata, fint når anlegget er av eller
+     OpenSprinkler ikke svarer. `demo: true` gir en sone som vanner. */
+  _demoData() {
+    if (this._demo) return this._demo;
+    const modus = this._c.demo === true ? "vanner" : String(this._c.demo);
+    const p = "demo_opensprinkler";
+    const soner = [["01", "Urtebed", "Drypp B1"], ["02", "Lavendelbed", "Drypp B1"], ["03", "Garasje/Roser", "Spreder B1"],
+      ["04", "Bed v/støttemur", "Drypp B2"], ["05", "Plen nord", "Spreder B2"], ["06", "Hilliihekk", "Drypp B2"],
+      ["07", "Ligusterhekk", "Drypp B3"], ["08", "Plen sør", "Spreder B3"]];
+    const S = {};
+    soner.forEach(([nr, navn, metode]) => {
+      const h = "_" + navn.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      S[`switch.${p}_s${nr}${h}_station_enabled`] = { state: nr === "07" ? "off" : "on",
+        attributes: { friendly_name: `S${nr} ${navn} · ${metode} Station Enabled` } };
+      const gaar = modus === "vanner" && nr === "05";
+      S[`binary_sensor.${p}_s${nr}${h}_station_running`] = { state: gaar ? "on" : "off", attributes: {} };
+      S[`sensor.${p}_s${nr}${h}_station_status`] = { state: gaar ? "7:24" : "idle", attributes: {} };
+    });
+    S[`switch.${p}_enabled`] = { state: modus === "av" ? "off" : "on", attributes: {} };
+    S[`binary_sensor.${p}_rain_delay_active`] = { state: modus === "regn" ? "on" : "off", attributes: {} };
+    S[`sensor.${p}_rain_delay_stop_time`] = { state: "i morgen 07:00", attributes: {} };
+    S["input_boolean.demo_vinter"] = { state: modus === "vinter" ? "on" : "off", attributes: {} };
+    S[`sensor.${p}_water_level`] = { state: "100", attributes: {} };
+    S[`sensor.${p}_flow_rate`] = { state: "12.4", attributes: {} };
+    [["p1", "Plen nord", "on", modus === "vanner" ? "on" : "off"], ["p2", "Plen sør", "off", "off"], ["p3", "Runde – Mandag", "on", "off"]]
+      .forEach(([slug, navn, pa, gaar]) => {
+        S[`switch.${p}_${slug}_program_enabled`] = { state: pa, attributes: { friendly_name: navn + " Program Enabled" } };
+        S[`binary_sensor.${p}_${slug}_program_running`] = { state: gaar, attributes: {} };
+        S[`time.${p}_${slug}_start_time`] = { state: "06:00:00", attributes: {} };
+        S[`number.${p}_${slug}_interval_days`] = { state: "2", attributes: {} };
+      });
+    S["sensor.demo_ki_vanning_oversikt"] = { state: "8 soner", attributes: {
+      integrasjon: "ki_vanning", ki_type: "oversikt", prefiks: p, pris_m3: 41.11,
+      i_dag: 842, uke: 3120, maaned: 9480, aar: 41200, totalt: 52340, kostnad_i_dag: 34.61,
+      estimat_i_dag: 1180, estimat_kostnad: 48.5,
+      neste: { naar: "I morgen", tid: "06:00", navn: "Runde – Mandag", total_min: 64, estimat_liter: 520 },
+      programmer: [
+        { navn: "Plen nord", tid: "06:00", i_dag: true, total_min: 40, estimat_liter: 480,
+          soner: [{ navn: "Plen nord", min: 25, nr: 5 }, { navn: "Hilliihekk", min: 15, nr: 6 }] },
+        { navn: "Runde – Mandag", tid: "05:30", i_dag: false, total_min: 64, estimat_liter: 520,
+          soner: [{ navn: "Urtebed", min: 12, nr: 1 }, { navn: "Lavendelbed", min: 12, nr: 2 }, { navn: "Garasje/Roser", min: 40, nr: 3 }] }],
+      soner: [
+        { nr: 5, navn: "Plen nord", i_dag: 420, uke: 1600, maaned: 4200, aar: 18400, totalt: 18400, rate: 12.4, kalibrert: true },
+        { nr: 6, navn: "Hilliihekk", i_dag: 180, uke: 700, maaned: 1900, aar: 6200, totalt: 6200, rate: 6.1, kalibrert: true },
+        { nr: 1, navn: "Urtebed", i_dag: 120, uke: 480, maaned: 1400, aar: 3100, totalt: 3100, rate: 4.2, kalibrert: true },
+        { nr: 0, navn: "Hageslange", i_dag: 122, uke: 340, maaned: 980, aar: 2400, totalt: 2400, rate: 8, kalibrert: false }] } };
+    this._demo = S;
+    return S;
+  }
+  get _states() { return this._c && this._c.demo ? this._demoData() : (this._h ? this._h.states : {}); }
+  _st(id) { const S = this._states; return (id && S[id]) || null; }
   _on(id) { const s = this._st(id); return !!s && s.state === "on"; }
+  /* Oversiktssensoren fra KI Vanning gir forbruk, estimat og programplan ferdig regnet ut */
+  _ki() {
+    const S = this._states; if (!S) return null;
+    const finn = () => Object.keys(S).find((x) => x.startsWith("sensor.") && (S[x].attributes || {}).ki_type === "oversikt"
+      && (S[x].attributes || {}).integrasjon === "ki_vanning") || null;
+    const id = this._c.ki_vanning || (this._c.demo ? finn() : (this._kiId !== undefined ? this._kiId : (this._kiId = finn())));
+    const st = id ? S[id] : null;
+    return st ? { id, ...st.attributes } : null;
+  }
+  _litertekst(v) {
+    const n = Number(v) || 0;
+    return n >= 1000 ? (n / 1000).toLocaleString("nb-NO", { maximumFractionDigits: 2 }) + " m³"
+      : Math.round(n).toLocaleString("nb-NO") + " L";
+  }
 
   /* ---------- automatisk oppsett ---------- */
   _prefiks() {
     if (this._c.prefiks) return this._c.prefiks;
     if (this._pref !== undefined) return this._pref;
-    const h = this._h; if (!h) return null;
-    const t = Object.keys(h.states).find((id) => /^binary_sensor\..+_s\d\d.*_station_running$/.test(id));
+    const S = this._states;
+    const t = Object.keys(S).find((id) => /^binary_sensor\..+_s\d\d.*_station_running$/.test(id));
     this._pref = t ? t.replace(/^binary_sensor\./, "").replace(/_s\d\d.*_station_running$/, "") : null;
+    if (this._c && this._c.demo) { const x = this._pref; this._pref = undefined; return x; }
     return this._pref;
   }
   /* Soner: S01 … S16 med navn og metode hentet fra friendly_name */
   _soner() {
-    const h = this._h, p = this._prefiks(); if (!h || !p) return [];
+    const S = this._states, p = this._prefiks(); if (!p) return [];
     const re = new RegExp("^switch\\." + p + "_s(\\d\\d)(.*)_station_enabled$");
-    return Object.keys(h.states).map((id) => {
+    return Object.keys(S).map((id) => {
       const m = id.match(re); if (!m) return null;
       const nr = m[1], hale = m[2] || "";
-      const fn = h.states[id].attributes.friendly_name || "";
+      const fn = (S[id].attributes || {}).friendly_name || "";
       /* «S05 Plen nord · Spreder B2 Station Enabled» → navn og metode */
       let tekst = fn.replace(/^S\d\d\s*/i, "").replace(/\s*Station Enabled$/i, "").trim();
       const ubrukt = !tekst || /^S?\d+$/.test(tekst);
@@ -159,12 +362,12 @@ class KiVanningCard extends HTMLElement {
       .filter((z) => !(this._c.skjul_ubrukte !== false && z.ubrukt));
   }
   _programmer() {
-    const h = this._h, p = this._prefiks(); if (!h || !p) return [];
+    const S = this._states, p = this._prefiks(); if (!p) return [];
     const re = new RegExp("^switch\\." + p + "_(.+)_program_enabled$");
-    return Object.keys(h.states).map((id) => {
+    return Object.keys(S).map((id) => {
       const m = id.match(re); if (!m) return null;
       const slug = m[1];
-      const fn = h.states[id].attributes.friendly_name || slug;
+      const fn = (S[id].attributes || {}).friendly_name || slug;
       return { navn: fn.replace(/\s*Program Enabled$/i, "").trim(), slug, bryter: id,
         gaar: `binary_sensor.${p}_${slug}_program_running`,
         start: `time.${p}_${slug}_start_time`,
@@ -204,17 +407,26 @@ class KiVanningCard extends HTMLElement {
   /* ---------- oppbygging ---------- */
   _bygg() {
     const c = this._c, faner = c.faner;
-    const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer" };
+    const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer", forbruk: "Forbruk" };
+    const gress = Array.from({ length: 26 }, (_, i) =>
+      `<i style="left:${(i * 4 + 1)}%;height:${8 + ((i * 7) % 14)}px;animation-delay:-${((i * 0.19) % 2.6).toFixed(2)}s"></i>`).join("");
     const drapper = Array.from({ length: 14 }, (_, i) =>
       `<i style="left:${(i * 37 + 9) % 96 + 2}%;animation-duration:${(0.7 + (i % 5) * 0.12).toFixed(2)}s;animation-delay:-${((i * 0.23) % 1.2).toFixed(2)}s"></i>`).join("");
     this.shadowRoot.innerHTML = `<style>${KI_VANN_STIL}</style>
       <div class="rot">
-        <div class="hero" role="button" tabindex="0">
+        ${c.hero === "smal" ? `<div class="hero" role="button" tabindex="0">
           <div class="drapper">${drapper}</div>
+          <div class="gress">${gress}</div>
           <div class="ic"><ha-icon icon="mdi:sprinkler-variant"></ha-icon></div>
           <div class="n"></div><div class="l"></div><div class="t"></div>
           <div class="strek"><i></i></div>
-        </div>
+        </div>` : `<div class="scene" role="button" tabindex="0">
+          ${kiVaScene()}
+          <div class="tekst"><div class="tittel"></div><div class="under"></div></div>
+          <div class="ned"></div>
+          ${c.demo ? `<div class="demo">DEMO</div>` : ""}
+          <div class="bunn"><div class="sp"><i></i></div><div class="tall"></div></div>
+        </div>`}
 
         <div class="hurtig">
           <button class="hk" data-h="stopp" style="--hk-farge:var(--red,#e8657a)"><ha-icon icon="mdi:stop-circle"></ha-icon><span>Stopp alt</span></button>
@@ -229,7 +441,7 @@ class KiVanningCard extends HTMLElement {
       </div>`;
 
     const r = this.shadowRoot;
-    r.querySelector(".hero").addEventListener("click", () => {
+    r.querySelector(".hero, .scene").addEventListener("click", () => {
       const z = this._aktivSone();
       if (z) this._stopp(z.bryter); else this._mer(this._styring().aktiv);
     });
@@ -245,6 +457,42 @@ class KiVanningCard extends HTMLElement {
   }
 
   /* ---------- paneler ---------- */
+  /* Forbruksfane: perioder, fordeling per sone og estimat */
+  _panelForbruk() {
+    const ki = this._ki();
+    if (!ki) return `<div class="tom">Installer <b>KI Vanning</b>-integrasjonen for forbruk, kostnad og estimat.</div>`;
+    const per = { i_dag: "I dag", uke: "Uke", maaned: "Måned", aar: "År" };
+    const valgt = this._periode;
+    const total = Number(ki[valgt] || 0);
+    const soner = (ki.soner || []).slice().sort((a, b) => (b.i_dag || 0) - (a.i_dag || 0));
+    const maks = Math.max(1, ...soner.map((x) => Number(x.i_dag || 0)));
+    const pris = Number(ki.pris_m3 || 0);
+    const est = Number(ki.estimat_i_dag || 0), brukt = Number(ki.i_dag || 0);
+    const andel = est ? Math.min(100, (brukt / est) * 100) : 0;
+    return `
+      <div class="periodefaner">${Object.keys(per).map((k) =>
+        `<button class="pf ${k === valgt ? "valgt" : ""}" data-per="${k}">${per[k]}</button>`).join("")}</div>
+      <div class="maal">
+        <div class="rad"><div><div class="stor">${this._litertekst(total)}</div>
+          <div class="und">${per[valgt]} · ${(total / 1000 * pris).toFixed(2)} kr</div></div>
+          <div style="text-align:right"><div class="stor" style="font-size:1.2em">${this._litertekst(est)}</div>
+          <div class="und">estimat i dag</div></div></div>
+        <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${andel.toFixed(1)}%"></i></div>
+        <div class="und">${Math.round(brukt)} av ${Math.round(est)} L brukt i dag${est > brukt ? ` · ${Math.round(est - brukt)} L igjen` : ""}</div>
+      </div>
+      <div class="maal">
+        <div class="und">Fordeling ${per[valgt].toLowerCase()}</div>
+        <div class="fordeling">${soner.map((x) => {
+          const v = Number(x[valgt === "i_dag" ? "i_dag" : valgt] ?? x.i_dag ?? 0);
+          return `<div class="frad"><div>
+            <div class="navn"><span>${kiVaEsc(x.navn)}</span>${x.kalibrert
+              ? `<span class="knagg">${x.rate} L/min</span>` : `<span class="knagg">anslag</span>`}</div>
+            <div class="fbar"><i style="width:${((v / maks) * 100).toFixed(1)}%"></i></div>
+          </div><div class="tall">${this._litertekst(v)}</div></div>`;
+        }).join("")}</div>
+      </div>`;
+  }
+
   _panelNaa() {
     const s = this._styring(), z = this._soner(), p = this._programmer();
     const gaar = z.filter((x) => this._on(x.gaar));
@@ -263,6 +511,18 @@ class KiVanningCard extends HTMLElement {
         <div class="ic"><ha-icon icon="mdi:weather-pouring"></ha-icon></div>
         <div class="n">Regnpause aktiv</div>
         <div class="l">${this._st(s.regn_til) ? "Til " + kiVaEsc(this._st(s.regn_til).state) : ""}</div></div>` : ""}
+      ${(() => { const ki = this._ki(); if (!ki) return "";
+        const n = ki.neste || {};
+        return `<div class="maal">
+          <div class="rad"><div><div class="stor">${this._litertekst(ki.i_dag)}</div>
+            <div class="und">brukt i dag · ${Number(ki.kostnad_i_dag || 0).toFixed(2)} kr</div></div>
+            <div style="text-align:right"><div class="stor" style="font-size:1.1em">${this._litertekst(ki.estimat_i_dag)}</div>
+            <div class="und">planlagt i dag</div></div></div>
+          <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${
+            ki.estimat_i_dag ? Math.min(100, (ki.i_dag / ki.estimat_i_dag) * 100).toFixed(1) : 0}%"></i></div>
+          ${n.navn ? `<div class="und">Neste: ${kiVaEsc(n.navn)} ${kiVaEsc(n.naar || "")} ${kiVaEsc(n.tid || "")}${
+            n.total_min ? ` · ${n.total_min} min · ca. ${Math.round(n.estimat_liter || 0)} L` : ""}</div>` : ""}
+        </div>`; })()}
       <div class="nokkel">
         ${felt("Vannivå", s.vannivaa, " %")}
         ${felt("Flyt", s.flyt, "")}
@@ -307,24 +567,45 @@ class KiVanningCard extends HTMLElement {
   _panelProgrammer() {
     const p = this._programmer();
     if (!p.length) return `<div class="tom">Fant ingen programmer.</div>`;
+    const ki = this._ki();
+    const plan = (ki && ki.programmer) || [];
+    const aktiv = this._aktivSone();
+    /* Programplanen fra KI Vanning gir sonene, minuttene og estimatet per program */
+    const finnPlan = (navn) => plan.find((x) => String(x.navn).toLowerCase() === String(navn).toLowerCase()) || null;
     return p.map((x) => {
       const gaar = this._on(x.gaar), av = !this._on(x.bryter);
       const t = this._st(x.start), iv = this._st(x.intervall);
-      const under = [t && !["unknown", "unavailable"].includes(t.state) ? "Start " + String(t.state).slice(0, 5) : "",
-        iv && iv.state !== "unknown" ? "hver " + Math.round(parseFloat(iv.state)) + ". dag" : ""].filter(Boolean).join(" · ");
+      const pl = finnPlan(x.navn);
+      const under = [
+        t && !["unknown", "unavailable"].includes(t.state) ? "Kl. " + String(t.state).slice(0, 5) : (pl ? "Kl. " + pl.tid : ""),
+        iv && iv.state !== "unknown" && parseFloat(iv.state) > 0 ? "hver " + Math.round(parseFloat(iv.state)) + ". dag" : "",
+        pl ? `${pl.soner.length} soner · ${pl.total_min} min` : "",
+        pl && pl.estimat_liter ? `ca. ${Math.round(pl.estimat_liter)} L` : "",
+      ].filter(Boolean).join(" · ");
+      /* framdrift gjennom programmet: hvor mange av sonene er unnagjort */
+      let gjort = 0;
+      if (gaar && pl && aktiv) {
+        const i = pl.soner.findIndex((z) => z.navn === aktiv.navn);
+        gjort = i >= 0 ? (pl.soner.slice(0, i).reduce((a, b) => a + b.min, 0) / (pl.total_min || 1)) * 100 : 0;
+      }
       return `<div class="prog ${gaar ? "gaar" : ""} ${av ? "av" : ""}" data-prog="${x.bryter}" data-kjor="${x.bryter}" role="button" tabindex="0">
-        <div class="ic"><ha-icon icon="mdi:calendar-clock"></ha-icon></div>
-        <div class="n">${kiVaEsc(x.navn)}</div>
+        <div class="ic"><ha-icon icon="${gaar ? "mdi:play-circle" : av ? "mdi:calendar-remove" : "mdi:calendar-clock"}"></ha-icon></div>
+        <div class="n">${kiVaEsc(x.navn)}${pl && pl.i_dag ? ' <span class="knagg">i dag</span>' : ""}</div>
         <div class="l">${gaar ? "Kjører nå" : av ? "Deaktivert" : under || "Aktivert"}</div>
-        <div class="t">${av ? "av" : "på"}</div></div>`;
+        <div class="t">${av ? "av" : "på"}</div>
+      </div>
+      ${pl && pl.soner.length ? `<div class="pdetalj">${pl.soner.map((z) =>
+        `<span class="pz ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">${kiVaEsc(z.navn)} ${z.min}m</span>`).join("")}</div>` : ""}
+      ${gaar && gjort ? `<div class="pstolpe"><i style="width:${gjort.toFixed(1)}%"></i></div>` : ""}`;
     }).join("") + `<div class="hint">Trykk = av eller på · hold = kjør programmet nå</div>`;
   }
 
   _tikk() {
     if (!this._bygget || !this._slutt) return;
     const igjen = Math.max(0, Math.round((this._slutt - Date.now()) / 1000));
-    const t = this.shadowRoot.querySelector(".hero .t");
-    if (t) t.textContent = igjen ? `${Math.floor(igjen / 60)}:${String(igjen % 60).padStart(2, "0")}` : "";
+    const tekst = igjen ? `${Math.floor(igjen / 60)}:${String(igjen % 60).padStart(2, "0")}` : "";
+    const t = this.shadowRoot.querySelector(".hero .t") || this.shadowRoot.querySelector(".scene .ned");
+    if (t) t.textContent = tekst;
     const b = this.shadowRoot.querySelector(".hero .strek i");
     if (b && this._total) b.style.width = (100 - (igjen / this._total) * 100).toFixed(1) + "%";
   }
@@ -339,7 +620,10 @@ class KiVanningCard extends HTMLElement {
     }
     if (!this._bygget) this._bygg();
     const r = this.shadowRoot, s = this._styring();
-    const z = this._aktivSone(), vinter = c.vinter && this._on(c.vinter);
+    const vinterId = c.demo ? "input_boolean.demo_vinter" : c.vinter;
+    const z = this._aktivSone(), vinter = vinterId && this._on(vinterId);
+    const scene = r.querySelector(".scene");
+    if (scene) return this._tegnScene(scene, z, vinter, s), this._tegnResten(r, c, s);
     const hero = r.querySelector(".hero");
     hero.classList.toggle("vanner", !!z);
     hero.classList.toggle("vinter", !z && vinter);
@@ -359,6 +643,44 @@ class KiVanningCard extends HTMLElement {
     } else { this._slutt = null; this._total = 0; hero.querySelector(".t").textContent = ""; hero.querySelector(".strek i").style.width = "0"; }
     this._tikk();
 
+    this._tegnResten(r, c, s);
+  }
+
+  /* Den store hagescenen */
+  _tegnScene(scene, z, vinter, s) {
+    const ki = this._ki(), st = z ? this._st(z.status) : null;
+    const regn = this._on(s.regn);
+    scene.classList.toggle("vanner", !!z);
+    scene.classList.toggle("vinter", !z && !!vinter);
+    scene.classList.toggle("regn", !z && !vinter && regn);
+    scene.querySelector(".tittel").textContent = z ? "Vanner " + z.navn
+      : vinter ? "Vintermodus" : regn ? "Regnpause" : this._on(s.aktiv) ? "Hagen er tørr og klar" : "Anlegget er av";
+    const n = (ki && ki.neste) || {};
+    scene.querySelector(".under").textContent = z
+      ? `${z.metode || "Sone " + z.nr}${st ? " · " + st.state : ""} · trykk for å stoppe`
+      : vinter ? "All vanning er stengt for sesongen"
+      : regn ? (this._st(s.regn_til) ? "Fortsetter " + this._st(s.regn_til).state : "Venter på oppholdsvær")
+      : n.navn ? `Neste: ${n.navn} ${n.naar || ""} ${n.tid || ""}` : "Ingen soner kjører";
+
+    /* nedtelling fra statussensoren */
+    const rest = z && st ? String(st.state).match(/(\d+):(\d\d)(?::(\d\d))?/) : null;
+    if (rest) {
+      const sek = rest[3] ? (+rest[1]) * 3600 + (+rest[2]) * 60 + (+rest[3]) : (+rest[1]) * 60 + (+rest[2]);
+      if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - sek) > 3) { this._total = sek; this._slutt = Date.now() + sek * 1000; }
+    } else { this._slutt = null; this._total = 0; }
+    const ned = scene.querySelector(".ned");
+    if (!this._slutt) ned.textContent = "";
+    this._tikk();
+
+    const brukt = ki ? Number(ki.i_dag || 0) : 0, plan = ki ? Number(ki.estimat_i_dag || 0) : 0;
+    const sp = scene.querySelector(".bunn .sp i");
+    sp.style.width = plan ? Math.min(100, (brukt / plan) * 100).toFixed(1) + "%" : (z ? "100%" : "0");
+    scene.querySelector(".bunn .tall").textContent = ki
+      ? `${this._litertekst(brukt)} av ${this._litertekst(plan)} i dag`
+      : z ? "vanner nå" : "";
+  }
+
+  _tegnResten(r, c, s) {
     const vk = r.querySelector('[data-h="vinter"]');
     if (vk) { const pa = c.vinter ? this._on(c.vinter) : !this._on(s.aktiv); vk.classList.toggle("pa", pa);
       vk.querySelector("span").textContent = c.vinter ? "Vintermodus" : (this._on(s.aktiv) ? "Slå av anlegg" : "Slå på anlegg"); }
@@ -367,10 +689,14 @@ class KiVanningCard extends HTMLElement {
     if (c.faner.includes("naa")) sett("naa", this._panelNaa());
     if (c.faner.includes("soner")) sett("soner", this._panelSoner());
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
+    if (c.faner.includes("forbruk")) sett("forbruk", this._panelForbruk());
     r.querySelectorAll(".fane").forEach((b) => b.classList.toggle("valgt", b.dataset.f === this._fane));
     r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
 
     /* klikk i panelene kobles på nytt etter hver tegning */
+    r.querySelectorAll("[data-per]").forEach((b) => b.addEventListener("click", () => {
+      this._periode = b.dataset.per; this._tegn();
+    }));
     r.querySelectorAll("[data-min]").forEach((b) => b.addEventListener("click", () => {
       const sone = this._soner().find((x) => x.nr === b.dataset.z); if (!sone) return;
       const m = +b.dataset.min;
@@ -400,7 +726,7 @@ class KiVanningCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { prefiks: "Prefiks (tomt = auto)", vinter: "Vintermodus-bryter", skjul_ubrukte: "Skjul ubrukte soner",
-        navn_kort: "Korte sonenavn" };
+        navn_kort: "Korte sonenavn", hero: "Toppkort", demo: "Demomodus (eksempeldata)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -411,6 +737,9 @@ class KiVanningCardEditor extends HTMLElement {
       { name: "prefiks", selector: { text: {} } },
       { name: "vinter", selector: { entity: { domain: ["input_boolean", "switch"] } } },
       { name: "skjul_ubrukte", selector: { boolean: {} } },
+      { name: "hero", selector: { select: { mode: "dropdown", options: [
+        { value: "stor", label: "Stor hagescene" }, { value: "smal", label: "Smal linje" }] } } },
+      { name: "demo", selector: { boolean: {} } },
     ];
   }
 }

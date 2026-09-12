@@ -333,18 +333,35 @@ prefiks: ute_opensprinkler        # bare nødvendig med flere kontrollere
 vinter: input_boolean.vinter_modus_vanning
 varigheter: [5, 10, 15, 30, 60]   # minutter på hurtigknappene
 skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
-faner: [naa, soner, programmer]
+faner: [naa, soner, programmer, forbruk]
+ki_vanning: sensor.ki_vanning_oversikt   # oppdages automatisk
+hero: stor                        # stor (hagescene, 190 px) | smal (kompakt linje)
+demo: false                       # true | vanner | tomt | vinter | regn – eksempeldata
 ```
 Kortet leser oppsettet rett ut av OpenSprinkler-integrasjonen: kontrolleren, alle sonene med navn og
-vanningsmetode fra `friendly_name`, hvilken boks de hører til (B1, B2, B3) og programmene med starttid og
-intervall. Ingen entitetslister å vedlikeholde – legger du til en sone i OpenSprinkler, dukker den opp her.
+vanningsmetode, hvilken boks de hører til og programmene med starttid og intervall. Er
+[KI Vanning](https://github.com/SebastianKristo/ki-vanning) installert, kommer forbruk, kostnad, estimat og
+programplan i tillegg – uten at du lister opp en eneste entitet.
 
-Øverst ligger et statuskort: vannes det, blir det blått med sonenavn, status, nedtelling, framdriftsstrek og
-regndråper som faller, og trykk stopper vanningen. Ellers viser det om anlegget er klart, om regnpausen går,
-eller om vintermodus har stengt alt. Under ligger hurtigknappene Stopp alt, Regn 24t, Nullstill og
-vintermodus. **Nå** viser vannivå, flyt, strømtrekk og neste kjøring. **Soner** grupperer sonene per boks,
-markerer den som vanner, og gir 5/10/15/30/60 minutter og Stopp per sone. **Programmer** lister programmene:
-trykk slår av eller på, hold kjører programmet nå. Har egen visuell editor.
+Toppkortet er en liten hage på 190 px: himmel med sol og skyer som driver, blomsterbed, gress som svaier,
+og en spreder som svinger fram og tilbake og sprer dråper utover når det vannes – da mørkner jorda også.
+Er det vintermodus, daler snøen og hagen står stille; er det regnpause, faller regnet i stedet. Over ligger
+sonenavn, status og nedtelling, og nederst en stolpe med hvor mye som er brukt mot planlagt i dag. Trykk
+stopper vanningen. `hero: smal` gir den gamle kompakte linja.
+
+`demo: true` tegner hele kortet med eksempeldata og et DEMO-merke, så du ser hvordan det ser ut selv om
+anlegget er avslått eller OpenSprinkler ikke svarer. `demo: vanner`, `tomt`, `vinter` og `regn` viser hver
+sin tilstand. Ellers viser det om anlegget er klart, om
+regnpausen går eller om vintermodus har stengt alt, og under ligger Stopp alt, Regn 24t, Nullstill og
+vintermodus.
+
+**Nå** viser hvor mye som er brukt i dag mot det som er planlagt, med en stolpe som glimter mens det vannes,
+hva neste program er og når det går, pluss vannivå, flyt og strømtrekk. **Soner** grupperer sonene per boks
+med 5/10/15/30/60 minutter og Stopp per sone. **Programmer** viser sonene i hvert program som brikker med
+minutter, markerer sonen som kjører akkurat nå, teller framdriften gjennom programmet og merker programmene
+som står på planen i dag – trykk slår av eller på, hold kjører programmet. **Forbruk** har i dag, uke, måned
+og år, fordelingen per sone med kalibrert L/min bak hvert navn, og hageslangen som egen post. Har egen
+visuell editor.
 
 ### ki-strompris-card
 ```yaml
