@@ -43,6 +43,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-prosa-card.svg" width="28" align="absmiddle"> | `ki-prosa-card` | KI Prosa | Forsidetekst som skriver seg selv, med levende piller for vær, pris, forbruk, apparater og varsler |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-soppel-card.svg" width="28" align="absmiddle"> | `ki-soppel-card` | KI Søppel | Dager til neste tømming, med søppelbil og ristende dunk på tømmedagen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-strompris-card.svg" width="28" align="absmiddle"> | `ki-strompris-card` | KI Strømpris | Døgnets priser med spotpris og Norgespris, faner for i dag og i morgen |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vanning-card.svg" width="28" align="absmiddle"> | `ki-vanning-card` | KI Vanning | OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
@@ -323,6 +324,27 @@ path: '#soppel'
 Samme oppsett som før – stort tall til venstre, tekst og avfallstype til høyre – men typen får en fargeprikk
 etter hva som hentes (rest, mat, papp, plast, glass, hage, farlig avfall). På selve tømmedagen fargelegges
 kortet, tallet puster, dunken rister og en søppelbil kjører over bunnen med eksos ut av røret.
+
+### ki-vanning-card
+```yaml
+type: custom:ki-vanning-card
+# Alt er valgfritt – kortet finner OpenSprinkler-entitetene selv.
+prefiks: ute_opensprinkler        # bare nødvendig med flere kontrollere
+vinter: input_boolean.vinter_modus_vanning
+varigheter: [5, 10, 15, 30, 60]   # minutter på hurtigknappene
+skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
+faner: [naa, soner, programmer]
+```
+Kortet leser oppsettet rett ut av OpenSprinkler-integrasjonen: kontrolleren, alle sonene med navn og
+vanningsmetode fra `friendly_name`, hvilken boks de hører til (B1, B2, B3) og programmene med starttid og
+intervall. Ingen entitetslister å vedlikeholde – legger du til en sone i OpenSprinkler, dukker den opp her.
+
+Øverst ligger et statuskort: vannes det, blir det blått med sonenavn, status, nedtelling, framdriftsstrek og
+regndråper som faller, og trykk stopper vanningen. Ellers viser det om anlegget er klart, om regnpausen går,
+eller om vintermodus har stengt alt. Under ligger hurtigknappene Stopp alt, Regn 24t, Nullstill og
+vintermodus. **Nå** viser vannivå, flyt, strømtrekk og neste kjøring. **Soner** grupperer sonene per boks,
+markerer den som vanner, og gir 5/10/15/30/60 minutter og Stopp per sone. **Programmer** lister programmene:
+trykk slår av eller på, hold kjører programmet nå. Har egen visuell editor.
 
 ### ki-strompris-card
 ```yaml
