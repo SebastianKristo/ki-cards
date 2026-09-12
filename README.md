@@ -820,6 +820,19 @@ tabs:
 
 Listeelementer: `{rom: x}` / `{kind: …}` = `ki-rom-tile-card`, `{swipe: {…}}` = css-swipe-card (`type: plain` = swipe-card), alt med `type:` = kortet som det er. Krever ki-rom ≥ 1.2.0 for etasjer.
 
+Rom kan ligge i en annen fane enn etasjen de hører til i Home Assistant. Sett `etasje:` på rommet for å
+flytte ett rom, eller `flytt_til:` på etasjen for å slå hele etasjen sammen med en annen:
+
+```yaml
+rom:
+  garasje: {etasje: ute}          # garasjen vises under Ute-fanen
+etasje_innstillinger:
+  garasje: {flytt_til: ute}       # hele garasjeetasjen legges i Ute, og fanen forsvinner
+```
+
+Flytter du alle rommene ut av en etasje, faller fanen bort av seg selv. Plasseringsverktøyet i editoren
+følger den samme inndelingen.
+
 ## Feilsøking
 
 Vises «Custom element doesn't exist: ki-…-card» for flere kort samtidig, er som regel hele bundelen stoppet:

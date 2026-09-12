@@ -1,4 +1,4 @@
-/* ki-cards v2.71.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.72.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.71.0";
+  KI.VERSION = "2.72.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8221,7 +8221,7 @@ try {
 /* ===== 52-ki-hjem-card ===== */
 try {
 /* ============================================================================
- * ki-hjem-card  v1.3.1  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
+ * ki-hjem-card  v1.4.0  –  hele simple-tabs-blokken på forsiden, auto fra KI Rom
  *
  *  type: custom:ki-hjem-card          # uten mer config: Hjem-fane + én fane per HA-etasje
  *  hjem:                  # Hjem-fanen (standard på; hjem: false skrur av)
@@ -8235,7 +8235,9 @@ try {
  *    swipe_type: plain               # bruk swipe-card i stedet for css-swipe-card for rom-swipene
  *  etasjer: auto          # standard – én fane per etasje; etasjer: false skrur av
  *  monster: { venstre: [big, small], hoyre: [row, big, row] }   # flismønster per kolonne
- *  etasje_innstillinger: { <etasje_id>: { vis: false, rekkefolge: 2, navn: '1. etg' } }
+ *  etasje_innstillinger: { <etasje_id>: { vis: false, rekkefolge: 2, navn: '1. etg',
+ *                            flytt_til: ute } }   # hele etasjen legges i en annen fane
+ *  rom: { garasje: { etasje: ute } }              # ett rom flyttes til en annen etasjefane
  *  aktuelt: { tv: media_player.stue_tv, stovsuger: vacuum.x, vaskemaskin: sensor.x, oppvaskmaskin: sensor.x, ekstra: [...] }
  *  batterier: true              # eller { terskel: 30, monster: 'sensor.*_battery_plus' }
  *  Alt over kan settes i UI-editoren (rom: vis/størrelse/plassering/rekkefølge/farge).
@@ -8382,12 +8384,31 @@ try {
     return kol;
   }
 
+  /* Hvilken etasjefane rommet skal ligge i: rom-innstillingen først, så en hel
+     etasje som er flyttet, ellers etasjen fra Home Assistant. */
+  function etasjeFor(a, cfg) {
+    const rc = (cfg.rom || {})[a.area_id] || {};
+    if (rc.etasje) return String(rc.etasje);
+    const fc = cfg.etasje_innstillinger || {};
+    const egen = a.etasje_id || '__uten';
+    const flyttet = (fc[egen] || {}).flytt_til;
+    return flyttet ? String(flyttet) : egen;
+  }
+
   // ---- auto: én fane per etasje
   function autoFloorTabs(hass, cfg) {
     const floors = new Map();
-    rooms(hass, cfg).forEach((a) => {
-      const key = a.etasje_id || '__uten';
-      if (!floors.has(key)) floors.set(key, { navn: a.etasje || cfg.uten_etasje_navn || 'Rom', niva: a.etasje_niva ?? 999, rom: [] });
+    const alle = rooms(hass, cfg);
+    /* navnene på etasjene vi kjenner, slik at en flyttet etasje får riktig fanetittel */
+    const navnFor = new Map();
+    alle.forEach((a) => { if (a.etasje_id) navnFor.set(a.etasje_id, { navn: a.etasje, niva: a.etasje_niva ?? 999 }); });
+    alle.forEach((a) => {
+      const key = etasjeFor(a, cfg);
+      const kjent = navnFor.get(key);
+      if (!floors.has(key)) floors.set(key, {
+        navn: (kjent && kjent.navn) || a.etasje || cfg.uten_etasje_navn || 'Rom',
+        niva: (kjent && kjent.niva) ?? (a.etasje_niva ?? 999), rom: [],
+      });
       floors.get(key).rom.push(a);
     });
     const fc = cfg.etasje_innstillinger || {};
@@ -8559,7 +8580,12 @@ try {
 
     _floors() {
       const m = new Map();
-      allOversikt(this._hass).forEach((st) => { const a = st.attributes; const k = a.etasje_id || '__uten'; if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Rom', niva: a.etasje_niva ?? 999, rom: [] }); m.get(k).rom.push(a); });
+      const cfg2 = this._config || {};
+      allOversikt(this._hass).forEach((st) => {
+        const a = st.attributes; const k = etasjeFor(a, cfg2);
+        if (!m.has(k)) m.set(k, { key: k, navn: a.etasje || 'Rom', niva: a.etasje_niva ?? 999, rom: [] });
+        m.get(k).rom.push(a);
+      });
       return [...m.values()].sort((x, y) => x.niva - y.niva);
     }
 
