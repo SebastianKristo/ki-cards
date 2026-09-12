@@ -365,8 +365,9 @@ entity: sensor.nar_kommer_posten_posten_sensor_next
 relativ: sensor.nar_kommer_posten_posten_sensor_next_relative
 tekst: Post leveres
 ```
-Stor dato til venstre og ukedagen over, slik kalenderkortene er bygget. Kortet blir lilla på selve
-leveringsdagen, og da vaier flagget på postkassa.
+Datoskive til venstre der ringen fyller seg jo nærmere leveringen kommer, tekst i midten med ukedag og en
+pille som sier «om 3 dager», og postkassa til høyre. På selve dagen får kortet blå toning, flagget vaier og
+et brev glir inn i kassa. `farge:` bytter tonen.
 
 ### ki-bursdag-pro-card
 ```yaml
@@ -384,8 +385,9 @@ beskrivelsen (`Født 1985-09-14`, `f. 1985`) eller i tittelen (`Rune (1985)`). M
 
 «Ny bursdag»-knappen spør om navn og fødselsdato og legger hendelsen inn i kalenderen for de neste ti årene,
 med datoen i beskrivelsen. Vil du rette noe senere, gjør du det i kalenderen som vanlig.
-Samme form som postkortet: den neste bursdagen står stort med ukedag, navn og alder, og resten følger som
-smalere rader med «om 23 dager» til høyre. På selve dagen blir kortet lilla og lyset på kaka flakker.
+Den neste bursdagen står stort med ukedag, navn og alder – lilla kort og flakkende kakelys på selve dagen.
+Resten følger som smalere rader med datoskive, initial i egen farge, alder og ukedag, og en nedtellingspille
+til høyre. Ringen rundt datoen fylles etter hvor nær bursdagen er.
 
 ### ki-fremover-card
 ```yaml
@@ -426,7 +428,9 @@ besøk og neste planlagte tur.
 
 **Kalender** er en månedsrute der hver dag fargelegges etter hvem som var der; er flere der samtidig, deles
 dagen i striper. Planlagte turer får stiplet kant, i dag er markert, og du blar mellom månedene med pilene.
-**Opphold** lister planlagte turer øverst og historikken under, med navn, datoer og antall netter.
+**Opphold** lister planlagte turer øverst og historikken under, med navn, datoer og antall netter – fra alle
+stedene under ett, med et filter øverst for å se ett om gangen. Stedsnavnet står som merkelapp bak navnet når
+du ser alle. `alle_steder: false` begrenser fanen til dette stedet.
 **Statistikk** viser netter per måned som stablede søyler per person, og et kort per person med netter og
 besøk i år.
 **Helger** svarer på hvor dere var helg for helg: ukenummer, datoer, og hvilke personer som var på hvilket

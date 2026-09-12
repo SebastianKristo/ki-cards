@@ -5,10 +5,11 @@
  * sted: Strömstad                 # velger riktig oversiktssensor når du har flere
  * oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
  * faner: [kalender, opphold, statistikk, helger]
+ * alle_steder: true          # Opphold viser alle stedene, med filter øverst
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "1.2.0";
+const KI_HYTTE_VERSJON = "1.3.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -89,6 +90,17 @@ const KI_HYTTE_STIL = `
   .rad .d { font-size:12px; opacity:.6; }
   .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  /* stedsfilter i oppholdsfanen */
+  .stedfilter { display:flex; justify-content:center; }
+  .stedskinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+    max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .stedskinne::-webkit-scrollbar { display:none; }
+  .stedknapp { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:12.5px; font-weight:500;
+    padding:6px 13px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+  .stedknapp i { width:8px; height:8px; border-radius:3px; }
+  .stedknapp.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+  .stedmerke { font-size:10px; font-weight:700; padding:3px 7px; border-radius:6px; white-space:nowrap;
+    background:rgba(255,255,255,.09); }
 
   /* ---- statistikk ---- */
   .stolper { background:var(--gray200); border-radius:20px; padding:16px; display:grid; gap:10px; }
@@ -124,7 +136,7 @@ const kiHyDato = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
 const kiHyKort = (iso) => { const d = new Date(iso); return `${d.getDate()}. ${KI_HY_MND[d.getMonth()].slice(0, 3)}`; };
 
 class KiHytteCard extends HTMLElement {
-  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "kalender"; this._mnd = 0; }
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "kalender"; this._mnd = 0; this._sted = null; }
   static getConfigElement() { return document.createElement("ki-hytte-card-editor"); }
   static getStubConfig() { return {}; }
   getCardSize() { return 10; }
@@ -205,16 +217,54 @@ class KiHytteCard extends HTMLElement {
   }
 
   /* ---------------------------------------------------------- oppholdene */
+  /* Alle stedene under ett: leser alle oversiktssensorene fra KI Hyttebesøk */
+  _alleSteder() {
+    const h = this._h; if (!h) return [];
+    return Object.keys(h.states)
+      .filter((x) => {
+        const a = h.states[x].attributes || {};
+        return a.integrasjon === "ki_hyttebesok" && a.ki_type === "oversikt";
+      })
+      .map((x) => ({ id: x, ...h.states[x].attributes }))
+      .sort((a, b) => (a.rolle === "hjem" ? -1 : b.rolle === "hjem" ? 1 : String(a.sted).localeCompare(String(b.sted), "nb")));
+  }
+  _stedFarge2(sted) {
+    const alle = this._alleSteder();
+    const s = alle.find((x) => x.sted === sted);
+    if (s && s.rolle === "hjem") return "var(--green)";
+    const i = Math.max(0, alle.findIndex((x) => x.sted === sted));
+    return ["var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 4];
+  }
+
   _opphold(d) {
     const rad = (o, fremtid) => `<div class="rad">
       <span class="prikk" style="background:${kiHyEsc(this._farge(o.person, d))};margin:0">${kiHyEsc(String(o.person || "?").slice(0, 1))}</span>
-      <div><div class="n">${kiHyEsc(o.person)}</div>
+      <div><div class="n">${kiHyEsc(o.person)}${o.sted && this._sted === null && this._alleSteder().length > 1
+        ? ` <span class="stedmerke" style="color:${kiHyEsc(this._stedFarge2(o.sted))}">${kiHyEsc(o.sted)}</span>` : ""}</div>
         <div class="d">${kiHyKort(o.start)}${o.slutt !== o.start ? " – " + kiHyKort(o.slutt) : ""}${fremtid ? " · planlagt" : ""}</div></div>
       <div class="netter">${o.netter} ${o.netter === 1 ? "natt" : "netter"}</div>
     </div>`;
-    const kommende = (d.kommende || []).map((o) => rad(o, true)).join("");
-    const gamle = (d.opphold || []).map((o) => rad(o, false)).join("");
-    return `${kommende ? `<div><div class="hero" style="min-height:0;padding:12px 16px">
+    const alle = this._alleSteder();
+    const flere = this._c.alle_steder !== false && alle.length > 1;
+    /* uten filter er det bare dette stedet, ellers slås alle sammen */
+    const valgt = this._sted === undefined ? null : this._sted;
+    const kilder = flere ? (valgt ? alle.filter((x) => x.sted === valgt) : alle) : [d];
+    const merk = (liste, sted) => (liste || []).map((o) => ({ ...o, sted }));
+    const komm = kilder.flatMap((x) => merk(x.kommende, x.sted))
+      .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+    const hist = kilder.flatMap((x) => merk(x.opphold, x.sted))
+      .sort((a, b) => String(b.start).localeCompare(String(a.start))).slice(0, 40);
+
+    const filter = flere ? `<div class="stedfilter"><div class="stedskinne">
+      <button class="stedknapp ${valgt ? "" : "valgt"}" data-sted="">Alle</button>
+      ${alle.map((x) => `<button class="stedknapp ${valgt === x.sted ? "valgt" : ""}" data-sted="${kiHyEsc(x.sted)}">
+        <i style="background:${kiHyEsc(this._stedFarge2(x.sted))}"></i>${kiHyEsc(x.sted)}</button>`).join("")}
+    </div></div>` : "";
+
+    const kommende = komm.map((o) => rad(o, true)).join("");
+    const gamle = hist.map((o) => rad(o, false)).join("");
+    return `${filter}
+      ${kommende ? `<div><div class="hero" style="min-height:0;padding:12px 16px">
         <div class="tit"><ha-icon icon="mdi:calendar-arrow-right"></ha-icon>Planlagt framover</div></div></div>
       <div class="liste">${kommende}</div>` : ""}
       <div class="liste">${gamle || `<div class="tom">Ingen registrerte opphold ennå.</div>`}</div>`;
@@ -350,6 +400,9 @@ class KiHytteCard extends HTMLElement {
       else this._h.callService("ki_hyttebesok", "les_kalender", {});
     });
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-sted]").forEach((b) => b.addEventListener("click", () => {
+      this._sted = b.dataset.sted || null; this._forrige = null; this._tegn();
+    }));
     r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
       this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();
     }));

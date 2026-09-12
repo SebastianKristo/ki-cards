@@ -1,4 +1,4 @@
-/* ki-cards v2.91.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.92.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.91.0";
+  KI.VERSION = "2.92.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -10361,10 +10361,11 @@ try {
  * sted: Strömstad                 # velger riktig oversiktssensor når du har flere
  * oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
  * faner: [kalender, opphold, statistikk, helger]
+ * alle_steder: true          # Opphold viser alle stedene, med filter øverst
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "1.2.0";
+const KI_HYTTE_VERSJON = "1.3.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10445,6 +10446,17 @@ const KI_HYTTE_STIL = `
   .rad .d { font-size:12px; opacity:.6; }
   .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  /* stedsfilter i oppholdsfanen */
+  .stedfilter { display:flex; justify-content:center; }
+  .stedskinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+    max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .stedskinne::-webkit-scrollbar { display:none; }
+  .stedknapp { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:12.5px; font-weight:500;
+    padding:6px 13px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+  .stedknapp i { width:8px; height:8px; border-radius:3px; }
+  .stedknapp.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+  .stedmerke { font-size:10px; font-weight:700; padding:3px 7px; border-radius:6px; white-space:nowrap;
+    background:rgba(255,255,255,.09); }
 
   /* ---- statistikk ---- */
   .stolper { background:var(--gray200); border-radius:20px; padding:16px; display:grid; gap:10px; }
@@ -10480,7 +10492,7 @@ const kiHyDato = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
 const kiHyKort = (iso) => { const d = new Date(iso); return `${d.getDate()}. ${KI_HY_MND[d.getMonth()].slice(0, 3)}`; };
 
 class KiHytteCard extends HTMLElement {
-  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "kalender"; this._mnd = 0; }
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "kalender"; this._mnd = 0; this._sted = null; }
   static getConfigElement() { return document.createElement("ki-hytte-card-editor"); }
   static getStubConfig() { return {}; }
   getCardSize() { return 10; }
@@ -10561,16 +10573,54 @@ class KiHytteCard extends HTMLElement {
   }
 
   /* ---------------------------------------------------------- oppholdene */
+  /* Alle stedene under ett: leser alle oversiktssensorene fra KI Hyttebesøk */
+  _alleSteder() {
+    const h = this._h; if (!h) return [];
+    return Object.keys(h.states)
+      .filter((x) => {
+        const a = h.states[x].attributes || {};
+        return a.integrasjon === "ki_hyttebesok" && a.ki_type === "oversikt";
+      })
+      .map((x) => ({ id: x, ...h.states[x].attributes }))
+      .sort((a, b) => (a.rolle === "hjem" ? -1 : b.rolle === "hjem" ? 1 : String(a.sted).localeCompare(String(b.sted), "nb")));
+  }
+  _stedFarge2(sted) {
+    const alle = this._alleSteder();
+    const s = alle.find((x) => x.sted === sted);
+    if (s && s.rolle === "hjem") return "var(--green)";
+    const i = Math.max(0, alle.findIndex((x) => x.sted === sted));
+    return ["var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 4];
+  }
+
   _opphold(d) {
     const rad = (o, fremtid) => `<div class="rad">
       <span class="prikk" style="background:${kiHyEsc(this._farge(o.person, d))};margin:0">${kiHyEsc(String(o.person || "?").slice(0, 1))}</span>
-      <div><div class="n">${kiHyEsc(o.person)}</div>
+      <div><div class="n">${kiHyEsc(o.person)}${o.sted && this._sted === null && this._alleSteder().length > 1
+        ? ` <span class="stedmerke" style="color:${kiHyEsc(this._stedFarge2(o.sted))}">${kiHyEsc(o.sted)}</span>` : ""}</div>
         <div class="d">${kiHyKort(o.start)}${o.slutt !== o.start ? " – " + kiHyKort(o.slutt) : ""}${fremtid ? " · planlagt" : ""}</div></div>
       <div class="netter">${o.netter} ${o.netter === 1 ? "natt" : "netter"}</div>
     </div>`;
-    const kommende = (d.kommende || []).map((o) => rad(o, true)).join("");
-    const gamle = (d.opphold || []).map((o) => rad(o, false)).join("");
-    return `${kommende ? `<div><div class="hero" style="min-height:0;padding:12px 16px">
+    const alle = this._alleSteder();
+    const flere = this._c.alle_steder !== false && alle.length > 1;
+    /* uten filter er det bare dette stedet, ellers slås alle sammen */
+    const valgt = this._sted === undefined ? null : this._sted;
+    const kilder = flere ? (valgt ? alle.filter((x) => x.sted === valgt) : alle) : [d];
+    const merk = (liste, sted) => (liste || []).map((o) => ({ ...o, sted }));
+    const komm = kilder.flatMap((x) => merk(x.kommende, x.sted))
+      .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+    const hist = kilder.flatMap((x) => merk(x.opphold, x.sted))
+      .sort((a, b) => String(b.start).localeCompare(String(a.start))).slice(0, 40);
+
+    const filter = flere ? `<div class="stedfilter"><div class="stedskinne">
+      <button class="stedknapp ${valgt ? "" : "valgt"}" data-sted="">Alle</button>
+      ${alle.map((x) => `<button class="stedknapp ${valgt === x.sted ? "valgt" : ""}" data-sted="${kiHyEsc(x.sted)}">
+        <i style="background:${kiHyEsc(this._stedFarge2(x.sted))}"></i>${kiHyEsc(x.sted)}</button>`).join("")}
+    </div></div>` : "";
+
+    const kommende = komm.map((o) => rad(o, true)).join("");
+    const gamle = hist.map((o) => rad(o, false)).join("");
+    return `${filter}
+      ${kommende ? `<div><div class="hero" style="min-height:0;padding:12px 16px">
         <div class="tit"><ha-icon icon="mdi:calendar-arrow-right"></ha-icon>Planlagt framover</div></div></div>
       <div class="liste">${kommende}</div>` : ""}
       <div class="liste">${gamle || `<div class="tom">Ingen registrerte opphold ennå.</div>`}</div>`;
@@ -10706,6 +10756,9 @@ class KiHytteCard extends HTMLElement {
       else this._h.callService("ki_hyttebesok", "les_kalender", {});
     });
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-sted]").forEach((b) => b.addEventListener("click", () => {
+      this._sted = b.dataset.sted || null; this._forrige = null; this._tegn();
+    }));
     r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
       this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();
     }));
@@ -13217,30 +13270,50 @@ try {
  * tekst: Post leveres
  * path: '#post'             # valgfritt: trykk navigerer hit
  */
-const KI_POST_VERSJON = "1.1.0";
+const KI_POST_VERSJON = "2.0.0";
 
 const KI_POST_STIL = `
-  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
-    background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
-    display:grid; grid-template-areas:"dag ." "dato tekst"; grid-template-columns:min-content 1fr;
-    align-items:center; transition:background .4s var(--fjaer); }
-  .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
-  .kort.i_dag .dag { opacity:.75; }
-  .dato { grid-area:dato; font-size:2.6em; font-weight:300; line-height:1.05; white-space:nowrap;
-    padding-right:20px; font-variant-numeric:tabular-nums; }
-  .tekst { grid-area:tekst; min-width:0; }
-  .tekst .n { font-size:15px; font-weight:500; }
-  .tekst .u { font-size:13px; opacity:.6; margin-top:2px; }
-  .kort.i_dag .tekst .u { opacity:.75; }
-  .kasse { position:absolute; right:16px; top:50%; transform:translateY(-50%); width:74px; height:74px; opacity:.22; }
-  .kort.i_dag .kasse { opacity:.35; }
+    background:var(--gray200); color:var(--gray1000); padding:16px 18px; cursor:pointer;
+    display:grid; grid-template-columns:62px 1fr auto; gap:14px; align-items:center;
+    transition:background .5s var(--myk); }
+  .kort::before { content:""; position:absolute; inset:auto -30% -70% auto; width:70%; height:150%; z-index:-1;
+    border-radius:50%; background:radial-gradient(circle, var(--tone,#6ec6ff) 0%, transparent 68%); opacity:.16; }
+  .kort.i_dag { background:linear-gradient(120deg, #2a4a63 0%, #1f2f3e 60%); }
+  .kort.i_dag::before { opacity:.4; }
+
+  /* datoskive */
+  .skive { width:62px; height:62px; border-radius:50%; position:relative; display:grid; place-items:center;
+    background:var(--gray100); }
+  .skive .ring { position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(var(--tone,#6ec6ff) var(--p,0deg), transparent 0deg); opacity:.85; }
+  .skive .ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--gray200); }
+  .kort.i_dag .skive .ring::after { background:#22384a; }
+  .skive .tall { position:relative; text-align:center; line-height:1; }
+  .skive .d { font-size:21px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .skive .m { font-size:10.5px; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+  .tekst { min-width:0; }
+  .tekst .n { font-size:15.5px; font-weight:600; }
+  .tekst .u { font-size:13px; opacity:.6; margin-top:3px; display:flex; align-items:center; gap:7px; }
+  .kort.i_dag .tekst .u { opacity:.8; }
+  .pille { font-size:11px; font-weight:700; padding:3px 9px; border-radius:8px; white-space:nowrap;
+    background:rgba(255,255,255,.1); }
+  .kort.i_dag .pille { background:var(--tone,#6ec6ff); color:#10222e; }
+
+  .kasse { width:52px; height:52px; opacity:.55; }
+  .kort.i_dag .kasse { opacity:1; }
   .flagg { transform-box:fill-box; transform-origin:bottom left; }
-  .kort.i_dag .flagg { animation:po-flagg 2.6s ease-in-out infinite; }
-  @keyframes po-flagg { 0%,100% { transform:rotate(0deg); } 50% { transform:rotate(-16deg); } }
-  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  .kort.i_dag .flagg { animation:po-flagg 2.8s ease-in-out infinite; }
+  @keyframes po-flagg { 0%,100% { transform:rotate(0deg); } 50% { transform:rotate(-18deg); } }
+  .brev { opacity:0; transform-box:fill-box; }
+  .kort.i_dag .brev { animation:po-brev 3.6s ease-in-out infinite; }
+  @keyframes po-brev { 0% { opacity:0; transform:translate(-10px,6px); } 25% { opacity:1; }
+    60% { opacity:1; transform:translate(4px,-2px); } 100% { opacity:0; transform:translate(10px,-4px); } }
+
+  .tom { background:var(--gray200); border-radius:20px; padding:20px; text-align:center; font-size:13px; opacity:.6; }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
 `;
 
@@ -13308,18 +13381,26 @@ class KiPostCard extends HTMLElement {
     const ukedag = d.toLocaleDateString("nb-NO", { weekday: "long" });
     const under = rel || (diff === 0 ? "I dag" : diff === 1 ? "I morgen" : `om ${diff} dager`);
 
+    /* ringen fylles etter hvor nær leveringen er – full sirkel på dagen */
+    const grader = Math.max(0, Math.min(360, Math.round((1 - Math.min(diff, 7) / 7) * 360)));
     const html = `<style>${KI_POST_STIL}</style>
-      <div class="kort ${diff === 0 ? "i_dag" : ""}" role="button" tabindex="0">
+      <div class="kort ${diff === 0 ? "i_dag" : ""}" role="button" tabindex="0"
+        style="--tone:${kiPoEsc(c.farge || "#6ec6ff")}">
+        <div class="skive"><span class="ring" style="--p:${grader}deg"></span>
+          <span class="tall"><span class="d">${d.getDate()}</span><span class="m">${KI_PO_MND[d.getMonth()]}</span></span></div>
+        <div class="tekst">
+          <div class="n">${kiPoEsc(c.tekst)}</div>
+          <div class="u"><span>${kiPoEsc(ukedag)}</span><span class="pille">${kiPoEsc(under)}</span></div>
+        </div>
         <svg class="kasse" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
-          stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 28a10 10 0 0 1 20 0v18H12z" fill="currentColor" fill-opacity=".12"/>
-          <path d="M32 46h20V28a10 10 0 0 0-10-10H22"/>
-          <path d="M18 46v8"/>
-          <g class="flagg"><path d="M50 26v-12h8v7h-8"/></g>
+          stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 30a10 10 0 0 1 20 0v16H12z" fill="currentColor" fill-opacity=".14"/>
+          <path d="M32 46h20V30a10 10 0 0 0-10-10H22"/>
+          <path d="M18 46v9"/>
+          <g class="flagg"><path d="M50 28V16h8v7h-8"/></g>
+          <g class="brev"><rect x="24" y="30" width="16" height="11" rx="2" fill="currentColor" fill-opacity=".9" stroke="none"/>
+            <path d="M24 31l8 6 8-6" stroke="var(--gray200)" stroke-width="2"/></g>
         </svg>
-        <div class="dag">${kiPoEsc(ukedag)}</div>
-        <div class="dato">${d.getDate()}. ${KI_PO_MND[d.getMonth()]}</div>
-        <div class="tekst"><div class="n">${kiPoEsc(c.tekst)}</div><div class="u">${kiPoEsc(under)}</div></div>
       </div>`;
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
@@ -13374,7 +13455,7 @@ try {
  * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
  * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "2.0.0";
+const KI_BDP_VERSJON = "2.1.0";
 
 const KI_BDP_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -13383,7 +13464,23 @@ const KI_BDP_STIL = `
   .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
     background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
     display:grid; grid-template-areas:"dag ." "dato navn"; grid-template-columns:min-content 1fr; align-items:center; }
-  .kort.liten { padding:16px 20px; grid-template-areas:"dato navn dager"; grid-template-columns:min-content 1fr min-content; }
+  /* de mindre radene: datoskive, initial, navn og nedtelling */
+  .kort.liten { padding:14px 16px; display:grid; grid-template-areas:"skive navn dager";
+    grid-template-columns:56px 1fr auto; gap:14px; align-items:center; }
+  .skive { grid-area:skive; width:56px; height:56px; border-radius:50%; position:relative; display:grid;
+    place-items:center; background:var(--gray100); }
+  .skive .ring { position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(var(--tone,var(--active-big,#ee95ff)) var(--p,0deg), transparent 0deg); opacity:.9; }
+  .skive .ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--gray200); }
+  .skive .tall { position:relative; text-align:center; line-height:1; }
+  .skive .dd { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .skive .mm { font-size:10px; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .kort.liten .navn .n { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .kort.liten .navn .u { font-size:12.5px; opacity:.6; margin-top:2px; }
+  .initial { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11px;
+    font-weight:700; color:var(--black,#000); background:var(--tone,var(--active-big,#ee95ff)); flex:none; }
+  .kort.liten .dager { grid-area:dager; font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:9px;
+    background:rgba(255,255,255,.08); opacity:.9; white-space:nowrap; }
   .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
   .kort.i_dag .dag { opacity:.8; }
@@ -13605,22 +13702,38 @@ class KiBursdagProCard extends HTMLElement {
       return;
     }
     const folk = this._personer();
+    const farger = ["var(--active-big,#ee95ff)", "var(--blue)", "var(--yellow)", "var(--green)", "var(--orange)"];
     const kort = (p, i) => {
       const ukedag = p.dato.toLocaleDateString("nb-NO", { weekday: "long" });
       const under = p.alder ? `fyller ${p.alder} år` : "bursdag";
       const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen" : `om ${p.dager} dager`;
-      return `<div class="kort ${i ? "liten" : ""} ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
-        ${i ? "" : `<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
+      const tone = farger[i % farger.length];
+      if (i) {
+        /* ringen fylles jo nærmere dagen kommer – hel sirkel på selve dagen */
+        const grader = Math.max(0, Math.min(360, Math.round((1 - Math.min(p.dager, 60) / 60) * 360)));
+        return `<div class="kort liten ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}"
+          role="button" tabindex="0" style="--tone:${tone}">
+          <div class="skive"><span class="ring" style="--p:${grader}deg"></span>
+            <span class="tall"><span class="dd">${p.dato.getDate()}</span>
+              <span class="mm">${KI_BD_MND[p.dato.getMonth()]}</span></span></div>
+          <div class="navn">
+            <div class="n"><span class="initial">${kiBdEsc(p.navn.slice(0, 1))}</span>${kiBdEsc(p.navn)}</div>
+            <div class="u">${kiBdEsc(under)} · ${kiBdEsc(ukedag)}</div>
+          </div>
+          <div class="dager">${kiBdEsc(naar)}</div>
+        </div>`;
+      }
+      return `<div class="kort ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
+        ${`<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
             stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 52V38a6 6 0 0 1 6-6h28a6 6 0 0 1 6 6v14z" fill="currentColor" fill-opacity=".12"/>
             <path d="M10 52h44M32 32V22"/>
             <g class="flamme"><path d="M32 20c3-3 1-6 0-7-1 1-3 4 0 7z" fill="currentColor"/></g>
             <path d="M20 32v-8M44 32v-8" opacity=".5"/>
           </svg>`}
-        ${i ? "" : `<div class="dag">${kiBdEsc(ukedag)}</div>`}
+        <div class="dag">${kiBdEsc(ukedag)}</div>
         <div class="dato">${p.dato.getDate()}. ${KI_BD_MND[p.dato.getMonth()]}</div>
         <div class="navn"><div class="n">${kiBdEsc(p.navn)}</div><div class="u">${kiBdEsc(under)}</div></div>
-        ${i ? `<div class="dager">${kiBdEsc(naar)}</div>` : ""}
       </div>`;
     };
     const nyKnapp = c.kalender && c.legg_til !== false

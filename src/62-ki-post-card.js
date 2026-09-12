@@ -7,30 +7,50 @@
  * tekst: Post leveres
  * path: '#post'             # valgfritt: trykk navigerer hit
  */
-const KI_POST_VERSJON = "1.1.0";
+const KI_POST_VERSJON = "2.0.0";
 
 const KI_POST_STIL = `
-  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
-    background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
-    display:grid; grid-template-areas:"dag ." "dato tekst"; grid-template-columns:min-content 1fr;
-    align-items:center; transition:background .4s var(--fjaer); }
-  .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
-  .kort.i_dag .dag { opacity:.75; }
-  .dato { grid-area:dato; font-size:2.6em; font-weight:300; line-height:1.05; white-space:nowrap;
-    padding-right:20px; font-variant-numeric:tabular-nums; }
-  .tekst { grid-area:tekst; min-width:0; }
-  .tekst .n { font-size:15px; font-weight:500; }
-  .tekst .u { font-size:13px; opacity:.6; margin-top:2px; }
-  .kort.i_dag .tekst .u { opacity:.75; }
-  .kasse { position:absolute; right:16px; top:50%; transform:translateY(-50%); width:74px; height:74px; opacity:.22; }
-  .kort.i_dag .kasse { opacity:.35; }
+    background:var(--gray200); color:var(--gray1000); padding:16px 18px; cursor:pointer;
+    display:grid; grid-template-columns:62px 1fr auto; gap:14px; align-items:center;
+    transition:background .5s var(--myk); }
+  .kort::before { content:""; position:absolute; inset:auto -30% -70% auto; width:70%; height:150%; z-index:-1;
+    border-radius:50%; background:radial-gradient(circle, var(--tone,#6ec6ff) 0%, transparent 68%); opacity:.16; }
+  .kort.i_dag { background:linear-gradient(120deg, #2a4a63 0%, #1f2f3e 60%); }
+  .kort.i_dag::before { opacity:.4; }
+
+  /* datoskive */
+  .skive { width:62px; height:62px; border-radius:50%; position:relative; display:grid; place-items:center;
+    background:var(--gray100); }
+  .skive .ring { position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(var(--tone,#6ec6ff) var(--p,0deg), transparent 0deg); opacity:.85; }
+  .skive .ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--gray200); }
+  .kort.i_dag .skive .ring::after { background:#22384a; }
+  .skive .tall { position:relative; text-align:center; line-height:1; }
+  .skive .d { font-size:21px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .skive .m { font-size:10.5px; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+  .tekst { min-width:0; }
+  .tekst .n { font-size:15.5px; font-weight:600; }
+  .tekst .u { font-size:13px; opacity:.6; margin-top:3px; display:flex; align-items:center; gap:7px; }
+  .kort.i_dag .tekst .u { opacity:.8; }
+  .pille { font-size:11px; font-weight:700; padding:3px 9px; border-radius:8px; white-space:nowrap;
+    background:rgba(255,255,255,.1); }
+  .kort.i_dag .pille { background:var(--tone,#6ec6ff); color:#10222e; }
+
+  .kasse { width:52px; height:52px; opacity:.55; }
+  .kort.i_dag .kasse { opacity:1; }
   .flagg { transform-box:fill-box; transform-origin:bottom left; }
-  .kort.i_dag .flagg { animation:po-flagg 2.6s ease-in-out infinite; }
-  @keyframes po-flagg { 0%,100% { transform:rotate(0deg); } 50% { transform:rotate(-16deg); } }
-  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  .kort.i_dag .flagg { animation:po-flagg 2.8s ease-in-out infinite; }
+  @keyframes po-flagg { 0%,100% { transform:rotate(0deg); } 50% { transform:rotate(-18deg); } }
+  .brev { opacity:0; transform-box:fill-box; }
+  .kort.i_dag .brev { animation:po-brev 3.6s ease-in-out infinite; }
+  @keyframes po-brev { 0% { opacity:0; transform:translate(-10px,6px); } 25% { opacity:1; }
+    60% { opacity:1; transform:translate(4px,-2px); } 100% { opacity:0; transform:translate(10px,-4px); } }
+
+  .tom { background:var(--gray200); border-radius:20px; padding:20px; text-align:center; font-size:13px; opacity:.6; }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
 `;
 
@@ -98,18 +118,26 @@ class KiPostCard extends HTMLElement {
     const ukedag = d.toLocaleDateString("nb-NO", { weekday: "long" });
     const under = rel || (diff === 0 ? "I dag" : diff === 1 ? "I morgen" : `om ${diff} dager`);
 
+    /* ringen fylles etter hvor nær leveringen er – full sirkel på dagen */
+    const grader = Math.max(0, Math.min(360, Math.round((1 - Math.min(diff, 7) / 7) * 360)));
     const html = `<style>${KI_POST_STIL}</style>
-      <div class="kort ${diff === 0 ? "i_dag" : ""}" role="button" tabindex="0">
+      <div class="kort ${diff === 0 ? "i_dag" : ""}" role="button" tabindex="0"
+        style="--tone:${kiPoEsc(c.farge || "#6ec6ff")}">
+        <div class="skive"><span class="ring" style="--p:${grader}deg"></span>
+          <span class="tall"><span class="d">${d.getDate()}</span><span class="m">${KI_PO_MND[d.getMonth()]}</span></span></div>
+        <div class="tekst">
+          <div class="n">${kiPoEsc(c.tekst)}</div>
+          <div class="u"><span>${kiPoEsc(ukedag)}</span><span class="pille">${kiPoEsc(under)}</span></div>
+        </div>
         <svg class="kasse" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
-          stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 28a10 10 0 0 1 20 0v18H12z" fill="currentColor" fill-opacity=".12"/>
-          <path d="M32 46h20V28a10 10 0 0 0-10-10H22"/>
-          <path d="M18 46v8"/>
-          <g class="flagg"><path d="M50 26v-12h8v7h-8"/></g>
+          stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 30a10 10 0 0 1 20 0v16H12z" fill="currentColor" fill-opacity=".14"/>
+          <path d="M32 46h20V30a10 10 0 0 0-10-10H22"/>
+          <path d="M18 46v9"/>
+          <g class="flagg"><path d="M50 28V16h8v7h-8"/></g>
+          <g class="brev"><rect x="24" y="30" width="16" height="11" rx="2" fill="currentColor" fill-opacity=".9" stroke="none"/>
+            <path d="M24 31l8 6 8-6" stroke="var(--gray200)" stroke-width="2"/></g>
         </svg>
-        <div class="dag">${kiPoEsc(ukedag)}</div>
-        <div class="dato">${d.getDate()}. ${KI_PO_MND[d.getMonth()]}</div>
-        <div class="tekst"><div class="n">${kiPoEsc(c.tekst)}</div><div class="u">${kiPoEsc(under)}</div></div>
       </div>`;
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;

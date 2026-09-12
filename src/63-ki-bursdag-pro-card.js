@@ -14,7 +14,7 @@
  * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
  * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "2.0.0";
+const KI_BDP_VERSJON = "2.1.0";
 
 const KI_BDP_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -23,7 +23,23 @@ const KI_BDP_STIL = `
   .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
     background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
     display:grid; grid-template-areas:"dag ." "dato navn"; grid-template-columns:min-content 1fr; align-items:center; }
-  .kort.liten { padding:16px 20px; grid-template-areas:"dato navn dager"; grid-template-columns:min-content 1fr min-content; }
+  /* de mindre radene: datoskive, initial, navn og nedtelling */
+  .kort.liten { padding:14px 16px; display:grid; grid-template-areas:"skive navn dager";
+    grid-template-columns:56px 1fr auto; gap:14px; align-items:center; }
+  .skive { grid-area:skive; width:56px; height:56px; border-radius:50%; position:relative; display:grid;
+    place-items:center; background:var(--gray100); }
+  .skive .ring { position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(var(--tone,var(--active-big,#ee95ff)) var(--p,0deg), transparent 0deg); opacity:.9; }
+  .skive .ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--gray200); }
+  .skive .tall { position:relative; text-align:center; line-height:1; }
+  .skive .dd { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .skive .mm { font-size:10px; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .kort.liten .navn .n { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .kort.liten .navn .u { font-size:12.5px; opacity:.6; margin-top:2px; }
+  .initial { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11px;
+    font-weight:700; color:var(--black,#000); background:var(--tone,var(--active-big,#ee95ff)); flex:none; }
+  .kort.liten .dager { grid-area:dager; font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:9px;
+    background:rgba(255,255,255,.08); opacity:.9; white-space:nowrap; }
   .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
   .kort.i_dag .dag { opacity:.8; }
@@ -245,22 +261,38 @@ class KiBursdagProCard extends HTMLElement {
       return;
     }
     const folk = this._personer();
+    const farger = ["var(--active-big,#ee95ff)", "var(--blue)", "var(--yellow)", "var(--green)", "var(--orange)"];
     const kort = (p, i) => {
       const ukedag = p.dato.toLocaleDateString("nb-NO", { weekday: "long" });
       const under = p.alder ? `fyller ${p.alder} år` : "bursdag";
       const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen" : `om ${p.dager} dager`;
-      return `<div class="kort ${i ? "liten" : ""} ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
-        ${i ? "" : `<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
+      const tone = farger[i % farger.length];
+      if (i) {
+        /* ringen fylles jo nærmere dagen kommer – hel sirkel på selve dagen */
+        const grader = Math.max(0, Math.min(360, Math.round((1 - Math.min(p.dager, 60) / 60) * 360)));
+        return `<div class="kort liten ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}"
+          role="button" tabindex="0" style="--tone:${tone}">
+          <div class="skive"><span class="ring" style="--p:${grader}deg"></span>
+            <span class="tall"><span class="dd">${p.dato.getDate()}</span>
+              <span class="mm">${KI_BD_MND[p.dato.getMonth()]}</span></span></div>
+          <div class="navn">
+            <div class="n"><span class="initial">${kiBdEsc(p.navn.slice(0, 1))}</span>${kiBdEsc(p.navn)}</div>
+            <div class="u">${kiBdEsc(under)} · ${kiBdEsc(ukedag)}</div>
+          </div>
+          <div class="dager">${kiBdEsc(naar)}</div>
+        </div>`;
+      }
+      return `<div class="kort ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
+        ${`<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
             stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 52V38a6 6 0 0 1 6-6h28a6 6 0 0 1 6 6v14z" fill="currentColor" fill-opacity=".12"/>
             <path d="M10 52h44M32 32V22"/>
             <g class="flamme"><path d="M32 20c3-3 1-6 0-7-1 1-3 4 0 7z" fill="currentColor"/></g>
             <path d="M20 32v-8M44 32v-8" opacity=".5"/>
           </svg>`}
-        ${i ? "" : `<div class="dag">${kiBdEsc(ukedag)}</div>`}
+        <div class="dag">${kiBdEsc(ukedag)}</div>
         <div class="dato">${p.dato.getDate()}. ${KI_BD_MND[p.dato.getMonth()]}</div>
         <div class="navn"><div class="n">${kiBdEsc(p.navn)}</div><div class="u">${kiBdEsc(under)}</div></div>
-        ${i ? `<div class="dager">${kiBdEsc(naar)}</div>` : ""}
       </div>`;
     };
     const nyKnapp = c.kalender && c.legg_til !== false
