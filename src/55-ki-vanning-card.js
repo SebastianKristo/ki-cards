@@ -908,7 +908,11 @@ class KiVanningCard extends HTMLElement {
       const pl = finnPlan(x.navn);
       const ventilProg = !x.bryter;
       const gaar = ventilProg ? !!(ki && ki.planlegger && ki.planlegger.program === x.navn) : this._on(x.gaar);
-      const pa = ventilProg ? o.aktiv !== false : this._on(x.bryter);
+      const venter = (this._venter || {})[x.navn];
+      const ventende = venter && venter.til > Date.now() ? venter.aktiv : null;
+      const fra_sensor = ventilProg ? o.aktiv !== false : this._on(x.bryter);
+      if (venter && (venter.til <= Date.now() || fra_sensor === venter.aktiv)) delete this._venter[x.navn];
+      const pa = ventende === null ? fra_sensor : ventende;
       const tid = o.tid || (this._st(x.start) ? String(this._st(x.start).state).slice(0, 5) : "––:––");
       const soner = (o.soner && o.soner.length ? o.soner : (pl && pl.soner) || []).map((z) => ({
         navn: z.navn || (this._soner().find((y) => y.bryter === z.entity) || {}).navn || z.entity,
@@ -1129,11 +1133,22 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-pa]").forEach((el) => {
       const slaa = () => {
         const bryter = el.dataset.bryter;
-        if (bryter) return this._veksle(bryter);          /* OpenSprinkler: egen bryter */
+        if (bryter) {
+          /* OpenSprinkler: egen bryter – vis endringen med en gang */
+          el.classList.toggle("pa");
+          return this._veksle(bryter);
+        }
         const navn = el.dataset.pa;
         const ki = this._ki();
         const o = ((ki && ki.program_historikk) || []).find((x) => x.navn === navn) || {};
-        this._ki_tjeneste("lag_program", { ...o, navn, aktiv: o.aktiv === false });
+        const ny = o.aktiv === false;                     /* nå slås det motsatte på */
+        /* Sensoren oppdateres først ved neste koordinatorrunde, så vi viser
+           den nye stillingen selv og husker den til oversikten har tatt den. */
+        this._venter = this._venter || {};
+        this._venter[navn] = { aktiv: ny, til: Date.now() + 20000 };
+        el.classList.toggle("pa", ny);
+        el.setAttribute("aria-checked", String(ny));
+        this._ki_tjeneste("lag_program", { ...o, navn, aktiv: ny });
       };
       el.addEventListener("click", (e) => { e.stopPropagation(); slaa(); });
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); slaa(); } });

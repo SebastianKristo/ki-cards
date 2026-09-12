@@ -47,6 +47,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebes-k): månedskalender, opphold og statistikk |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fremover-card.svg" width="28" align="absmiddle"> | `ki-fremover-card` | KI Framover | Kommende hendelser fra kalenderne, gruppert per dag med filter per kalender |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-lansering-card.svg" width="28" align="absmiddle"> | `ki-lansering-card` | KI Lansering | Kommende episoder og filmer fra Sonarr og Radarr, med plakat og bakgrunnsbilde |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-jul-card.svg" width="28" align="absmiddle"> | `ki-jul-card` | KI Jul | Julelys, nedtelling til julaften og sesongstyring |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-post-card.svg" width="28" align="absmiddle"> | `ki-post-card` | KI Post | Når posten kommer |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-pro-card.svg" width="28" align="absmiddle"> | `ki-bursdag-pro-card` | KI Bursdag Pro | Bursdager i kalenderkort-stil |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
@@ -329,6 +330,21 @@ path: '#soppel'
 Samme oppsett som før – stort tall til venstre, tekst og avfallstype til høyre – men typen får en fargeprikk
 etter hva som hentes (rest, mat, papp, plast, glass, hage, farlig avfall). På selve tømmedagen fargelegges
 kortet, tallet puster, dunken rister og en søppelbil kjører over bunnen med eksos ut av røret.
+
+### ki-jul-card
+```yaml
+type: custom:ki-jul-card
+faner: [lys, automasjon]
+# nedtelling: sensor.ki_jul_nedtelling   # finnes automatisk
+# automasjoner:                          # ellers finner kortet dem selv
+#   - {entity: automation.julelys_sla_pa_1_november, navn: Slå på, under: 1. november}
+```
+Julelysene fra [KI Lys](https://github.com/SebastianKristo/ki-lys). Øverst et nedtellingskort med dager til
+julaften, stripet framdriftslinje og snø som daler i sesongen. Under: sesongflis som tenner og slukker alt,
+en flis med hvor mange lys som står på, og knappene «Alle av» og «Alle på».
+
+Lys-fanen grupperer lysene i julestjerner, julestaker og utendørs, med en pillerad per lys – gul når den står
+på. Automasjon-fanen viser juleautomasjonene med av/på.
 
 ### ki-lansering-card
 ```yaml
