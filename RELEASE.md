@@ -1,7 +1,10 @@
 ## Rettet
 
-**ki-vanning-card 4.2.0**
-- Anleggsknappen viser nå «Anlegget på» eller «Anlegget av», bytter ikon mellom power og power-off, og lyser opp når anlegget står på. Teksten får bryte, så den ikke klippes
-- Knappen leser hovedbryteren fra KI Vanning i ventilmodus i stedet for OpenSprinklers «enabled»
-- Regnpausen ble hengende til man gikk ut og inn av popupen. Regnpause, hovedbryter og planleggerens tilstand ligger i attributtene på oversiktssensoren, og de endrer seg uten at entitetsobjektet byttes ut – nå sammenlignes de direkte, så kortet tegner seg om med en gang
-- Faneskinna er større: 15 px tekst og 9 × 22 px innhold, som i de andre kortene
+**ki-planter-pro-card**
+- Scenen manglet luft under seg fordi faneskinna og plantelista havnet inni scene-boksen – en `</div>` på feil sted. Nå ligger de som søsken igjen, med 14 px mellom scene, Enkel/Avansert og plantelista
+
+## Endret
+
+**ki-vanning-card 4.3.0**
+- «Mer» er ute av fanerekka og ligger bak et tannhjul øverst til høyre i scenen. Trykk åpner innstillingene som et overlegg over bildet, med kryss for å lukke. Innholdet holdes oppdatert mens det står åpent
+- Fanerekka er dermed kortere: Nå, Soner, Programmer og Forbruk

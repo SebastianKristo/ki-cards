@@ -28,16 +28,17 @@
       const forkl = due.length ? due.map(p => p.name).join(", ") + " trenger vann" + (next ? ` · neste: ${next.name} ${next.txt.toLowerCase()}` : "") : next ? `Neste: ${next.name} ${next.txt.toLowerCase()}` : "Legg til planter i KI Planter.";
       const okPct = ps.length ? ((ps.length - due.length) / ps.length) * 100 : 0;
       this.shadowRoot.innerHTML = `<style>${KI.pro}
-        /* scenen står tettere enn ringraden gjorde – gi den litt mer luft */
-        .wrap > .scene-hero { margin-bottom:14px; }
-        .wrap > .scene-hero ~ .switch { margin-bottom:14px; }
+        /* scenen er tettere enn ringraden – litt mer luft mellom delene */
+        .wrap { gap:14px; }
+        .wrap > .scene-hero { margin:0; }
         .wrap > .scene-hero ki-plante-scene-card { display:block; }
+        .wrap > .switch { margin:0; }
       </style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         ${c.scene && customElements.get("ki-plante-scene-card")
           ? `<div class="scene-hero"></div>`
           : `<div class="hero">${KI.ringHtml(okPct, `${ps.length - due.length}<span>/${ps.length}</span>`, !ps.length ? "av" : due.length ? "rod" : "", ps[0] && ps[0].entity)}
-          <div><div class="hero-navn">${KI.esc(navn)}${ps.some(p => (this.st(p.entity) || { attributes: {} }).attributes.grunn === "test") ? ` <span class="merke gul">test</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div>`}</div>
+            <div><div class="hero-navn">${KI.esc(navn)}${ps.some(p => (this.st(p.entity) || { attributes: {} }).attributes.grunn === "test") ? ` <span class="merke gul">test</span>` : ""}</div><div class="hero-forklaring">${KI.esc(forkl)}</div></div></div>`}
         <div class="switch" role="tablist"><div class="switch-valg ${!adv ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${adv ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
         <div class="blokk"><div class="blokk-hode"><span>Planter</span><span class="blokk-sub">${ps[0] && ps[0].sesong ? ({ vinter: "❄ vinterhvile", vekst: "🌱 vekstsesong", "høysommer": "☀ høysommer", sommer: "☀ sommer" }[ps[0].sesong] || ps[0].sesong) + (ps[0].dagl ? ` · ${ps[0].dagl} t dag` : "") : ""}</span></div>
           ${ps.length ? ps.map(p => this._plant(p, adv)).join("") : `<div class="tom">Fant ingen planter fra <b>KI Planter</b>. Legg til integrasjonen med et sted og plantene dine.</div>`}

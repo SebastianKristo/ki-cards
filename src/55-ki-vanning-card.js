@@ -115,6 +115,20 @@ const KI_VANN_STIL = `
   .hk ha-icon { color:var(--hk-farge, inherit); }
 
   /* ---- faner ---- */
+  /* tannhjulet i hjørnet av scenen – åpner innstillingene */
+  .cog { position:absolute; right:14px; top:14px; z-index:4; width:38px; height:38px; border:0; border-radius:50%;
+    background:rgba(0,0,0,.35); backdrop-filter:blur(6px); color:#fff; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:21px; transition:transform .2s var(--fjaer); }
+  .cog:active { transform:scale(.92) rotate(25deg); }
+  .innlag { position:absolute; inset:0; z-index:5; border-radius:var(--ha-card-border-radius,24px);
+    background:rgba(12,16,14,.94); backdrop-filter:blur(8px); padding:16px; overflow:auto;
+    animation:va-inn .25s var(--myk, ease); }
+  @keyframes va-inn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .innlag .tittelrad { display:flex; align-items:center; justify-content:space-between; padding-bottom:10px; }
+  .innlag .tittelrad b { font-size:16px; font-weight:600; }
+  .innlag .lukk { border:0; background:rgba(255,255,255,.12); color:#fff; width:32px; height:32px;
+    border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:19px; }
+
   .faner { display:flex; justify-content:center; }
   .skinne { display:inline-flex; gap:4px; padding:3px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
   .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:15px; font-weight:500;
@@ -616,7 +630,10 @@ class KiVanningCard extends HTMLElement {
 
   /* ---------- oppbygging ---------- */
   _bygg() {
-    const c = this._c, faner = c.faner;
+    const c = this._c;
+    /* «Mer» ligger nå bak tannhjulet i hjørnet, ikke som egen fane */
+    const faner = (c.faner || []).filter((f) => f !== "innstillinger");
+    const harMer = (c.faner || []).includes("innstillinger");
     const kiNa = this._ki();
     const anleggId = this._ventilmodus() ? this._kiEnt("anlegg") : null;
     const anleggPa = anleggId ? this._on(anleggId)
@@ -634,8 +651,10 @@ class KiVanningCard extends HTMLElement {
           <div class="ic"><ha-icon icon="mdi:sprinkler-variant"></ha-icon></div>
           <div class="n"></div><div class="l"></div><div class="t"></div>
           <div class="strek"><i></i></div>
+          ${harMer ? `<button class="cog" data-cog="1" title="Innstillinger"><ha-icon icon="mdi:cog"></ha-icon></button>` : ""}
         </div>` : `<div class="scene" role="button" tabindex="0">
           ${kiVaScene()}
+          ${harMer ? `<button class="cog" data-cog="1" title="Innstillinger"><ha-icon icon="mdi:cog"></ha-icon></button>` : ""}
           <div class="tekst"><div class="tittel"></div><div class="under"></div></div>
           <div class="ned"></div>
           ${c.demo ? `<div class="demo">DEMO</div>` : ""}
@@ -655,10 +674,14 @@ class KiVanningCard extends HTMLElement {
         ${faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${faner.map((f) =>
           `<button class="fane ${f === this._fane ? "valgt" : ""}" role="tab" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
         ${faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}"></div>`).join("")}
+        ${harMer ? `<div class="panel" data-p="innstillinger" hidden></div>` : ""}
       </div>`;
 
     const r = this.shadowRoot;
-    r.querySelector(".hero, .scene").addEventListener("click", () => {
+    const cog = r.querySelector("[data-cog]");
+    if (cog) cog.addEventListener("click", (e) => { e.stopPropagation(); this._apneInnstillinger(); });
+    r.querySelector(".hero, .scene").addEventListener("click", (e) => {
+      if (e.target.closest("[data-cog]")) return;
       const z = this._aktivSone();
       if (z) this._stopp(z.bryter); else this._mer(this._styring().aktiv);
     });
@@ -1128,6 +1151,34 @@ class KiVanningCard extends HTMLElement {
       : z ? "vanner nå" : "";
   }
 
+  /* Innstillingene som overlegg over scenen */
+  _apneInnstillinger() {
+    const r = this.shadowRoot;
+    const vert = r.querySelector(".hero, .scene");
+    if (!vert || r.querySelector(".innlag")) return;
+    if (navigator.vibrate) navigator.vibrate(8);
+    const lag = document.createElement("div");
+    lag.className = "innlag";
+    lag.innerHTML = `<div class="tittelrad"><b>Innstillinger</b>
+        <button class="lukk"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      <div class="innhold">${this._panelInnstillinger()}</div>`;
+    vert.appendChild(lag);
+    const lukk = () => lag.remove();
+    lag.querySelector(".lukk").addEventListener("click", (e) => { e.stopPropagation(); lukk(); });
+    lag.addEventListener("click", (e) => e.stopPropagation());
+    this._koblInnstillinger(lag);
+  }
+
+  /* radene i overlegget gjør det samme som i fanen gjorde */
+  _koblInnstillinger(rot) {
+    rot.querySelectorAll("[data-inn]").forEach((el) => el.addEventListener("click", () => {
+      const id = el.dataset.inn, type = el.dataset.type;
+      if (type === "bryter") this._veksle(id);
+      else if (type === "knapp") this._h.callService("button", "press", { entity_id: id });
+      else this._mer(id);
+    }));
+  }
+
   _tegnResten(r, c, s) {
     const vk = r.querySelector('[data-h="vinter"]');
     if (vk) {
@@ -1149,7 +1200,9 @@ class KiVanningCard extends HTMLElement {
     if (c.faner.includes("soner")) sett("soner", this._panelSoner());
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
     if (c.faner.includes("forbruk")) sett("forbruk", this._panelForbruk());
-    if (c.faner.includes("innstillinger")) sett("innstillinger", this._panelInnstillinger());
+    /* innstillingene ligger i overlegget – hold det oppdatert hvis det er åpent */
+    const lag = r.querySelector(".innlag .innhold");
+    if (lag) { lag.innerHTML = this._panelInnstillinger(); this._koblInnstillinger(lag); }
     r.querySelectorAll(".fane").forEach((b) => b.classList.toggle("valgt", b.dataset.f === this._fane));
     r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
 
