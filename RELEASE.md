@@ -1,7 +1,9 @@
 ## Endret
 
-**ki-media-card 1.7.0**
-- Hero-kortet: knappen ved siden av «neste» er nå av/på for spilleren, ikke play/pause
-- Kontrollkortet: midtknappen mellom forrige og neste er play/pause igjen. `spillknapp: av_pa` gir strømknappen der i stedet
-- Volumraden er bygget om til samme form som i media-delen av `ki-rom-card`: etiketten «Volum» til venstre — trykk for å dempe, den bytter til «Dempet» — tynt spor med lilla fyll, og prosenten til høyre
-- Mer luft mellom kortet og prikkene under sveipet
+**ki-media-card 1.7.1**
+- Volumraden står nå rett på popup-bakgrunnen uten egen kortflate, og sporet er tonet rosa hele veien – fylt del i full farge, resten i en svak variant av samme
+- (Fra 1.7.0: midtknappen i kontrollkortet er play/pause, hero-kortet har av/på, og prikkene har fått luft)
+
+## Merk
+
+Gruppeknappen «Oppe» kommer fra `grupper:` i kortkonfigurasjonen. Fjern den linja for å bli kvitt seksjonen – den nye media-popupen har den ute.

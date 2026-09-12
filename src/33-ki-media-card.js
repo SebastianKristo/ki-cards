@@ -20,7 +20,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.7.0";
+const KI_MEDIA_VERSJON = "1.7.1";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -165,8 +165,9 @@ const KI_MEDIA_STIL = `
   .prikker i.valgt { opacity:.95; transform:scale(1.15); }
   .mangler-side { display:flex; align-items:center; justify-content:center; height:180px; border-radius:24px;
     background:var(--gray200); color:var(--gray1000); font-size:13px; opacity:.7; text-align:center; padding:20px; }
+  /* står rett på popup-bakgrunnen, uten egen kortflate */
   .volum { display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center;
-    background:var(--gray200); border-radius:18px; padding:14px 18px; }
+    background:none; border-radius:0; padding:10px 4px; }
   .vnavn { font-size:14px; font-weight:500; opacity:.85; white-space:nowrap; }
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
@@ -177,7 +178,8 @@ const KI_MEDIA_STIL = `
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
-    background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), var(--gray100) var(--p,0%) 100%); }
+    background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%),
+      color-mix(in srgb, var(--active-big,#ee95ff) 24%, transparent) var(--p,0%) 100%); }
   .vnavn:active { opacity:.6; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
     background:var(--gray1000); border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
