@@ -13,7 +13,7 @@
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "3.3.0";
+const KI_VANN_VERSJON = "3.4.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -116,8 +116,8 @@ const KI_VANN_STIL = `
   /* ---- faner ---- */
   .faner { display:flex; justify-content:center; }
   .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
-    padding:7px 16px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
+    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
@@ -450,10 +450,19 @@ class KiVanningCard extends HTMLElement {
     const S = this._states; if (!S) return null;
     this._kiEntCache = this._kiEntCache || {};
     if (this._kiEntCache[type] !== undefined) return this._kiEntCache[type];
-    const treff = Object.keys(S).find((id) => {
+    let treff = Object.keys(S).find((id) => {
       const a = S[id].attributes || {};
       return a.integrasjon === "ki_vanning" && a.ki_type === type;
     }) || null;
+    /* uten markøren (integrasjonen ikke lastet på nytt ennå) gjenkjennes de på navnet */
+    if (!treff) {
+      const moenster = {
+        vannpris: /^number\..*vannpris/, ferie_faktor: /^number\..*(ferie|lengre)/,
+        ferie: /^switch\..*ferie/, hent_plan: /^button\..*(hent|plan)/,
+        nullstill_forbruk: /^button\..*nullstill_forbruk/, nullstill_kalibrering: /^button\..*nullstill_kalibrering/,
+      }[type];
+      if (moenster) treff = Object.keys(S).find((id) => moenster.test(id) && /ki_vanning|vanning/.test(id)) || null;
+    }
     this._kiEntCache[type] = treff;
     return treff;
   }

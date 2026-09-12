@@ -1,4 +1,4 @@
-/* ki-cards v2.77.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.79.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.77.0";
+  KI.VERSION = "2.79.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -769,7 +769,11 @@ try {
       r.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", +p.dataset.i === i));
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
-      KI.fire(this, "ki-tab-changed", { index: i });
+      /* andre kort kan følge fanevalget – sendes både oppover og på window */
+      const t = (this._config.tabs || [])[i] || {};
+      const detalj = { index: i, title: t.title || "", id: this._config.id || "" };
+      KI.fire(this, "ki-tab-changed", detalj);
+      window.dispatchEvent(new CustomEvent("ki-tab-changed", { detail: detalj }));
     }
     getCardSize() { return 4; }
   }
@@ -1366,7 +1370,10 @@ try {
  *
  * type: custom:ki-media-card
  * media: media_player.squeezebox_radio      # eller en liste: den som spiller velges automatisk
- * visning: full            # full (alt) | stor (180 px hero) | naa (bare topplinja)
+ * visning: full            # full (alt) | stor (180 px hero) | naa (topplinja) | kontroll (uten topplinje)
+ * fane_media:              # bytter spiller etter hvilken fane i ki-tabs-card som er valgt
+ *   Tv: media_player.stue_tv
+ *   Musikk: media_player.squeezebox_radio
  * radio: [{navn: NRK P1, skript: script.nrk_p1}]
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
@@ -1375,7 +1382,7 @@ try {
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.2.0";
+const KI_MEDIA_VERSJON = "1.3.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1544,8 +1551,12 @@ class KiMediaCard extends HTMLElement {
   getGridOptions() { return this._c && this._c.visning === "stor" ? { columns: 12, rows: 3, min_rows: 3 } : undefined; }
 
   setConfig(c) {
-    if (!c || !c.media) throw new Error("Sett media: til mediaspilleren");
+    if (!c || (!c.media && !c.fane_media)) throw new Error("Sett media: til mediaspilleren");
     this._c = { visning: "full", ikon: "mdi:speaker", ...c };
+    if (this._c.fane_media && !this._c.media) {
+      /* uten «media» starter kortet på den første fanen i kartet */
+      this._c.media = Object.values(this._c.fane_media)[0];
+    }
     this._spillere = (Array.isArray(c.media) ? c.media : [c.media]).filter(Boolean);
     this._radio = (c.radio || []).map((r) => typeof r === "string" ? { navn: r } : r);
     this._bygget = false; this._oppdater();
@@ -1557,8 +1568,28 @@ class KiMediaCard extends HTMLElement {
     if (!g || !this._bygget || ids.some((id) => g.states[id] !== h.states[id])) this._oppdater();
   }
   get hass() { return this._h; }
-  connectedCallback() { this._start(); if (this._bygget) this._oppdater(); }
-  disconnectedCallback() { clearInterval(this._ur); }
+  /* Følger fanevalget i ki-tabs-card: {Tv: media_player.stue_tv, Musikk: media_player.sonos} */
+  _fanelytter() {
+    if (this._faneAv || !this._c.fane_media) return;
+    this._faneAv = (e) => {
+      const d = (e && e.detail) || {};
+      const kart = this._c.fane_media || {};
+      const rens = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const treff = Object.keys(kart).find((k) => rens(k) === rens(d.title))
+        || (d.index !== undefined ? Object.keys(kart)[d.index] : null);
+      const ny = treff ? kart[treff] : null;
+      if (!ny || ny === this._valgtFane) return;
+      this._valgtFane = ny;
+      this._spillere = [ny];
+      this._bygget = false;
+      if (this._h) { this._bygg(); this._oppdater(); }
+    };
+    window.addEventListener("ki-tab-changed", this._faneAv);
+  }
+
+  connectedCallback() { this._start(); this._fanelytter(); if (this._bygget) this._oppdater(); }
+  disconnectedCallback() {
+    if (this._faneAv) { window.removeEventListener("ki-tab-changed", this._faneAv); this._faneAv = null; } clearInterval(this._ur); }
   _start() { clearInterval(this._ur); this._ur = setInterval(() => this._tikk(), 1000); }
 
   /* Med flere spillere velges den som spiller, ellers den som er på, ellers den første */
@@ -1683,20 +1714,62 @@ class KiMediaCard extends HTMLElement {
     this._bygget = true; this._start();
   }
 
+  /* Kontroll-visning: bare kanaler, transport, volum og grupper */
+  _oppdaterKontroll(s) {
+    const r = this.shadowRoot, a = s.attributes || {};
+    const spiller = this._spiller();
+    const sp = r.querySelector('[data-t="spill"] ha-icon');
+    if (sp) sp.setAttribute("icon", spiller ? "mdi:pause" : "mdi:play");
+    const sh = r.querySelector('[data-t="shuffle"] ha-icon');
+    if (sh) sh.setAttribute("icon", a.shuffle ? "mdi:shuffle" : "mdi:shuffle-disabled");
+    const rp = r.querySelector('[data-t="repeat"] ha-icon');
+    if (rp) rp.setAttribute("icon", a.repeat === "one" ? "mdi:repeat-once" : a.repeat === "all" ? "mdi:repeat" : "mdi:repeat-off");
+    const vol = r.querySelector('input[type=range]');
+    if (vol && document.activeElement !== vol) {
+      const v = Math.round((a.volume_level || 0) * 100);
+      vol.value = v; vol.style.setProperty("--p", v + "%");
+      const t = r.querySelector(".vtall"); if (t) t.textContent = v + " %";
+    }
+    this._merkKanal(a, this._spiller() || this._pause());
+    this._merkGrupper();
+  }
+
+  _merkGrupper() {
+    const h = this._h, c = this._c, r = this.shadowRoot;
+    r.querySelectorAll("[data-g]").forEach((b) => {
+      const g = (c.grupper || [])[+b.dataset.g];
+      if (!g) return;
+      /* gruppe kan være en bryter, eller en annen spiller som knyttes til */
+      const pa = g.entity ? (h.states[g.entity] || {}).state === "on"
+        : g.spiller ? ((h.states[this._id()] || {}).attributes || {}).group_members || [] : [];
+      b.classList.toggle("pa", g.entity ? !!pa : Array.isArray(pa) && pa.includes(g.spiller));
+    });
+  }
+  _merkKanal(a, lyder) {
+    const r = this.shadowRoot;
+    const kilde = String(a.media_channel || a.source || a.media_title || "").toLowerCase();
+    r.querySelectorAll("[data-radio]").forEach((b) => {
+      const v = this._radio[+b.dataset.radio], n = String(v.navn || "").toLowerCase();
+      b.classList.toggle("spiller", !!lyder && !!n && (kilde.includes(n) || (n.includes(kilde) && kilde.length > 2)));
+    });
+  }
+
   _bygg() {
-    const c = this._c, stor = c.visning === "stor", full = c.visning === "full";
+    const c = this._c, stor = c.visning === "stor";
+    const kontroll = c.visning === "kontroll";
+    const full = c.visning === "full" || kontroll;
     const eq = `<span class="eq"><i></i><i></i><i></i><i></i><i></i></span>`;
     if (stor) { this._byggStor(); return; }
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
-        <div class="naa" role="button" tabindex="0">
+        ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>
           <div class="omslag"><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
           <div class="tittel"><span class="rulle"><span class="tt"></span></span></div>
           <div class="under"></div>
           <div class="eqboks"><span class="tid"></span>${eq}</div>
           <div class="framdrift"><i></i></div>
-        </div>
+        </div>`}
 
         ${full && this._radio.length ? `<div class="radio">${this._radio.map((r, i) =>
           `<button class="kanal" data-radio="${i}">${r.ikon ? `<ha-icon icon="${kiMediaEsc(r.ikon)}"></ha-icon>` : ""}
@@ -1721,8 +1794,10 @@ class KiMediaCard extends HTMLElement {
 
     const r = this.shadowRoot;
     const naa = r.querySelector(".naa");
-    naa.addEventListener("click", () => this._mer());
-    naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
+    if (naa) {
+      naa.addEventListener("click", () => this._mer());
+      naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
+    }
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const v = this._radio[+b.dataset.radio];
@@ -1744,7 +1819,11 @@ class KiMediaCard extends HTMLElement {
     r.querySelectorAll("[data-g]").forEach((b) => b.addEventListener("click", () => {
       const g = (c.grupper || [])[+b.dataset.g];
       if (navigator.vibrate) navigator.vibrate(8);
-      this._h.callService("homeassistant", "toggle", { entity_id: g.entity });
+      if (g.entity) return this._h.callService("homeassistant", "toggle", { entity_id: g.entity });
+      /* uten hjelpebryter: knytt spilleren til eller fra gruppa */
+      const med = ((this._h.states[this._id()] || {}).attributes || {}).group_members || [];
+      if (med.includes(g.spiller)) this._h.callService("media_player", "unjoin", { entity_id: g.spiller });
+      else this._h.callService("media_player", "join", { entity_id: this._id(), group_members: [g.spiller] });
     }));
     const vol = r.querySelector('input[type=range]');
     if (vol) {
@@ -1838,6 +1917,7 @@ class KiMediaCard extends HTMLElement {
     if (c.visning === "stor") return this._oppdaterStor(s);
     const r = this.shadowRoot, a = s.attributes, spiller = this._spiller(), pause = this._pause();
     const naa = r.querySelector(".naa");
+    if (!naa) return this._oppdaterKontroll(s);      /* kontroll-visning: ingen topplinje */
     naa.classList.toggle("spiller", spiller || pause);
     naa.classList.toggle("av", !spiller && !pause);
 
@@ -1891,17 +1971,8 @@ class KiMediaCard extends HTMLElement {
       vol.value = p; vol.style.setProperty("--p", p + "%");
       r.querySelector(".vtall").textContent = p + " %";
     }
-    r.querySelectorAll("[data-g]").forEach((b) => {
-      const g = (c.grupper || [])[+b.dataset.g], st = g && h.states[g.entity];
-      b.classList.toggle("pa", !!st && st.state === "on");
-    });
-
-    /* hvilken kanal spilles */
-    const kilde = (a.media_channel || a.source || a.media_title || "").toLowerCase();
-    r.querySelectorAll("[data-radio]").forEach((b) => {
-      const v = this._radio[+b.dataset.radio], n = String(v.navn || "").toLowerCase();
-      b.classList.toggle("spiller", (spiller || pause) && !!n && (kilde.includes(n) || n.includes(kilde) && kilde.length > 2));
-    });
+    this._merkGrupper();
+    this._merkKanal(a, spiller || pause);
 
     this._tikk();
   }
@@ -6329,6 +6400,7 @@ try {
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
  * bakgrunn: var(--gray200)                           # bakgrunnsfarge på kortet
+ * maks_bredde: 620px                                 # innholdet strekkes ikke bredere enn dette
  * bakgrunn_glod: false                               # slår av det fargede skjæret øverst
  *
  * Timesprisene kan komme fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i
@@ -6355,7 +6427,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.8.0";
+const KI_SP_VERSJON = "2.9.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -6368,18 +6440,23 @@ const KI_SP_STIL = `
   .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:calc(.2 * var(--glod, 1));
     background:radial-gradient(60% 100% at 30% 0%, var(--tone,#8fe3c0), transparent 70%); }
   .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:0 4px 10px; background:none; }
+    padding:0 4px 10px; background:none; max-width:var(--maks, 620px); margin-inline:auto; }
+  /* på brede skjermer holdes innholdet samlet i stedet for å dras ut til kantene */
+  .kort > .hero, .kort > .grafboks, .kort > .akse, .kort > .stat, .kort > .vindu, .kort > .forkl,
+  .kort > .varsel-np, .kort > .venter { max-width:var(--maks, 620px); margin-inline:auto; }
+  .hero { width:100%; }
   .topp .valg { margin-left:auto; }
   .tittel { font-size:16px; font-weight:500; }
   /* faner i samme pilleform som ki-tabs-card / ki-hjem-card */
   .valg { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .valg .v { padding:9px 18px; border-radius:999px; font-size:14px; font-weight:500; cursor:pointer; white-space:nowrap;
+  .valg .v { padding:6px 14px; border-radius:999px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;
     color:rgba(255,255,255,.72); transition:background .18s, color .18s; -webkit-tap-highlight-color:transparent; }
   .valg .v:hover { color:rgba(255,255,255,.95); }
   .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .valg .v.tom { opacity:.45; }
   .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:12px 0 2px; flex-wrap:wrap; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+  @media (min-width:620px) { .stor { font-size:2.2em; } }
   .stor small { font-size:.34em; font-weight:400; opacity:.6; margin-left:6px; letter-spacing:0; }
   .merke { font-size:12.5px; opacity:.65; }
   .hoyre { text-align:right; font-size:13px; line-height:1.5; }
@@ -6431,7 +6508,7 @@ class KiStromprisCard extends HTMLElement {
   getGridOptions() { return { columns: 12, min_rows: 5 }; }
 
   setConfig(c) {
-    this._c = { tittel: "Strøm", norgespris: "sensor.norgespris_total_strompris_norgespris", spart_dag: "sensor.norgespris_besparelse_dag",
+    this._c = { tittel: "Strømpris", norgespris: "sensor.norgespris_total_strompris_norgespris", spart_dag: "sensor.norgespris_besparelse_dag",
       spart_ar: "sensor.norgespris_besparelse_ar", effekt: "sensor.strommaler_effekt", hoyde: 170, vindu: 3,
       vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...(c || {}) };
     this._bygget = false; this._tegn();
@@ -6687,7 +6764,7 @@ class KiStromprisCard extends HTMLElement {
       const npp = this._npPunkter(this._dag);
       if (npp) { pkt2 = npp; kunNp = true; }
       else return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
+      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
     }
     this._kunNp = kunNp;
@@ -6706,7 +6783,7 @@ class KiStromprisCard extends HTMLElement {
     const timer = pkt.filter((_, i) => i % steg === 0).map((p) => kiSpKl(p.t));
 
     return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
+      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
@@ -6755,7 +6832,7 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet",
-        bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", spot: "Timespriser (raw_today)",
+        bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet", spot: "Timespriser (raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
@@ -6768,6 +6845,7 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
       { name: "enhet", selector: { text: {} } },
       { name: "bakgrunn", selector: { text: {} } },
+      { name: "maks_bredde", selector: { text: {} } },
       { name: "spot_naa", selector: { entity: { domain: "sensor" } } },
       { name: "mva", selector: { number: { mode: "box", min: 0, max: 100, step: "any" } } },
       { name: "paaslag", selector: { number: { mode: "box", step: "any" } } },
@@ -8899,7 +8977,7 @@ try {
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "3.3.0";
+const KI_VANN_VERSJON = "3.4.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -9002,8 +9080,8 @@ const KI_VANN_STIL = `
   /* ---- faner ---- */
   .faner { display:flex; justify-content:center; }
   .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
-    padding:7px 16px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
+    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
@@ -9336,10 +9414,19 @@ class KiVanningCard extends HTMLElement {
     const S = this._states; if (!S) return null;
     this._kiEntCache = this._kiEntCache || {};
     if (this._kiEntCache[type] !== undefined) return this._kiEntCache[type];
-    const treff = Object.keys(S).find((id) => {
+    let treff = Object.keys(S).find((id) => {
       const a = S[id].attributes || {};
       return a.integrasjon === "ki_vanning" && a.ki_type === type;
     }) || null;
+    /* uten markøren (integrasjonen ikke lastet på nytt ennå) gjenkjennes de på navnet */
+    if (!treff) {
+      const moenster = {
+        vannpris: /^number\..*vannpris/, ferie_faktor: /^number\..*(ferie|lengre)/,
+        ferie: /^switch\..*ferie/, hent_plan: /^button\..*(hent|plan)/,
+        nullstill_forbruk: /^button\..*nullstill_forbruk/, nullstill_kalibrering: /^button\..*nullstill_kalibrering/,
+      }[type];
+      if (moenster) treff = Object.keys(S).find((id) => moenster.test(id) && /ki_vanning|vanning/.test(id)) || null;
+    }
     this._kiEntCache[type] = treff;
     return treff;
   }

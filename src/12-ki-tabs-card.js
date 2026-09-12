@@ -216,7 +216,11 @@
       r.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", +p.dataset.i === i));
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
-      KI.fire(this, "ki-tab-changed", { index: i });
+      /* andre kort kan følge fanevalget – sendes både oppover og på window */
+      const t = (this._config.tabs || [])[i] || {};
+      const detalj = { index: i, title: t.title || "", id: this._config.id || "" };
+      KI.fire(this, "ki-tab-changed", detalj);
+      window.dispatchEvent(new CustomEvent("ki-tab-changed", { detail: detalj }));
     }
     getCardSize() { return 4; }
   }

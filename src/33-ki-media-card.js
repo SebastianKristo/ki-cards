@@ -3,7 +3,10 @@
  *
  * type: custom:ki-media-card
  * media: media_player.squeezebox_radio      # eller en liste: den som spiller velges automatisk
- * visning: full            # full (alt) | stor (180 px hero) | naa (bare topplinja)
+ * visning: full            # full (alt) | stor (180 px hero) | naa (topplinja) | kontroll (uten topplinje)
+ * fane_media:              # bytter spiller etter hvilken fane i ki-tabs-card som er valgt
+ *   Tv: media_player.stue_tv
+ *   Musikk: media_player.squeezebox_radio
  * radio: [{navn: NRK P1, skript: script.nrk_p1}]
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
@@ -12,7 +15,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.2.0";
+const KI_MEDIA_VERSJON = "1.3.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -181,8 +184,12 @@ class KiMediaCard extends HTMLElement {
   getGridOptions() { return this._c && this._c.visning === "stor" ? { columns: 12, rows: 3, min_rows: 3 } : undefined; }
 
   setConfig(c) {
-    if (!c || !c.media) throw new Error("Sett media: til mediaspilleren");
+    if (!c || (!c.media && !c.fane_media)) throw new Error("Sett media: til mediaspilleren");
     this._c = { visning: "full", ikon: "mdi:speaker", ...c };
+    if (this._c.fane_media && !this._c.media) {
+      /* uten «media» starter kortet på den første fanen i kartet */
+      this._c.media = Object.values(this._c.fane_media)[0];
+    }
     this._spillere = (Array.isArray(c.media) ? c.media : [c.media]).filter(Boolean);
     this._radio = (c.radio || []).map((r) => typeof r === "string" ? { navn: r } : r);
     this._bygget = false; this._oppdater();
@@ -194,8 +201,28 @@ class KiMediaCard extends HTMLElement {
     if (!g || !this._bygget || ids.some((id) => g.states[id] !== h.states[id])) this._oppdater();
   }
   get hass() { return this._h; }
-  connectedCallback() { this._start(); if (this._bygget) this._oppdater(); }
-  disconnectedCallback() { clearInterval(this._ur); }
+  /* Følger fanevalget i ki-tabs-card: {Tv: media_player.stue_tv, Musikk: media_player.sonos} */
+  _fanelytter() {
+    if (this._faneAv || !this._c.fane_media) return;
+    this._faneAv = (e) => {
+      const d = (e && e.detail) || {};
+      const kart = this._c.fane_media || {};
+      const rens = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const treff = Object.keys(kart).find((k) => rens(k) === rens(d.title))
+        || (d.index !== undefined ? Object.keys(kart)[d.index] : null);
+      const ny = treff ? kart[treff] : null;
+      if (!ny || ny === this._valgtFane) return;
+      this._valgtFane = ny;
+      this._spillere = [ny];
+      this._bygget = false;
+      if (this._h) { this._bygg(); this._oppdater(); }
+    };
+    window.addEventListener("ki-tab-changed", this._faneAv);
+  }
+
+  connectedCallback() { this._start(); this._fanelytter(); if (this._bygget) this._oppdater(); }
+  disconnectedCallback() {
+    if (this._faneAv) { window.removeEventListener("ki-tab-changed", this._faneAv); this._faneAv = null; } clearInterval(this._ur); }
   _start() { clearInterval(this._ur); this._ur = setInterval(() => this._tikk(), 1000); }
 
   /* Med flere spillere velges den som spiller, ellers den som er på, ellers den første */
@@ -320,20 +347,62 @@ class KiMediaCard extends HTMLElement {
     this._bygget = true; this._start();
   }
 
+  /* Kontroll-visning: bare kanaler, transport, volum og grupper */
+  _oppdaterKontroll(s) {
+    const r = this.shadowRoot, a = s.attributes || {};
+    const spiller = this._spiller();
+    const sp = r.querySelector('[data-t="spill"] ha-icon');
+    if (sp) sp.setAttribute("icon", spiller ? "mdi:pause" : "mdi:play");
+    const sh = r.querySelector('[data-t="shuffle"] ha-icon');
+    if (sh) sh.setAttribute("icon", a.shuffle ? "mdi:shuffle" : "mdi:shuffle-disabled");
+    const rp = r.querySelector('[data-t="repeat"] ha-icon');
+    if (rp) rp.setAttribute("icon", a.repeat === "one" ? "mdi:repeat-once" : a.repeat === "all" ? "mdi:repeat" : "mdi:repeat-off");
+    const vol = r.querySelector('input[type=range]');
+    if (vol && document.activeElement !== vol) {
+      const v = Math.round((a.volume_level || 0) * 100);
+      vol.value = v; vol.style.setProperty("--p", v + "%");
+      const t = r.querySelector(".vtall"); if (t) t.textContent = v + " %";
+    }
+    this._merkKanal(a, this._spiller() || this._pause());
+    this._merkGrupper();
+  }
+
+  _merkGrupper() {
+    const h = this._h, c = this._c, r = this.shadowRoot;
+    r.querySelectorAll("[data-g]").forEach((b) => {
+      const g = (c.grupper || [])[+b.dataset.g];
+      if (!g) return;
+      /* gruppe kan være en bryter, eller en annen spiller som knyttes til */
+      const pa = g.entity ? (h.states[g.entity] || {}).state === "on"
+        : g.spiller ? ((h.states[this._id()] || {}).attributes || {}).group_members || [] : [];
+      b.classList.toggle("pa", g.entity ? !!pa : Array.isArray(pa) && pa.includes(g.spiller));
+    });
+  }
+  _merkKanal(a, lyder) {
+    const r = this.shadowRoot;
+    const kilde = String(a.media_channel || a.source || a.media_title || "").toLowerCase();
+    r.querySelectorAll("[data-radio]").forEach((b) => {
+      const v = this._radio[+b.dataset.radio], n = String(v.navn || "").toLowerCase();
+      b.classList.toggle("spiller", !!lyder && !!n && (kilde.includes(n) || (n.includes(kilde) && kilde.length > 2)));
+    });
+  }
+
   _bygg() {
-    const c = this._c, stor = c.visning === "stor", full = c.visning === "full";
+    const c = this._c, stor = c.visning === "stor";
+    const kontroll = c.visning === "kontroll";
+    const full = c.visning === "full" || kontroll;
     const eq = `<span class="eq"><i></i><i></i><i></i><i></i><i></i></span>`;
     if (stor) { this._byggStor(); return; }
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
-        <div class="naa" role="button" tabindex="0">
+        ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>
           <div class="omslag"><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
           <div class="tittel"><span class="rulle"><span class="tt"></span></span></div>
           <div class="under"></div>
           <div class="eqboks"><span class="tid"></span>${eq}</div>
           <div class="framdrift"><i></i></div>
-        </div>
+        </div>`}
 
         ${full && this._radio.length ? `<div class="radio">${this._radio.map((r, i) =>
           `<button class="kanal" data-radio="${i}">${r.ikon ? `<ha-icon icon="${kiMediaEsc(r.ikon)}"></ha-icon>` : ""}
@@ -358,8 +427,10 @@ class KiMediaCard extends HTMLElement {
 
     const r = this.shadowRoot;
     const naa = r.querySelector(".naa");
-    naa.addEventListener("click", () => this._mer());
-    naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
+    if (naa) {
+      naa.addEventListener("click", () => this._mer());
+      naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
+    }
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const v = this._radio[+b.dataset.radio];
@@ -381,7 +452,11 @@ class KiMediaCard extends HTMLElement {
     r.querySelectorAll("[data-g]").forEach((b) => b.addEventListener("click", () => {
       const g = (c.grupper || [])[+b.dataset.g];
       if (navigator.vibrate) navigator.vibrate(8);
-      this._h.callService("homeassistant", "toggle", { entity_id: g.entity });
+      if (g.entity) return this._h.callService("homeassistant", "toggle", { entity_id: g.entity });
+      /* uten hjelpebryter: knytt spilleren til eller fra gruppa */
+      const med = ((this._h.states[this._id()] || {}).attributes || {}).group_members || [];
+      if (med.includes(g.spiller)) this._h.callService("media_player", "unjoin", { entity_id: g.spiller });
+      else this._h.callService("media_player", "join", { entity_id: this._id(), group_members: [g.spiller] });
     }));
     const vol = r.querySelector('input[type=range]');
     if (vol) {
@@ -475,6 +550,7 @@ class KiMediaCard extends HTMLElement {
     if (c.visning === "stor") return this._oppdaterStor(s);
     const r = this.shadowRoot, a = s.attributes, spiller = this._spiller(), pause = this._pause();
     const naa = r.querySelector(".naa");
+    if (!naa) return this._oppdaterKontroll(s);      /* kontroll-visning: ingen topplinje */
     naa.classList.toggle("spiller", spiller || pause);
     naa.classList.toggle("av", !spiller && !pause);
 
@@ -528,17 +604,8 @@ class KiMediaCard extends HTMLElement {
       vol.value = p; vol.style.setProperty("--p", p + "%");
       r.querySelector(".vtall").textContent = p + " %";
     }
-    r.querySelectorAll("[data-g]").forEach((b) => {
-      const g = (c.grupper || [])[+b.dataset.g], st = g && h.states[g.entity];
-      b.classList.toggle("pa", !!st && st.state === "on");
-    });
-
-    /* hvilken kanal spilles */
-    const kilde = (a.media_channel || a.source || a.media_title || "").toLowerCase();
-    r.querySelectorAll("[data-radio]").forEach((b) => {
-      const v = this._radio[+b.dataset.radio], n = String(v.navn || "").toLowerCase();
-      b.classList.toggle("spiller", (spiller || pause) && !!n && (kilde.includes(n) || n.includes(kilde) && kilde.length > 2));
-    });
+    this._merkGrupper();
+    this._merkKanal(a, spiller || pause);
 
     this._tikk();
   }

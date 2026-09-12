@@ -419,6 +419,8 @@ Bakgrunnsfargen settes med `bakgrunn:` – en CSS-farge eller en variabel fra te
 `bakgrunn: var(--gray100)` eller `bakgrunn: '#101820'`. `bakgrunn_glod: false` fjerner det fargede skjæret
 øverst i kortet.
 
+På brede skjermer holdes innholdet samlet i midten i stedet for å dras ut til kantene – `maks_bredde: 620px` styrer hvor bredt det kan bli, og det store tallet krymper litt når kortet er bredt.
+
 ### ki-prosa-card
 ```yaml
 type: custom:ki-prosa-card
@@ -593,6 +595,21 @@ Oppgir du flere spillere i `media`, velger kortet den som spiller (så TV-en tar
 Sonos når musikken går). Full visning legger til kanalrad (den kanalen som går er markert med bølger), transport der
 play-knappen pulserer under avspilling og shuffle/repeat følger tilstanden, samt volumslider med
 gruppeknapper.
+
+`fane_media` lar ett kort følge fanevalget i `ki-tabs-card`: TV-fanen viser Apple TV, Musikk-fanen viser
+Sonos. Da trenger ikke fanene hvert sitt hero-kort.
+
+```yaml
+type: custom:ki-media-card
+visning: stor
+fane_media:
+  Tv: media_player.stue_tv
+  Musikk: media_player.squeezebox_radio
+```
+
+`visning: kontroll` gir kanaler, transport, volum og grupper uten topplinja – fint under et slikt hero-kort.
+Uten `kontroll:`-blokken brukes de vanlige `media_player`-tjenestene, og grupper med `spiller:` i stedet for
+`entity:` knytter spillerne sammen med `media_player.join` og `unjoin`.
 
 ### ki-fjernkontroll-card
 ```yaml
