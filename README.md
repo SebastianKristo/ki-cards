@@ -864,3 +864,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.53.0
 - `ki-strompris-card` 2.4.0: tittel og faner ligger over kortflaten, fanepiller som ki-tabs-card, I morgen leser ogsaa `tomorrow` / `prices_tomorrow` og kan alltid trykkes, ingen ny opptegning ved scrolling (beroering leser av grafen forst ved sidelengs draging), sveipeanimasjon bare foerste gang, effektmaaleren bytter bare tallet, ingenting stikker utenfor skjermbredden, og blokkene under grafen kan slaas av med `vis_stat`, `vis_vindu`, `vis_spart` og `vis_forklaring`.
+
+## v2.54.0
+- `ki-strompris-card` 2.5.0: faerre klokkeslett paa den vannrette aksen naar kortet er smalt, og Norgespris kan regnes ut time for time fra nettleiesatsene (`nettleie_dag`, `nettleie_natt`, `dagtimer_fra/til`, valgfri `norgespris_energi`). Da tegnes Norgespris som trapp i stedet for flat strek, og I morgen-fanen viser prisen selv foer spotprisen er klar.

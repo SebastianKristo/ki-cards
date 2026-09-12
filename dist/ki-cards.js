@@ -1,4 +1,4 @@
-/* ki-cards v2.53.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.54.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.53.0";
+  KI.VERSION = "2.54.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5764,12 +5764,18 @@ try {
  * tittel: Strøm      hoyde: 170      vindu: 3        # timer i «billigste vindu»
  * vis_stat: false    # skjul snitt/lavest/høyest    vis_vindu: false   # skjul «billigste timer»
  * vis_spart: false   # skjul spart i dag / i år     vis_forklaring: false
+ *
+ * nettleie_dag: 0.45      # kr/kWh kl. 06–22 på hverdager
+ * nettleie_natt: 0.35     # kr/kWh natt, lørdag og søndag
+ * norgespris_energi: 0.50 # fast energipris; utelates den, regnes den ut fra Norgespris-sensoren nå
+ * dagtimer_fra: 6   dagtimer_til: 22
+ * Med nettleiesatsene tegnes Norgespris som trapp, og «I morgen» viser prisen selv før spot er klar.
  * skala: 0.01        # øre → kr. Settes automatisk når enheten er øre.
  *
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.4.0";
+const KI_SP_VERSJON = "2.5.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -5810,7 +5816,7 @@ const KI_SP_STIL = `
   @keyframes sp-sveip { from { transform:scaleX(0); } to { transform:scaleX(1); } }
   .naapunkt { animation:sp-ping 2.4s ease-out infinite; transform-origin:center; transform-box:fill-box; }
   @keyframes sp-ping { 0% { r:4; opacity:.9; } 70%,100% { r:13; opacity:0; } }
-  .akse { display:flex; justify-content:space-between; font-size:11px; opacity:.55; padding:4px 4px 0; font-variant-numeric:tabular-nums; }
+  .akse { display:flex; justify-content:space-between; gap:6px; font-size:11px; opacity:.55; padding:4px 2px 0; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .boble { position:absolute; top:0; transform:translateX(-50%); background:var(--gray1000, var(--primary-text-color)); color:var(--gray100, var(--card-background-color));
     padding:5px 10px; border-radius:12px; font-size:12px; font-weight:600; white-space:nowrap; pointer-events:none; z-index:2; }
   .boble small { display:block; font-weight:400; opacity:.7; font-size:10.5px; }
@@ -5823,6 +5829,7 @@ const KI_SP_STIL = `
   .vindu ha-icon { --mdc-icon-size:19px; color:var(--green); }
   .forkl { display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px; opacity:.65; margin-top:8px; }
   .forkl i { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+  .varsel-np { margin-top:8px; font-size:12px; opacity:.7; line-height:1.45; }
   .venter { padding:30px 10px; text-align:center; font-size:14px; opacity:.7; }
   .venter i { display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:currentColor; animation:sp-hopp 1.2s ease-in-out infinite; }
   .venter i:nth-child(2) { animation-delay:.15s; } .venter i:nth-child(3) { animation-delay:.3s; }
@@ -5911,9 +5918,55 @@ class KiStromprisCard extends HTMLElement {
   _harMorgen() { const r = this._raa("i_morgen"); return Array.isArray(r) && r.some((p) => p.v !== null && p.v !== undefined && !isNaN(p.v)); }
   _np() { const v = this._num(this._c.norgespris); return v === null && typeof this._c.norgespris === "number" ? this._c.norgespris : v; }
 
+  /* Norgespris = fast energipris + nettleie. Nettleia er lavere om natta og i helga,
+     så med dag-/nattsats kan morgendagens pris regnes ut selv før spotprisen kommer. */
+  _nettleie(t) {
+    const c = this._c;
+    const dag = c.nettleie_dag, natt = c.nettleie_natt;
+    if (dag === undefined || dag === null) return null;
+    const d = new Date(t), time = d.getHours(), ukedag = d.getDay();
+    const helg = ukedag === 0 || ukedag === 6;
+    const fra = c.dagtimer_fra === undefined ? 6 : c.dagtimer_fra;
+    const til = c.dagtimer_til === undefined ? 22 : c.dagtimer_til;
+    const erDag = !helg && time >= fra && time < til;
+    return Number(erDag ? dag : (natt === undefined || natt === null ? dag : natt));
+  }
+
+  /* Energidelen: enten oppgitt, ellers utledet fra Norgespris-sensoren nå minus nettleia nå. */
+  _energi() {
+    const c = this._c;
+    if (c.norgespris_energi !== undefined && c.norgespris_energi !== null) return Number(c.norgespris_energi);
+    const naa = this._np(), nl = this._nettleie(Date.now());
+    return naa !== null && nl !== null ? naa - nl : null;
+  }
+
+  _npTime(t) {
+    const e = this._energi(), nl = this._nettleie(t);
+    if (e === null || nl === null) return null;
+    return e + nl;
+  }
+
+  /* 24 timer med Norgespris for valgt dag – brukes når spotprisen ikke er klar ennå. */
+  _npPunkter(dag) {
+    if (this._nettleie(Date.now()) === null) return null;
+    const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(0);
+    if (dag === "i_morgen") d.setDate(d.getDate() + 1);
+    const ut = [];
+    for (let i = 0; i < 24; i++) {
+      const t = d.getTime() + i * KI_SP_TIME, v = this._npTime(t);
+      if (v === null) return null;
+      ut.push({ t, slutt: t + KI_SP_TIME, v });
+    }
+    return ut;
+  }
+
   _graf(pkt, np) {
     const c = this._c, B = 14, H = c.hoyde, V = 320, x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
-    const verdier = pkt.map((p) => p.v), lav = Math.min(...verdier, np ?? Infinity), hoy = Math.max(...verdier, np ?? -Infinity);
+    const npVerdier = pkt.map((p) => this._npTime(p.t)).filter((v) => v !== null);
+    const harNpKurve = npVerdier.length === pkt.length && !this._kunNp;
+    const verdier = pkt.map((p) => p.v);
+    const lav = Math.min(...verdier, ...(harNpKurve ? npVerdier : [np ?? Infinity]));
+    const hoy = Math.max(...verdier, ...(harNpKurve ? npVerdier : [np ?? -Infinity]));
     const pad = (hoy - lav) * 0.18 || 0.1, ymin = Math.max(0, lav - pad), ymax = hoy + pad;
     const X = (t) => ((t - x0) / (x1 - x0)) * V, Y = (v) => B + (1 - (v - ymin) / (ymax - ymin || 1)) * (H - B * 2);
     this._x0 = x0; this._x1 = x1;
@@ -5922,6 +5975,12 @@ class KiStromprisCard extends HTMLElement {
     let d = "";
     pkt.forEach((p, i) => { const y = Y(p.v); d += `${i ? "L" : "M"}${X(p.t).toFixed(1)} ${y.toFixed(1)} L${X(p.slutt).toFixed(1)} ${y.toFixed(1)} `; });
     const fyll = `${d} L${X(x1).toFixed(1)} ${H} L${X(x0).toFixed(1)} ${H} Z`;
+
+    // Norgespris som trapp når nettleia er kjent (den hopper ved dag-/nattskifte)
+    let npTrapp = "";
+    if (harNpKurve) {
+      pkt.forEach((p, i) => { const y = Y(this._npTime(p.t)); npTrapp += `${i ? "L" : "M"}${X(p.t).toFixed(1)} ${y.toFixed(1)} L${X(p.slutt).toFixed(1)} ${y.toFixed(1)} `; });
+    }
 
     // fargen følger prisnivået: grønt nederst (billig), rødt øverst (dyrt)
     const gy = [0, 0.5, 1].map((f) => `<stop offset="${(f * 100).toFixed(0)}%" stop-color="${kiSpFarge(1 - f)}"/>`).join("");
@@ -5938,9 +5997,11 @@ class KiStromprisCard extends HTMLElement {
           <stop offset="0" stop-color="${kiSpFarge(0.85)}" stop-opacity=".22"/><stop offset="65%" stop-color="${kiSpFarge(0.15)}" stop-opacity=".14"/><stop offset="100%" stop-color="${kiSpFarge(0)}" stop-opacity="0"/></linearGradient>
         <filter id="${this._gid}-s" x="-5%" y="-20%" width="110%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity=".5"/></filter></defs>
       <g class="${this._animert ? "" : "sveip"}"><path d="${fyll}" fill="url(#${this._gid}-f)"/>
-      <path class="strek" d="${d}" fill="none" stroke="url(#${this._gid}-l)" stroke-width="3" vector-effect="non-scaling-stroke" filter="url(#${this._gid}-s)"/>
-      ${np !== null && np >= ymin && np <= ymax ? `<line class="nplinje" x1="0" y1="${Y(np).toFixed(1)}" x2="${V}" y2="${Y(np).toFixed(1)}" vector-effect="non-scaling-stroke"/>
-        <text x="4" y="${(Y(np) - 6).toFixed(1)}" font-size="10" fill="#7ab8ff" font-weight="600">Norgespris</text>` : ""}
+      <path class="strek" d="${d}" fill="none" stroke="${this._kunNp ? "#7ab8ff" : `url(#${this._gid}-l)`}" stroke-width="3" vector-effect="non-scaling-stroke" filter="url(#${this._gid}-s)"/>
+      ${npTrapp ? `<path class="nplinje" d="${npTrapp}" fill="none" vector-effect="non-scaling-stroke"/>
+        <text x="4" y="${(Y(kiSpKlamp(this._npTime(pkt[0].t), ymin, ymax)) - 6).toFixed(1)}" font-size="10" fill="#7ab8ff" font-weight="600">Norgespris</text>`
+        : (np !== null && np >= ymin && np <= ymax ? `<line class="nplinje" x1="0" y1="${Y(np).toFixed(1)}" x2="${V}" y2="${Y(np).toFixed(1)}" vector-effect="non-scaling-stroke"/>
+        <text x="4" y="${(Y(np) - 6).toFixed(1)}" font-size="10" fill="#7ab8ff" font-weight="600">Norgespris</text>` : "")}
       </g>${merke(min, kiSpNf(min.v, 2), "#3ddc97")}${merke(maks, kiSpNf(maks.v, 2), "#ff6b5c")}
       ${iNaa >= 0 ? `<line class="naalinje" x1="${X(naa).toFixed(1)}" y1="0" x2="${X(naa).toFixed(1)}" y2="${H}" vector-effect="non-scaling-stroke"/>
         <circle class="naapunkt" cx="${X(naa).toFixed(1)}" cy="${Y(pkt[iNaa].v).toFixed(1)}" r="4" fill="none" stroke="var(--gray1000, #fff)" stroke-width="1.5"/>
@@ -6007,9 +6068,16 @@ class KiStromprisCard extends HTMLElement {
 
     if (!spotSt) return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span></div>${hero}
       <div class="venter">Fant ingen spotprissensor. Sett <b>spot:</b> i kortet.</div>`;
-    if (pkt === null || !pkt.length) return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
+    let kunNp = false, pkt2 = pkt;
+    if (pkt === null || !pkt.length) {
+      const npp = this._npPunkter(this._dag);
+      if (npp) { pkt2 = npp; kunNp = true; }
+      else return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
       <div class="kort" style="--tone:${this._tone()}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
+    }
+    this._kunNp = kunNp;
+    pkt = pkt2;
 
     this._pkt = pkt;
     const v = pkt.map((p) => p.v), min = Math.min(...v), maks = Math.max(...v), snitt = v.reduce((a, b) => a + b, 0) / v.length;
@@ -6017,21 +6085,26 @@ class KiStromprisCard extends HTMLElement {
     for (let i = 0; i + n <= pkt.length; i++) { const s = v.slice(i, i + n).reduce((a, b) => a + b, 0); if (s < bestSum) { bestSum = s; best = i; } }
     const billigst = pkt[best], billigstSlutt = pkt[best + n - 1];
     const over = np !== null ? v.filter((x) => x > np).length : null;
-    const timer = pkt.filter((_, i) => i % 6 === 0).map((p) => kiSpKl(p.t));
+    // færre klokkeslett på smale kort, ellers går de inn i hverandre
+    const bredde = this.clientWidth || this.offsetWidth || 400;
+    const antall = bredde < 330 ? 3 : bredde < 430 ? 4 : bredde < 620 ? 5 : 7;
+    const steg = Math.max(1, Math.ceil(pkt.length / (antall - 1)));
+    const timer = pkt.filter((_, i) => i % steg === 0).map((p) => kiSpKl(p.t));
 
     return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
       <div class="kort" style="--tone:${this._tone()}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
-      <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>24</span></div>
-      ${c.vis_forklaring !== false && np !== null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span><span><i style="background:repeating-linear-gradient(90deg,#7ab8ff 0 5px,transparent 5px 10px)"></i>Norgespris ${kiSpNf(np, 2)} kr</span>
+      <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
+      ${kunNp ? `<div class="varsel-np">Spotprisen for i morgen kommer rundt kl. 13. Grafen viser Norgespris time for time (nettleia faller om natta og i helga).</div>` : ""}
+      ${c.vis_forklaring !== false && !kunNp && np !== null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span><span><i style="background:repeating-linear-gradient(90deg,#7ab8ff 0 5px,transparent 5px 10px)"></i>Norgespris ${kiSpNf(np, 2)} kr</span>
         ${over !== null ? `<span>${over} av ${pkt.length} timer over Norgespris</span>` : ""}</div>` : ""}
       ${c.vis_stat !== false ? `<div class="stat">
-        <div><b>${kiSpNf(snitt, 2)}</b><span>snitt ${this._dag === "i_morgen" ? "i morgen" : "i dag"}</span></div>
+        <div><b>${kiSpNf(snitt, 2)}</b><span>${kunNp ? "snitt Norgespris" : `snitt ${this._dag === "i_morgen" ? "i morgen" : "i dag"}`}</span></div>
         <div><b style="color:#3ddc97">${kiSpNf(min, 2)}</b><span>lavest</span></div>
         <div><b style="color:#ff6b5c">${kiSpNf(maks, 2)}</b><span>høyest</span></div></div>` : ""}
       ${c.vis_vindu !== false ? `<div class="vindu"><ha-icon icon="mdi:clock-check-outline"></ha-icon><span>Billigste ${n} timer: <b>kl ${kiSpKl(billigst.t)}–${kiSpKl(billigstSlutt.slutt)}</b> · snitt ${kiSpNf(bestSum / n, 2)} kr</span></div>` : ""}
-      ${c.vis_spart !== false && (sparDag !== null || sparAr !== null) ? `<div class="stat" style="grid-template-columns:repeat(${[sparDag, sparAr].filter((x) => x !== null).length},minmax(0,1fr))">
+      ${c.vis_spart !== false && !kunNp && (sparDag !== null || sparAr !== null) ? `<div class="stat" style="grid-template-columns:repeat(${[sparDag, sparAr].filter((x) => x !== null).length},minmax(0,1fr))">
         ${sparDag !== null ? `<div><b style="color:#3ddc97">${kiSpNf(sparDag, 0)} kr</b><span>spart i dag</span></div>` : ""}
         ${sparAr !== null ? `<div><b style="color:#3ddc97">${kiSpNf(sparAr, 0)} kr</b><span>spart i år</span></div>` : ""}</div>` : ""}
       </div>`;
@@ -6066,7 +6139,8 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { norgespris: "Norgespris (kr/kWh)", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
-        vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen" };
+        vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
+        nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: e.detail.value }, bubbles: true, composed: true })));
       this.appendChild(this._f);
@@ -6078,7 +6152,10 @@ class KiStromprisCardEditor extends HTMLElement {
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },
       { name: "vis_stat", selector: { boolean: {} } }, { name: "vis_vindu", selector: { boolean: {} } },
-      { name: "vis_spart", selector: { boolean: {} } }, { name: "vis_forklaring", selector: { boolean: {} } }];
+      { name: "vis_spart", selector: { boolean: {} } }, { name: "vis_forklaring", selector: { boolean: {} } },
+      { name: "nettleie_dag", selector: { number: { min: 0, max: 3, step: 0.01, mode: "box" } } },
+      { name: "nettleie_natt", selector: { number: { min: 0, max: 3, step: 0.01, mode: "box" } } },
+      { name: "norgespris_energi", selector: { number: { min: 0, max: 3, step: 0.01, mode: "box" } } }];
   }
 }
 if (!customElements.get("ki-strompris-card-editor")) window.KI.define("ki-strompris-card-editor", KiStromprisCardEditor);
