@@ -350,7 +350,8 @@ måneder med pilene. `visning: kalender` starter rett i kalenderen, `kalender: f
 
 Trykk på en rad åpner serien eller filmen i Sonarr eller Radarr via `deep_link`.
 
-Med `bursdag: true` legges kommende bursdager inn som egne sider i samme sveip som neste lansering – ballonger
+Med `bursdag: {kalender: calendar.birthdays}` – eller `bursdag: true` for sensorer – legges kommende
+bursdager inn som egne sider i samme sveip som neste lansering – ballonger
 som svever, lys som flakker og konfetti når dagen er i dag. Har noen bursdag i dag, vises den siden først.
 `bursdag: {regex: bursdag, dager: 45, entities: [...]}` styrer hvilke sensorer som telles og hvor langt fram.
 
@@ -370,9 +371,19 @@ leveringsdagen, og da vaier flagget på postkassa.
 ### ki-bursdag-pro-card
 ```yaml
 type: custom:ki-bursdag-pro-card
+kalender: calendar.birthdays   # bursdagene som heldagshendelser
 antall: 3
-regex: birthday|bursdag    # eller entities: [...]
+legg_til: true                 # knapp for å legge inn en ny
+aar_fram: 10                   # hvor mange år fram nye bursdager opprettes
+# regex: birthday|bursdag      # alternativ: les fra sensorer i stedet
 ```
+
+Bursdagene kan komme fra en kalender. Fødselsåret leses fra hendelsen, så alderen regnes ut: skriv datoen i
+beskrivelsen (`Født 1985-09-14`, `f. 1985`) eller i tittelen (`Rune (1985)`). Mangler året, står det bare
+«bursdag» – resten virker som før.
+
+«Ny bursdag»-knappen spør om navn og fødselsdato og legger hendelsen inn i kalenderen for de neste ti årene,
+med datoen i beskrivelsen. Vil du rette noe senere, gjør du det i kalenderen som vanlig.
 Samme form som postkortet: den neste bursdagen står stort med ukedag, navn og alder, og resten følger som
 smalere rader med «om 23 dager» til høyre. På selve dagen blir kortet lilla og lyset på kaka flakker.
 

@@ -3,12 +3,18 @@
  * stor dato til venstre, navn og alder til høyre, og lilla kort på selve dagen.
  *
  * type: custom:ki-bursdag-pro-card
- * entities: [sensor.bursdag_rune, sensor.bursdag_cybele]   # eller
- * regex: birthday|bursdag                                  # finner dem selv
+ * kalender: calendar.birthdays      # bursdagene ligger som heldagshendelser
+ * entities: [sensor.bursdag_rune]   # eller sensorer, som før
+ * regex: birthday|bursdag           # eller finn sensorene selv
  * antall: 3
  * dager: 365            # hvor langt fram vi ser
+ * legg_til: true        # knapp for å legge inn en ny bursdag
+ * aar_fram: 10          # hvor mange år fram nye bursdager opprettes
+ *
+ * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
+ * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "1.1.0";
+const KI_BDP_VERSJON = "2.0.0";
 
 const KI_BDP_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -35,8 +41,34 @@ const KI_BDP_STIL = `
   .kort.i_dag .flamme { animation:bd-flamme 1.8s ease-in-out infinite; }
   @keyframes bd-flamme { 0%,100% { transform:scaleY(1) rotate(-3deg); } 50% { transform:scaleY(1.18) rotate(3deg); } }
   .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  .nyknapp { border:0; width:100%; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:13px;
+    font-weight:600; border-radius:16px; padding:12px; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; gap:8px; --mdc-icon-size:20px; }
+  .nyknapp:active { transform:scale(.98); }
+  .skjema { background:var(--gray200); border-radius:20px; padding:16px; display:grid; gap:12px; }
+  .skjema label { font-size:12px; opacity:.6; display:block; margin-bottom:4px; }
+  .skjema input { width:100%; max-width:100%; box-sizing:border-box; background:var(--gray100); border:0;
+    border-radius:12px; color:var(--gray1000); font:inherit; font-size:14px; padding:10px 12px; appearance:none; }
+  .skjema input::-webkit-calendar-picker-indicator { filter:invert(1); opacity:.5; }
+  .skjemarad { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; }
+  .sknapper { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .sk { border:0; border-radius:14px; padding:12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    background:var(--gray100); color:var(--gray1000); }
+  .sk.lagre { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .hint { font-size:11.5px; opacity:.55; line-height:1.5; }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
 `;
+
+/* «Rune (1985)», «Rune's Birthday» og «bursdag_rune» blir alle til «Rune» */
+const kiBdNavn = (s) => String(s || "")
+  .replace(/\(\s*\d{4}\s*\)/g, "")
+  .replace(/[_-]+/g, " ")
+  .replace(/\b(bursdag|birthday|fodselsdag|fødselsdag)\b/gi, "")
+  .replace(/[’']\s*s\b/gi, "")
+  .replace(/^\s*s\b/i, "")
+  .replace(/\s{2,}/g, " ")
+  .replace(/^[\s.,·-]+|[\s.,·-]+$/g, "")
+  .replace(/^./, (c) => c.toUpperCase());
 
 const kiBdEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const KI_BD_MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
@@ -47,7 +79,42 @@ class KiBursdagProCard extends HTMLElement {
   static getStubConfig() { return { antall: 3 }; }
   getCardSize() { return 4; }
 
-  setConfig(c) { this._c = { antall: 3, dager: 365, regex: "birthday|bursdag", ...(c || {}) }; this._forrige = null; }
+  setConfig(c) {
+    this._c = { antall: 3, dager: 365, regex: "birthday|bursdag", legg_til: true, aar_fram: 10, ...(c || {}) };
+    this._forrige = null; this._fraKalender = null; this._nytt = null;
+  }
+
+  /* Bursdagene som heldagshendelser i en kalender. Fødselsåret hentes fra
+     beskrivelsen («1985-04-12», «f. 1985») eller fra tittelen («Rune (1985)»). */
+  async _hentKalender() {
+    const h = this._h, c = this._c; if (!h || !c.kalender) return;
+    const fra = new Date(); fra.setHours(0, 0, 0, 0);
+    const til = new Date(fra); til.setDate(til.getDate() + Number(c.dager || 365));
+    try {
+      const svar = await h.callApi("GET",
+        `calendars/${c.kalender}?start=${encodeURIComponent(fra.toISOString())}&end=${encodeURIComponent(til.toISOString())}`);
+      const nå = new Date(); nå.setHours(0, 0, 0, 0);
+      const ut = [];
+      (svar || []).forEach((e) => {
+        const start = e.start && (e.start.date || e.start.dateTime || e.start);
+        const d = new Date(start); if (isNaN(d)) return;
+        d.setHours(0, 0, 0, 0);
+        const tekst = `${e.description || ""} ${e.summary || ""}`;
+        const full = tekst.match(/(\d{4})-(\d{2})-(\d{2})/);
+        const bare = tekst.match(/(?:f\.?|født|fodt|\()\s*(\d{4})/i);
+        const fodselsaar = full ? Number(full[1]) : bare ? Number(bare[1]) : null;
+        ut.push({
+          id: c.kalender, navn: kiBdNavn(e.summary || ""), dato: d,
+          dager: Math.round((d - nå) / 86400000),
+          alder: fodselsaar ? d.getFullYear() - fodselsaar : null,
+          fodt: full ? full[0] : fodselsaar ? String(fodselsaar) : null,
+          fra_kalender: true,
+        });
+      });
+      ut.sort((a, b) => a.dager - b.dager);
+      this._fraKalender = ut; this._forrige = null; this._tegn();
+    } catch (feil) { this._fraKalender = []; }
+  }
   /* Skjules når lanseringskortet står på serier, filmer eller kalender */
   _visningslytter() {
     if (this._visAv) return;
@@ -59,13 +126,28 @@ class KiBursdagProCard extends HTMLElement {
     };
     window.addEventListener("ki-lansering-visning", this._visAv);
   }
-  connectedCallback() { this._visningslytter(); }
+  connectedCallback() {
+    this._visningslytter();
+    clearInterval(this._i);
+    if (this._c && this._c.kalender) {
+      this._i = setInterval(() => this._hentKalender(), 900000);
+      if (this._h && this._fraKalender === null) this._hentKalender();
+    }
+  }
   disconnectedCallback() {
+    clearInterval(this._i);
     if (this._visAv) { window.removeEventListener("ki-lansering-visning", this._visAv); this._visAv = null; }
   }
 
-  set hass(h) { const g = this._h; this._h = h; if (!this._c) return; if (!g || this._endret(g, h)) this._tegn(); }
-  _endret(g, h) { return this._ider().some((id) => g.states[id] !== h.states[id]); }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    if (!g && this._c.kalender) this._hentKalender();
+    if (!g || this._endret(g, h)) this._tegn();
+  }
+  _endret(g, h) {
+    return this._ider().some((id) => g.states[id] !== h.states[id])
+      || (this._c.kalender && g.states[this._c.kalender] !== h.states[this._c.kalender]);
+  }
 
   _ider() {
     const c = this._c, h = this._h; if (!h) return [];
@@ -76,20 +158,14 @@ class KiBursdagProCard extends HTMLElement {
 
   /* Tåler flere sensorformater: dato i state, eller i attributtene */
   _personer() {
+    if (this._c.kalender) return (this._fraKalender || []).slice(0, Number(this._c.antall || 3));
     const h = this._h, nå = new Date(); nå.setHours(0, 0, 0, 0);
     const ut = [];
     this._ider().forEach((id) => {
       const st = h.states[id]; if (!st) return;
       const a = st.attributes || {};
       const rått = a.friendly_name_short || a.nickname || a.name || a.friendly_name || id.split(".").pop();
-      const navn = String(rått)
-        .replace(/[_-]+/g, " ")
-        .replace(/\b(bursdag|birthday|fodselsdag|fødselsdag)\b/gi, "")
-        .replace(/[’']\s*s\b/gi, "")
-        .replace(/^\s*s\b/i, "")
-        .replace(/\s{2,}/g, " ")
-        .replace(/^[\s.,·-]+|[\s.,·-]+$/g, "")
-        .replace(/^./, (c) => c.toUpperCase());
+      const navn = kiBdNavn(rått);
       const rå = a.next_birthday || a.next_date || a.date_of_next_birthday || a.birthday || a.date || st.state;
       const d = new Date(rå);
       if (isNaN(d)) return;
@@ -107,8 +183,67 @@ class KiBursdagProCard extends HTMLElement {
     return ut.sort((a, b) => a.dager - b.dager).slice(0, Number(this._c.antall || 3));
   }
 
+  /* Skjema for å legge inn en ny bursdag i kalenderen */
+  _skjema() {
+    const d = this._nytt || {};
+    return `<div class="skjema">
+      <div><label>Navn</label><input type="text" data-f="navn" value="${kiBdEsc(d.navn || "")}" placeholder="Rune"></div>
+      <div class="skjemarad">
+        <div><label>Fødselsdato</label><input type="date" data-f="fodt" value="${kiBdEsc(d.fodt || "")}"></div>
+        <div><label>År fram</label><input type="number" min="1" max="30" data-f="aar" value="${d.aar || this._c.aar_fram || 10}"></div>
+      </div>
+      <p class="hint">Datoen lagres i beskrivelsen på hendelsen, slik at alderen kan regnes ut.
+        Du kan redigere den senere i kalenderen.</p>
+      <div class="sknapper">
+        <button class="sk" data-s="avbryt">Avbryt</button>
+        <button class="sk lagre" data-s="lagre">Legg til</button>
+      </div>
+    </div>`;
+  }
+
+  async _lagre() {
+    const d = this._nytt || {}, c = this._c, h = this._h;
+    if (!d.navn || !d.fodt || !c.kalender) { this._nytt = null; this._forrige = null; return this._tegn(); }
+    const fodt = new Date(d.fodt);
+    const aar = Math.max(1, Math.min(30, Number(d.aar || c.aar_fram || 10)));
+    const iAar = new Date().getFullYear();
+    const start = fodt.getFullYear() >= iAar ? fodt.getFullYear() : iAar;
+    for (let i = 0; i < aar; i++) {
+      const dag = new Date(start + i, fodt.getMonth(), fodt.getDate());
+      const slutt = new Date(dag); slutt.setDate(slutt.getDate() + 1);
+      const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+      /* eslint-disable no-await-in-loop */
+      await h.callService("calendar", "create_event", {
+        entity_id: c.kalender,
+        summary: `${d.navn} (${fodt.getFullYear()})`,
+        description: `Født ${d.fodt}`,
+        start_date: iso(dag), end_date: iso(slutt),
+      });
+    }
+    this._nytt = null; this._forrige = null;
+    await this._hentKalender();
+    this._tegn();
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
+    if (this._nytt) {
+      const html = `<style>${KI_BDP_STIL}</style><div class="rot">${this._skjema()}</div>`;
+      if (html !== this._forrige) {
+        this.shadowRoot.innerHTML = html; this._forrige = html;
+        const r = this.shadowRoot;
+        r.querySelectorAll("[data-f]").forEach((el) => el.addEventListener("change", () => {
+          this._nytt[el.dataset.f] = el.value;
+        }));
+        r.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => {
+          if (b.dataset.s === "avbryt") { this._nytt = null; this._forrige = null; return this._tegn(); }
+          const felt = r.querySelectorAll("[data-f]");
+          felt.forEach((el) => { this._nytt[el.dataset.f] = el.value; });
+          this._lagre();
+        }));
+      }
+      return;
+    }
     const folk = this._personer();
     const kort = (p, i) => {
       const ukedag = p.dato.toLocaleDateString("nb-NO", { weekday: "long" });
@@ -128,12 +263,16 @@ class KiBursdagProCard extends HTMLElement {
         ${i ? `<div class="dager">${kiBdEsc(naar)}</div>` : ""}
       </div>`;
     };
+    const nyKnapp = c.kalender && c.legg_til !== false
+      ? `<button class="nyknapp" data-ny="1"><ha-icon icon="mdi:plus"></ha-icon>Ny bursdag</button>` : "";
     const html = `<style>${KI_BDP_STIL}</style><div class="rot">${
-      folk.length ? folk.map(kort).join("") : `<div class="tom">Ingen bursdager framover.</div>`}</div>`;
+      folk.length ? folk.map(kort).join("") : `<div class="tom">Ingen bursdager framover.</div>`}${nyKnapp}</div>`;
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
     this.shadowRoot.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", () =>
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.e }, bubbles: true, composed: true }))));
+    const ny = this.shadowRoot.querySelector("[data-ny]");
+    if (ny) ny.addEventListener("click", () => { this._nytt = { aar: c.aar_fram || 10 }; this._forrige = null; this._tegn(); });
   }
 }
 if (!customElements.get("ki-bursdag-pro-card")) customElements.define("ki-bursdag-pro-card", KiBursdagProCard);
@@ -145,7 +284,8 @@ class KiBursdagProCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { antall: "Antall kort", dager: "Dager framover", regex: "Finn sensorer med (regex)" };
+      const n = { kalender: "Bursdagskalender", antall: "Antall kort", dager: "Dager framover",
+        regex: "Finn sensorer med (regex)", legg_til: "Knapp for ny bursdag", aar_fram: "År fram nye lages" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -153,7 +293,10 @@ class KiBursdagProCardEditor extends HTMLElement {
     }
     this._f.hass = this._h; this._f.data = this._c;
     this._f.schema = [
+      { name: "kalender", selector: { entity: { domain: "calendar" } } },
       { name: "antall", selector: { number: { mode: "box", min: 1, max: 10 } } },
+      { name: "legg_til", selector: { boolean: {} } },
+      { name: "aar_fram", selector: { number: { mode: "box", min: 1, max: 30 } } },
       { name: "dager", selector: { number: { mode: "box", min: 1, max: 400 } } },
       { name: "regex", selector: { text: {} } },
     ];

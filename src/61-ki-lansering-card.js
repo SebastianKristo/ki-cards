@@ -8,10 +8,11 @@
  * visning: full             # full (hero + liste) | liste | hero | kalender
  * kalender: true            # vis knappen som bytter mellom liste og månedskalender
  * bursdag: true             # bursdagskort i samme sveip som neste lansering
- *   # eller: { regex: bursdag, dager: 45, entities: [...] }
+ *   # eller: { kalender: calendar.birthdays, dager: 45 }
+ *   # eller: { regex: bursdag, entities: [...] }
  * plakater: true            # vis plakater i lista
  */
-const KI_LANS_VERSJON = "1.3.0";
+const KI_LANS_VERSJON = "1.4.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -134,6 +135,7 @@ const KI_LANS_STIL = `
 
 /* «Rune's Birthday», «Bursdag Rune» og «rune_bursdag» blir alle til «Rune» */
 const kiLaNavn = (s) => String(s || "")
+  .replace(/\(\s*\d{4}\s*\)/g, "")
   .replace(/[_-]+/g, " ")
   .replace(/\b(bursdag|birthday|fodselsdag|fødselsdag|geburtstag)\b/gi, "")
   .replace(/[’']\s*s\b/gi, "")
@@ -265,6 +267,10 @@ class KiLanseringCard extends HTMLElement {
     const c = this._c.bursdag; if (!c || !this._h) return [];
     const o = typeof c === "object" ? c : {};
     const h = this._h, nå = new Date(); nå.setHours(0, 0, 0, 0);
+    if (o.kalender) {
+      if (this._bdKal === undefined) { this._bdKal = null; this._hentBursdagKalender(o); }
+      return (this._bdKal || []).filter((p) => p.dager <= Number(o.dager || 45));
+    }
     const ider = o.entities && o.entities.length
       ? o.entities.map((e) => (typeof e === "string" ? e : e.entity))
       : Object.keys(h.states).filter((id) => id.startsWith("sensor.") && new RegExp(o.regex || "birthday|bursdag", "i").test(id));
@@ -289,6 +295,31 @@ class KiLanseringCard extends HTMLElement {
                 dato: neste, dager, alder });
     });
     return ut.sort((a, b) => a.dager - b.dager);
+  }
+
+  /* Bursdager fra en kalender – fødselsåret ligger i beskrivelsen eller tittelen */
+  async _hentBursdagKalender(o) {
+    const h = this._h; if (!h) return;
+    const fra = new Date(); fra.setHours(0, 0, 0, 0);
+    const til = new Date(fra); til.setDate(til.getDate() + Number(o.dager || 45) + 1);
+    try {
+      const svar = await h.callApi("GET",
+        `calendars/${o.kalender}?start=${encodeURIComponent(fra.toISOString())}&end=${encodeURIComponent(til.toISOString())}`);
+      const ut = [];
+      (svar || []).forEach((e) => {
+        const start = e.start && (e.start.date || e.start.dateTime || e.start);
+        const d = new Date(start); if (isNaN(d)) return;
+        d.setHours(0, 0, 0, 0);
+        const tekst = `${e.description || ""} ${e.summary || ""}`;
+        const full = tekst.match(/(\d{4})-(\d{2})-(\d{2})/);
+        const bare = tekst.match(/(?:f\.?|født|fodt|\()\s*(\d{4})/i);
+        const år = full ? Number(full[1]) : bare ? Number(bare[1]) : null;
+        ut.push({ id: o.kalender, navn: kiLaNavn(e.summary || ""), dato: d,
+                  dager: Math.round((d - fra) / 86400000), alder: år ? d.getFullYear() - år : null });
+      });
+      ut.sort((a, b) => a.dager - b.dager);
+      this._bdKal = ut; this._forrige = null; this._tegn();
+    } catch (feil) { this._bdKal = []; }
   }
 
   _bursdagHero(p) {
