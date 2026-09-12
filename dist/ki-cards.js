@@ -1,4 +1,4 @@
-/* ki-cards v2.66.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.67.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.66.0";
+  KI.VERSION = "2.67.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5055,6 +5055,9 @@ try {
  *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
  *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
+ *  vis: switch.gjest                # kortet vises bare når denne er på
+ *  vis: { entity: input_select.hus, state: Oslo }   # eller en bestemt tilstand
+ *
  *  profil: oslo | stromstad | toten # tre ferdige profiler ligger i kortet
  *  profil_entity: input_select.hus  # eller la en input_select bestemme
  *  profiler:                       # egne profiler, eller overstyr de innebygde
@@ -5079,7 +5082,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.8.0";
+const KI_PROSA_VERSJON = "2.9.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5359,6 +5362,9 @@ class KiProsaCard extends HTMLElement {
   _planteliste() { return Object.keys(this._h.states).filter((id) => { if (!id.startsWith("binary_sensor.")) return false; const a = this._h.states[id].attributes || {}; return a.integrasjon === "ki_planter" && a.type === "plante"; }).sort(); }
   _ider() {
     const c = this._c, ids = [], e = (x) => x && x.entity;
+    if (typeof c.vis === "string" && !/[<>=!]|states\[/.test(c.vis)) ids.push(c.vis);
+    else if (c.vis && c.vis.entity) ids.push(c.vis.entity);
+    else if (typeof c.vis === "string") (c.vis.match(/[a-z_]+\.[a-z0-9_]+/g) || []).forEach((x) => ids.push(x));
     ["vaer", "pris", "effekt", "kalender"].forEach((g) => { const id = this._ent(g); if (id && id !== "auto") ids.push(id); });
     if (c.ringeklokke) ids.push(e(c.ringeklokke));
     const spotId = typeof c.spot === "string" ? c.spot : e(c.spot);
@@ -5646,55 +5652,91 @@ class KiProsaCard extends HTMLElement {
 
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
+    if (!this._synlig()) { this.style.display = "none"; return; }
+    this.style.display = "";
     const deler = this._deler();
     const nokler = deler.map((d) => this._nokkel(d));
-    const forrige = this._nokler || [];
-    /* «ny»-animasjonen beholdes bare på setninger som ikke sto der sist */
-    const rene = deler.map((d, i) => (forrige.includes(nokler[i]) ? String(d).replace(/ class="ny"/g, "") : d));
-    const html = `<div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p>${
-      rene.map((d, i) => `<span class="setning" data-k="${kiPEsc(nokler[i])}">${d}</span>`).join(" ")}</p></div>`;
+
     if (!this._bygget) {
-      this.shadowRoot.innerHTML = `<style>${KI_PROSA_STIL}</style>${html}`;
-      this._koble(); this._bygget = true; this._forrige = html; this._nokler = nokler;
-      return;
+      this.shadowRoot.innerHTML = `<style>${KI_PROSA_STIL}</style>
+        <div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p></p></div>`;
+      this._koble(); this._bygget = true; this._kart = new Map();
     }
-    if (html === this._forrige) return;
-    /* Er det de samme setningene, byttes bare tallene i pillene – ellers blinker
-       hele teksten hver gang effektmåleren tikker. */
-    const like = nokler.length === forrige.length && nokler.every((n, i) => n === forrige[i]);
-    if (like && this._mykOppdater(html)) { this._forrige = html; return; }
-    this.shadowRoot.querySelector(".prosa").outerHTML = html;
-    this._forrige = html; this._nokler = nokler;
+    const p = this.shadowRoot.querySelector(".prosa p");
+    const gamle = this._kart || (this._kart = new Map());
+    const brukt = new Set();
+
+    deler.forEach((html, i) => {
+      const n = nokler[i];
+      brukt.add(n);
+      let span = gamle.get(n);
+      if (span && span.isConnected) {
+        /* samme setning som sist: bytt bare det som faktisk har endret seg */
+        if (!this._mykSetning(span, html)) {
+          span.innerHTML = String(html).replace(/ class="ny"/g, "");
+        }
+      } else {
+        span = document.createElement("span");
+        span.className = "setning";
+        span.dataset.k = n;
+        span.innerHTML = html;
+        gamle.set(n, span);
+      }
+      /* riktig rekkefølge – appendChild flytter noden uten å bygge den på nytt */
+      p.appendChild(span);
+    });
+
+    for (const [n, span] of [...gamle]) {
+      if (!brukt.has(n)) { if (span.parentNode) span.remove(); gamle.delete(n); }
+    }
+    /* mellomrom mellom setningene */
+    [...p.children].forEach((el, i) => { el.style.marginRight = i < p.children.length - 1 ? ".28em" : ""; });
   }
 
-  /* Forsøker å oppdatere teksten uten å bygge DOM-en på nytt. Returnerer false
-     hvis strukturen har endret seg, og da tegnes alt om som før. */
-  _mykOppdater(html) {
-    const rot = this.shadowRoot.querySelector(".prosa");
-    if (!rot) return false;
-    const mal = document.createElement("div");
-    mal.innerHTML = html;
-    const nye = mal.querySelectorAll(".setning"), gamle = rot.querySelectorAll(".setning");
-    if (nye.length !== gamle.length) return false;
-    for (let i = 0; i < nye.length; i++) {
-      if (nye[i].dataset.k !== gamle[i].dataset.k) return false;
-      const np = nye[i].querySelectorAll(".pille"), gp = gamle[i].querySelectorAll(".pille");
-      if (np.length !== gp.length) return false;
-      for (let j = 0; j < np.length; j++) {
-        if (np[j].dataset.p !== gp[j].dataset.p) return false;
-        const nv = np[j].querySelector(".v"), gv = gp[j].querySelector(".v");
-        if (!nv || !gv) return false;
-        if (nv.textContent !== gv.textContent) gv.textContent = nv.textContent;
-        if (np[j].className !== gp[j].className) gp[j].className = np[j].className;
-        const npr = np[j].querySelector(".prikk"), gpr = gp[j].querySelector(".prikk");
-        if (npr && gpr && npr.getAttribute("style") !== gpr.getAttribute("style")) gpr.setAttribute("style", npr.getAttribute("style"));
-        /* tekst utenfor pillene (for eksempel «1 lys» vs «2 lys») */
-      }
-      const nt = nye[i].textContent, gt = gamle[i].textContent;
-      if (nt !== gt && np.length === 0) gamle[i].textContent = nt;
+  /* Bytter tall, farge og klasse inne i en setning uten å bygge den om.
+     Returnerer false hvis strukturen er en annen enn sist. */
+  _mykSetning(span, html) {
+    const mal = document.createElement("span");
+    mal.innerHTML = String(html).replace(/ class="ny"/g, "");
+    const np = mal.querySelectorAll(".pille"), gp = span.querySelectorAll(".pille");
+    if (np.length !== gp.length) return false;
+    for (let j = 0; j < np.length; j++) {
+      if (np[j].dataset.p !== gp[j].dataset.p) return false;
+      const nv = np[j].querySelector(".v"), gv = gp[j].querySelector(".v");
+      if (!nv || !gv) return false;
+      if (nv.textContent !== gv.textContent) gv.textContent = nv.textContent;
+      if (np[j].className !== gp[j].className) gp[j].className = np[j].className;
+      if (np[j].dataset.a !== gp[j].dataset.a) gp[j].dataset.a = np[j].dataset.a;
+      const npr = np[j].querySelector(".prikk"), gpr = gp[j].querySelector(".prikk");
+      if (!!npr !== !!gpr) return false;
+      if (npr && npr.getAttribute("style") !== gpr.getAttribute("style")) gpr.setAttribute("style", npr.getAttribute("style"));
+      const ni = np[j].querySelector("ha-icon"), gi = gp[j].querySelector("ha-icon");
+      if (!!ni !== !!gi) return false;
+      if (ni && ni.getAttribute("icon") !== gi.getAttribute("icon")) gi.setAttribute("icon", ni.getAttribute("icon"));
+    }
+    /* teksten utenom pillene må være den samme */
+    const rens = (el) => [...el.childNodes].filter((x) => x.nodeType === 3).map((x) => x.textContent).join("");
+    if (rens(mal) !== rens(span)) {
+      const nye = [...mal.childNodes].filter((x) => x.nodeType === 3);
+      const gmle = [...span.childNodes].filter((x) => x.nodeType === 3);
+      if (nye.length !== gmle.length) return false;
+      nye.forEach((t, i) => { if (gmle[i].textContent !== t.textContent) gmle[i].textContent = t.textContent; });
     }
     return true;
   }
+
+  /* Kortet kan skjules av en bryter, en select eller et fritt uttrykk */
+  _synlig() {
+    const v = this._c.vis;
+    if (v === undefined || v === null || v === "") return true;
+    if (v === false) return false;
+    if (typeof v === "string") {
+      if (/[<>=!]|states\[/.test(v)) return !!kiPJs(v, this._h);
+      return this._on(v);
+    }
+    return this._aktiv(v);
+  }
+
 }
 if (!customElements.get("ki-prosa-card")) window.KI.define("ki-prosa-card", KiProsaCard);
 
@@ -5829,31 +5871,65 @@ class KiProsaCardEditor extends HTMLElement {
 
   _r() { if (!this._h || !this._c) return; if (this._rot) { this._oppdater(); return; } this._bygg(); }
 
+  /* Én seksjon som kan foldes ut, med kort oppsummering i hodet */
+  _seksjon(inn, id, tittel, oppsumFn) {
+    const boks = document.createElement("div");
+    boks.className = "gr" + (this._apne && this._apne[id] ? " apen" : "");
+    const hode = document.createElement("div"); hode.className = "hode";
+    hode.innerHTML = `<ha-icon class="pil" icon="mdi:chevron-right"></ha-icon>
+      <span class="tit">${kiPEsc(tittel)}</span><span class="oppsum"></span>`;
+    const kropp = document.createElement("div"); kropp.className = "kropp";
+    hode.addEventListener("click", () => {
+      this._apne = this._apne || {};
+      this._apne[id] = !this._apne[id];
+      boks.classList.toggle("apen", this._apne[id]);
+    });
+    boks.appendChild(hode); boks.appendChild(kropp); inn.appendChild(boks);
+    if (oppsumFn) this._oppsum = [...(this._oppsum || []), { el: hode.querySelector(".oppsum"), fn: oppsumFn }];
+    return kropp;
+  }
+
   _bygg() {
     if (!this._h || !this._c) return;
     if (!this._rot) {
       this._rot = document.createElement("div");
       this._rot.innerHTML = `<style>
-        .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
-        .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; display:flex; align-items:center; gap:8px; }
-        .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .gr { border:1px solid var(--divider-color,#444); border-radius:12px; margin:0 0 8px; overflow:hidden; }
+        .gr > .hode { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer;
+          background:var(--secondary-background-color, rgba(255,255,255,.04)); }
+        .gr > .hode .tit { font-size:14px; font-weight:600; }
+        .gr > .hode .oppsum { margin-left:auto; font-size:12px; opacity:.6; white-space:nowrap; overflow:hidden;
+          text-overflow:ellipsis; max-width:52%; }
+        .gr > .hode .pil { transition:transform .18s; opacity:.6; }
+        .gr.apen > .hode .pil { transform:rotate(90deg); }
+        .gr > .kropp { display:none; padding:12px 14px 14px; }
+        .gr.apen > .kropp { display:block; }
+        .rad { display:grid; grid-template-columns:1fr 1fr; gap:10px 8px; }
         .rad > * { min-width:0; }
-        .rk { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:8px 0 4px; }
-        .rk b { font-size:13px; opacity:.75; }
+        .rad.full { grid-template-columns:1fr; }
+        .rk { display:flex; justify-content:space-between; align-items:center; gap:8px;
+          margin:10px 0 6px; padding-top:10px; border-top:1px solid var(--divider-color,#444); }
+        .rk:first-of-type { border-top:0; padding-top:0; }
+        .rk b { font-size:13px; }
         .knapp { border:0; background:var(--secondary-background-color,#333); color:var(--primary-text-color,#fff);
-          border-radius:10px; padding:7px 12px; font:inherit; font-size:13px; cursor:pointer; }
-        .knapp.fjern { color:var(--error-color,#e8657a); }
-        .hint { font-size:12px; opacity:.6; margin:6px 0 10px; }
+          border-radius:10px; padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; }
+        .knapp:hover { filter:brightness(1.15); }
+        .knapp.fjern { background:none; color:var(--error-color,#e8657a); padding:6px 8px; }
+        .knapp.legg { margin-top:12px; width:100%; }
+        .hint { font-size:12px; opacity:.6; margin:4px 0 12px; line-height:1.5; }
+        .avrad { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px;
+          padding-top:10px; border-top:1px solid var(--divider-color,#444); font-size:13px; opacity:.85; }
       </style><div class="innhold"></div>`;
       this.appendChild(this._rot);
     }
     const inn = this._rot.querySelector(".innhold");
     inn.innerHTML = "";
-    this._felter = [];
+    this._felter = []; this._oppsum = [];
+    this._apne = this._apne || { profil: true };
 
     /* --- profil --- */
-    const pb = document.createElement("div"); pb.className = "gr";
-    pb.innerHTML = "<h4>Profil</h4>";
+    const pb = this._seksjon(inn, "profil", "Profil og visning",
+      () => (this._c.profil ? (KI_PROSA_PROFILER[this._c.profil] || {}).navn || this._c.profil : "ingen profil"));
     const prad = document.createElement("div"); prad.className = "rad";
     const valg = document.createElement("ha-select");
     valg.label = "Aktiv profil";
@@ -5870,6 +5946,19 @@ class KiProsaCardEditor extends HTMLElement {
     prad.appendChild(this._felt("entity", "Profil styres av", () => this._c.profil_entity,
       (v) => { if (v) this._c.profil_entity = v; else delete this._c.profil_entity; this._send(); }));
     pb.appendChild(prad);
+    const vrad = document.createElement("div"); vrad.className = "rad";
+    vrad.appendChild(this._felt("entity", "Vis kortet bare når denne er på",
+      () => (typeof this._c.vis === "string" ? this._c.vis : (this._c.vis && this._c.vis.entity) || ""),
+      (v) => { if (!v) delete this._c.vis; else if (this._c.vis && this._c.vis.state) this._c.vis = { ...this._c.vis, entity: v }; else this._c.vis = v; this._send(); }));
+    vrad.appendChild(this._felt("text", "… eller har denne tilstanden",
+      () => (this._c.vis && this._c.vis.state) || "",
+      (v) => {
+        const id = typeof this._c.vis === "string" ? this._c.vis : (this._c.vis || {}).entity;
+        if (!id) return;
+        this._c.vis = v ? { entity: id, state: v } : id;
+        this._send();
+      }));
+    pb.appendChild(vrad);
 
     const rediger = document.createElement("ha-formfield");
     rediger.label = this._redigerProfil
@@ -5882,38 +5971,40 @@ class KiProsaCardEditor extends HTMLElement {
       this._bygg();
     });
     rediger.appendChild(rsw); pb.appendChild(rediger);
-    inn.appendChild(pb);
 
     /* --- generelt --- */
-    const gb = document.createElement("div"); gb.className = "gr";
-    gb.innerHTML = "<h4>Generelt</h4>";
+    const gb = this._seksjon(inn, "generelt", "Generelt", () => this._les("", "storrelse") || "");
     const grad = document.createElement("div"); grad.className = "rad";
     grad.appendChild(this._felt("text", "Tekststørrelse", () => this._les("", "storrelse"), (v) => this._sett("", "storrelse", v)));
-    gb.appendChild(grad); inn.appendChild(gb);
+    gb.appendChild(grad);
 
     /* --- bitene --- */
     for (const [gren, tittel, felter] of KiProsaCardEditor.GRUPPER) {
-      const boks = document.createElement("div"); boks.className = "gr";
-      const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
       const av = this._mal()[gren] === false;
+      const boks = this._seksjon(inn, gren, tittel,
+        () => (this._mal()[gren] === false ? "av" : (this._les(gren, "entity") || this._les(gren, "navn") || "")));
       if (!av) {
         const rad = document.createElement("div"); rad.className = "rad";
-        for (const [felt, etikett, type] of felter)
-          rad.appendChild(this._felt(type, etikett, () => this._les(gren, felt), (v) => this._sett(gren, felt, v)));
+        for (const [felt, etikett, type] of felter) {
+          const f = this._felt(type, etikett, () => this._les(gren, felt), (v) => this._sett(gren, felt, v));
+          if (felt === "tekst") f.parentElement === null && (f.style.gridColumn = "1 / -1");
+          rad.appendChild(f);
+          if (felt === "tekst") f.style.gridColumn = "1 / -1";
+        }
         boks.appendChild(rad);
       }
-      const ff = document.createElement("ha-formfield"); ff.label = "Skru av denne biten";
+      const avrad = document.createElement("div"); avrad.className = "avrad";
+      avrad.appendChild(Object.assign(document.createElement("span"), { textContent: "Skru av denne biten" }));
       const sw = document.createElement("ha-switch");
       sw.checked = av;
       sw.addEventListener("change", (e) => this._av(gren, e.target.checked));
-      ff.appendChild(sw); boks.appendChild(ff);
-      inn.appendChild(boks);
+      avrad.appendChild(sw); boks.appendChild(avrad);
     }
 
     /* --- lister --- */
     for (const [navnListe, tittel, felter] of KiProsaCardEditor.LISTER) {
-      const boks = document.createElement("div"); boks.className = "gr";
-      const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
+      const boks = this._seksjon(inn, navnListe, tittel,
+        () => { const n = this._liste(navnListe).length; return n ? `${n} ${n === 1 ? "rad" : "rader"}` : "tom"; });
       const liste = this._liste(navnListe);
       liste.forEach((rad, i) => {
         const topp = document.createElement("div"); topp.className = "rk";
@@ -5954,24 +6045,25 @@ class KiProsaCardEditor extends HTMLElement {
         }
         boks.appendChild(r2);
       });
-      const legg = document.createElement("button"); legg.className = "knapp"; legg.textContent = "Legg til";
+      const legg = document.createElement("button"); legg.className = "knapp legg"; legg.textContent = "+  Legg til";
       legg.addEventListener("click", () => {
         const ny = JSON.parse(JSON.stringify(this._liste(navnListe)));
         ny.push(navnListe === "setninger" ? { tekst: "Ny setning {pille}" } : { navn: "Nytt" });
         this._settListe(navnListe, ny);
       });
       boks.appendChild(legg);
-      inn.appendChild(boks);
     }
 
     const hint = document.createElement("p"); hint.className = "hint";
-    hint.textContent = "Feltene som står tomme bruker verdien fra profilen. Skru av en bit for å fjerne den fra teksten.";
+    hint.textContent = "Trykk på en overskrift for å folde den ut. Tomme felt arver fra profilen, "
+      + "og «Skru av denne biten» fjerner setningen fra teksten.";
     inn.appendChild(hint);
     this._oppdater();
   }
 
   /* Fyller inn verdiene uten å bygge om skjemaet, og rører ikke feltet du skriver i */
   _oppdater() {
+    (this._oppsum || []).forEach((o) => { const t = String(o.fn() ?? ""); if (o.el.textContent !== t) o.el.textContent = t; });
     if (!this._felter) return;
     for (const f of this._felter) {
       if (f.el === document.activeElement || (f.el.contains && f.el.contains(document.activeElement))) continue;
@@ -6142,6 +6234,8 @@ try {
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
+ * bakgrunn: var(--gray200)                           # bakgrunnsfarge på kortet
+ * bakgrunn_glod: false                               # slår av det fargede skjæret øverst
  *
  * Timesprisene kan komme fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i
  * en annen sensor i kr med avgifter. Da settes:
@@ -6167,7 +6261,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.7.0";
+const KI_SP_VERSJON = "2.8.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -6175,9 +6269,9 @@ const KI_SP_STIL = `
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .ramme { max-width:100%; }
   .ramme { color:var(--gray1000, var(--primary-text-color)); }
-  .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200, var(--card-background-color));
+  .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--kort-bg, var(--gray200, var(--card-background-color)));
     color:var(--gray1000, var(--primary-text-color)); padding:14px 16px 12px; overflow:hidden; isolation:isolate; }
-  .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:.2;
+  .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:calc(.2 * var(--glod, 1));
     background:radial-gradient(60% 100% at 30% 0%, var(--tone,#8fe3c0), transparent 70%); }
   .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
     padding:0 4px 10px; background:none; }
@@ -6499,7 +6593,7 @@ class KiStromprisCard extends HTMLElement {
       const npp = this._npPunkter(this._dag);
       if (npp) { pkt2 = npp; kunNp = true; }
       else return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}">${hero}
+      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
     }
     this._kunNp = kunNp;
@@ -6518,7 +6612,7 @@ class KiStromprisCard extends HTMLElement {
     const timer = pkt.filter((_, i) => i % steg === 0).map((p) => kiSpKl(p.t));
 
     return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}">
+      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
@@ -6566,7 +6660,8 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Timespriser (raw_today)",
+      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet",
+        bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", spot: "Timespriser (raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
@@ -6578,6 +6673,7 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
       { name: "enhet", selector: { text: {} } },
+      { name: "bakgrunn", selector: { text: {} } },
       { name: "spot_naa", selector: { entity: { domain: "sensor" } } },
       { name: "mva", selector: { number: { mode: "box", min: 0, max: 100, step: "any" } } },
       { name: "paaslag", selector: { number: { mode: "box", step: "any" } } },

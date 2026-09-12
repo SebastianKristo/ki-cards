@@ -400,6 +400,10 @@ Kortet regner da ut forholdet mellom timesprisen akkurat nå og totalprisen din,
 kurven – slik at snitt, høyest, lavest og billigste vindu er i kroner du kjenner igjen. Vil du heller regne
 det ut selv, bruker du `mva: 25` og `paaslag: 0.089` (kr/kWh) i stedet. Øre oppdages automatisk fra enheten.
 
+Bakgrunnsfargen settes med `bakgrunn:` – en CSS-farge eller en variabel fra temaet, for eksempel
+`bakgrunn: var(--gray100)` eller `bakgrunn: '#101820'`. `bakgrunn_glod: false` fjerner det fargede skjæret
+øverst i kortet.
+
 ### ki-prosa-card
 ```yaml
 type: custom:ki-prosa-card
@@ -510,7 +514,16 @@ legges til under `profiler:` med samme nøkler.
 `profil: stromstad` velger fast, `profil_entity:` lar en `input_select` bestemme, og kortet bygger seg om
 når verdien endrer seg.
 
-Den visuelle editoren dekker hele kortet: du velger profil øverst (og kan skru på «rediger denne profilen»
+Hele kortet kan skjules av en bryter eller en tilstand:
+
+```yaml
+vis: switch.gjestemodus                          # vises bare når denne er på
+vis: {entity: input_select.hus, state: Oslo}     # eller ved en bestemt tilstand
+```
+
+Den visuelle editoren er delt i seksjoner du folder ut én om gangen, med en kort oppsummering i
+overskriften – hvilken entitet biten bruker, hvor mange rader en liste har, eller «av». Du velger profil
+øverst (og kan skru på «rediger denne profilen»
 for at endringene skal lagres i profilen i stedet for i kortet), setter entitet, ikon, enhet, desimaler,
 setning og trykkmål for hver bit, og skrur biter av og på. Apparater, På vei hjem og Egne setninger er
 lister med «Legg til» og «Fjern», der hver rad har entitetsvelger for når den skal vises, hvilken verdi

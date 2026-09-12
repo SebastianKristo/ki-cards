@@ -5,6 +5,8 @@
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
+ * bakgrunn: var(--gray200)                           # bakgrunnsfarge på kortet
+ * bakgrunn_glod: false                               # slår av det fargede skjæret øverst
  *
  * Timesprisene kan komme fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i
  * en annen sensor i kr med avgifter. Da settes:
@@ -30,7 +32,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.7.0";
+const KI_SP_VERSJON = "2.8.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -38,9 +40,9 @@ const KI_SP_STIL = `
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .ramme { max-width:100%; }
   .ramme { color:var(--gray1000, var(--primary-text-color)); }
-  .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200, var(--card-background-color));
+  .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--kort-bg, var(--gray200, var(--card-background-color)));
     color:var(--gray1000, var(--primary-text-color)); padding:14px 16px 12px; overflow:hidden; isolation:isolate; }
-  .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:.2;
+  .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:calc(.2 * var(--glod, 1));
     background:radial-gradient(60% 100% at 30% 0%, var(--tone,#8fe3c0), transparent 70%); }
   .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
     padding:0 4px 10px; background:none; }
@@ -362,7 +364,7 @@ class KiStromprisCard extends HTMLElement {
       const npp = this._npPunkter(this._dag);
       if (npp) { pkt2 = npp; kunNp = true; }
       else return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}">${hero}
+      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
     }
     this._kunNp = kunNp;
@@ -381,7 +383,7 @@ class KiStromprisCard extends HTMLElement {
     const timer = pkt.filter((_, i) => i % steg === 0).map((p) => kiSpKl(p.t));
 
     return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
-      <div class="kort" style="--tone:${this._tone()}">
+      <div class="kort" style="--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
@@ -429,7 +431,8 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Timespriser (raw_today)",
+      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet",
+        bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", spot: "Timespriser (raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
@@ -441,6 +444,7 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
       { name: "enhet", selector: { text: {} } },
+      { name: "bakgrunn", selector: { text: {} } },
       { name: "spot_naa", selector: { entity: { domain: "sensor" } } },
       { name: "mva", selector: { number: { mode: "box", min: 0, max: 100, step: "any" } } },
       { name: "paaslag", selector: { number: { mode: "box", step: "any" } } },
