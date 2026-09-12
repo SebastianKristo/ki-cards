@@ -368,6 +368,16 @@ knapp for å lage programmer rett i kortet: navn og klokkeslett, ukedager eller 
 om sonene skal kjøre etter hverandre eller samtidig, minutter per sone, og om programmet bare skal gå i
 feriemodus. Blyanten på et program åpner det samme skjemaet for endring og sletting.
 
+Fanen **Mer** samler innstillingene: feriemodus, hvor mye lenger sonene går i ferien, vannpris og knappene for
+å hente programplanen eller nullstille tellerne. Entitetene finnes automatisk via KI Vanning, så ingenting
+skal skrives inn – og de ligger ikke i veien nederst i popupen.
+
+Programmer-fanen viser hvert program som et eget kort: klokkeslett i stort, ukedagene som brikker (eller
+«hver N. dag»), sonene med minutter, av/på-bryter, «Kjør nå» og blyant for redigering. Under ligger
+**Kommende vanninger** – en kalender gruppert per dag med klokkeslett, program og estimat – og
+**Siste kjøringer** med faktisk forbruk, antall kjøringer og snitt. Begge virker med OpenSprinkler og med
+egne ventiler.
+
 ### ki-strompris-card
 ```yaml
 type: custom:ki-strompris-card
