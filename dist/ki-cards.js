@@ -1,4 +1,4 @@
-/* ki-cards v2.67.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.68.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.67.0";
+  KI.VERSION = "2.68.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5082,7 +5082,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.9.0";
+const KI_PROSA_VERSJON = "2.10.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5373,8 +5373,8 @@ class KiProsaCard extends HTMLElement {
     if (c.laser) { const v = e(c.laser); if (v === "auto") ids.push(...this._domene("lock")); else if (v) ids.push(...[].concat(v)); }
     if (c.planter && e(c.planter) === "auto") ids.push(...this._planteliste());
     else if (c.planter) ids.push(...[].concat(e(c.planter) || []));
-    (c.apparater || []).forEach((a) => ids.push(a.verdi, a.aktiv && (a.aktiv.entity || a.aktiv)));
-    (c.hjemkomst || []).forEach((a) => ids.push(a.aktiv, a.reisetid));
+    (c.apparater || []).forEach((a) => { const u = a.aktiv || a.vis; ids.push(a.verdi, u && (u.entity || u)); });
+    (c.hjemkomst || []).forEach((a) => { const u = a.aktiv || a.vis; ids.push(u && (u.entity || u), a.reisetid); });
     if (c.bursdag) ids.push(c.bursdag.vis, c.bursdag.skjult, c.bursdag.navn);
     (c.setninger || []).forEach((s) => {
       if (s.nar) ids.push(s.nar.entity || s.nar);
@@ -5427,6 +5427,7 @@ class KiProsaCard extends HTMLElement {
 
   /* -------------------------------------------------------------- piller */
   _aktiv(a) {
+    if (a === true) return true;
     if (!a) return false;
     if (typeof a === "string") return this._on(a);
     const s = this._st(a.entity); if (!s) return false;
@@ -5582,7 +5583,7 @@ class KiProsaCard extends HTMLElement {
     }
     /* apparater */
     (c.apparater || []).forEach((a) => {
-      if (!this._aktiv(a.aktiv)) return;
+      if (!this._aktiv(a.aktiv || a.vis)) return;
       /* mangler verdi-sensoren, brukes sensoren som utløste apparatet */
       const kilde = this._st(a.verdi) ? a.verdi : (a.aktiv && a.aktiv.entity) || a.aktiv;
       const p = this._pille({ entity: kilde, enhet: a.enhet, mellomrom: a.mellomrom, tusenskille: a.tusenskille, desimaler: a.desimaler ?? 0,
@@ -5592,7 +5593,8 @@ class KiProsaCard extends HTMLElement {
     });
     /* hjemkomst */
     (c.hjemkomst || []).forEach((a) => {
-      if (!this._on(a.aktiv)) return;
+      const utloser = a.aktiv || a.vis;
+      if (!(typeof utloser === "string" ? this._on(utloser) : this._aktiv(utloser))) return;
       const min = this._num(a.reisetid); if (min === null) return;
       const kl = new Date(Date.now() + min * 60000).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
       const p = this._pille({ entity: a.reisetid, ikon: a.ikon, animasjon: a.animasjon, path: a.path, mer: a.path ? undefined : a.reisetid }, kiPEsc(kl));
@@ -5682,15 +5684,21 @@ class KiProsaCard extends HTMLElement {
         span.innerHTML = html;
         gamle.set(n, span);
       }
-      /* riktig rekkefølge – appendChild flytter noden uten å bygge den på nytt */
-      p.appendChild(span);
+      /* Flytt bare noder som faktisk står feil. Å flytte en node kobler
+         ha-icon fra og til igjen, og det er nettopp det som glimter. */
+      if (p.children[i] !== span) {
+        if (p.children[i]) p.insertBefore(span, p.children[i]); else p.appendChild(span);
+      }
     });
 
     for (const [n, span] of [...gamle]) {
       if (!brukt.has(n)) { if (span.parentNode) span.remove(); gamle.delete(n); }
     }
     /* mellomrom mellom setningene */
-    [...p.children].forEach((el, i) => { el.style.marginRight = i < p.children.length - 1 ? ".28em" : ""; });
+    [...p.children].forEach((el, i) => {
+      const m = i < p.children.length - 1 ? ".28em" : "";
+      if (el.style.marginRight !== m) el.style.marginRight = m;
+    });
   }
 
   /* Bytter tall, farge og klasse inne i en setning uten å bygge den om.

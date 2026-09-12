@@ -452,6 +452,7 @@ bursdag:
 apparater:
   - navn: Oppvaskmaskinen
     aktiv: {entity: input_select.oppvaskmaskin_status, state: Vasker}   # state | over | under
+    # `vis:` betyr det samme som `aktiv:` og kan brukes om hverandre
     verdi: sensor.oppvaskmaskin_power
     enhet: W
     mellomrom: false
