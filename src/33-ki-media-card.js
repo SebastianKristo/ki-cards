@@ -159,7 +159,7 @@ const KI_MEDIA_STIL = `
   .spor { display:flex; transition:transform .35s var(--myk, cubic-bezier(.2,.8,.2,1)); will-change:transform; }
   .spor.drar { transition:none; }
   .side { flex:0 0 100%; min-width:0; }
-  .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
+  .prikker { display:flex; gap:6px; justify-content:center; padding:0; margin:-4px 0 -2px; height:14px; align-items:center; }
   .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
     transition:opacity .25s, transform .25s; cursor:pointer; }
   .prikker i.valgt { opacity:.95; transform:scale(1.15); }

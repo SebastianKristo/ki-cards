@@ -11,12 +11,13 @@
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "2.2.0";
+const KI_HYTTE_VERSJON = "2.2.1";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .rot { display:grid; gap:12px; max-width:100%; }
+  .rot > .sveip + .prikker { margin-top:-6px; }
   button { font:inherit; }
 
   /* ---- hero ---- */
@@ -58,7 +59,9 @@ const KI_HYTTE_STIL = `
   .spor { align-items:stretch; }
   .side { flex:0 0 100%; min-width:0; display:flex; }
   .side > .hero { flex:1; }
-  .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
+  /* prikkene ligger tett under kortet, og teller ikke som en egen rad i gridet */
+  .prikker { display:flex; gap:6px; justify-content:center; padding:0; margin:-4px 0 -2px; height:14px;
+    align-items:center; }
   .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
     transition:opacity .25s, transform .25s; cursor:pointer; }
   .prikker i.valgt { opacity:.95; transform:scale(1.15); }
