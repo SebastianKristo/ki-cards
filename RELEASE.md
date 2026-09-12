@@ -1,11 +1,8 @@
 ## Endret
 
-**ki-jul-card 1.3.0**
-- Julekortet er nå selve bryteren: trykk tenner eller slukker alle julelysene, og merket i hjørnet viser «Tent» eller «Slukket». Hold inne for å åpne kortet stort
-- Flisene «Julesesong» og «Tent nå» er fjernet – tallet står i kortet i stedet
-
-## Nytt
-
-- **24. desember**: nissen sitter på mønet med sekken og vinker, og to reinsdyr beiter i hagen
-- **31. desember**: fyrverkeri spretter over hustaket i tre farger, og teksten blir «Godt nytt år»
-- `dato: '2026-12-24'` tegner kortet som en bestemt dag, så du kan se hvordan det blir
+**ki-jul-card 1.4.0**
+- Nedtellingskortet er like høyt som julekortet, 200 px, så de står likt i sveipet
+- Trykk på julekortet styrer nå **julesesong-bryteren** fra KI Lys i stedet for å slå av og på hvert enkelt lys. Finnes ikke bryteren, tas lysene direkte som før. `sesong:` peker på en annen bryter om du vil
+- Teksten nederst ligger ikke lenger oppå snøen: en mørk tone under gjør «God jul» og lystellingen lesbar
+- Hekken er tegnet på nytt – fyldigere, foran snøen, med større pærer i slyngen
+- Nissen er tegnet om: rød drakt med belte, hvitt skjegg, lue med dusk, og sekken ved siden av

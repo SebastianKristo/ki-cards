@@ -344,7 +344,7 @@ stjernehimmel, røyk fra pipa, snø som daler, lysslynge i hekken, julestjerne i
 det andre. Lysene i tegningen følger de virkelige – stjerna lyser når en julestjerne står på, flammene
 flakker når en stake er tent, og pærene i hekken blinker når utelyset er på. `hero: false` skrur den av, og `sveip: false` stabler julekortet og nedtellingen i stedet for å sveipe.
 
-Julekortet er selve bryteren: trykk tenner eller slukker alle julelysene, og merket i hjørnet sier «Tent»
+Julekortet er selve bryteren: trykk styrer `switch.<…>_jul_sesong` fra KI Lys – som tenner eller slukker alt, og merket i hjørnet sier «Tent»
 eller «Slukket». Hold inne, så vokser kortet ut og fyller toppen med antall tente lys – trykk igjen for å
 lukke. Øverst sveiper du mellom julekortet og nedtellingen, og i julesesongen daler det snø over hele kortet.
 

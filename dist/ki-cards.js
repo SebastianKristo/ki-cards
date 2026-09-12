@@ -1,4 +1,4 @@
-/* ki-cards v3.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.5.0";
+  KI.VERSION = "3.6.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -14245,10 +14245,11 @@ try {
  * sveip: true                           # sveip mellom julekortet og nedtellingen
  * snoe: true                            # snø over hele kortet i julesesongen
  * dato: '2026-12-24'                    # se hvordan kortet ser ut en bestemt dag
+ * sesong: switch.ki_jul_sesong          # trykk på kortet styrer denne (oppdages automatisk)
  * automasjoner:                          # valgfritt, vises i Automasjon-fanen
  *   - {entity: automation.julelys_sla_pa_1_november, navn: Slå på, under: 1. november, ikon: mdi:calendar-arrow-right}
  */
-const KI_JUL_VERSJON = "1.3.0";
+const KI_JUL_VERSJON = "1.4.0";
 
 const KI_JUL_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -14291,7 +14292,7 @@ const KI_JUL_STIL = `
   .utvidet .telling span { font-size:13px; opacity:.75; }
 
   /* nedtellingskortet – samme oppsett som button-card-utgaven */
-  .tell { position:relative; height:160px; background:var(--gray200); border-radius:var(--ha-card-border-radius,24px);
+  .tell { position:relative; height:200px; background:var(--gray200); border-radius:var(--ha-card-border-radius,24px);
     overflow:hidden; display:grid; cursor:pointer;
     grid-template-areas:"n i" "dager maal" "merker merker" "bar bar";
     grid-template-columns:1fr min-content; grid-template-rows:min-content 1fr min-content min-content; }
@@ -14329,7 +14330,7 @@ const KI_JUL_STIL = `
   @keyframes jul-fall { 0% { transform:translateY(-10px) translateX(0); opacity:0; }
     10% { opacity:.75; } 100% { transform:translateY(210px) translateX(16px); opacity:0; } }
   /* pærer i hekken – lyser etter tur når utelyset står på */
-  .paere { opacity:.18; }
+  .paere { opacity:.3; }
   .scene.ute .paere { animation:jul-paere 2.6s ease-in-out infinite; }
   @keyframes jul-paere { 0%,100% { opacity:.25; } 50% { opacity:1; } }
   .vindu { fill:#3b4a63; transition:fill .6s var(--myk); }
@@ -14362,9 +14363,12 @@ const KI_JUL_STIL = `
   .sesongmerke { position:absolute; right:16px; top:16px; font-size:11px; font-weight:700; letter-spacing:.03em;
     padding:6px 12px; border-radius:999px; background:rgba(255,255,255,.14); backdrop-filter:blur(6px); }
   .scene.inne .sesongmerke { background:var(--yellow); color:var(--black,#000); }
-  .scenetekst { position:absolute; left:18px; bottom:14px; }
-  .scenetekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.6); }
-  .scenetekst span { font-size:13px; opacity:.75; }
+  .scene::after { content:""; position:absolute; left:0; right:0; bottom:0; height:86px; pointer-events:none;
+    background:linear-gradient(180deg, rgba(8,14,26,0) 0%, rgba(8,14,26,.72) 70%, rgba(8,14,26,.85) 100%); }
+  .scenetekst { position:absolute; left:18px; bottom:14px; z-index:2; }
+  .scenetekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.75); }
+  .scenetekst span { font-size:13px; opacity:.85; text-shadow:0 1px 6px rgba(0,0,0,.8); }
+  .sesongmerke { z-index:2; }
 
   /* to fliser: sesong og antall tent */
   .fliser { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -14464,6 +14468,26 @@ class KiJulCard extends HTMLElement {
     const dom = String(id).split(".")[0];
     this._h.callService(dom === "automation" ? "automation" : dom, "toggle", { entity_id: id });
   }
+  /* Julesesong-bryteren fra KI Lys, hvis den finnes */
+  _sesongBryter() {
+    const h = this._h; if (!h) return null;
+    return Object.keys(h.states).find((x) => {
+      if (!x.startsWith("switch.")) return false;
+      const a = h.states[x].attributes || {};
+      return a.integrasjon === "ki_lys" && a.ki_type === "jul_sesong";
+    }) || (this._c && this._c.sesong) || null;
+  }
+  _sesongPaa() {
+    const id = this._sesongBryter();
+    return id ? this._paa(id) : (this._d() || {}).tent > 0;
+  }
+  _veksleSesong() {
+    const id = this._sesongBryter();
+    if (navigator.vibrate) navigator.vibrate(10);
+    if (id) return this._h.callService("switch", "toggle", { entity_id: id });
+    this._alle(!this._sesongPaa());          /* uten bryteren tar vi lysene direkte */
+  }
+
   _alle(pa) {
     if (navigator.vibrate) navigator.vibrate(10);
     const h = this._h;
@@ -14495,9 +14519,9 @@ class KiJulCard extends HTMLElement {
 
     /* hekken foran huset, med pærerad langs toppen */
     const paerer = Array.from({ length: 16 }, (_, i) => {
-      const x = 22 + i * 21, y = 158 + Math.sin(i * 0.9) * 3;
+      const x = 18 + i * 21, y = 166 + Math.sin(i * 1.25) * 7;
       const f = ["#ff8f8f", "#ffd98a", "#8fd3ff", "#a6f0a6"][i % 4];
-      return `<circle class="paere" cx="${x}" cy="${y}" r="3.1" fill="${f}"
+      return `<circle class="paere" cx="${x}" cy="${y}" r="3.6" fill="${f}"
         style="animation-delay:-${(i * 0.17).toFixed(2)}s"/>`;
     }).join("");
 
@@ -14553,13 +14577,12 @@ class KiJulCard extends HTMLElement {
         ${fig.nisse}
         ${fig.rein}
 
-        <!-- hekken med lysslynge -->
-        <path d="M8 200v-30q14-18 30-16t26 14q16-16 34-12t24 18q14-14 30-10t22 16q16-14 32-10t24 16q14-12 28-8t26 16v6z"
-          fill="#1c3a26"/>
-        <path d="M18 160q26-14 52 0t52 0 52 0 52 0 52 0" fill="none" stroke="#2b5138" stroke-width="2" opacity=".8"/>
+        <!-- snødekt bakke først, så hekken foran -->
+        <path d="M0 178q60-8 120 0t120 0 120 0v22H0z" fill="#e8eefc" opacity=".95"/>
+        <path d="M0 172q26-20 52-6t52-2 52 6 52-8 52 6 52-4 48 8v28H0z" fill="#1f4029"/>
+        <path d="M0 172q26-20 52-6t52-2 52 6 52-8 52 6 52-4 48 8" fill="none" stroke="#356c40" stroke-width="3.5" opacity=".95"/>
+        <path d="M10 176q34-12 68 0t68 0 68 0 68 0 40 0" fill="none" stroke="#2a5433" stroke-width="2" opacity=".7"/>
         ${paerer}
-        <!-- snødekt bakke -->
-        <path d="M0 186q60-10 120 0t120 0 120 0v14H0z" fill="#f2f6ff" opacity=".92"/>
       </svg>
       <div class="snoefall" style="position:absolute;inset:0;pointer-events:none">${snø}</div>
       <span class="sesongmerke">${(d.tent || 0) > 0 ? "Tent" : "Slukket"}</span>
@@ -14576,19 +14599,27 @@ class KiJulCard extends HTMLElement {
     const nyttaar = nå.getMonth() === 11 && nå.getDate() === 31;
 
     const nisse = julaften ? `
-      <g transform="translate(-12 8)"><g class="nisse">
-        <path d="M196 44c8-12 22-12 30 0z" fill="#d9433f"/>
-        <circle cx="211" cy="41" r="3.2" fill="#fff"/>
-        <path d="M197 44h28v6h-28z" fill="#fff"/>
-        <path d="M199 50h24l-4 18h-16z" fill="#d9433f"/>
-        <circle cx="211" cy="57" r="6" fill="#f3d9bd"/>
-        <path d="M204 60q7 10 14 0z" fill="#fff"/>
-        <path d="M198 58l-9 7" stroke="#d9433f" stroke-width="4.5" stroke-linecap="round"/>
-        <path d="M224 58l9 5" stroke="#d9433f" stroke-width="4.5" stroke-linecap="round"/>
+      <g transform="translate(-24 4)"><g class="nisse">
+        <!-- kropp -->
+        <path d="M200 62q12-6 24 0l4 22h-32z" fill="#d9433f"/>
+        <path d="M196 84h32v5h-32z" fill="#3b2a1d"/>
+        <!-- armer -->
+        <path d="M200 68l-10 8" stroke="#d9433f" stroke-width="6" stroke-linecap="round"/>
+        <path d="M224 68l10 6" stroke="#d9433f" stroke-width="6" stroke-linecap="round"/>
+        <!-- skjegg og ansikt -->
+        <circle cx="212" cy="55" r="9" fill="#f3d9bd"/>
+        <path d="M203 56q9 16 18 0 2 10-9 12t-9-12z" fill="#fff"/>
+        <circle cx="209" cy="53" r="1.3" fill="#3b2a1d"/><circle cx="215" cy="53" r="1.3" fill="#3b2a1d"/>
+        <circle cx="212" cy="57" r="1.8" fill="#e08a7a"/>
+        <!-- lue -->
+        <path d="M201 48q11-14 22 0z" fill="#d9433f"/>
+        <path d="M200 47h24v5h-24z" fill="#fff"/>
+        <path d="M223 47q8-4 10-10" stroke="#d9433f" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <circle cx="234" cy="36" r="3.4" fill="#fff"/>
       </g></g>
-      <g transform="translate(-12 8)"><g class="sekk">
-        <path d="M230 56q16 3 13 18-13 5-18-4z" fill="#8a5a2b"/>
-        <path d="M232 58q8 2 8 9" stroke="#6d461f" stroke-width="2" fill="none"/>
+      <g transform="translate(-24 4)"><g class="sekk">
+        <path d="M236 70q16 4 13 18-14 5-19-5z" fill="#8a5a2b"/>
+        <path d="M236 70q6-4 12-2" stroke="#6d461f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
       </g></g>` : "";
 
     const rein = julaften ? `
@@ -14880,7 +14911,7 @@ class KiJulCard extends HTMLElement {
         scene.classList.toggle("inne", !paa);
         const merke = scene.querySelector(".sesongmerke");
         if (merke) merke.textContent = paa ? "Slukket" : "Tent";
-        this._alle(!paa);
+        this._veksleSesong();
       });
     }
     this._koblSveip(r);
