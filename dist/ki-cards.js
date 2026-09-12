@@ -1,4 +1,4 @@
-/* ki-cards v2.93.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.94.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.93.0";
+  KI.VERSION = "2.94.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -10363,10 +10363,11 @@ try {
  * faner: [kalender, opphold, statistikk, helger]
  * alle_steder: true          # Opphold viser alle stedene, med filter øverst
  * sveip: true                # sveip mellom «Alle steder» og ett kort per sted
+ * demo: true                 # eksempeldata for Oslo, Strömstad og Toten
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "2.0.0";
+const KI_HYTTE_VERSJON = "2.1.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10540,7 +10541,11 @@ class KiHytteCard extends HTMLElement {
     }
     return alle[0] || null;
   }
-  _data() { const s = this._h && this._id() ? this._h.states[this._id()] : null; return s ? s.attributes : null; }
+  _data() {
+    if (this._c && this._c.demo) return this._demo()[0];
+    const s = this._h && this._id() ? this._h.states[this._id()] : null;
+    return s ? s.attributes : null;
+  }
   _farge(navn, d) {
     if (d && d.master) return this._stedFarge2(navn);
     const liste = (d && d.personer) || [];
@@ -10593,7 +10598,51 @@ class KiHytteCard extends HTMLElement {
 
   /* ---------------------------------------------------------- oppholdene */
   /* Alle stedene under ett: leser alle oversiktssensorene fra KI Hyttebesøk */
+  /* Eksempeldata, så oppsettet kan prøves før alle stedene er lagt inn */
+  _demo() {
+    if (this._demoData) return this._demoData;
+    const i_dag = new Date(); i_dag.setHours(0, 0, 0, 0);
+    const dag = (n) => { const d = new Date(i_dag); d.setDate(d.getDate() + n); return kiHyDato(d); };
+    const folk = [["Sebastian", "var(--green)"], ["Rune", "var(--blue)"], ["Cybele", "var(--yellow)"]];
+    const lagSted = (sted, rolle, opphold, kommende, her) => {
+      const dager = {};
+      [...opphold, ...kommende].forEach((o) => {
+        const a = new Date(o.start), b = new Date(o.slutt);
+        for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+          const n = kiHyDato(d);
+          dager[n] = dager[n] || [];
+          if (!dager[n].includes(o.person)) dager[n].push(o.person);
+        }
+      });
+      const netter = opphold.reduce((sum, o) => sum + o.netter, 0);
+      return {
+        id: `sensor.demo_${sted.toLowerCase()}`, integrasjon: "ki_hyttebesok", ki_type: "oversikt",
+        sted, rolle, her_naa: her, personer: folk.map(([navn, farge]) => ({ navn, farge, netter_i_aar: 0, besok_i_aar: 0 })),
+        netter_i_aar: netter, besok_i_aar: opphold.length, siste: opphold[0] || null,
+        kommende, opphold, dager,
+        per_maaned: Array.from({ length: 12 }, (_, i) => ({ maaned: i + 1,
+          navn: ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"][i],
+          netter: [3, 1, 4, 2, 5, 8, 11, 9, 4, 0, 0, 2][i], personer: {} })),
+        sist_lest: new Date().toISOString().slice(0, 16),
+      };
+    };
+    this._demoData = [
+      lagSted("Oslo", "hjem",
+        [{ person: "Rune", start: dag(-6), slutt: dag(-4), netter: 3 },
+         { person: "Sebastian", start: dag(-2), slutt: dag(0), netter: 3 }],
+        [], [{ navn: "Sebastian", farge: "var(--green)", siden: dag(-2) }]),
+      lagSted("Strömstad", "hytte",
+        [{ person: "Sebastian", start: dag(-13), slutt: dag(-9), netter: 5 },
+         { person: "Cybele", start: dag(-13), slutt: dag(-10), netter: 4 }],
+        [{ person: "Sebastian", start: dag(11), slutt: dag(15), netter: 5 }], []),
+      lagSted("Toten", "hytte",
+        [{ person: "Cybele", start: dag(-22), slutt: dag(-19), netter: 4 }], [], []),
+    ];
+    return this._demoData;
+  }
+
   _alleSteder() {
+    if (this._c && this._c.demo) return this._demo();
     const h = this._h; if (!h) return [];
     return Object.keys(h.states)
       .filter((x) => {

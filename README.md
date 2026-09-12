@@ -422,6 +422,7 @@ sted: Strömstad                 # velger riktig sted når du har flere
 # oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
 faner: [kalender, opphold, helger, statistikk]
 sveip: true                     # sveip mellom Alle steder og hvert enkelt sted
+demo: true                      # eksempeldata for tre steder, til å prøve oppsettet
 ```
 Viser hyttebesøkene fra [KI Hyttebesøk](https://github.com/SebastianKristo/ki-hyttebes-k). Har du flere
 steder, sveiper du øverst mellom **Alle steder** og ett kort per sted – prikker under viser hvor du er, og
