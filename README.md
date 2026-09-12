@@ -44,6 +44,8 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-soppel-card.svg" width="28" align="absmiddle"> | `ki-soppel-card` | KI Søppel | Dager til neste tømming, med søppelbil og ristende dunk på tømmedagen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-strompris-card.svg" width="28" align="absmiddle"> | `ki-strompris-card` | KI Strømpris | Døgnets priser med spotpris og Norgespris, faner for i dag og i morgen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vanning-card.svg" width="28" align="absmiddle"> | `ki-vanning-card` | KI Vanning | OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebesok): månedskalender, opphold og statistikk |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fremover-card.svg" width="28" align="absmiddle"> | `ki-fremover-card` | KI Framover | Kommende hendelser fra kalenderne, gruppert per dag med filter per kalender |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-enhet-card.svg" width="28" align="absmiddle"> | `ki-enhet-card` | KI Enhet | Levende statuskort for ruter, switch, AP, server, VM og container – ringmålere, figuranimasjon, infofliser og knapper |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-wifi-card.svg" width="28" align="absmiddle"> | `ki-wifi-card` | KI Wi-Fi | SSID med QR-kode, klienter og av/på, med wifi-ringer når nettet er på |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-porter-card.svg" width="28" align="absmiddle"> | `ki-porter-card` | KI Porter | Switch-porter med aktivitetslys, av/på eller strømsykling |
@@ -324,6 +326,41 @@ path: '#soppel'
 Samme oppsett som før – stort tall til venstre, tekst og avfallstype til høyre – men typen får en fargeprikk
 etter hva som hentes (rest, mat, papp, plast, glass, hage, farlig avfall). På selve tømmedagen fargelegges
 kortet, tallet puster, dunken rister og en søppelbil kjører over bunnen med eksos ut av røret.
+
+### ki-fremover-card
+```yaml
+type: custom:ki-fremover-card
+tittel: Framover
+dager: 21                    # hvor langt fram
+maks: 25                     # hvor mange hendelser
+kalendere:
+  - {entity: calendar.familien, navn: Familien, farge: var(--green)}
+  - {entity: calendar.helge_hus, navn: Hytta, farge: var(--blue), ikon: mdi:home-heart}
+ekstra:                      # egne rader ved siden av kalenderne
+  - {entity: sensor.dagens_bursdager, navn: Bursdag, ikon: mdi:cake-variant, farge: var(--yellow)}
+```
+Henter hendelsene rett fra kalender-API-et – samme kilde som kalendervisningen i Home Assistant – og grupperer
+dem per dag med «I dag», «I morgen» og ukedag som overskrift. Hver hendelse har fargestrek fra kalenderen den
+kommer fra, klokkeslett med sluttid under, sted, og en merkelapp med kalendernavnet. Er det under tre timer
+til noe starter, pulserer streken og det står hvor lenge det er igjen. Med flere kalendere kommer det et
+filter øverst. Listen oppdateres hvert femte minutt.
+
+### ki-hytte-card
+```yaml
+type: custom:ki-hytte-card
+sted: Strömstad                 # velger riktig sted når du har flere
+# oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
+faner: [kalender, opphold, statistikk]
+```
+Viser hyttebesøkene fra [KI Hyttebesøk](https://github.com/SebastianKristo/ki-hyttebesok). Øverst et
+statuskort med hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
+besøk og neste planlagte tur.
+
+**Kalender** er en månedsrute der hver dag fargelegges etter hvem som var der; er flere der samtidig, deles
+dagen i striper. Planlagte turer får stiplet kant, i dag er markert, og du blar mellom månedene med pilene.
+**Opphold** lister planlagte turer øverst og historikken under, med navn, datoer og antall netter.
+**Statistikk** viser netter per måned som stablede søyler per person, og et kort per person med netter og
+besøk i år.
 
 ### ki-vanning-card
 ```yaml
@@ -610,6 +647,21 @@ fane_media:
 `visning: kontroll` gir kanaler, transport, volum og grupper uten topplinja – fint under et slikt hero-kort.
 Uten `kontroll:`-blokken brukes de vanlige `media_player`-tjenestene, og grupper med `spiller:` i stedet for
 `entity:` knytter spillerne sammen med `media_player.join` og `unjoin`.
+
+Har du flere TV-er eller radioer, lister du dem i `velger:` – eller som en liste under hver fane i
+`fane_media:`. Da tegnes en pillerad øverst i kortet, i samme form som fanene ellers, og du bytter hvilken
+spiller kortet styrer. Prikken lyser på den som spiller.
+
+```yaml
+velger:
+  - {navn: Sonos, entity: media_player.squeezebox_radio, ikon: mdi:speaker}
+  - {navn: Kjøkken, entity: media_player.radio_kjokken, ikon: mdi:radio}
+```
+
+`spillknapp: av_pa` bytter midtknappen i transportraden fra play/pause til av/på – standard i
+`visning: kontroll`. Volumraden har demp, ned, slider og opp med prosenten til høyre. Radiokanaler kan peke
+på `skript:` eller `entity:` – knapp, bryter, scene eller script virker, og en ren streng spilles som
+`media_content_id`.
 
 ### ki-fjernkontroll-card
 ```yaml

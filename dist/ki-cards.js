@@ -1,4 +1,4 @@
-/* ki-cards v2.79.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.82.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.79.0";
+  KI.VERSION = "2.82.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1374,7 +1374,10 @@ try {
  * fane_media:              # bytter spiller etter hvilken fane i ki-tabs-card som er valgt
  *   Tv: media_player.stue_tv
  *   Musikk: media_player.squeezebox_radio
- * radio: [{navn: NRK P1, skript: script.nrk_p1}]
+ * radio: [{navn: NRK P1, skript: script.nrk_p1}]      # entity: virker også (button, switch, scene, script)
+ * velger: [{navn: Stue TV, entity: media_player.stue_tv}, {navn: Google TV, entity: media_player.google_tv}]
+ *         # pillerad øverst som bytter hvilken spiller kortet styrer
+ * spillknapp: av_pa                                 # av_pa | spill – midtknappen i transportraden
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
  * i_dag: sensor.tv_seertid_i_dag          # seertid i timer, vises som pille i stor visning
@@ -1382,7 +1385,7 @@ try {
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.3.0";
+const KI_MEDIA_VERSJON = "1.4.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1504,16 +1507,34 @@ const KI_MEDIA_STIL = `
   @keyframes ringut { 0% { transform:scale(1); opacity:.55; } 100% { transform:scale(1.5); opacity:0; } }
 
   /* ---- volum ---- */
-  .volum { display:grid; grid-template-columns:auto 1fr 52px; gap:10px; align-items:center; }
+  /* velger for flere spillere – samme pilleform som fanene ellers */
+  .velger { display:flex; justify-content:center; padding:0 0 4px; }
+  .vskinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+    max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .vskinne::-webkit-scrollbar { display:none; }
+  .vknapp2 { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
+    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center;
+    gap:6px; --mdc-icon-size:16px; transition:background .2s, color .2s; }
+  .vknapp2.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  .vknapp2 i { width:6px; height:6px; border-radius:50%; background:var(--green,#7ee081); display:none; }
+  .vknapp2.spiller i { display:block; }
+  .volum { display:grid; grid-template-columns:auto auto 1fr auto 56px; gap:10px; align-items:center;
+    background:var(--gray200); border-radius:18px; padding:10px 14px; }
+  .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
+  .vknapp:active { transform:scale(.92); }
   .gruppe { display:flex; gap:6px; }
   .gknapp { border:0; font:inherit; font-size:13px; font-weight:500; padding:8px 14px; border-radius:999px;
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:8px; margin:0; outline:none;
     background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), var(--gray200) var(--p,0%) 100%); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; }
-  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; border-radius:50%;
+    background:var(--gray1000); border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
+  input[type=range]::-moz-range-thumb { width:26px; height:26px; border-radius:50%; background:var(--gray1000);
+    border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
+  .vtall { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
   .vtall { font-size:14px; font-weight:500; text-align:right; font-variant-numeric:tabular-nums; }
 
   /* ---- radiokanaler ---- */
@@ -1551,11 +1572,18 @@ class KiMediaCard extends HTMLElement {
   getGridOptions() { return this._c && this._c.visning === "stor" ? { columns: 12, rows: 3, min_rows: 3 } : undefined; }
 
   setConfig(c) {
-    if (!c || (!c.media && !c.fane_media)) throw new Error("Sett media: til mediaspilleren");
+    if (!c || (!c.media && !c.fane_media && !c.velger)) throw new Error("Sett media: til mediaspilleren");
     this._c = { visning: "full", ikon: "mdi:speaker", ...c };
     if (this._c.fane_media && !this._c.media) {
       /* uten «media» starter kortet på den første fanen i kartet */
-      this._c.media = Object.values(this._c.fane_media)[0];
+      const forste = Object.values(this._c.fane_media)[0];
+      const liste = Array.isArray(forste) ? forste : [forste];
+      this._faneListe = liste;
+      this._c.media = typeof liste[0] === "string" ? liste[0] : liste[0].entity;
+    }
+    if (this._c.velger && !this._c.media) {
+      const f = this._c.velger[0];
+      this._c.media = typeof f === "string" ? f : f.entity;
     }
     this._spillere = (Array.isArray(c.media) ? c.media : [c.media]).filter(Boolean);
     this._radio = (c.radio || []).map((r) => typeof r === "string" ? { navn: r } : r);
@@ -1577,10 +1605,13 @@ class KiMediaCard extends HTMLElement {
       const rens = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const treff = Object.keys(kart).find((k) => rens(k) === rens(d.title))
         || (d.index !== undefined ? Object.keys(kart)[d.index] : null);
-      const ny = treff ? kart[treff] : null;
-      if (!ny || ny === this._valgtFane) return;
-      this._valgtFane = ny;
-      this._spillere = [ny];
+      const rå = treff ? kart[treff] : null;
+      if (!rå) return;
+      const liste = (Array.isArray(rå) ? rå : [rå]).map((x) => (typeof x === "string" ? x : x.entity));
+      if (JSON.stringify(liste) === JSON.stringify(this._faneListe || [])) return;
+      this._faneListe = Array.isArray(rå) ? rå : [rå];
+      this._valgt = liste[0];
+      this._spillere = liste;
       this._bygget = false;
       if (this._h) { this._bygg(); this._oppdater(); }
     };
@@ -1595,6 +1626,7 @@ class KiMediaCard extends HTMLElement {
   /* Med flere spillere velges den som spiller, ellers den som er på, ellers den første */
   _id() {
     const h = this._h, l = this._spillere || [];
+    if (this._valgt && l.includes(this._valgt)) return this._valgt;   /* valgt i pillene */
     if (!h || l.length < 2) return l[0] || this._c.media;
     const rang = (id) => { const s = h.states[id]; if (!s) return 9;
       return { playing: 0, paused: 1, buffering: 0, on: 2, idle: 3, standby: 4 }[s.state] ?? 5; };
@@ -1720,6 +1752,14 @@ class KiMediaCard extends HTMLElement {
     const spiller = this._spiller();
     const sp = r.querySelector('[data-t="spill"] ha-icon');
     if (sp) sp.setAttribute("icon", spiller ? "mdi:pause" : "mdi:play");
+    const strom = r.querySelector('[data-t="strom"]');
+    if (strom) {
+      const av = ["off", "unavailable", "standby"].includes(s.state);
+      strom.classList.toggle("av", av);
+      strom.querySelector("ha-icon").setAttribute("icon", av ? "mdi:power" : "mdi:power-off");
+    }
+    const mute = r.querySelector('[data-v="av"] ha-icon');
+    if (mute) mute.setAttribute("icon", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-mute");
     const sh = r.querySelector('[data-t="shuffle"] ha-icon');
     if (sh) sh.setAttribute("icon", a.shuffle ? "mdi:shuffle" : "mdi:shuffle-disabled");
     const rp = r.querySelector('[data-t="repeat"] ha-icon');
@@ -1732,6 +1772,20 @@ class KiMediaCard extends HTMLElement {
     }
     this._merkKanal(a, this._spiller() || this._pause());
     this._merkGrupper();
+  }
+
+  /* Hvilke spillere kan velges? Fra «velger», eller fra fanen vi står i. */
+  _velgere() {
+    const c = this._c;
+    const fra = (x) => (Array.isArray(x) ? x : [x]).filter(Boolean).map((v) => (typeof v === "string"
+      ? { entity: v, navn: this._navnFor(v) } : { ...v, navn: v.navn || this._navnFor(v.entity) }));
+    if (c.velger) return fra(c.velger);
+    if (this._faneListe) return fra(this._faneListe);
+    return [];
+  }
+  _navnFor(id) {
+    const st = this._h && this._h.states[id];
+    return (st && st.attributes.friendly_name) || String(id).split(".").pop().replace(/_/g, " ");
   }
 
   _merkGrupper() {
@@ -1760,8 +1814,12 @@ class KiMediaCard extends HTMLElement {
     const full = c.visning === "full" || kontroll;
     const eq = `<span class="eq"><i></i><i></i><i></i><i></i><i></i></span>`;
     if (stor) { this._byggStor(); return; }
+    const velgere = this._velgere();
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
+        ${velgere.length > 1 ? `<div class="velger"><div class="vskinne" role="tablist">${velgere.map((v, i) =>
+          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""}" data-velg="${kiMediaEsc(v.entity)}">
+            ${v.ikon ? `<ha-icon icon="${kiMediaEsc(v.ikon)}"></ha-icon>` : ""}<i></i>${kiMediaEsc(v.navn)}</button>`).join("")}</div></div>` : ""}
         ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>
           <div class="omslag"><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
@@ -1779,17 +1837,22 @@ class KiMediaCard extends HTMLElement {
         ${full ? `<div class="transport">
           <button class="tk liten" data-t="repeat" aria-label="Gjenta"><ha-icon icon="mdi:repeat-off"></ha-icon></button>
           <button class="tk midt2" data-t="forrige" aria-label="Forrige"><ha-icon icon="mdi:skip-backward"></ha-icon></button>
-          <button class="tk stor" data-t="spill" aria-label="Spill eller pause"><ha-icon icon="mdi:play"></ha-icon></button>
+          ${(c.spillknapp || (kontroll ? "av_pa" : "spill")) === "av_pa"
+            ? `<button class="tk stor" data-t="strom" aria-label="Av eller på"><ha-icon icon="mdi:power"></ha-icon></button>`
+            : `<button class="tk stor" data-t="spill" aria-label="Spill eller pause"><ha-icon icon="mdi:play"></ha-icon></button>`}
           <button class="tk midt2" data-t="neste" aria-label="Neste"><ha-icon icon="mdi:skip-forward"></ha-icon></button>
           <button class="tk liten" data-t="shuffle" aria-label="Tilfeldig"><ha-icon icon="mdi:shuffle-disabled"></ha-icon></button>
         </div>
 
         <div class="volum">
-          <div class="gruppe">${(c.grupper || []).map((g, i) =>
-            `<button class="gknapp" data-g="${i}">${kiMediaEsc(g.navn)}</button>`).join("")}</div>
+          <button class="vknapp" data-v="av" aria-label="Demp"><ha-icon icon="mdi:volume-mute"></ha-icon></button>
+          <button class="vknapp" data-v="ned" aria-label="Lavere"><ha-icon icon="mdi:volume-minus"></ha-icon></button>
           <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum">
+          <button class="vknapp" data-v="opp" aria-label="Høyere"><ha-icon icon="mdi:volume-plus"></ha-icon></button>
           <div class="vtall">–</div>
-        </div>` : ""}
+        </div>
+        ${(c.grupper || []).length ? `<div class="gruppe">${(c.grupper || []).map((g, i) =>
+          `<button class="gknapp" data-g="${i}">${kiMediaEsc(g.navn)}</button>`).join("")}</div>` : ""}` : ""}
       </div>`;
 
     const r = this.shadowRoot;
@@ -1798,16 +1861,33 @@ class KiMediaCard extends HTMLElement {
       naa.addEventListener("click", () => this._mer());
       naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
     }
+    r.querySelectorAll("[data-velg]").forEach((b) => b.addEventListener("click", () => {
+      this._valgt = b.dataset.velg;
+      this._spillere = [this._valgt];
+      this._bygg(); this._oppdater();
+    }));
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const v = this._radio[+b.dataset.radio];
       if (navigator.vibrate) navigator.vibrate(10);
-      if (v.skript) { const [d, s] = v.skript.split("."); this._h.callService(d, s, {}); }
+      const mål = v.entity || v.skript;
+      if (mål) {
+        const dom = String(mål).split(".")[0];
+        if (dom === "button" || dom === "input_button") this._h.callService(dom, "press", { entity_id: mål });
+        else if (dom === "scene") this._h.callService("scene", "turn_on", { entity_id: mål });
+        else if (dom === "switch" || dom === "input_boolean") this._h.callService(dom, "turn_on", { entity_id: mål });
+        else if (dom === "script" && mål.includes(".")) { const [d, s2] = mål.split("."); this._h.callService(d, s2, {}); }
+        else this._h.callService("media_player", "play_media", { entity_id: this._id(), media_content_id: mål, media_content_type: "music" });
+      }
       else if (v.kilde) this._h.callService("media_player", "select_source", { entity_id: this._id(), source: v.kilde });
     }));
     r.querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => {
       const t = b.dataset.t, s = this._st(), a = (s && s.attributes) || {};
-      if (t === "spill") this._spillPause();
+      if (t === "strom") {
+        const st = this._st();
+        const av = !st || ["off", "unavailable", "standby", "idle"].includes(st.state);
+        this._h.callService("media_player", av ? "turn_on" : "turn_off", { entity_id: this._id() });
+      } else if (t === "spill") this._spillPause();
       else if (t === "neste") this._kall("neste", "media_next_track");
       else if (t === "forrige") this._kall("forrige", "media_previous_track");
       else if (t === "shuffle") this._kall("shuffle", "shuffle_set", { shuffle: !a.shuffle });
@@ -1824,6 +1904,15 @@ class KiMediaCard extends HTMLElement {
       const med = ((this._h.states[this._id()] || {}).attributes || {}).group_members || [];
       if (med.includes(g.spiller)) this._h.callService("media_player", "unjoin", { entity_id: g.spiller });
       else this._h.callService("media_player", "join", { entity_id: this._id(), group_members: [g.spiller] });
+    }));
+    r.querySelectorAll("[data-v]").forEach((b) => b.addEventListener("click", () => {
+      const st = this._st(), a = (st && st.attributes) || {};
+      const naa = Math.round((a.volume_level || 0) * 100);
+      if (navigator.vibrate) navigator.vibrate(8);
+      if (b.dataset.v === "av") return this._h.callService("media_player", "volume_mute",
+        { entity_id: this._id(), is_volume_muted: !a.is_volume_muted });
+      const ny = Math.max(0, Math.min(100, naa + (b.dataset.v === "opp" ? 5 : -5)));
+      this._h.callService("media_player", "volume_set", { entity_id: this._id(), volume_level: ny / 100 });
     }));
     const vol = r.querySelector('input[type=range]');
     if (vol) {
@@ -10148,6 +10237,582 @@ if (!customElements.get("ki-vanning-card-editor")) window.KI.define("ki-vanning-
 window.customCards = window.customCards || [];
 if (!window.customCards.some((k) => k.type === "ki-vanning-card")) window.customCards.push({ type: "ki-vanning-card", name: "KI Vanning", description: "OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv", preview: true });
 } catch (e) { console.error("ki-cards: 55-ki-vanning-card feilet", e); }
+
+/* ===== 56-ki-hytte-card ===== */
+try {
+/* ki-hytte-card – hyttebesøk: kalender, opphold og statistikk.
+ * Del av ki-cards-bundelen; ingen avhengigheter og kan også brukes alene.
+ *
+ * type: custom:ki-hytte-card
+ * sted: Strömstad                 # velger riktig oversiktssensor når du har flere
+ * oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
+ * faner: [kalender, opphold, statistikk]
+ * maaneder: 1                     # antall måneder i kalenderen
+ */
+const KI_HYTTE_VERSJON = "1.0.0";
+
+const KI_HYTTE_STIL = `
+  :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .rot { display:grid; gap:12px; max-width:100%; }
+  button { font:inherit; }
+
+  /* ---- hero ---- */
+  .hero { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
+    background:var(--gray200); color:var(--gray1000); padding:16px 18px; display:grid; gap:10px; min-height:104px;
+    transition:background .6s var(--myk), color .4s; }
+  .hero.her { background:linear-gradient(135deg, #2b5c46, #1d3a33); }
+  .hero .tit { font-size:17px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .hero .und { font-size:13px; opacity:.75; }
+  .ansikter { display:flex; gap:-6px; }
+  .prikk { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; color:var(--black,#000); margin-left:-8px; border:2px solid var(--gray200); }
+  .prikk:first-child { margin-left:0; }
+  .hero.her .prikk { border-color:#23483b; }
+  .hero .tall { display:flex; gap:18px; margin-top:2px; }
+  .hero .tall div { font-size:12px; opacity:.75; }
+  .hero .tall b { display:block; font-size:20px; font-weight:400; opacity:1; font-variant-numeric:tabular-nums; }
+  .hytte { position:absolute; right:14px; bottom:-6px; width:104px; height:84px; opacity:.5; z-index:-1; }
+  .hero.her .hytte { opacity:.75; }
+  .royk { opacity:0; }
+  .hero.her .royk { animation:hy-royk 4.2s ease-out infinite; }
+  .hero.her .r2 { animation-delay:1.4s; } .hero.her .r3 { animation-delay:2.8s; }
+  @keyframes hy-royk { 0% { opacity:.5; transform:translate(0,0) scale(.6); } 100% { opacity:0; transform:translate(-10px,-26px) scale(1.5); } }
+  .vindu { fill:#ffd98a; opacity:.25; }
+  .hero.her .vindu { opacity:.95; animation:hy-lys 5s ease-in-out infinite alternate; }
+  @keyframes hy-lys { from { opacity:.7; } to { opacity:1; } }
+
+  /* ---- faner ---- */
+  .faner { display:flex; justify-content:center; }
+  .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font-size:13px; font-weight:500; padding:6px 14px;
+    border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
+  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  .panel { display:none; } .panel.valgt { display:grid; gap:12px; }
+
+  /* ---- kalender ---- */
+  .kal { background:var(--gray200); border-radius:20px; padding:14px; }
+  .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center; gap:10px; padding:0 2px 10px; }
+  .kaltopp .mnd { text-align:center; font-size:15px; font-weight:600; text-transform:capitalize; }
+  .pil { border:0; background:var(--gray100); color:var(--gray1000); width:32px; height:32px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; }
+  .pil:active { transform:scale(.92); }
+  .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding-bottom:4px; }
+  .ukedager span { text-align:center; font-size:11px; font-weight:600; opacity:.45; }
+  .rutenett { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .dag { position:relative; aspect-ratio:1; border-radius:12px; background:var(--gray100); display:flex;
+    align-items:center; justify-content:center; font-size:13px; font-weight:500; cursor:default;
+    transition:transform .12s var(--fjaer); }
+  .dag.utenfor { opacity:.25; background:transparent; }
+  .dag.idag { outline:2px solid var(--active-big,#ee95ff); outline-offset:-2px; font-weight:700; }
+  .dag.fremtid { border:1px dashed rgba(255,255,255,.25); }
+  .dag.harbesok { color:var(--black,#000); font-weight:700; }
+  .dag .strimler { position:absolute; inset:0; border-radius:12px; overflow:hidden; display:flex; z-index:0; }
+  .dag .nr { position:relative; z-index:1; }
+  .dag .strimler i { flex:1; }
+  .dag:hover { transform:scale(1.06); }
+  .navn { display:flex; flex-wrap:wrap; gap:8px; padding:12px 2px 0; }
+  .navn span { display:inline-flex; align-items:center; gap:6px; font-size:12px; opacity:.8; }
+  .navn i { width:10px; height:10px; border-radius:3px; }
+
+  /* ---- lister ---- */
+  .liste { background:var(--gray200); border-radius:20px; overflow:hidden; }
+  .rad { display:grid; grid-template-columns:40px 1fr min-content; gap:12px; align-items:center; padding:12px 14px;
+    border-top:1px solid rgba(255,255,255,.06); }
+  .rad:first-child { border-top:0; }
+  .rad .n { font-size:14px; font-weight:500; }
+  .rad .d { font-size:12px; opacity:.6; }
+  .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
+  .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
+
+  /* ---- statistikk ---- */
+  .stolper { background:var(--gray200); border-radius:20px; padding:16px; display:grid; gap:10px; }
+  .mndrad { display:grid; grid-template-columns:34px 1fr 34px; gap:10px; align-items:center; font-size:12px; }
+  .mndrad .spor { height:10px; border-radius:6px; background:var(--gray100); overflow:hidden; display:flex; }
+  .mndrad .spor i { height:100%; }
+  .mndrad .t { text-align:right; font-variant-numeric:tabular-nums; opacity:.7; }
+  .pkort { background:var(--gray200); border-radius:20px; padding:14px 16px; display:grid;
+    grid-template-columns:36px 1fr min-content; gap:12px; align-items:center; }
+  .pkort .stor { font-size:20px; font-weight:400; font-variant-numeric:tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; } }
+`;
+
+const kiHyEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KI_HY_UKE = ["ma", "ti", "on", "to", "fr", "lø", "sø"];
+const KI_HY_MND = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+const kiHyDato = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const kiHyKort = (iso) => { const d = new Date(iso); return `${d.getDate()}. ${KI_HY_MND[d.getMonth()].slice(0, 3)}`; };
+
+class KiHytteCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._fane = "kalender"; this._mnd = 0; }
+  static getConfigElement() { return document.createElement("ki-hytte-card-editor"); }
+  static getStubConfig() { return {}; }
+  getCardSize() { return 10; }
+
+  setConfig(c) {
+    this._c = { faner: ["kalender", "opphold", "statistikk"], maaneder: 1, ...(c || {}) };
+    this._fane = this._c.faner[0]; this._bygget = false; this._tegn();
+  }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    const id = this._id();
+    if (!g || !this._bygget || (id && g.states[id] !== h.states[id])) this._tegn();
+  }
+
+  /* Finner oversiktssensoren fra KI Hyttebesøk – riktig sted når du har flere */
+  _id() {
+    if (this._c.oversikt) return this._c.oversikt;
+    const h = this._h; if (!h) return null;
+    const alle = Object.keys(h.states).filter((x) => {
+      const a = h.states[x].attributes || {};
+      return a.integrasjon === "ki_hyttebesok" && a.ki_type === "oversikt";
+    });
+    if (this._c.sted) {
+      const rens = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "").replace(/ö/g, "o");
+      const treff = alle.find((x) => rens((h.states[x].attributes || {}).sted) === rens(this._c.sted));
+      if (treff) return treff;
+    }
+    return alle[0] || null;
+  }
+  _data() { const s = this._h && this._id() ? this._h.states[this._id()] : null; return s ? s.attributes : null; }
+  _farge(navn, d) {
+    const p = ((d && d.personer) || []).find((x) => String(x.navn).toLowerCase() === String(navn).toLowerCase());
+    return (p && p.farge) || "var(--gray400)";
+  }
+  _mer() { const id = this._id(); if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
+
+  /* ---------------------------------------------------------- kalenderen */
+  _kalender(d) {
+    const nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const vist = new Date(nå.getFullYear(), nå.getMonth() + this._mnd, 1);
+    const forste = new Date(vist.getFullYear(), vist.getMonth(), 1);
+    const start = new Date(forste);
+    start.setDate(1 - ((forste.getDay() + 6) % 7));           /* mandag først */
+    const dager = d.dager || {};
+    const ruter = [];
+    for (let i = 0; i < 42; i++) {
+      const dag = new Date(start); dag.setDate(start.getDate() + i);
+      const iso = kiHyDato(dag);
+      const folk = dager[iso] || [];
+      const utenfor = dag.getMonth() !== vist.getMonth();
+      const idag = dag.getTime() === nå.getTime();
+      const fremtid = dag > nå && folk.length;
+      ruter.push(`<div class="dag ${utenfor ? "utenfor" : ""} ${idag ? "idag" : ""} ${fremtid ? "fremtid" : ""}
+        ${folk.length ? "harbesok" : ""}" title="${kiHyEsc(folk.join(", "))}">
+        ${folk.length ? `<span class="strimler">${folk.map((n) =>
+          `<i style="background:${kiHyEsc(this._farge(n, d))}"></i>`).join("")}</span>` : ""}
+        <span class="nr">${dag.getDate()}</span></div>`);
+    }
+    const kanTilbake = this._mnd > -24, kanFram = this._mnd < 12;
+    return `<div class="kal">
+      <div class="kaltopp">
+        <button class="pil" data-mnd="-1" ${kanTilbake ? "" : "disabled"}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="mnd">${KI_HY_MND[vist.getMonth()]} ${vist.getFullYear()}</div>
+        <button class="pil" data-mnd="1" ${kanFram ? "" : "disabled"}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+      </div>
+      <div class="ukedager">${KI_HY_UKE.map((u) => `<span>${u}</span>`).join("")}</div>
+      <div class="rutenett">${ruter.join("")}</div>
+      <div class="navn">${(d.personer || []).map((p) =>
+        `<span><i style="background:${kiHyEsc(p.farge)}"></i>${kiHyEsc(p.navn)}</span>`).join("")}
+        <span style="margin-left:auto;opacity:.5">stiplet = planlagt</span></div>
+    </div>`;
+  }
+
+  /* ---------------------------------------------------------- oppholdene */
+  _opphold(d) {
+    const rad = (o, fremtid) => `<div class="rad">
+      <span class="prikk" style="background:${kiHyEsc(this._farge(o.person, d))};margin:0">${kiHyEsc(String(o.person || "?").slice(0, 1))}</span>
+      <div><div class="n">${kiHyEsc(o.person)}</div>
+        <div class="d">${kiHyKort(o.start)}${o.slutt !== o.start ? " – " + kiHyKort(o.slutt) : ""}${fremtid ? " · planlagt" : ""}</div></div>
+      <div class="netter">${o.netter} ${o.netter === 1 ? "natt" : "netter"}</div>
+    </div>`;
+    const kommende = (d.kommende || []).map((o) => rad(o, true)).join("");
+    const gamle = (d.opphold || []).map((o) => rad(o, false)).join("");
+    return `${kommende ? `<div><div class="hero" style="min-height:0;padding:12px 16px">
+        <div class="tit"><ha-icon icon="mdi:calendar-arrow-right"></ha-icon>Planlagt framover</div></div></div>
+      <div class="liste">${kommende}</div>` : ""}
+      <div class="liste">${gamle || `<div class="tom">Ingen registrerte opphold ennå.</div>`}</div>`;
+  }
+
+  /* ---------------------------------------------------------- statistikk */
+  _statistikk(d) {
+    const mnd = d.per_maaned || [];
+    const maks = Math.max(1, ...mnd.map((m) => m.netter));
+    return `<div class="stolper">
+      <div class="d" style="opacity:.6;font-size:12px">Netter per måned i år</div>
+      ${mnd.map((m) => `<div class="mndrad">
+        <span style="opacity:.6">${kiHyEsc(m.navn.slice(0, 3))}</span>
+        <span class="spor">${Object.keys(m.personer || {}).map((n) =>
+          `<i style="width:${((m.personer[n] / maks) * 100).toFixed(1)}%;background:${kiHyEsc(this._farge(n, d))}"></i>`).join("")}</span>
+        <span class="t">${m.netter || ""}</span></div>`).join("")}
+    </div>
+    ${(d.personer || []).map((p) => `<div class="pkort">
+      <span class="prikk" style="background:${kiHyEsc(p.farge)};margin:0">${kiHyEsc(p.navn.slice(0, 1))}</span>
+      <div><div class="n">${kiHyEsc(p.navn)}</div>
+        <div class="d">${p.besok_i_aar} ${p.besok_i_aar === 1 ? "besøk" : "besøk"} i år${
+          p.siste ? ` · sist ${kiHyKort(p.siste.start)}` : ""}</div></div>
+      <div class="stor">${p.netter_i_aar}<span style="font-size:12px;opacity:.6"> netter</span></div>
+    </div>`).join("")}`;
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const d = this._data();
+    if (!d) {
+      this.shadowRoot.innerHTML = `<style>${KI_HYTTE_STIL}</style>
+        <div class="tom">Fant ingen oversikt fra <b>KI Hyttebesøk</b>. Sett <code>oversikt:</code> manuelt hvis du har flere steder.</div>`;
+      this._bygget = false;
+      return;
+    }
+    const navn = { kalender: "Kalender", opphold: "Opphold", statistikk: "Statistikk" };
+    const her = d.her_naa || [];
+    const siste = d.siste;
+    const hero = `<div class="hero ${her.length ? "her" : ""}" role="button" tabindex="0">
+      <svg class="hytte" viewBox="0 0 120 90" aria-hidden="true">
+        <g fill="currentColor" opacity=".9">
+          <path d="M18 44 60 16l42 28v40H18z" opacity=".35"/>
+          <path d="M14 46 60 14l46 32-4 5-42-29-42 29z"/>
+          <rect x="74" y="24" width="10" height="16" rx="2" opacity=".6"/>
+        </g>
+        <rect class="vindu" x="40" y="52" width="16" height="14" rx="3"/>
+        <rect class="vindu" x="66" y="52" width="16" height="14" rx="3"/>
+        <g fill="#eaf6ff"><circle class="royk" cx="79" cy="20" r="4"/>
+          <circle class="royk r2" cx="79" cy="20" r="3"/><circle class="royk r3" cx="79" cy="20" r="5"/></g>
+      </svg>
+      <div class="tit"><span>${kiHyEsc(d.sted || "Hytta")}</span>
+        <span class="ansikter">${her.map((p) =>
+          `<span class="prikk" style="background:${kiHyEsc(p.farge)}">${kiHyEsc(p.navn.slice(0, 1))}</span>`).join("")}</span></div>
+      <div class="und">${her.length
+        ? `${her.map((p) => kiHyEsc(p.navn)).join(", ")} er her${her[0].siden ? " siden " + kiHyKort(her[0].siden) : ""}`
+        : siste ? `Tomt nå · sist ${kiHyEsc(siste.person)} ${kiHyKort(siste.start)}` : "Tomt nå"}</div>
+      <div class="tall">
+        <div><b>${d.netter_i_aar || 0}</b>netter i år</div>
+        <div><b>${d.besok_i_aar || 0}</b>besøk i år</div>
+        ${(d.kommende || []).length ? `<div><b>${kiHyKort(d.kommende[0].start)}</b>neste besøk</div>` : ""}
+      </div>
+    </div>`;
+
+    const html = `<style>${KI_HYTTE_STIL}</style>
+      <div class="rot">
+        ${hero}
+        ${c.faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${c.faner.map((f) =>
+          `<button class="fane ${f === this._fane ? "valgt" : ""}" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
+        ${c.faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}">${
+          f === "kalender" ? this._kalender(d) : f === "opphold" ? this._opphold(d) : this._statistikk(d)}</div>`).join("")}
+      </div>`;
+
+    if (html !== this._forrige) { this.shadowRoot.innerHTML = html; this._forrige = html; this._kobl(); }
+    this._bygget = true;
+  }
+
+  _kobl() {
+    const r = this.shadowRoot;
+    const hero = r.querySelector(".hero");
+    if (hero) hero.addEventListener("click", () => this._mer());
+    r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
+      this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();
+    }));
+  }
+}
+if (!customElements.get("ki-hytte-card")) window.KI.define("ki-hytte-card", KiHytteCard);
+
+class KiHytteCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { sted: "Sted (tomt = første)", oversikt: "Oversiktssensor", maaneder: "Måneder i kalenderen" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "sted", selector: { text: {} } },
+      { name: "oversikt", selector: { entity: { domain: ["sensor"] } } },
+    ];
+  }
+}
+if (!customElements.get("ki-hytte-card-editor")) window.KI.define("ki-hytte-card-editor", KiHytteCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-hytte-card")) window.customCards.push({ type: "ki-hytte-card", name: "KI Hytte", description: "Hyttebesøk: kalender, opphold og statistikk", preview: true });
+} catch (e) { console.error("ki-cards: 56-ki-hytte-card feilet", e); }
+
+/* ===== 57-ki-fremover-card ===== */
+try {
+/* ki-fremover-card – hva som skjer framover, hentet fra kalenderne.
+ * Del av ki-cards-bundelen; ingen avhengigheter og kan også brukes alene.
+ *
+ * type: custom:ki-fremover-card
+ * kalendere:
+ *   - entity: calendar.familien
+ *     navn: Familien
+ *     farge: var(--green)
+ *   - entity: calendar.helge_hus
+ *     navn: Hytta
+ *     farge: var(--blue)
+ *     ikon: mdi:home-heart
+ * dager: 21                  # hvor langt fram vi ser
+ * maks: 25                   # hvor mange hendelser som vises
+ * tittel: Framover
+ * ekstra:                    # egne rader, for eksempel bursdager eller søppel
+ *   - entity: sensor.dagens_bursdager
+ *     navn: Bursdag
+ *     ikon: mdi:cake-variant
+ *     farge: var(--yellow)
+ */
+const KI_FREM_VERSJON = "1.0.0";
+
+const KI_FREM_STIL = `
+  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .rot { display:grid; gap:10px; max-width:100%; }
+  .topp { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 4px 2px; }
+  .topp h3 { margin:0; font-size:16px; font-weight:500; }
+  .filtre { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+    max-width:60%; overflow-x:auto; scrollbar-width:none; }
+  .filtre::-webkit-scrollbar { display:none; }
+  .filter { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:12px; font-weight:500;
+    padding:5px 12px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+  .filter i { width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .filter.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+
+  /* dagsbolker */
+  .dag { background:var(--gray200); border-radius:20px; overflow:hidden; }
+  .dagtopp { display:flex; align-items:baseline; gap:10px; padding:12px 16px 6px; }
+  .dagtopp .n { font-size:15px; font-weight:600; }
+  .dagtopp .d { font-size:12px; opacity:.5; }
+  .dagtopp .antall { margin-left:auto; font-size:11px; opacity:.45; }
+  .dag.idag .dagtopp .n { color:var(--active-big,#ee95ff); }
+
+  .hendelse { display:grid; grid-template-columns:4px 58px 1fr min-content; gap:12px; align-items:center;
+    padding:10px 16px 10px 12px; border-top:1px solid rgba(255,255,255,.05); cursor:pointer; }
+  .hendelse:first-of-type { border-top:0; }
+  .hendelse:active { background:var(--gray100); }
+  .hendelse .strek { align-self:stretch; border-radius:3px; min-height:26px; }
+  .hendelse .kl { font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; opacity:.85; }
+  .hendelse .kl small { display:block; font-size:11px; font-weight:400; opacity:.55; }
+  .hendelse .hva { min-width:0; }
+  .hendelse .tit { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hendelse .sted { font-size:12px; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hendelse .merke { font-size:10px; font-weight:700; padding:3px 8px; border-radius:7px; white-space:nowrap;
+    background:rgba(255,255,255,.08); }
+  .hendelse ha-icon { --mdc-icon-size:18px; opacity:.7; }
+
+  /* nå-linje og nedtelling */
+  .snart { position:relative; }
+  .snart::after { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius:3px;
+    background:var(--active-big,#ee95ff); animation:fr-puls 2.4s ease-in-out infinite; }
+  @keyframes fr-puls { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+  .naa { font-size:11px; font-weight:700; color:var(--active-big,#ee95ff); }
+
+  .tom { background:var(--gray200); border-radius:20px; padding:26px 16px; text-align:center; font-size:13px; opacity:.6; }
+  .laster { display:flex; gap:5px; justify-content:center; padding:22px; }
+  .laster i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.3; animation:fr-lys 1.1s ease-in-out infinite; }
+  .laster i:nth-child(2) { animation-delay:.15s; } .laster i:nth-child(3) { animation-delay:.3s; }
+  @keyframes fr-lys { 0%,100% { opacity:.25; transform:translateY(0); } 50% { opacity:.9; transform:translateY(-3px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; } }
+`;
+
+const kiFrEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KI_FR_FARGER = ["var(--green)", "var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)", "var(--red)"];
+
+class KiFremoverCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._valgt = null; }
+  static getConfigElement() { return document.createElement("ki-fremover-card-editor"); }
+  static getStubConfig() { return { dager: 21 }; }
+  getCardSize() { return 8; }
+
+  setConfig(c) {
+    this._c = { dager: 21, maks: 25, tittel: "Framover", ...(c || {}) };
+    this._kal = (this._c.kalendere || []).map((k, i) => (typeof k === "string"
+      ? { entity: k, navn: "", farge: KI_FR_FARGER[i % KI_FR_FARGER.length] }
+      : { farge: KI_FR_FARGER[i % KI_FR_FARGER.length], ...k }));
+    this._bygget = false; this._hendelser = null;
+  }
+  set hass(h) {
+    const forste = !this._h; this._h = h;
+    if (!this._c) return;
+    if (forste) { this._hent(); this._tegn(); return; }
+    if (!this._bygget) this._tegn();
+    if (this._c.ekstra && this._ekstraEndret(h)) this._tegn();
+  }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._hent(), 300000); if (this._h) this._hent(); }
+  disconnectedCallback() { clearInterval(this._i); }
+
+  _ekstraEndret(h) {
+    const ids = (this._c.ekstra || []).map((x) => x.entity).filter(Boolean);
+    const nøkkel = ids.map((id) => (h.states[id] || {}).state).join("|");
+    if (nøkkel === this._ekstraNokkel) return false;
+    this._ekstraNokkel = nøkkel; return true;
+  }
+
+  /* Henter hendelsene rett fra kalender-API-et, samme kilde som kalendervisningen i HA */
+  async _hent() {
+    const h = this._h, c = this._c; if (!h || !this._kal.length) { this._hendelser = []; return this._tegn(); }
+    const fra = new Date(); fra.setHours(0, 0, 0, 0);
+    const til = new Date(fra); til.setDate(til.getDate() + Number(c.dager || 21));
+    const ut = [];
+    await Promise.all(this._kal.map(async (k) => {
+      try {
+        const svar = await h.callApi("GET",
+          `calendars/${k.entity}?start=${encodeURIComponent(fra.toISOString())}&end=${encodeURIComponent(til.toISOString())}`);
+        (svar || []).forEach((e) => {
+          const start = e.start && (e.start.dateTime || e.start.date || e.start);
+          const slutt = e.end && (e.end.dateTime || e.end.date || e.end);
+          if (!start) return;
+          const heldags = !String(start).includes("T");
+          ut.push({
+            kalender: k.entity, navn: k.navn || k.entity.split(".").pop().replace(/_/g, " "),
+            farge: k.farge, ikon: k.ikon,
+            tittel: e.summary || e.title || "", sted: e.location || "",
+            start: new Date(start), slutt: slutt ? new Date(slutt) : null, heldags,
+          });
+        });
+      } catch (feil) { /* kalenderen svarte ikke – vi viser de andre */ }
+    }));
+    ut.sort((a, b) => a.start - b.start);
+    this._hendelser = ut;
+    this._tegn();
+  }
+
+  _ekstraRader() {
+    const h = this._h;
+    return (this._c.ekstra || []).map((x, i) => {
+      const st = x.entity && h.states[x.entity];
+      if (!st || ["unknown", "unavailable", "0", "", "off"].includes(String(st.state))) return null;
+      const d = x.dato && st.attributes[x.dato] ? new Date(st.attributes[x.dato]) : new Date();
+      return {
+        kalender: x.entity, navn: x.navn || "", farge: x.farge || KI_FR_FARGER[(i + 3) % KI_FR_FARGER.length],
+        ikon: x.ikon, tittel: x.tekst || st.state, sted: "", start: d, slutt: null, heldags: true, ekstra: true,
+      };
+    }).filter(Boolean);
+  }
+
+  _dagnavn(d) {
+    const nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const dag = new Date(d); dag.setHours(0, 0, 0, 0);
+    const diff = Math.round((dag - nå) / 86400000);
+    if (diff === 0) return "I dag";
+    if (diff === 1) return "I morgen";
+    const u = dag.toLocaleDateString("nb-NO", { weekday: "long" });
+    return u.charAt(0).toUpperCase() + u.slice(1);
+  }
+  _klokke(e) {
+    if (e.heldags) return { topp: "hele", bunn: "dagen" };
+    const t = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+    return { topp: t(e.start), bunn: e.slutt && (e.slutt - e.start) < 86400000 ? t(e.slutt) : "" };
+  }
+  _nedtelling(e) {
+    if (e.heldags) return "";        /* heldagshendelser teller vi ikke ned til */
+    const min = Math.round((e.start - new Date()) / 60000);
+    if (min < 0 || min > 180) return "";
+    if (min < 1) return "nå";
+    if (min < 60) return `om ${min} min`;
+    return `om ${Math.round(min / 60)} t`;
+  }
+  _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
+
+  _tegn() {
+    const c = this._c; if (!c || !this._h) return;
+    const alle = [...(this._hendelser || []), ...this._ekstraRader()]
+      .filter((e) => !this._valgt || e.kalender === this._valgt)
+      .sort((a, b) => a.start - b.start)
+      .slice(0, Number(c.maks || 25));
+
+    const dager = new Map();
+    alle.forEach((e) => {
+      const n = e.start.toISOString().slice(0, 10);
+      if (!dager.has(n)) dager.set(n, []);
+      dager.get(n).push(e);
+    });
+    const idag = new Date().toISOString().slice(0, 10);
+
+    const innhold = this._hendelser === null
+      ? `<div class="tom"><div class="laster"><i></i><i></i><i></i></div></div>`
+      : dager.size === 0
+        ? `<div class="tom">Ingenting de neste ${c.dager} dagene.</div>`
+        : [...dager.entries()].map(([n, liste]) => {
+          const d = new Date(n + "T12:00:00");
+          return `<div class="dag ${n === idag ? "idag" : ""}">
+            <div class="dagtopp">
+              <span class="n">${kiFrEsc(this._dagnavn(d))}</span>
+              <span class="d">${kiFrEsc(d.toLocaleDateString("nb-NO", { day: "numeric", month: "long" }))}</span>
+              <span class="antall">${liste.length}</span>
+            </div>
+            ${liste.map((e) => {
+              const kl = this._klokke(e), snart = this._nedtelling(e);
+              return `<div class="hendelse ${snart ? "snart" : ""}" data-e="${kiFrEsc(e.kalender)}">
+                <span class="strek" style="background:${kiFrEsc(e.farge)}"></span>
+                <span class="kl">${kiFrEsc(kl.topp)}${kl.bunn ? `<small>${kiFrEsc(kl.bunn)}</small>` : ""}</span>
+                <span class="hva"><span class="tit">${kiFrEsc(e.tittel)}</span>
+                  ${e.sted ? `<span class="sted">${kiFrEsc(e.sted)}</span>`
+                    : snart ? `<span class="naa">${kiFrEsc(snart)}</span>` : ""}</span>
+                ${e.ikon ? `<ha-icon icon="${kiFrEsc(e.ikon)}"></ha-icon>`
+                  : `<span class="merke" style="color:${kiFrEsc(e.farge)}">${kiFrEsc(e.navn)}</span>`}
+              </div>`;
+            }).join("")}
+          </div>`;
+        }).join("");
+
+    const html = `<style>${KI_FREM_STIL}</style>
+      <div class="rot">
+        <div class="topp"><h3>${kiFrEsc(c.tittel)}</h3>
+          ${this._kal.length > 1 ? `<div class="filtre">
+            <button class="filter ${this._valgt ? "" : "valgt"}" data-f="">Alle</button>
+            ${this._kal.map((k) => `<button class="filter ${this._valgt === k.entity ? "valgt" : ""}" data-f="${kiFrEsc(k.entity)}">
+              <i style="color:${kiFrEsc(k.farge)}"></i>${kiFrEsc(k.navn || k.entity.split(".").pop())}</button>`).join("")}
+          </div>` : ""}
+        </div>
+        ${innhold}
+      </div>`;
+
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html; this._bygget = true;
+    const r = this.shadowRoot;
+    r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
+      this._valgt = b.dataset.f || null; this._forrige = null; this._tegn();
+    }));
+    r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", () => this._mer(el.dataset.e)));
+  }
+}
+if (!customElements.get("ki-fremover-card")) window.KI.define("ki-fremover-card", KiFremoverCard);
+
+class KiFremoverCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { tittel: "Tittel", dager: "Dager framover", maks: "Maks antall hendelser" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+      const p = document.createElement("p");
+      p.style.cssText = "font-size:12px;opacity:.6;margin:8px 2px";
+      p.textContent = "Kalenderne og egne rader (ekstra:) settes i YAML – se README.";
+      this.appendChild(p);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "tittel", selector: { text: {} } },
+      { name: "dager", selector: { number: { mode: "box", min: 1, max: 90 } } },
+      { name: "maks", selector: { number: { mode: "box", min: 3, max: 100 } } },
+    ];
+  }
+}
+if (!customElements.get("ki-fremover-card-editor")) window.KI.define("ki-fremover-card-editor", KiFremoverCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.customCards.push({ type: "ki-fremover-card", name: "KI Framover", description: "Kommende hendelser fra kalenderne, gruppert per dag", preview: true });
+} catch (e) { console.error("ki-cards: 57-ki-fremover-card feilet", e); }
 
 /* ===== 60-ki-basseng-card ===== */
 try {

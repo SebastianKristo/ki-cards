@@ -7,7 +7,10 @@
  * fane_media:              # bytter spiller etter hvilken fane i ki-tabs-card som er valgt
  *   Tv: media_player.stue_tv
  *   Musikk: media_player.squeezebox_radio
- * radio: [{navn: NRK P1, skript: script.nrk_p1}]
+ * radio: [{navn: NRK P1, skript: script.nrk_p1}]      # entity: virker også (button, switch, scene, script)
+ * velger: [{navn: Stue TV, entity: media_player.stue_tv}, {navn: Google TV, entity: media_player.google_tv}]
+ *         # pillerad øverst som bytter hvilken spiller kortet styrer
+ * spillknapp: av_pa                                 # av_pa | spill – midtknappen i transportraden
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
  * i_dag: sensor.tv_seertid_i_dag          # seertid i timer, vises som pille i stor visning
@@ -15,7 +18,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.3.0";
+const KI_MEDIA_VERSJON = "1.4.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -137,16 +140,34 @@ const KI_MEDIA_STIL = `
   @keyframes ringut { 0% { transform:scale(1); opacity:.55; } 100% { transform:scale(1.5); opacity:0; } }
 
   /* ---- volum ---- */
-  .volum { display:grid; grid-template-columns:auto 1fr 52px; gap:10px; align-items:center; }
+  /* velger for flere spillere – samme pilleform som fanene ellers */
+  .velger { display:flex; justify-content:center; padding:0 0 4px; }
+  .vskinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
+    max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .vskinne::-webkit-scrollbar { display:none; }
+  .vknapp2 { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
+    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center;
+    gap:6px; --mdc-icon-size:16px; transition:background .2s, color .2s; }
+  .vknapp2.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  .vknapp2 i { width:6px; height:6px; border-radius:50%; background:var(--green,#7ee081); display:none; }
+  .vknapp2.spiller i { display:block; }
+  .volum { display:grid; grid-template-columns:auto auto 1fr auto 56px; gap:10px; align-items:center;
+    background:var(--gray200); border-radius:18px; padding:10px 14px; }
+  .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
+  .vknapp:active { transform:scale(.92); }
   .gruppe { display:flex; gap:6px; }
   .gknapp { border:0; font:inherit; font-size:13px; font-weight:500; padding:8px 14px; border-radius:999px;
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:8px; margin:0; outline:none;
     background:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), var(--gray200) var(--p,0%) 100%); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; }
-  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000); border:0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; border-radius:50%;
+    background:var(--gray1000); border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
+  input[type=range]::-moz-range-thumb { width:26px; height:26px; border-radius:50%; background:var(--gray1000);
+    border:3px solid var(--gray200); box-shadow:0 2px 8px rgba(0,0,0,.45); cursor:grab; }
+  .vtall { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
   .vtall { font-size:14px; font-weight:500; text-align:right; font-variant-numeric:tabular-nums; }
 
   /* ---- radiokanaler ---- */
@@ -184,11 +205,18 @@ class KiMediaCard extends HTMLElement {
   getGridOptions() { return this._c && this._c.visning === "stor" ? { columns: 12, rows: 3, min_rows: 3 } : undefined; }
 
   setConfig(c) {
-    if (!c || (!c.media && !c.fane_media)) throw new Error("Sett media: til mediaspilleren");
+    if (!c || (!c.media && !c.fane_media && !c.velger)) throw new Error("Sett media: til mediaspilleren");
     this._c = { visning: "full", ikon: "mdi:speaker", ...c };
     if (this._c.fane_media && !this._c.media) {
       /* uten «media» starter kortet på den første fanen i kartet */
-      this._c.media = Object.values(this._c.fane_media)[0];
+      const forste = Object.values(this._c.fane_media)[0];
+      const liste = Array.isArray(forste) ? forste : [forste];
+      this._faneListe = liste;
+      this._c.media = typeof liste[0] === "string" ? liste[0] : liste[0].entity;
+    }
+    if (this._c.velger && !this._c.media) {
+      const f = this._c.velger[0];
+      this._c.media = typeof f === "string" ? f : f.entity;
     }
     this._spillere = (Array.isArray(c.media) ? c.media : [c.media]).filter(Boolean);
     this._radio = (c.radio || []).map((r) => typeof r === "string" ? { navn: r } : r);
@@ -210,10 +238,13 @@ class KiMediaCard extends HTMLElement {
       const rens = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const treff = Object.keys(kart).find((k) => rens(k) === rens(d.title))
         || (d.index !== undefined ? Object.keys(kart)[d.index] : null);
-      const ny = treff ? kart[treff] : null;
-      if (!ny || ny === this._valgtFane) return;
-      this._valgtFane = ny;
-      this._spillere = [ny];
+      const rå = treff ? kart[treff] : null;
+      if (!rå) return;
+      const liste = (Array.isArray(rå) ? rå : [rå]).map((x) => (typeof x === "string" ? x : x.entity));
+      if (JSON.stringify(liste) === JSON.stringify(this._faneListe || [])) return;
+      this._faneListe = Array.isArray(rå) ? rå : [rå];
+      this._valgt = liste[0];
+      this._spillere = liste;
       this._bygget = false;
       if (this._h) { this._bygg(); this._oppdater(); }
     };
@@ -228,6 +259,7 @@ class KiMediaCard extends HTMLElement {
   /* Med flere spillere velges den som spiller, ellers den som er på, ellers den første */
   _id() {
     const h = this._h, l = this._spillere || [];
+    if (this._valgt && l.includes(this._valgt)) return this._valgt;   /* valgt i pillene */
     if (!h || l.length < 2) return l[0] || this._c.media;
     const rang = (id) => { const s = h.states[id]; if (!s) return 9;
       return { playing: 0, paused: 1, buffering: 0, on: 2, idle: 3, standby: 4 }[s.state] ?? 5; };
@@ -353,6 +385,14 @@ class KiMediaCard extends HTMLElement {
     const spiller = this._spiller();
     const sp = r.querySelector('[data-t="spill"] ha-icon');
     if (sp) sp.setAttribute("icon", spiller ? "mdi:pause" : "mdi:play");
+    const strom = r.querySelector('[data-t="strom"]');
+    if (strom) {
+      const av = ["off", "unavailable", "standby"].includes(s.state);
+      strom.classList.toggle("av", av);
+      strom.querySelector("ha-icon").setAttribute("icon", av ? "mdi:power" : "mdi:power-off");
+    }
+    const mute = r.querySelector('[data-v="av"] ha-icon');
+    if (mute) mute.setAttribute("icon", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-mute");
     const sh = r.querySelector('[data-t="shuffle"] ha-icon');
     if (sh) sh.setAttribute("icon", a.shuffle ? "mdi:shuffle" : "mdi:shuffle-disabled");
     const rp = r.querySelector('[data-t="repeat"] ha-icon');
@@ -365,6 +405,20 @@ class KiMediaCard extends HTMLElement {
     }
     this._merkKanal(a, this._spiller() || this._pause());
     this._merkGrupper();
+  }
+
+  /* Hvilke spillere kan velges? Fra «velger», eller fra fanen vi står i. */
+  _velgere() {
+    const c = this._c;
+    const fra = (x) => (Array.isArray(x) ? x : [x]).filter(Boolean).map((v) => (typeof v === "string"
+      ? { entity: v, navn: this._navnFor(v) } : { ...v, navn: v.navn || this._navnFor(v.entity) }));
+    if (c.velger) return fra(c.velger);
+    if (this._faneListe) return fra(this._faneListe);
+    return [];
+  }
+  _navnFor(id) {
+    const st = this._h && this._h.states[id];
+    return (st && st.attributes.friendly_name) || String(id).split(".").pop().replace(/_/g, " ");
   }
 
   _merkGrupper() {
@@ -393,8 +447,12 @@ class KiMediaCard extends HTMLElement {
     const full = c.visning === "full" || kontroll;
     const eq = `<span class="eq"><i></i><i></i><i></i><i></i><i></i></span>`;
     if (stor) { this._byggStor(); return; }
+    const velgere = this._velgere();
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
+        ${velgere.length > 1 ? `<div class="velger"><div class="vskinne" role="tablist">${velgere.map((v, i) =>
+          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""}" data-velg="${kiMediaEsc(v.entity)}">
+            ${v.ikon ? `<ha-icon icon="${kiMediaEsc(v.ikon)}"></ha-icon>` : ""}<i></i>${kiMediaEsc(v.navn)}</button>`).join("")}</div></div>` : ""}
         ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>
           <div class="omslag"><ha-icon icon="${kiMediaEsc(c.ikon)}"></ha-icon></div>
@@ -412,17 +470,22 @@ class KiMediaCard extends HTMLElement {
         ${full ? `<div class="transport">
           <button class="tk liten" data-t="repeat" aria-label="Gjenta"><ha-icon icon="mdi:repeat-off"></ha-icon></button>
           <button class="tk midt2" data-t="forrige" aria-label="Forrige"><ha-icon icon="mdi:skip-backward"></ha-icon></button>
-          <button class="tk stor" data-t="spill" aria-label="Spill eller pause"><ha-icon icon="mdi:play"></ha-icon></button>
+          ${(c.spillknapp || (kontroll ? "av_pa" : "spill")) === "av_pa"
+            ? `<button class="tk stor" data-t="strom" aria-label="Av eller på"><ha-icon icon="mdi:power"></ha-icon></button>`
+            : `<button class="tk stor" data-t="spill" aria-label="Spill eller pause"><ha-icon icon="mdi:play"></ha-icon></button>`}
           <button class="tk midt2" data-t="neste" aria-label="Neste"><ha-icon icon="mdi:skip-forward"></ha-icon></button>
           <button class="tk liten" data-t="shuffle" aria-label="Tilfeldig"><ha-icon icon="mdi:shuffle-disabled"></ha-icon></button>
         </div>
 
         <div class="volum">
-          <div class="gruppe">${(c.grupper || []).map((g, i) =>
-            `<button class="gknapp" data-g="${i}">${kiMediaEsc(g.navn)}</button>`).join("")}</div>
+          <button class="vknapp" data-v="av" aria-label="Demp"><ha-icon icon="mdi:volume-mute"></ha-icon></button>
+          <button class="vknapp" data-v="ned" aria-label="Lavere"><ha-icon icon="mdi:volume-minus"></ha-icon></button>
           <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum">
+          <button class="vknapp" data-v="opp" aria-label="Høyere"><ha-icon icon="mdi:volume-plus"></ha-icon></button>
           <div class="vtall">–</div>
-        </div>` : ""}
+        </div>
+        ${(c.grupper || []).length ? `<div class="gruppe">${(c.grupper || []).map((g, i) =>
+          `<button class="gknapp" data-g="${i}">${kiMediaEsc(g.navn)}</button>`).join("")}</div>` : ""}` : ""}
       </div>`;
 
     const r = this.shadowRoot;
@@ -431,16 +494,33 @@ class KiMediaCard extends HTMLElement {
       naa.addEventListener("click", () => this._mer());
       naa.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._mer(); } });
     }
+    r.querySelectorAll("[data-velg]").forEach((b) => b.addEventListener("click", () => {
+      this._valgt = b.dataset.velg;
+      this._spillere = [this._valgt];
+      this._bygg(); this._oppdater();
+    }));
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const v = this._radio[+b.dataset.radio];
       if (navigator.vibrate) navigator.vibrate(10);
-      if (v.skript) { const [d, s] = v.skript.split("."); this._h.callService(d, s, {}); }
+      const mål = v.entity || v.skript;
+      if (mål) {
+        const dom = String(mål).split(".")[0];
+        if (dom === "button" || dom === "input_button") this._h.callService(dom, "press", { entity_id: mål });
+        else if (dom === "scene") this._h.callService("scene", "turn_on", { entity_id: mål });
+        else if (dom === "switch" || dom === "input_boolean") this._h.callService(dom, "turn_on", { entity_id: mål });
+        else if (dom === "script" && mål.includes(".")) { const [d, s2] = mål.split("."); this._h.callService(d, s2, {}); }
+        else this._h.callService("media_player", "play_media", { entity_id: this._id(), media_content_id: mål, media_content_type: "music" });
+      }
       else if (v.kilde) this._h.callService("media_player", "select_source", { entity_id: this._id(), source: v.kilde });
     }));
     r.querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => {
       const t = b.dataset.t, s = this._st(), a = (s && s.attributes) || {};
-      if (t === "spill") this._spillPause();
+      if (t === "strom") {
+        const st = this._st();
+        const av = !st || ["off", "unavailable", "standby", "idle"].includes(st.state);
+        this._h.callService("media_player", av ? "turn_on" : "turn_off", { entity_id: this._id() });
+      } else if (t === "spill") this._spillPause();
       else if (t === "neste") this._kall("neste", "media_next_track");
       else if (t === "forrige") this._kall("forrige", "media_previous_track");
       else if (t === "shuffle") this._kall("shuffle", "shuffle_set", { shuffle: !a.shuffle });
@@ -457,6 +537,15 @@ class KiMediaCard extends HTMLElement {
       const med = ((this._h.states[this._id()] || {}).attributes || {}).group_members || [];
       if (med.includes(g.spiller)) this._h.callService("media_player", "unjoin", { entity_id: g.spiller });
       else this._h.callService("media_player", "join", { entity_id: this._id(), group_members: [g.spiller] });
+    }));
+    r.querySelectorAll("[data-v]").forEach((b) => b.addEventListener("click", () => {
+      const st = this._st(), a = (st && st.attributes) || {};
+      const naa = Math.round((a.volume_level || 0) * 100);
+      if (navigator.vibrate) navigator.vibrate(8);
+      if (b.dataset.v === "av") return this._h.callService("media_player", "volume_mute",
+        { entity_id: this._id(), is_volume_muted: !a.is_volume_muted });
+      const ny = Math.max(0, Math.min(100, naa + (b.dataset.v === "opp" ? 5 : -5)));
+      this._h.callService("media_player", "volume_set", { entity_id: this._id(), volume_level: ny / 100 });
     }));
     const vol = r.querySelector('input[type=range]');
     if (vol) {
