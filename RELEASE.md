@@ -1,4 +1,5 @@
 ## Rettet
 
-**ki-media-card 1.8.1**
-- Framdriften i volumsporet var borte i Safari og i companion-appen. Gradienten brukte et fargestopp med to posisjoner (`farge 0 var(--p)`), som WebKit ikke tolker – da faller hele bakgrunnsbildet bort og bare det grå sporet står igjen. Nå brukes vanlige to-punkts stopp, med `-moz-range-progress` i tillegg for Firefox
+**ki-media-card 1.9.0**
+- Volumsporet er ikke lenger et stylet `input[type=range]`. Nettleserne tegner det ulikt, og i WebKit – altså Safari og companion-appen – forsvant fargen uansett hvordan gradienten ble skrevet. Nå er spor, fyll og knott vanlige elementer, med et usynlig range-felt oppå for berøring, drag og tastatur
+- Samme mål som før: 8 px spor i `--gray100`, fyll i `--active-big`, hvit knott på 18 px

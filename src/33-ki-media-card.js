@@ -177,18 +177,18 @@ const KI_MEDIA_STIL = `
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  /* spor i --gray100, framdrift i --active-big, hvit rund gripeknapp */
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
-    background-color:var(--gray100); background-repeat:no-repeat;
-    background-image:linear-gradient(to right, var(--active-big,#ee95ff) var(--p,0%), rgba(0,0,0,0) var(--p,0%)); }
-  input[type=range]::-webkit-slider-runnable-track { -webkit-appearance:none; background:none; height:8px; border-radius:4px; }
-  input[type=range]::-moz-range-track { background:none; height:8px; border-radius:4px; }
-  input[type=range]::-moz-range-progress { background:var(--active-big,#ee95ff); height:8px; border-radius:4px; }
+  /* Egen slider: nettleserne tegner input[type=range] ulikt, og i WebKit ble
+     fargen borte. Spor, fyll og knott er vanlige elementer, med et usynlig
+     range-felt oppå for berøring og tastatur. */
+  .vspor { position:relative; height:8px; border-radius:4px; background:var(--gray100); }
+  .vfyll { position:absolute; left:0; top:0; bottom:0; width:var(--p,0%); border-radius:4px;
+    background:var(--active-big,#ee95ff); transition:width .12s linear; }
+  .vknott { position:absolute; top:50%; left:var(--p,0%); width:18px; height:18px; border-radius:50%;
+    background:var(--gray1000); transform:translate(-50%,-50%); pointer-events:none; transition:left .12s linear; }
   .vnavn:active { opacity:.6; }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
-    background:var(--gray1000); border:0; cursor:grab; }
-  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000);
-    border:0; cursor:grab; }
+  .vspor input[type=range] { -webkit-appearance:none; appearance:none; position:absolute; left:0; right:0;
+    top:-10px; height:28px; width:100%; margin:0; background:none; opacity:0; cursor:pointer; }
+  .vspor input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:28px; height:28px; }
   .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; justify-self:end; }
 
   /* ---- radiokanaler ---- */
@@ -528,7 +528,7 @@ class KiMediaCard extends HTMLElement {
     const vol = r.querySelector('input[type=range]');
     if (vol && document.activeElement !== vol) {
       const v = Math.round((a.volume_level || 0) * 100);
-      vol.value = v; vol.style.setProperty("--p", v + "%");
+      vol.value = v; (vol.closest(".vspor") || vol).style.setProperty("--p", v + "%");
       const t = r.querySelector(".vtall"); if (t) t.textContent = v + "%";
     }
     this._merkKanal(a, this._spiller() || this._pause());
@@ -608,7 +608,8 @@ class KiMediaCard extends HTMLElement {
 
         <div class="volum">
           <span class="vnavn" data-v="av" role="button" tabindex="0">Volum</span>
-          <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum">
+          <div class="vspor"><i class="vfyll"></i><i class="vknott"></i>
+            <input type="range" min="0" max="100" step="1" value="0" aria-label="Volum"></div>
           <div class="vtall">0%</div>
         </div>
         ${(c.grupper || []).length ? `<div class="gruppe">${(c.grupper || []).map((g, i) =>
@@ -678,7 +679,7 @@ class KiMediaCard extends HTMLElement {
     if (vol) {
       vol.addEventListener("input", () => {
         r.querySelector(".vtall").textContent = vol.value + "%";
-        vol.style.setProperty("--p", vol.value + "%");
+        (vol.closest(".vspor") || vol).style.setProperty("--p", vol.value + "%");
       });
       vol.addEventListener("change", () => this._h.callService("media_player", "volume_set",
         { entity_id: this._id(), volume_level: +vol.value / 100 }));
@@ -817,7 +818,7 @@ class KiMediaCard extends HTMLElement {
     const vol = r.querySelector('input[type=range]');
     if (vol && a.volume_level !== undefined && document.activeElement !== vol) {
       const p = Math.round(a.volume_level * 100);
-      vol.value = p; vol.style.setProperty("--p", p + "%");
+      vol.value = p; (vol.closest(".vspor") || vol).style.setProperty("--p", p + "%");
       r.querySelector(".vtall").textContent = p + "%";
     }
     const mute2 = r.querySelector('[data-v="av"]');
