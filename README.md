@@ -387,6 +387,19 @@ i stedet for at linja forsvinner stille. Har egen visuell editor.
 
 Uten Norgespris blir kortet et rent spotpriskort: sett `norgespris: false`, så vises spotprisen i kroner som hovedtall, Norgespris-linja og spart-tallene forsvinner, og forklaringen viser snittet i stedet. Fint for hus utenfor Norgespris-ordningen – for eksempel hytta i Strömstad. `enhet:` bytter teksten bak tallet, og `tekst_spot:` overskriften over det.
 
+Kommer timesprisene fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i en egen sensor i
+kroner med avgifter, peker du på begge:
+
+```yaml
+spot: sensor.nordpool_kwh_se3          # timespriser, øre uten moms
+spot_naa: sensor.min_totalpris_kr      # det du betaler nå, i kr
+kalibrer: true                         # løfter hele kurven til samme nivå (standard)
+```
+
+Kortet regner da ut forholdet mellom timesprisen akkurat nå og totalprisen din, og bruker det på hele
+kurven – slik at snitt, høyest, lavest og billigste vindu er i kroner du kjenner igjen. Vil du heller regne
+det ut selv, bruker du `mva: 25` og `paaslag: 0.089` (kr/kWh) i stedet. Øre oppdages automatisk fra enheten.
+
 ### ki-prosa-card
 ```yaml
 type: custom:ki-prosa-card
@@ -447,16 +460,11 @@ hjemkomst:
     aktiv: input_boolean.ki_cybele_pa_vei_hjem_fra_jobb
     reisetid: sensor.cybele_reisetid_fra_job     # minutter, legges til klokka nå
     tekst: '{navn} kommer hjem ca. kl {pille}.'
-profil_entity: input_select.hus   # hvilken profil som gjelder (eller profil: stromstad)
-profiler:                         # flere hus i samme kort – overstyrer basisen over
-  oslo:
-    vaer: {entity: sensor.dashboard_index, attributt: weather}
-    pris: {entity: sensor.norgespris_pris_na}
+profil: oslo                      # innebygde profiler: oslo, stromstad, toten
+profil_entity: input_select.hus   # eller la en input_select bestemme hvilken
+profiler:                         # egne profiler, eller overstyr de innebygde
   stromstad:
-    vaer: {entity: weather.stromstad}
-    pris: {entity: sensor.stromstad_pris, billig: 0.4, dyr: 0.8}
-    effekt: {entity: sensor.stromstad_effekt}
-    kalender: false
+    pris: {entity: sensor.min_elpris}
 setninger:                        # egne setninger (gammelt navn: ekstra)
   - vis: "states['sensor.soppel'].state == '0'"   # JS-uttrykk med states/hass
     tekst: 'Søppel tømmes {pille}'
@@ -492,9 +500,14 @@ bytter etter hvor mange lys som står på – måne når alt er slukket, lyspær
 huset lyser – og trinnene settes i `ikon_trinn` med emoji, mdi-ikoner eller bilder. Tall formateres med
 `desimaler`, `mellomrom` (før enheten) og `tusenskille`, og effekt og apparater står uten tusenskille så det
 blir «3860W». Hver bit har `path` for popupen trykket skal åpne – været peker som standard på `#weather`.
-Med `profiler:` kan ett og samme kort dekke flere hus: hver profil er et sett overstyringer som legges oppå
-basiskonfigurasjonen. `profil: stromstad` velger fast, `profil_entity:` lar en `input_select` bestemme, og
-kortet bygger seg om når verdien endrer seg.
+Kortet har tre ferdige profiler: **oslo**, **stromstad** og **toten**. Oslo peker på de faktiske entitetene
+i huset; de to andre finner sine selv ut fra profilens nøkkelord, enhet og enhetsklasse – værentiteten som
+heter noe med stedet, prissensoren i kr/kWh, effektsensoren i watt, og lysene som hører til stedet. Det du
+selv skriver i kortet vinner alltid over profilen, så én linje holder for å bytte en sensor. Egne profiler
+legges til under `profiler:` med samme nøkler.
+
+`profil: stromstad` velger fast, `profil_entity:` lar en `input_select` bestemme, og kortet bygger seg om
+når verdien endrer seg.
 
 Den visuelle editoren dekker alle de innebygde bitene med tekst- og entitetsfelt og en av-bryter per bit;
 apparater, hjemkomst og egne setninger settes i YAML.

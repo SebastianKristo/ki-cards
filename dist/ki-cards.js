@@ -1,4 +1,4 @@
-/* ki-cards v2.59.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.61.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.59.0";
+  KI.VERSION = "2.61.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5055,7 +5055,9 @@ try {
  *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
  *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
- *  profiler:                       # flere hus i samme kort
+ *  profil: oslo | stromstad | toten # tre ferdige profiler ligger i kortet
+ *  profil_entity: input_select.hus  # eller la en input_select bestemme
+ *  profiler:                       # egne profiler, eller overstyr de innebygde
  *    oslo: { ... }                 # overstyringer for Oslo
  *    stromstad: { ... }            # overstyringer for Strömstad
  *  profil: stromstad               # eller profil_entity: input_select.hus
@@ -5077,7 +5079,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.4.0";
+const KI_PROSA_VERSJON = "2.5.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5116,6 +5118,53 @@ const KI_PROSA_STD = {
              navn: "sensor.dagens_bursdager", ikon: "🎂", stil: "gradient glans",
              tekst: "I dag har {pille} bursdag! 🎉", tjeneste: "input_boolean.turn_on" },
   setninger: [],
+};
+
+/* Tre ferdige profiler – ett hus hver. Oslo er satt opp med de faktiske entitetene,
+   Strömstad og Toten finner sine selv ut fra navn og enheter (kan overstyres som vanlig). */
+const KI_PROSA_PROFILER = {
+  oslo: {
+    navn: "Oslo",
+    nokkelord: ["oslo", "hjemme", "huset"],
+    vaer: { entity: "weather.forecast_home" },
+    pris: { entity: "sensor.norgespris_pris_na", billig: 0.8, dyr: 0.85 },
+    spot: "sensor.totalpris_inkludert_grid_el_company_og_stromstotte",
+    effekt: { entity: "sensor.strommaler_effekt" },
+    kalender: { entity: "sensor.alle_kalendere" },
+    lys: { entity: "auto" },
+    planter: { entity: "auto" },
+    laser: { entity: "auto" },
+  },
+  stromstad: {
+    navn: "Strömstad",
+    nokkelord: ["stromstad", "strömstad", "hytta", "sverige", "se3"],
+    vaer: { entity: "auto" },
+    pris: { entity: "auto", enhet: "kr", billig: 0.4, dyr: 0.9 },
+    spot: "auto",
+    effekt: { entity: "auto" },
+    kalender: false,
+    lys: { entity: "auto" },
+    planter: false,
+    laser: { entity: "auto" },
+    bursdag: false,
+    apparater: [],
+    hjemkomst: [],
+  },
+  toten: {
+    navn: "Toten",
+    nokkelord: ["toten", "gard", "gaard"],
+    vaer: { entity: "auto" },
+    pris: { entity: "auto" },
+    spot: "auto",
+    effekt: { entity: "auto" },
+    kalender: false,
+    lys: { entity: "auto" },
+    planter: false,
+    laser: { entity: "auto" },
+    bursdag: false,
+    apparater: [],
+    hjemkomst: [],
+  },
 };
 
 const KI_PROSA_VAER = {
@@ -5192,15 +5241,19 @@ class KiProsaCard extends HTMLElement {
      `profil_entity` peker på en input_select som bestemmer hvilken. */
   _velgProfil() {
     const r = this._raa || {};
-    if (!r.profiler) return null;
+    const egne = r.profiler || {};
+    const alle = { ...KI_PROSA_PROFILER, ...egne };
+    if (!r.profil && !r.profil_entity && !r.profiler) return null;
     let navn = r.profil;
     if (r.profil_entity && this._h) {
       const st = this._h.states[r.profil_entity];
       if (st && st.state) navn = st.state;
     }
-    if (!navn) navn = Object.keys(r.profiler)[0];
-    const n = String(navn).toLowerCase().replace(/[^a-z0-9]/g, "");
-    const treff = Object.keys(r.profiler).find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === n);
+    if (!navn) navn = Object.keys(alle)[0];
+    const rens = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "").replace(/ö/g, "o");
+    const n = rens(navn);
+    const treff = Object.keys(alle).find((k) => rens(k) === n)
+      || Object.keys(alle).find((k) => rens((alle[k] || {}).navn || "") === n);
     return treff || null;
   }
   _sjekkProfil() {
@@ -5208,9 +5261,17 @@ class KiProsaCard extends HTMLElement {
     if (valgt === this._profil) return false;
     this._profil = valgt;
     const r = this._raa || {};
-    const over = valgt ? r.profiler[valgt] : {};
+    const alle = { ...KI_PROSA_PROFILER, ...(r.profiler || {}) };
+    const over = valgt ? alle[valgt] : {};
     const { profiler, profil, profil_entity, ...basis } = r;
-    this._bygg2({ ...basis, ...(over || {}) });
+    const { navn, nokkelord, ...felt } = over || {};
+    this._nokkelord = nokkelord || [];
+    this._profilnavn = navn || valgt;
+    this._autocache = {};
+    /* profilen er grunnlaget, men det du selv har skrevet i kortet vinner */
+    const flettet = { ...felt };
+    for (const [k, v] of Object.entries(basis)) flettet[k] = kiPFlett(felt[k], v);
+    this._bygg2(flettet);
     this._bygget = false;
     return true;
   }
@@ -5239,6 +5300,42 @@ class KiProsaCard extends HTMLElement {
   }
 
   /* ------------------------------------------------------------ oppslag */
+  /* «auto» slår opp en passende entitet ut fra profilens nøkkelord, enhet og domene.
+     Slik slipper nye hus å ha entitetslista skrevet inn. */
+  _autoEnt(type) {
+    if (!this._h) return null;
+    const buf = (this._autocache = this._autocache || {});
+    if (buf[type] !== undefined) return buf[type];
+    const ord = (this._nokkelord || []).map((x) => String(x).toLowerCase());
+    const S = this._h.states;
+    const navn = (id) => ((S[id].attributes || {}).friendly_name || "").toLowerCase();
+    const treff = (id) => !ord.length || ord.some((k) => id.toLowerCase().includes(k) || navn(id).includes(k));
+    const enhet = (id) => String((S[id].attributes || {}).unit_of_measurement || "").toLowerCase();
+    const klasse = (id) => String((S[id].attributes || {}).device_class || "");
+    const finn = (test) => {
+      const alle = Object.keys(S).filter(test);
+      return alle.find(treff) || (ord.length ? null : alle[0]) || null;
+    };
+    let ut = null;
+    if (type === "vaer") ut = finn((id) => id.startsWith("weather."));
+    else if (type === "pris") ut = finn((id) => id.startsWith("sensor.")
+      && /kr|øre|ore|sek|nok/.test(enhet(id)) && /kwh/.test(enhet(id)));
+    else if (type === "spot") ut = finn((id) => id.startsWith("sensor.") && Array.isArray((S[id].attributes || {}).raw_today));
+    else if (type === "effekt") ut = finn((id) => id.startsWith("sensor.") && klasse(id) === "power" && /^w$|kw/.test(enhet(id)));
+    else if (type === "kalender") ut = finn((id) => id.startsWith("sensor.") && Array.isArray((S[id].attributes || {}).events))
+      || finn((id) => id.startsWith("calendar."));
+    buf[type] = ut;
+    return ut;
+  }
+  /* Bytter ut «auto» i konfigurasjonen med en faktisk entitet */
+  _ent(gren) {
+    const d = this._c[gren];
+    if (!d || d === false) return null;
+    const id = typeof d === "string" ? d : d.entity;
+    if (id !== "auto") return id;
+    if (gren === "lys" || gren === "planter" || gren === "laser") return "auto";   /* disse teller selv */
+    return this._autoEnt(gren);
+  }
   _st(id) { return (this._h && id && this._h.states[id]) || null; }
   _val(id) { const s = this._st(id); return s ? s.state : ""; }
   _on(id) { return this._val(id) === "on"; }
@@ -5246,12 +5343,23 @@ class KiProsaCard extends HTMLElement {
   _at(id, a) { const s = this._st(id); return s ? s.attributes[a] : undefined; }
   _teknisk(id) { const r = this._h.entities && this._h.entities[id]; return !!(r && (r.hidden || r.entity_category)); }
   _domene(d) { return Object.keys(this._h.states).filter((id) => id.startsWith(d + ".")); }
-  _lysene() { return this._domene("light").filter((id) => !this._teknisk(id) && !Array.isArray(this._h.states[id].attributes.entity_id) && !(this._c.lys_ekskluder || []).some((g) => kiPGlob(g, id))); }
+  _lysene() {
+    const alle = this._domene("light").filter((id) => !this._teknisk(id)
+      && !Array.isArray(this._h.states[id].attributes.entity_id)
+      && !(this._c.lys_ekskluder || []).some((g) => kiPGlob(g, id)));
+    const ord = (this._nokkelord || []).map((x) => String(x).toLowerCase());
+    if (!ord.length) return alle;
+    const navn = (id) => ((this._h.states[id].attributes || {}).friendly_name || "").toLowerCase();
+    const passer = alle.filter((id) => ord.some((k) => id.toLowerCase().includes(k) || navn(id).includes(k)));
+    return passer.length ? passer : alle;      /* uten treff teller vi alle */
+  }
   _planteliste() { return Object.keys(this._h.states).filter((id) => { if (!id.startsWith("binary_sensor.")) return false; const a = this._h.states[id].attributes || {}; return a.integrasjon === "ki_planter" && a.type === "plante"; }).sort(); }
   _ider() {
     const c = this._c, ids = [], e = (x) => x && x.entity;
-    [c.vaer, c.pris, c.effekt, c.kalender, c.ringeklokke].forEach((x) => x && ids.push(e(x)));
-    ids.push(typeof c.spot === "string" ? c.spot : e(c.spot));
+    ["vaer", "pris", "effekt", "kalender"].forEach((g) => { const id = this._ent(g); if (id && id !== "auto") ids.push(id); });
+    if (c.ringeklokke) ids.push(e(c.ringeklokke));
+    const spotId = typeof c.spot === "string" ? c.spot : e(c.spot);
+    ids.push(spotId === "auto" ? this._autoEnt("spot") : spotId);
     if (c.lys) { const v = e(c.lys); if (v === "auto") ids.push(...this._lysene()); else if (v) ids.push(v); }
     if (c.laser) { const v = e(c.laser); if (v === "auto") ids.push(...this._domene("lock")); else if (v) ids.push(...[].concat(v)); }
     if (c.planter && e(c.planter) === "auto") ids.push(...this._planteliste());
@@ -5390,7 +5498,8 @@ class KiProsaCard extends HTMLElement {
       const billig = p.billig ?? p.dyr, dyr = p.dyr ?? p.billig;
       return v <= billig ? "var(--green)" : v > dyr ? "var(--red)" : "var(--yellow)";
     }
-    const id = typeof c.spot === "string" ? c.spot : (c.spot && c.spot.entity);
+    let id = typeof c.spot === "string" ? c.spot : (c.spot && c.spot.entity);
+    if (id === "auto") id = this._autoEnt("spot");
     const s = this._st(id), r = s && s.attributes.raw_today;
     if (!Array.isArray(r) || !r.length) return null;
     const naa = parseFloat(s.state), v = r.map((p) => p.value).filter((x) => typeof x === "number");
@@ -5405,15 +5514,16 @@ class KiProsaCard extends HTMLElement {
 
     /* vær */
     const forste = [];
-    if (c.vaer && this._st(c.vaer.entity)) {
-      const d = { ...c.vaer };
+    if (c.vaer && this._st(this._ent("vaer"))) {
+      const d = { ...c.vaer, entity: this._ent("vaer") };
       if (d.attributt === undefined) { const s = this._st(d.entity); if (s && s.attributes.temperature !== undefined) d.attributt = "temperature"; }
       forste.push(this._setning(c.vaer.tekst, this._pille(d)));
     }
     /* pris, effekt og lys settes sammen til én setning av de bitene som finnes */
     const bit = [];
-    if (c.pris && this._tallAv(c.pris) !== null) {
-      const tone = this._prisTone(c), p = c.pris;
+    const prisDef = c.pris ? { ...c.pris, entity: this._ent("pris") } : c.pris;
+    if (prisDef && this._tallAv(prisDef) !== null) {
+      const tone = this._prisTone({ ...c, pris: prisDef }), p = prisDef;
       let suffiks = p.suffiks;
       if (p.ord) {
         const v = this._tallAv(p), billig = p.billig ?? 0, dyr = p.dyr ?? billig;
@@ -5422,7 +5532,11 @@ class KiProsaCard extends HTMLElement {
       }
       bit.push(this._setning(p.tekst, this._pille({ ...p, suffiks, prikk: tone || undefined })));
     }
-    if (c.effekt) { const w = this._tallAv(c.effekt); if (w !== null && w > 0) bit.push(this._setning(c.effekt.tekst, this._pille(c.effekt))); }
+    if (c.effekt) {
+      const e = { ...c.effekt, entity: this._ent("effekt") };
+      const w = this._tallAv(e);
+      if (w !== null && w > 0) bit.push(this._setning(e.tekst, this._pille(e)));
+    }
     if (c.lys) {
       const v = c.lys.entity;
       const n = v === "auto" ? this._lysene().filter((id) => this._on(id)).length : this._tallAv(c.lys) || 0;
@@ -5443,12 +5557,13 @@ class KiProsaCard extends HTMLElement {
 
     /* kalender */
     if (c.kalender) {
-      const k = this._st(c.kalender.entity);
+      const kid = this._ent("kalender");
+      const k = this._st(kid);
       if (k) {
         const i0 = new Date(); i0.setHours(0, 0, 0, 0); const i1 = i0.getTime() + 86400000;
         const n = (k.attributes.events || []).filter((e) => { const t = new Date(e.start).getTime(); return t >= i0.getTime() && t < i1; }).length;
         deler.push(this._setning(c.kalender.tekst,
-          this._pille(c.kalender, n ? kiPEsc(kiPFlertall(n, "hendelse", "hendelser")) : "ingen hendelser")));
+          this._pille({ ...c.kalender, entity: kid }, n ? kiPEsc(kiPFlertall(n, "hendelse", "hendelser")) : "ingen hendelser")));
       }
     }
     /* apparater */
@@ -5822,6 +5937,14 @@ try {
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
+ *
+ * Timesprisene kan komme fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i
+ * en annen sensor i kr med avgifter. Da settes:
+ *   spot_naa: sensor.min_totalpris_kr        # vises som hovedtall
+ *   kalibrer: true                           # løfter hele kurven til samme nivå (standard når spot_naa er satt)
+ * Eller regn det ut selv:
+ *   mva: 25            # prosent som legges på timesprisene
+ *   paaslag: 0.089     # kr/kWh som legges på etter moms (påslag, elsertifikat, nettleie …)
  * spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # auto: første sensor med raw_today
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
@@ -5839,7 +5962,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.6.0";
+const KI_SP_VERSJON = "2.7.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -5942,7 +6065,7 @@ class KiStromprisCard extends HTMLElement {
   _num(id) { const s = this._st(id); if (!s) return null; const v = parseFloat(s.state); return isNaN(v) ? null : v; }
   _spot() { if (this._c.spot) return this._c.spot; const h = this._h;
     return this._auto || (this._auto = Object.keys(h.states).find((id) => id.startsWith("sensor.") && Array.isArray(h.states[id].attributes.raw_today))); }
-  _ider() { const c = this._c; return [this._spot(), c.norgespris, c.spart_dag, c.spart_ar, c.effekt]
+  _ider() { const c = this._c; return [this._spot(), c.spot_naa, c.norgespris, c.spart_dag, c.spart_ar, c.effekt]
     .filter((x) => typeof x === "string" && x); }
   _skala() { const s = this._st(this._spot()); if (this._c.skala !== undefined) return this._c.skala;
     return /øre|ore/i.test((s && s.attributes.unit_of_measurement) || "") ? 0.01 : 1; }
@@ -5973,12 +6096,31 @@ class KiStromprisCard extends HTMLElement {
   }
 
   /* Timespriser for valgt dag, skalert til kr/kWh */
+  /* Timesprisen slik den skal vises: rå verdi × skala, deretter moms og påslag –
+     eller kalibrert mot «spot_naa» slik at kurven lander på samme nivå som tallet du betaler. */
+  _justering() {
+    const c = this._c;
+    if (c.mva !== undefined || c.paaslag !== undefined)
+      return { faktor: 1 + (Number(c.mva) || 0) / 100, ledd: Number(c.paaslag) || 0 };
+    const naa = this._num(c.spot_naa);
+    if (c.spot_naa && naa !== null && c.kalibrer !== false) {
+      const raa = this._raa("i_dag");
+      if (Array.isArray(raa) && raa.length) {
+        const n = Date.now();
+        const time = raa.find((p) => p.t <= n && n < p.slutt);
+        const grunn = time && time.v !== null ? time.v * this._skala() : null;
+        if (grunn && Math.abs(grunn) > 0.0001) return { faktor: naa / grunn, ledd: 0 };
+      }
+    }
+    return { faktor: 1, ledd: 0 };
+  }
   _punkter() {
     const s = this._st(this._spot()); if (!s) return null;
     const raa = this._raa(this._dag);
     if (!Array.isArray(raa) || !raa.length) return [];
-    const k = this._skala();
-    return raa.map((p) => ({ t: p.t, slutt: p.slutt, v: p.v === null ? null : p.v * k })).filter((p) => p.v !== null && !isNaN(p.v) && !isNaN(p.t));
+    const k = this._skala(), j = this._justering();
+    return raa.map((p) => ({ t: p.t, slutt: p.slutt, v: p.v === null ? null : p.v * k * j.faktor + j.ledd }))
+      .filter((p) => p.v !== null && !isNaN(p.v) && !isNaN(p.t));
   }
   _harMorgen() { const r = this._raa("i_morgen"); return Array.isArray(r) && r.some((p) => p.v !== null && p.v !== undefined && !isNaN(p.v)); }
   _np() {
@@ -6122,7 +6264,11 @@ class KiStromprisCard extends HTMLElement {
     const c = this._c, np = this._np();
     let pkt = this._punkter();
     const naa = Date.now(), spotSt = this._st(this._spot());
-    const spotNaa = pkt && pkt.length ? (pkt.find((p) => p.t <= naa && naa < p.slutt) || {}).v : (spotSt ? parseFloat(spotSt.state) * this._skala() : null);
+    const egenNaa = this._num(c.spot_naa);
+    const fraKurve = pkt && pkt.length ? (pkt.find((p) => p.t <= naa && naa < p.slutt) || {}).v : null;
+    const spotNaa = egenNaa !== null && egenNaa !== undefined ? egenNaa
+      : (fraKurve !== null && fraKurve !== undefined ? fraKurve
+        : (spotSt ? parseFloat(spotSt.state) * this._skala() * this._justering().faktor + this._justering().ledd : null));
     const sparTime = np !== null && spotNaa !== undefined && spotNaa !== null ? spotNaa - np : null;
     const effekt = this._num(c.effekt), sparDag = this._num(c.spart_dag), sparAr = this._num(c.spart_ar);
 
@@ -6215,7 +6361,8 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
-      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Spotpris (raw_today)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+      const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet", spot: "Timespriser (raw_today)",
+        spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
@@ -6226,6 +6373,9 @@ class KiStromprisCardEditor extends HTMLElement {
     this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
       { name: "enhet", selector: { text: {} } },
+      { name: "spot_naa", selector: { entity: { domain: "sensor" } } },
+      { name: "mva", selector: { number: { mode: "box", min: 0, max: 100, step: "any" } } },
+      { name: "paaslag", selector: { number: { mode: "box", step: "any" } } },
       { name: "spart_dag", selector: { entity: { domain: "sensor" } } }, { name: "spart_ar", selector: { entity: { domain: "sensor" } } },
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },

@@ -19,7 +19,9 @@
  *  lys: { ikon_trinn: [{fra: 0, ikon: 🌙}, {fra: 1, ikon: 💡}, {fra: 4, ikon: 🔆}], tekst_null: 'ingen lys' }
  *  effekt / kalender / ringeklokke / laser / planter / bursdag: samme mønster
  *
- *  profiler:                       # flere hus i samme kort
+ *  profil: oslo | stromstad | toten # tre ferdige profiler ligger i kortet
+ *  profil_entity: input_select.hus  # eller la en input_select bestemme
+ *  profiler:                       # egne profiler, eller overstyr de innebygde
  *    oslo: { ... }                 # overstyringer for Oslo
  *    stromstad: { ... }            # overstyringer for Strömstad
  *  profil: stromstad               # eller profil_entity: input_select.hus
@@ -41,7 +43,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.4.0";
+const KI_PROSA_VERSJON = "2.5.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -80,6 +82,53 @@ const KI_PROSA_STD = {
              navn: "sensor.dagens_bursdager", ikon: "🎂", stil: "gradient glans",
              tekst: "I dag har {pille} bursdag! 🎉", tjeneste: "input_boolean.turn_on" },
   setninger: [],
+};
+
+/* Tre ferdige profiler – ett hus hver. Oslo er satt opp med de faktiske entitetene,
+   Strömstad og Toten finner sine selv ut fra navn og enheter (kan overstyres som vanlig). */
+const KI_PROSA_PROFILER = {
+  oslo: {
+    navn: "Oslo",
+    nokkelord: ["oslo", "hjemme", "huset"],
+    vaer: { entity: "weather.forecast_home" },
+    pris: { entity: "sensor.norgespris_pris_na", billig: 0.8, dyr: 0.85 },
+    spot: "sensor.totalpris_inkludert_grid_el_company_og_stromstotte",
+    effekt: { entity: "sensor.strommaler_effekt" },
+    kalender: { entity: "sensor.alle_kalendere" },
+    lys: { entity: "auto" },
+    planter: { entity: "auto" },
+    laser: { entity: "auto" },
+  },
+  stromstad: {
+    navn: "Strömstad",
+    nokkelord: ["stromstad", "strömstad", "hytta", "sverige", "se3"],
+    vaer: { entity: "auto" },
+    pris: { entity: "auto", enhet: "kr", billig: 0.4, dyr: 0.9 },
+    spot: "auto",
+    effekt: { entity: "auto" },
+    kalender: false,
+    lys: { entity: "auto" },
+    planter: false,
+    laser: { entity: "auto" },
+    bursdag: false,
+    apparater: [],
+    hjemkomst: [],
+  },
+  toten: {
+    navn: "Toten",
+    nokkelord: ["toten", "gard", "gaard"],
+    vaer: { entity: "auto" },
+    pris: { entity: "auto" },
+    spot: "auto",
+    effekt: { entity: "auto" },
+    kalender: false,
+    lys: { entity: "auto" },
+    planter: false,
+    laser: { entity: "auto" },
+    bursdag: false,
+    apparater: [],
+    hjemkomst: [],
+  },
 };
 
 const KI_PROSA_VAER = {
@@ -156,15 +205,19 @@ class KiProsaCard extends HTMLElement {
      `profil_entity` peker på en input_select som bestemmer hvilken. */
   _velgProfil() {
     const r = this._raa || {};
-    if (!r.profiler) return null;
+    const egne = r.profiler || {};
+    const alle = { ...KI_PROSA_PROFILER, ...egne };
+    if (!r.profil && !r.profil_entity && !r.profiler) return null;
     let navn = r.profil;
     if (r.profil_entity && this._h) {
       const st = this._h.states[r.profil_entity];
       if (st && st.state) navn = st.state;
     }
-    if (!navn) navn = Object.keys(r.profiler)[0];
-    const n = String(navn).toLowerCase().replace(/[^a-z0-9]/g, "");
-    const treff = Object.keys(r.profiler).find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === n);
+    if (!navn) navn = Object.keys(alle)[0];
+    const rens = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "").replace(/ö/g, "o");
+    const n = rens(navn);
+    const treff = Object.keys(alle).find((k) => rens(k) === n)
+      || Object.keys(alle).find((k) => rens((alle[k] || {}).navn || "") === n);
     return treff || null;
   }
   _sjekkProfil() {
@@ -172,9 +225,17 @@ class KiProsaCard extends HTMLElement {
     if (valgt === this._profil) return false;
     this._profil = valgt;
     const r = this._raa || {};
-    const over = valgt ? r.profiler[valgt] : {};
+    const alle = { ...KI_PROSA_PROFILER, ...(r.profiler || {}) };
+    const over = valgt ? alle[valgt] : {};
     const { profiler, profil, profil_entity, ...basis } = r;
-    this._bygg2({ ...basis, ...(over || {}) });
+    const { navn, nokkelord, ...felt } = over || {};
+    this._nokkelord = nokkelord || [];
+    this._profilnavn = navn || valgt;
+    this._autocache = {};
+    /* profilen er grunnlaget, men det du selv har skrevet i kortet vinner */
+    const flettet = { ...felt };
+    for (const [k, v] of Object.entries(basis)) flettet[k] = kiPFlett(felt[k], v);
+    this._bygg2(flettet);
     this._bygget = false;
     return true;
   }
@@ -203,6 +264,42 @@ class KiProsaCard extends HTMLElement {
   }
 
   /* ------------------------------------------------------------ oppslag */
+  /* «auto» slår opp en passende entitet ut fra profilens nøkkelord, enhet og domene.
+     Slik slipper nye hus å ha entitetslista skrevet inn. */
+  _autoEnt(type) {
+    if (!this._h) return null;
+    const buf = (this._autocache = this._autocache || {});
+    if (buf[type] !== undefined) return buf[type];
+    const ord = (this._nokkelord || []).map((x) => String(x).toLowerCase());
+    const S = this._h.states;
+    const navn = (id) => ((S[id].attributes || {}).friendly_name || "").toLowerCase();
+    const treff = (id) => !ord.length || ord.some((k) => id.toLowerCase().includes(k) || navn(id).includes(k));
+    const enhet = (id) => String((S[id].attributes || {}).unit_of_measurement || "").toLowerCase();
+    const klasse = (id) => String((S[id].attributes || {}).device_class || "");
+    const finn = (test) => {
+      const alle = Object.keys(S).filter(test);
+      return alle.find(treff) || (ord.length ? null : alle[0]) || null;
+    };
+    let ut = null;
+    if (type === "vaer") ut = finn((id) => id.startsWith("weather."));
+    else if (type === "pris") ut = finn((id) => id.startsWith("sensor.")
+      && /kr|øre|ore|sek|nok/.test(enhet(id)) && /kwh/.test(enhet(id)));
+    else if (type === "spot") ut = finn((id) => id.startsWith("sensor.") && Array.isArray((S[id].attributes || {}).raw_today));
+    else if (type === "effekt") ut = finn((id) => id.startsWith("sensor.") && klasse(id) === "power" && /^w$|kw/.test(enhet(id)));
+    else if (type === "kalender") ut = finn((id) => id.startsWith("sensor.") && Array.isArray((S[id].attributes || {}).events))
+      || finn((id) => id.startsWith("calendar."));
+    buf[type] = ut;
+    return ut;
+  }
+  /* Bytter ut «auto» i konfigurasjonen med en faktisk entitet */
+  _ent(gren) {
+    const d = this._c[gren];
+    if (!d || d === false) return null;
+    const id = typeof d === "string" ? d : d.entity;
+    if (id !== "auto") return id;
+    if (gren === "lys" || gren === "planter" || gren === "laser") return "auto";   /* disse teller selv */
+    return this._autoEnt(gren);
+  }
   _st(id) { return (this._h && id && this._h.states[id]) || null; }
   _val(id) { const s = this._st(id); return s ? s.state : ""; }
   _on(id) { return this._val(id) === "on"; }
@@ -210,12 +307,23 @@ class KiProsaCard extends HTMLElement {
   _at(id, a) { const s = this._st(id); return s ? s.attributes[a] : undefined; }
   _teknisk(id) { const r = this._h.entities && this._h.entities[id]; return !!(r && (r.hidden || r.entity_category)); }
   _domene(d) { return Object.keys(this._h.states).filter((id) => id.startsWith(d + ".")); }
-  _lysene() { return this._domene("light").filter((id) => !this._teknisk(id) && !Array.isArray(this._h.states[id].attributes.entity_id) && !(this._c.lys_ekskluder || []).some((g) => kiPGlob(g, id))); }
+  _lysene() {
+    const alle = this._domene("light").filter((id) => !this._teknisk(id)
+      && !Array.isArray(this._h.states[id].attributes.entity_id)
+      && !(this._c.lys_ekskluder || []).some((g) => kiPGlob(g, id)));
+    const ord = (this._nokkelord || []).map((x) => String(x).toLowerCase());
+    if (!ord.length) return alle;
+    const navn = (id) => ((this._h.states[id].attributes || {}).friendly_name || "").toLowerCase();
+    const passer = alle.filter((id) => ord.some((k) => id.toLowerCase().includes(k) || navn(id).includes(k)));
+    return passer.length ? passer : alle;      /* uten treff teller vi alle */
+  }
   _planteliste() { return Object.keys(this._h.states).filter((id) => { if (!id.startsWith("binary_sensor.")) return false; const a = this._h.states[id].attributes || {}; return a.integrasjon === "ki_planter" && a.type === "plante"; }).sort(); }
   _ider() {
     const c = this._c, ids = [], e = (x) => x && x.entity;
-    [c.vaer, c.pris, c.effekt, c.kalender, c.ringeklokke].forEach((x) => x && ids.push(e(x)));
-    ids.push(typeof c.spot === "string" ? c.spot : e(c.spot));
+    ["vaer", "pris", "effekt", "kalender"].forEach((g) => { const id = this._ent(g); if (id && id !== "auto") ids.push(id); });
+    if (c.ringeklokke) ids.push(e(c.ringeklokke));
+    const spotId = typeof c.spot === "string" ? c.spot : e(c.spot);
+    ids.push(spotId === "auto" ? this._autoEnt("spot") : spotId);
     if (c.lys) { const v = e(c.lys); if (v === "auto") ids.push(...this._lysene()); else if (v) ids.push(v); }
     if (c.laser) { const v = e(c.laser); if (v === "auto") ids.push(...this._domene("lock")); else if (v) ids.push(...[].concat(v)); }
     if (c.planter && e(c.planter) === "auto") ids.push(...this._planteliste());
@@ -354,7 +462,8 @@ class KiProsaCard extends HTMLElement {
       const billig = p.billig ?? p.dyr, dyr = p.dyr ?? p.billig;
       return v <= billig ? "var(--green)" : v > dyr ? "var(--red)" : "var(--yellow)";
     }
-    const id = typeof c.spot === "string" ? c.spot : (c.spot && c.spot.entity);
+    let id = typeof c.spot === "string" ? c.spot : (c.spot && c.spot.entity);
+    if (id === "auto") id = this._autoEnt("spot");
     const s = this._st(id), r = s && s.attributes.raw_today;
     if (!Array.isArray(r) || !r.length) return null;
     const naa = parseFloat(s.state), v = r.map((p) => p.value).filter((x) => typeof x === "number");
@@ -369,15 +478,16 @@ class KiProsaCard extends HTMLElement {
 
     /* vær */
     const forste = [];
-    if (c.vaer && this._st(c.vaer.entity)) {
-      const d = { ...c.vaer };
+    if (c.vaer && this._st(this._ent("vaer"))) {
+      const d = { ...c.vaer, entity: this._ent("vaer") };
       if (d.attributt === undefined) { const s = this._st(d.entity); if (s && s.attributes.temperature !== undefined) d.attributt = "temperature"; }
       forste.push(this._setning(c.vaer.tekst, this._pille(d)));
     }
     /* pris, effekt og lys settes sammen til én setning av de bitene som finnes */
     const bit = [];
-    if (c.pris && this._tallAv(c.pris) !== null) {
-      const tone = this._prisTone(c), p = c.pris;
+    const prisDef = c.pris ? { ...c.pris, entity: this._ent("pris") } : c.pris;
+    if (prisDef && this._tallAv(prisDef) !== null) {
+      const tone = this._prisTone({ ...c, pris: prisDef }), p = prisDef;
       let suffiks = p.suffiks;
       if (p.ord) {
         const v = this._tallAv(p), billig = p.billig ?? 0, dyr = p.dyr ?? billig;
@@ -386,7 +496,11 @@ class KiProsaCard extends HTMLElement {
       }
       bit.push(this._setning(p.tekst, this._pille({ ...p, suffiks, prikk: tone || undefined })));
     }
-    if (c.effekt) { const w = this._tallAv(c.effekt); if (w !== null && w > 0) bit.push(this._setning(c.effekt.tekst, this._pille(c.effekt))); }
+    if (c.effekt) {
+      const e = { ...c.effekt, entity: this._ent("effekt") };
+      const w = this._tallAv(e);
+      if (w !== null && w > 0) bit.push(this._setning(e.tekst, this._pille(e)));
+    }
     if (c.lys) {
       const v = c.lys.entity;
       const n = v === "auto" ? this._lysene().filter((id) => this._on(id)).length : this._tallAv(c.lys) || 0;
@@ -407,12 +521,13 @@ class KiProsaCard extends HTMLElement {
 
     /* kalender */
     if (c.kalender) {
-      const k = this._st(c.kalender.entity);
+      const kid = this._ent("kalender");
+      const k = this._st(kid);
       if (k) {
         const i0 = new Date(); i0.setHours(0, 0, 0, 0); const i1 = i0.getTime() + 86400000;
         const n = (k.attributes.events || []).filter((e) => { const t = new Date(e.start).getTime(); return t >= i0.getTime() && t < i1; }).length;
         deler.push(this._setning(c.kalender.tekst,
-          this._pille(c.kalender, n ? kiPEsc(kiPFlertall(n, "hendelse", "hendelser")) : "ingen hendelser")));
+          this._pille({ ...c.kalender, entity: kid }, n ? kiPEsc(kiPFlertall(n, "hendelse", "hendelser")) : "ingen hendelser")));
       }
     }
     /* apparater */
