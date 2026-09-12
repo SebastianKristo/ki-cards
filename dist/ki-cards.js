@@ -1,4 +1,4 @@
-/* ki-cards v2.69.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.70.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.69.0";
+  KI.VERSION = "2.70.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5083,7 +5083,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.11.0";
+const KI_PROSA_VERSJON = "2.11.1";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5248,7 +5248,9 @@ const KI_PROSA_STIL = `
     background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent); animation:pr-glans 2.8s ease-in-out infinite; pointer-events:none; }
   .snurr-ik { display:inline-block; animation:pr-snurr 2.4s linear infinite; }
   /* tegnede ikoner */
-  .ki-fig { width:1.35em; height:1.35em; vertical-align:-.28em; overflow:visible; }
+  /* Figuren er større enn teksten, men skal ikke gjøre pillen høyere –
+     ellers faller pillen ned i forhold til setningen rundt. */
+  .ki-fig { width:1.5em; height:1.5em; margin:-.4em 0; vertical-align:middle; overflow:visible; flex:none; }
   .ki-fig .kropp { fill:none; stroke:currentColor; stroke-width:1.5; }
   .ki-fig .panel { fill:currentColor; opacity:.28; }
   .ki-fig .knapp1 { fill:currentColor; opacity:.6; }
