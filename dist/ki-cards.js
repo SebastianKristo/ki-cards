@@ -1,4 +1,4 @@
-/* ki-cards v2.72.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.73.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.72.0";
+  KI.VERSION = "2.73.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8858,6 +8858,7 @@ try {
  * Del av ki-cards-bundelen; ingen avhengigheter og kan også brukes alene.
  *
  * type: custom:ki-vanning-card
+ * Kortet virker både med OpenSprinkler og med egne ventiler styrt av KI Vanning.
  * prefiks: ute_opensprinkler        # oppdages automatisk hvis den utelates
  * vinter: input_boolean.vinter_modus_vanning
  * varigheter: [5, 10, 15, 30, 60]   # minutter på hurtigknappene
@@ -8868,7 +8869,7 @@ try {
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "2.2.0";
+const KI_VANN_VERSJON = "3.0.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -8959,6 +8960,7 @@ const KI_VANN_STIL = `
     --mdc-icon-size:24px; transition:transform .12s var(--fjaer), background .2s; }
   .hk:active { transform:scale(.95); }
   .hk.pa { background:var(--gray1000); color:var(--gray100); }
+  .hk.skjult { display:none; }
   .hk ha-icon { color:var(--hk-farge, inherit); }
 
   /* ---- faner ---- */
@@ -9200,6 +9202,8 @@ class KiVanningCard extends HTMLElement {
   /* ---------- automatisk oppsett ---------- */
   _prefiks() {
     if (this._c.prefiks) return this._c.prefiks;
+    const ki0 = this._ki();
+    if (ki0 && ki0.modus === "ventiler") return ki0.prefiks || "ki_vanning";
     if (this._pref !== undefined) return this._pref;
     const S = this._states;
     const t = Object.keys(S).find((id) => /^binary_sensor\..+_s\d\d.*_station_running$/.test(id));
@@ -9208,7 +9212,16 @@ class KiVanningCard extends HTMLElement {
     return this._pref;
   }
   /* Soner: S01 … S16 med navn og metode hentet fra friendly_name */
+  /* Styrer KI Vanning ventilene selv, kommer sonene og programmene derfra. */
+  _ventilmodus() { const ki = this._ki(); return !!ki && ki.modus === "ventiler"; }
   _soner() {
+    const ki = this._ki();
+    if (ki && ki.modus === "ventiler") {
+      return (ki.soner || []).filter((z) => z.nr !== 0).map((z) => ({
+        nr: String(z.nr).padStart(2, "0"), navn: z.navn, metode: z.metode || "", boks: z.boks || "",
+        bryter: z.bryter, gaar: z.gaar || z.bryter, status: z.status || z.bryter, ubrukt: false,
+      }));
+    }
     const S = this._states, p = this._prefiks(); if (!p) return [];
     const re = new RegExp("^switch\\." + p + "_s(\\d\\d)(.*)_station_enabled$");
     return Object.keys(S).map((id) => {
@@ -9230,6 +9243,13 @@ class KiVanningCard extends HTMLElement {
       .filter((z) => !(this._c.skjul_ubrukte !== false && z.ubrukt));
   }
   _programmer() {
+    const ki = this._ki();
+    if (ki && ki.modus === "ventiler") {
+      return (ki.program_historikk || []).map((x) => ({
+        navn: x.navn, slug: x.slug, bryter: null, gaar: null, start: null, intervall: null,
+        plan: x,
+      }));
+    }
     const S = this._states, p = this._prefiks(); if (!p) return [];
     const re = new RegExp("^switch\\." + p + "_(.+)_program_enabled$");
     return Object.keys(S).map((id) => {
@@ -9266,9 +9286,22 @@ class KiVanningCard extends HTMLElement {
     if (navigator.vibrate) navigator.vibrate(10);
     return this._h.callService("opensprinkler", navn, data || {}, mål ? { entity_id: mål } : undefined);
   }
-  _kjor(sone, min) { this._tjeneste("run_station", { run_seconds: min * 60 }, sone.bryter); }
-  _stopp(id) { this._tjeneste("stop", {}, id || this._styring().aktiv); }
-  _regn(t) { this._tjeneste("set_rain_delay", { rain_delay: t }, this._styring().aktiv); }
+  _ki_tjeneste(navn, data) {
+    if (navigator.vibrate) navigator.vibrate(10);
+    return this._h.callService("ki_vanning", navn, data || {});
+  }
+  _kjor(sone, min) {
+    if (this._ventilmodus()) return this._ki_tjeneste("kjor", { sone: sone.bryter, minutter: min });
+    this._tjeneste("run_station", { run_seconds: min * 60 }, sone.bryter);
+  }
+  _stopp(id) {
+    if (this._ventilmodus()) return this._ki_tjeneste("stopp", {});
+    this._tjeneste("stop", {}, id || this._styring().aktiv);
+  }
+  _regn(t) {
+    if (this._ventilmodus()) return this._ki_tjeneste("sett_ferie", { pa: t > 0 });
+    this._tjeneste("set_rain_delay", { rain_delay: t }, this._styring().aktiv);
+  }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
   _veksle(id) { if (navigator.vibrate) navigator.vibrate(8); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
 
@@ -9300,6 +9333,7 @@ class KiVanningCard extends HTMLElement {
           <button class="hk" data-h="stopp" style="--hk-farge:var(--red,#e8657a)"><ha-icon icon="mdi:stop-circle"></ha-icon><span>Stopp alt</span></button>
           <button class="hk" data-h="regn24"><ha-icon icon="mdi:weather-rainy"></ha-icon><span>Regn 24t</span></button>
           <button class="hk" data-h="regn0"><ha-icon icon="mdi:weather-sunny"></ha-icon><span>Nullstill</span></button>
+          <button class="hk skjult" data-h="program"><ha-icon icon="mdi:play-circle"></ha-icon><span>Kjør program</span></button>
           <button class="hk" data-h="vinter"><ha-icon icon="mdi:snowflake"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegg"}</span></button>
         </div>
 
@@ -9315,7 +9349,8 @@ class KiVanningCard extends HTMLElement {
     });
     r.querySelectorAll("[data-h]").forEach((b) => b.addEventListener("click", () => {
       const h = b.dataset.h;
-      if (h === "stopp") this._stopp();
+      if (h === "program") { const p = this._programmer()[0]; if (p) this._ki_tjeneste("kjor_program", { program: p.navn }); }
+      else if (h === "stopp") this._stopp();
       else if (h === "regn24") this._regn(24);
       else if (h === "regn0") this._regn(0);
       else this._veksle(c.vinter || this._styring().aktiv);
@@ -9410,7 +9445,8 @@ class KiVanningCard extends HTMLElement {
     z.forEach((x) => { const b = x.boks || "–"; (bokser[b] = bokser[b] || []).push(x); });
     const varigheter = c.varigheter;
     return Object.keys(bokser).sort().map((b) => `<div class="boks">
-      <div class="bokstittel"><ha-icon icon="mdi:water-boiler"></ha-icon>${b === "–" ? "Andre soner" : "Boks " + b}
+      <div class="bokstittel"><ha-icon icon="mdi:water-boiler"></ha-icon>${
+        b === "–" ? "Soner" : /^\d+$/.test(b) ? "Boks " + b : b}
         <span>${bokser[b].length} ${bokser[b].length === 1 ? "sone" : "soner"}</span></div>
       ${bokser[b].map((x) => {
         const gaar = this._on(x.gaar), av = !this._on(x.bryter);
@@ -9441,11 +9477,16 @@ class KiVanningCard extends HTMLElement {
     /* Programplanen fra KI Vanning gir sonene, minuttene og estimatet per program */
     const finnPlan = (navn) => plan.find((x) => String(x.navn).toLowerCase() === String(navn).toLowerCase()) || null;
     return p.map((x) => {
-      const gaar = this._on(x.gaar), av = !this._on(x.bryter);
-      const t = this._st(x.start), iv = this._st(x.intervall);
-      const pl = finnPlan(x.navn);
+      const ventil = !x.bryter;
+      const pl = x.plan || finnPlan(x.navn);
+      const gaar = ventil ? !!(ki && ki.planlegger && ki.planlegger.program === x.navn) : this._on(x.gaar);
+      const av = ventil ? pl && pl.aktiv === false : !this._on(x.bryter);
+      const t = ventil ? null : this._st(x.start), iv = ventil ? null : this._st(x.intervall);
+      const dagnavn = { man: "man", tir: "tir", ons: "ons", tor: "tor", fre: "fre", lor: "lør", son: "søn" };
       const under = [
         t && !["unknown", "unavailable"].includes(t.state) ? "Kl. " + String(t.state).slice(0, 5) : (pl ? "Kl. " + pl.tid : ""),
+        ventil && pl && pl.dager && pl.dager.length < 7 ? pl.dager.map((d) => dagnavn[d] || d).join(" ") : "",
+        ventil && pl && pl.ferie ? "ferieprogram" : "",
         iv && iv.state !== "unknown" && parseFloat(iv.state) > 0 ? "hver " + Math.round(parseFloat(iv.state)) + ". dag" : "",
         pl ? `${pl.soner.length} soner · ${pl.total_min} min` : "",
         pl && pl.estimat_liter ? `ca. ${Math.round(pl.estimat_liter)} L` : "",
@@ -9456,7 +9497,8 @@ class KiVanningCard extends HTMLElement {
         const i = pl.soner.findIndex((z) => z.navn === aktiv.navn);
         gjort = i >= 0 ? (pl.soner.slice(0, i).reduce((a, b) => a + b.min, 0) / (pl.total_min || 1)) * 100 : 0;
       }
-      return `<div class="prog ${gaar ? "gaar" : ""} ${av ? "av" : ""}" data-prog="${x.bryter}" data-kjor="${x.bryter}" role="button" tabindex="0">
+      return `<div class="prog ${gaar ? "gaar" : ""} ${av ? "av" : ""}" ${ventil
+        ? `data-kjorprog="${kiVaEsc(x.navn)}"` : `data-prog="${x.bryter}" data-kjor="${x.bryter}"`} role="button" tabindex="0">
         <div class="ic"><ha-icon icon="${gaar ? "mdi:play-circle" : av ? "mdi:calendar-remove" : "mdi:calendar-clock"}"></ha-icon></div>
         <div class="n">${kiVaEsc(x.navn)}${pl && pl.i_dag ? ' <span class="knagg">i dag</span>' : ""}</div>
         <div class="l">${gaar ? "Kjører nå" : av ? "Deaktivert" : under || "Aktivert"}</div>
@@ -9465,7 +9507,8 @@ class KiVanningCard extends HTMLElement {
       ${pl && pl.soner.length ? `<div class="pdetalj">${pl.soner.map((z) =>
         `<span class="pz ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">${kiVaEsc(z.navn)} ${z.min}m</span>`).join("")}</div>` : ""}
       ${gaar && gjort ? `<div class="pstolpe"><i style="width:${gjort.toFixed(1)}%"></i></div>` : ""}`;
-    }).join("") + `<div class="hint">Trykk = av eller på · hold = kjør programmet nå</div>`;
+    }).join("") + `<div class="hint">${this._ventilmodus()
+      ? "Trykk = kjør programmet nå" : "Trykk = av eller på · hold = kjør programmet nå"}</div>`;
   }
 
   _tikk() {
@@ -9517,12 +9560,14 @@ class KiVanningCard extends HTMLElement {
   /* Den store hagescenen */
   _tegnScene(scene, z, vinter, s) {
     const ki = this._ki(), st = z ? this._st(z.status) : null;
-    const regn = this._on(s.regn);
+    const pl = ki && ki.planlegger;
+    const regn = this._on(s.regn) || !!(ki && ki.ferie);
     scene.classList.toggle("vanner", !!z);
     scene.classList.toggle("vinter", !z && !!vinter);
     scene.classList.toggle("regn", !z && !vinter && regn);
     scene.querySelector(".tittel").textContent = z ? "Vanner " + z.navn
-      : vinter ? "Vintermodus" : regn ? "Regnpause" : this._on(s.aktiv) ? "Hagen er tørr og klar" : "Anlegget er av";
+      : vinter ? "Vintermodus" : (ki && ki.ferie) ? "Feriemodus" : regn ? "Regnpause"
+      : this._on(s.aktiv) || this._ventilmodus() ? "Hagen er tørr og klar" : "Anlegget er av";
     const n = (ki && ki.neste) || {};
     scene.querySelector(".under").textContent = z
       ? `${z.metode || "Sone " + z.nr}${st ? " · " + st.state : ""} · trykk for å stoppe`
@@ -9530,12 +9575,24 @@ class KiVanningCard extends HTMLElement {
       : regn ? (this._st(s.regn_til) ? "Fortsetter " + this._st(s.regn_til).state : "Venter på oppholdsvær")
       : n.navn ? `Neste: ${n.navn} ${n.naar || ""} ${n.tid || ""}` : "Ingen soner kjører";
 
+    /* egne ventiler: planleggeren vet nøyaktig hvor lenge det er igjen */
+    const fraPlan = !!(pl && pl.kjorer && pl.sekunder_igjen > 0);
+    if (fraPlan) {
+      if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - pl.sekunder_igjen) > 3) {
+        this._total = Math.max(this._total || 0, pl.sekunder_igjen);
+        this._slutt = Date.now() + pl.sekunder_igjen * 1000;
+      }
+      const koe = (pl.i_koe || []).length;
+      scene.querySelector(".under").textContent =
+        `${pl.program ? pl.program + " · " : ""}${koe ? koe + " i kø · " : ""}trykk for å stoppe`;
+      this._tikk();
+    }
     /* nedtelling fra statussensoren */
-    const rest = z && st ? String(st.state).match(/(\d+):(\d\d)(?::(\d\d))?/) : null;
+    const rest = !fraPlan && z && st ? String(st.state).match(/(\d+):(\d\d)(?::(\d\d))?/) : null;
     if (rest) {
       const sek = rest[3] ? (+rest[1]) * 3600 + (+rest[2]) * 60 + (+rest[3]) : (+rest[1]) * 60 + (+rest[2]);
       if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - sek) > 3) { this._total = sek; this._slutt = Date.now() + sek * 1000; }
-    } else { this._slutt = null; this._total = 0; }
+    } else if (!fraPlan) { this._slutt = null; this._total = 0; }
     const ned = scene.querySelector(".ned");
     if (!this._slutt) ned.textContent = "";
     this._tikk();
@@ -9573,6 +9630,8 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", (e) => {
       if (e.target.closest("[data-min]")) return; this._mer(el.dataset.e);
     }));
+    r.querySelectorAll("[data-kjorprog]").forEach((el) =>
+      el.addEventListener("click", () => this._ki_tjeneste("kjor_program", { program: el.dataset.kjorprog })));
     r.querySelectorAll("[data-prog]").forEach((el) => {
       let t = null, holdt = false;
       const start = () => { holdt = false; t = setTimeout(() => { holdt = true; this._tjeneste("run_program", {}, el.dataset.kjor); }, 500); };
