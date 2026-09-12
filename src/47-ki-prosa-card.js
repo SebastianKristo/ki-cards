@@ -47,7 +47,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.11.1";
+const KI_PROSA_VERSJON = "2.11.2";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -199,6 +199,9 @@ const KI_PROSA_STIL = `
     color:var(--gray100, var(--card-background-color)); font-weight:500; line-height:1.65; white-space:nowrap; vertical-align:baseline;
     cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .3s, transform .12s; }
   .pille:active { transform:scale(.95); }
+  /* Uten en tekstbit først får pillen grunnlinja si fra ikonet, og da havner
+     setningen rundt for lavt. Et usynlig tegn gir den tekstens grunnlinje. */
+  .pille::before { content:"\\200b"; width:0; flex:none; }
   .pille ha-icon { --mdc-icon-size:1em; }
   .pille img { height:1.25em; width:auto; display:block; }
   .pille:focus-visible { outline:2px solid var(--active-big, #ee95ff); outline-offset:2px; }

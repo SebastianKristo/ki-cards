@@ -1,4 +1,4 @@
-/* ki-cards v2.70.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.70.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.70.0";
+  KI.VERSION = "2.70.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5083,7 +5083,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.11.1";
+const KI_PROSA_VERSJON = "2.11.2";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5235,6 +5235,9 @@ const KI_PROSA_STIL = `
     color:var(--gray100, var(--card-background-color)); font-weight:500; line-height:1.65; white-space:nowrap; vertical-align:baseline;
     cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .3s, transform .12s; }
   .pille:active { transform:scale(.95); }
+  /* Uten en tekstbit først får pillen grunnlinja si fra ikonet, og da havner
+     setningen rundt for lavt. Et usynlig tegn gir den tekstens grunnlinje. */
+  .pille::before { content:"\\200b"; width:0; flex:none; }
   .pille ha-icon { --mdc-icon-size:1em; }
   .pille img { height:1.25em; width:auto; display:block; }
   .pille:focus-visible { outline:2px solid var(--active-big, #ee95ff); outline-offset:2px; }
