@@ -350,6 +350,13 @@ måneder med pilene. `visning: kalender` starter rett i kalenderen, `kalender: f
 
 Trykk på en rad åpner serien eller filmen i Sonarr eller Radarr via `deep_link`.
 
+Med `bursdag: true` legges kommende bursdager inn som egne sider i samme sveip som neste lansering – ballonger
+som svever, lys som flakker og konfetti når dagen er i dag. Har noen bursdag i dag, vises den siden først.
+`bursdag: {regex: bursdag, dager: 45, entities: [...]}` styrer hvilke sensorer som telles og hvor langt fram.
+
+Kortet sier også fra hvilken visning det står i, så `ki-post-card` og `ki-bursdag-pro-card` skjuler seg selv
+på Serier, Filmer og Kalender. `skjul_paa: []` slår det av.
+
 ### ki-post-card
 ```yaml
 type: custom:ki-post-card

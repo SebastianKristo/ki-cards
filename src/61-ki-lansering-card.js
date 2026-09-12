@@ -7,9 +7,11 @@
  * antall: 6                 # hvor mange i lista under heroen
  * visning: full             # full (hero + liste) | liste | hero | kalender
  * kalender: true            # vis knappen som bytter mellom liste og månedskalender
+ * bursdag: true             # bursdagskort i samme sveip som neste lansering
+ *   # eller: { regex: bursdag, dager: 45, entities: [...] }
  * plakater: true            # vis plakater i lista
  */
-const KI_LANS_VERSJON = "1.2.0";
+const KI_LANS_VERSJON = "1.3.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -97,8 +99,49 @@ const KI_LANS_STIL = `
     justify-content:center; padding:0 6px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
   .dag.film .antall { background:#ffd98a; }
   .valgtdag { font-size:13px; opacity:.6; padding:14px 4px 2px; text-transform:capitalize; }
+
+  /* ---- sveip mellom hero-sidene ---- */
+  .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
+  .spor { display:flex; transition:transform .35s var(--myk); will-change:transform; }
+  .spor.drar { transition:none; }
+  .side { flex:0 0 100%; min-width:0; }
+  .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
+  .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
+    transition:opacity .25s, transform .25s; cursor:pointer; }
+  .prikker i.valgt { opacity:.95; transform:scale(1.15); }
+
+  /* ---- bursdagshero ---- */
+  .bhero { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
+    min-height:196px; padding:18px; display:grid; align-content:end; gap:6px; color:#fff; cursor:pointer;
+    background:linear-gradient(135deg,#5b2d52 0%,#33213c 55%,#241c33 100%); }
+  .bhero.i_dag { background:linear-gradient(135deg,#7a3468 0%,#4a2551 50%,#2b1b3a 100%); }
+  .bhero h3 { margin:0; font-size:22px; font-weight:600; text-shadow:0 2px 12px rgba(0,0,0,.5); }
+  .bhero .und { font-size:14px; opacity:.85; }
+  .bhero .merkerad { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .bkake { position:absolute; right:16px; bottom:8px; width:120px; height:120px; opacity:.9; }
+  .blys { transform-box:fill-box; transform-origin:50% 100%; animation:bu-lys 1.6s ease-in-out infinite; }
+  @keyframes bu-lys { 0%,100% { transform:scaleY(1) rotate(-4deg); } 50% { transform:scaleY(1.2) rotate(4deg); } }
+  .ballong { transform-box:fill-box; transform-origin:50% 100%; animation:bu-sveve 5s ease-in-out infinite alternate; }
+  .ballong.b2 { animation-duration:6.5s; animation-delay:-1.5s; }
+  .ballong.b3 { animation-duration:7.5s; animation-delay:-3s; }
+  @keyframes bu-sveve { from { transform:translateY(4px) rotate(-3deg); } to { transform:translateY(-10px) rotate(3deg); } }
+  .konf { opacity:0; }
+  .bhero.i_dag .konf { animation:bu-konf 3.4s ease-in infinite; }
+  @keyframes bu-konf { 0% { opacity:0; transform:translateY(-14px) rotate(0deg); } 15% { opacity:.95; }
+    100% { opacity:0; transform:translateY(150px) rotate(220deg); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; transition:none !important; } }
 `;
+
+/* «Rune's Birthday», «Bursdag Rune» og «rune_bursdag» blir alle til «Rune» */
+const kiLaNavn = (s) => String(s || "")
+  .replace(/[_-]+/g, " ")
+  .replace(/\b(bursdag|birthday|fodselsdag|fødselsdag|geburtstag)\b/gi, "")
+  .replace(/[’']\s*s\b/gi, "")
+  .replace(/\bs\b\s*$/i, "")
+  .replace(/^\s*s\b/i, "")
+  .replace(/\s{2,}/g, " ")
+  .replace(/^[\s.,·-]+|[\s.,·-]+$/g, "")
+  .replace(/^./, (c) => c.toUpperCase());
 
 const kiLaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const KI_LA_MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
@@ -177,6 +220,107 @@ class KiLanseringCard extends HTMLElement {
   _apne(x) {
     if (x.lenke) return window.open(x.lenke, "_blank", "noopener");
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: x.kilde }, bubbles: true, composed: true }));
+  }
+
+  /* Sveip mellom hero-sidene, med retningslås så siden kan rulles som normalt */
+  _koblSveip(r, antall) {
+    if (antall < 2) return;
+    const boks = r.querySelector(".sveip"), spor = r.querySelector(".spor");
+    if (!boks || !spor) return;
+    const gaTil = (i) => {
+      this._side = Math.max(0, Math.min(antall - 1, i));
+      spor.style.transform = `translateX(-${this._side * 100}%)`;
+      r.querySelectorAll("[data-s]").forEach((p, n) => p.classList.toggle("valgt", n === this._side));
+    };
+    let x0 = null, y0 = 0, dx = 0, retning = null;
+    boks.addEventListener("pointerdown", (e) => { x0 = e.clientX; y0 = e.clientY; dx = 0; retning = null; });
+    boks.addEventListener("pointermove", (e) => {
+      if (x0 === null) return;
+      dx = e.clientX - x0;
+      const dy = e.clientY - y0;
+      if (retning === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        retning = Math.abs(dx) > Math.abs(dy) * 1.3 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") spor.classList.add("drar");
+      }
+      if (retning !== "vannrett") return;
+      if (e.cancelable) e.preventDefault();
+      spor.style.transform = `translateX(calc(-${this._side * 100}% + ${dx * 0.7}px))`;
+    });
+    const slipp = () => {
+      if (x0 === null) return;
+      spor.classList.remove("drar");
+      if (retning === "vannrett" && Math.abs(dx) > 55) { this._sveipet = true; gaTil(this._side + (dx < 0 ? 1 : -1)); }
+      else gaTil(this._side);
+      x0 = null; dx = 0; retning = null;
+    };
+    boks.addEventListener("pointerup", slipp);
+    boks.addEventListener("pointercancel", slipp);
+    boks.addEventListener("pointerleave", slipp);
+    r.querySelectorAll("[data-s]").forEach((p) => p.addEventListener("click", () => gaTil(+p.dataset.s)));
+  }
+
+  /* Bursdager fra sensorene – samme kilder som bursdagskortene */
+  _bursdager() {
+    const c = this._c.bursdag; if (!c || !this._h) return [];
+    const o = typeof c === "object" ? c : {};
+    const h = this._h, nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const ider = o.entities && o.entities.length
+      ? o.entities.map((e) => (typeof e === "string" ? e : e.entity))
+      : Object.keys(h.states).filter((id) => id.startsWith("sensor.") && new RegExp(o.regex || "birthday|bursdag", "i").test(id));
+    const ut = [];
+    ider.forEach((id) => {
+      const st = h.states[id]; if (!st) return;
+      const a = st.attributes || {};
+      const rå = a.next_birthday || a.next_date || a.date_of_next_birthday || a.birthday || a.date || st.state;
+      const d = new Date(rå); if (isNaN(d)) return;
+      const neste = new Date(d); neste.setHours(0, 0, 0, 0);
+      if (neste < nå && a.years_old === undefined) {
+        neste.setFullYear(nå.getFullYear());
+        if (neste < nå) neste.setFullYear(nå.getFullYear() + 1);
+      }
+      const dager = Math.round((neste - nå) / 86400000);
+      if (dager < 0 || dager > Number(o.dager || 45)) return;
+      const alder = a.years_old !== undefined ? Number(a.years_old) + (dager === 0 ? 0 : 1)
+        : a.age !== undefined ? Number(a.age)
+        : a.birth_year ? neste.getFullYear() - Number(a.birth_year) : null;
+      const råNavn = a.friendly_name_short || a.nickname || a.name || a.friendly_name || id.split(".").pop();
+      ut.push({ id, navn: kiLaNavn(råNavn),
+                dato: neste, dager, alder });
+    });
+    return ut.sort((a, b) => a.dager - b.dager);
+  }
+
+  _bursdagHero(p) {
+    const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen" : `om ${p.dager} dager`;
+    const dato = `${p.dato.getDate()}. ${KI_LA_MND[p.dato.getMonth()]}`;
+    const konf = Array.from({ length: 9 }, (_, i) =>
+      `<rect class="konf" x="${18 + i * 12}" y="-8" width="5" height="9" rx="1.5"
+        fill="${["#ffd98a", "#ff9ec4", "#8fd3ff", "#b6f0c2"][i % 4]}"
+        style="animation-delay:-${((i * 0.36) % 3.4).toFixed(2)}s"/>`).join("");
+    return `<div class="bhero ${p.dager === 0 ? "i_dag" : ""}" data-b="${kiLaEsc(p.id)}" role="button" tabindex="0">
+      <svg viewBox="0 0 140 140" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;z-index:-1">
+        ${konf}
+      </svg>
+      <svg class="bkake" viewBox="0 0 120 120" aria-hidden="true">
+        <g class="ballong"><ellipse cx="24" cy="30" rx="11" ry="14" fill="#ff9ec4" opacity=".9"/>
+          <path d="M24 44v16" stroke="#ff9ec4" stroke-width="1.6" opacity=".6"/></g>
+        <g class="ballong b2"><ellipse cx="46" cy="22" rx="9" ry="12" fill="#8fd3ff" opacity=".85"/>
+          <path d="M46 34v14" stroke="#8fd3ff" stroke-width="1.5" opacity=".6"/></g>
+        <g class="ballong b3"><ellipse cx="64" cy="34" rx="8" ry="10" fill="#ffd98a" opacity=".8"/>
+          <path d="M64 44v12" stroke="#ffd98a" stroke-width="1.4" opacity=".55"/></g>
+        <path d="M22 108V84a8 8 0 0 1 8-8h58a8 8 0 0 1 8 8v24z" fill="#fff" fill-opacity=".16"/>
+        <path d="M18 108h82" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".65"/>
+        <path d="M59 76V64" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+        <g class="blys"><path d="M59 62c4-4 1.5-8 0-9.5-1.5 1.5-4 5.5 0 9.5z" fill="#ffd98a"/></g>
+      </svg>
+      <div class="merkerad">
+        <span class="merke ${p.dager === 0 ? "naa" : ""}">${kiLaEsc(naar)}</span>
+        <span class="merke">${kiLaEsc(dato)}</span>
+      </div>
+      <h3>${kiLaEsc(p.navn)}</h3>
+      <div class="und">${p.alder ? `fyller ${p.alder} år` : "har bursdag"}</div>
+    </div>`;
   }
 
   /* Månedskalender: en ring per dag, med antall lanseringer som merke */
@@ -272,6 +416,20 @@ class KiLanseringCard extends HTMLElement {
       : "";
     const liste = resten.length ? this._liste(resten, forskyv, merKnapp) : "";
 
+    /* Hero-sidene: bursdag først når noen har bursdag i dag */
+    const bursdager = this._bursdager();
+    const bSider = bursdager.slice(0, 3).map((p) => ({ type: "bursdag", html: this._bursdagHero(p), dager: p.dager }));
+    const lSide = hero ? [{ type: "lansering", html: hero }] : [];
+    /* har noen bursdag i dag, kommer den først – ellers ligger lanseringen først */
+    const sider = bursdager[0] && bursdager[0].dager === 0 ? [...bSider, ...lSide] : [...lSide, ...bSider];
+    if (this._side === undefined || this._side >= sider.length) this._side = 0;
+    const sveip = sider.length > 1
+      ? `<div class="sveip"><div class="spor" style="transform:translateX(-${this._side * 100}%)">
+          ${sider.map((x) => `<div class="side">${x.html}</div>`).join("")}</div></div>
+        <div class="prikker">${sider.map((_, i) =>
+          `<i class="${i === this._side ? "valgt" : ""}" data-s="${i}"></i>`).join("")}</div>`
+      : (sider[0] ? sider[0].html : "");
+
     const html = `<style>${KI_LANS_STIL}</style>
       <div class="rot">
         ${begge || c.kalender !== false ? `<div class="faner"><div class="skinne">
@@ -281,9 +439,14 @@ class KiLanseringCard extends HTMLElement {
             title="Kalender">${begge ? `<ha-icon icon="mdi:calendar-month" style="--mdc-icon-size:18px"></ha-icon>` : "Kalender"}</button>` : ""}
         </div></div>` : ""}
         ${this._visKal ? this._kalender(alle)
-          : (hero || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)) + liste}
+          : (sveip || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)) + liste}
       </div>`;
 
+    const visning = this._visKal ? "kalender" : this._fane;
+    if (visning !== this._sisteVisning) {
+      this._sisteVisning = visning;
+      window.dispatchEvent(new CustomEvent("ki-lansering-visning", { detail: { visning } }));
+    }
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
     const r = this.shadowRoot;
@@ -292,6 +455,11 @@ class KiLanseringCard extends HTMLElement {
     }));
     const kalKnapp = r.querySelector('[data-v="kal"]');
     if (kalKnapp) kalKnapp.addEventListener("click", () => { this._visKal = !this._visKal; this._forrige = null; this._tegn(); });
+    this._koblSveip(r, sider.length);
+    r.querySelectorAll("[data-b]").forEach((el) => el.addEventListener("click", () => {
+      if (this._sveipet) { this._sveipet = false; return; }
+      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.b }, bubbles: true, composed: true }));
+    }));
     const mer = r.querySelector("[data-mer]");
     if (mer) mer.addEventListener("click", () => { this._alt = !this._alt; this._forrige = null; this._tegn(); });
     r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {

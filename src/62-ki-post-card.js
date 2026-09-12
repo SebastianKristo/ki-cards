@@ -7,7 +7,7 @@
  * tekst: Post leveres
  * path: '#post'             # valgfritt: trykk navigerer hit
  */
-const KI_POST_VERSJON = "1.0.0";
+const KI_POST_VERSJON = "1.1.0";
 
 const KI_POST_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -49,6 +49,22 @@ class KiPostCard extends HTMLElement {
     this._c = { navn: "Post", tekst: "Post leveres", ...c };
     this._forrige = null;
   }
+  /* Skjules når lanseringskortet står på serier, filmer eller kalender */
+  _visningslytter() {
+    if (this._visAv) return;
+    this._visAv = (e) => {
+      const v = (e && e.detail && e.detail.visning) || "alle";
+      const skjul = [].concat(this._c && this._c.skjul_paa !== undefined
+        ? this._c.skjul_paa : ["serie", "film", "kalender"]);
+      this.style.display = skjul.includes(v) ? "none" : "";
+    };
+    window.addEventListener("ki-lansering-visning", this._visAv);
+  }
+  connectedCallback() { this._visningslytter(); }
+  disconnectedCallback() {
+    if (this._visAv) { window.removeEventListener("ki-lansering-visning", this._visAv); this._visAv = null; }
+  }
+
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
     const ids = [this._c.entity, this._c.relativ].filter(Boolean);

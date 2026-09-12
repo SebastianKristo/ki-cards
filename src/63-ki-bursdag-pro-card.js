@@ -8,7 +8,7 @@
  * antall: 3
  * dager: 365            # hvor langt fram vi ser
  */
-const KI_BDP_VERSJON = "1.0.0";
+const KI_BDP_VERSJON = "1.1.0";
 
 const KI_BDP_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -48,6 +48,22 @@ class KiBursdagProCard extends HTMLElement {
   getCardSize() { return 4; }
 
   setConfig(c) { this._c = { antall: 3, dager: 365, regex: "birthday|bursdag", ...(c || {}) }; this._forrige = null; }
+  /* Skjules når lanseringskortet står på serier, filmer eller kalender */
+  _visningslytter() {
+    if (this._visAv) return;
+    this._visAv = (e) => {
+      const v = (e && e.detail && e.detail.visning) || "alle";
+      const skjul = [].concat(this._c && this._c.skjul_paa !== undefined
+        ? this._c.skjul_paa : ["serie", "film", "kalender"]);
+      this.style.display = skjul.includes(v) ? "none" : "";
+    };
+    window.addEventListener("ki-lansering-visning", this._visAv);
+  }
+  connectedCallback() { this._visningslytter(); }
+  disconnectedCallback() {
+    if (this._visAv) { window.removeEventListener("ki-lansering-visning", this._visAv); this._visAv = null; }
+  }
+
   set hass(h) { const g = this._h; this._h = h; if (!this._c) return; if (!g || this._endret(g, h)) this._tegn(); }
   _endret(g, h) { return this._ider().some((id) => g.states[id] !== h.states[id]); }
 
@@ -65,8 +81,15 @@ class KiBursdagProCard extends HTMLElement {
     this._ider().forEach((id) => {
       const st = h.states[id]; if (!st) return;
       const a = st.attributes || {};
-      const navn = a.friendly_name_short || a.nickname || a.name
-        || String(a.friendly_name || id).replace(/(bursdag|birthday)/i, "").trim();
+      const rått = a.friendly_name_short || a.nickname || a.name || a.friendly_name || id.split(".").pop();
+      const navn = String(rått)
+        .replace(/[_-]+/g, " ")
+        .replace(/\b(bursdag|birthday|fodselsdag|fødselsdag)\b/gi, "")
+        .replace(/[’']\s*s\b/gi, "")
+        .replace(/^\s*s\b/i, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/^[\s.,·-]+|[\s.,·-]+$/g, "")
+        .replace(/^./, (c) => c.toUpperCase());
       const rå = a.next_birthday || a.next_date || a.date_of_next_birthday || a.birthday || a.date || st.state;
       const d = new Date(rå);
       if (isNaN(d)) return;
