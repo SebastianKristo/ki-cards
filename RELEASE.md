@@ -1,5 +1,6 @@
-## Nytt
+## Rettet
 
-**ki-media-card 1.10.0**
-- `kilder:` viser inngangene til forsterkere og receivere med `source_list` i stedet for radiokanaler – for eksempel AirPlay, Net Radio, CD og Phono på RN602-en. Inngangen som er valgt nå lyser opp, og trykk kaller `media_player.select_source`
-- Sett per spiller (`{media_player.rn602_stue: [...]}`) eller `kilder: auto` for hele lista. Spillere uten kilder viser radiokanalene som før, så samme kontrollkort passer til både Sonos og receiveren
+**ki-prosa-card 2.12.0 – editoren**
+- Profilvelgeren lot seg ikke bruke. Menyen ligger inne i en dialog og ble klippet bort; nå settes `fixedMenuPosition`, og valget leses både fra `selected` og `change`, så det virker med mus og tastatur
+- Feltene sto tomme fordi verdiene ble satt før `ha-textfield`, `ha-entity-picker` og `ha-select` var ferdig lastet i frontend. Nå fylles de inn på nytt når elementene er klare – testet med elementer som først dukker opp 150 ms etter at skjemaet er bygget: alle 15 entitetsfeltene og profilvalget kom på plass
+- Entitets- og ikonvelgerne får `hass` på nytt ved hver oppdatering, så lista over entiteter ikke blir stående tom

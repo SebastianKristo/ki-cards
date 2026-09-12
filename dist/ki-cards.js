@@ -1,4 +1,4 @@
-/* ki-cards v3.7.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.8.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.7.0";
+  KI.VERSION = "3.8.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5411,7 +5411,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.11.2";
+const KI_PROSA_VERSJON = "2.12.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -6293,6 +6293,15 @@ class KiProsaCardEditor extends HTMLElement {
 
   _r() { if (!this._h || !this._c) return; if (this._rot) { this._oppdater(); return; } this._bygg(); }
 
+  /* ha-textfield, ha-entity-picker og ha-select er egne elementer som lastes
+     etterskuddsvis. Settes verdien før de er klare, forsvinner den – derfor
+     fyller vi feltene på nytt et par ganger etter at kortet er bygget. */
+  _fyllSenere() {
+    requestAnimationFrame(() => this._oppdater());
+    setTimeout(() => this._oppdater(), 60);
+    setTimeout(() => this._oppdater(), 300);
+  }
+
   /* Én seksjon som kan foldes ut, med kort oppsummering i hodet */
   _seksjon(inn, id, tittel, oppsumFn) {
     const boks = document.createElement("div");
@@ -6355,14 +6364,29 @@ class KiProsaCardEditor extends HTMLElement {
     const prad = document.createElement("div"); prad.className = "rad";
     const valg = document.createElement("ha-select");
     valg.label = "Aktiv profil";
+    /* i kortredigereren ligger menyen inni en dialog – uten dette blir den klippet bort */
+    valg.fixedMenuPosition = true;
+    valg.naturalMenuWidth = true;
     const navn = [...new Set([...Object.keys(KI_PROSA_PROFILER), ...Object.keys(this._c.profiler || {})])];
-    valg.innerHTML = `<mwc-list-item value=""></mwc-list-item>` +
+    valg.innerHTML = `<mwc-list-item value="">Ingen profil</mwc-list-item>` +
       navn.map((n) => `<mwc-list-item value="${n}">${(KI_PROSA_PROFILER[n] || {}).navn || n}</mwc-list-item>`).join("");
-    valg.value = this._c.profil || "";
-    valg.addEventListener("selected", (e) => {
-      const v = e.target.value;
+    /* verdien må settes etter at listeelementene er oppgradert, ellers står feltet tomt */
+    const settValg = () => { valg.value = this._c.profil || ""; };
+    settValg();
+    requestAnimationFrame(settValg);
+    setTimeout(settValg, 60);
+    const velg = (v) => {
       if (v) this._c.profil = v; else delete this._c.profil;
       this._send(); this._bygg();
+    };
+    valg.addEventListener("selected", (e) => {
+      const i = e.detail && typeof e.detail.index === "number" ? e.detail.index : -1;
+      const v = i >= 0 ? (i === 0 ? "" : navn[i - 1]) : e.target.value;
+      if (v !== (this._c.profil || "")) velg(v);
+    });
+    valg.addEventListener("change", (e) => {
+      const v = e.target.value || "";
+      if (v !== (this._c.profil || "")) velg(v);
     });
     prad.appendChild(valg);
     prad.appendChild(this._felt("entity", "Profil styres av", () => this._c.profil_entity,
@@ -6481,6 +6505,7 @@ class KiProsaCardEditor extends HTMLElement {
       + "og «Skru av denne biten» fjerner setningen fra teksten.";
     inn.appendChild(hint);
     this._oppdater();
+    this._fyllSenere();
   }
 
   /* Fyller inn verdiene uten å bygge om skjemaet, og rører ikke feltet du skriver i */
