@@ -1,16 +1,19 @@
 /*!
- * ki-basseng-card 1.1.0 - del av ki-cards
+ * ki-basseng-card 1.2.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
- * Tegner bare på nytt når en av bassengets egne entiteter har endret seg,
- * ikke ved hver hass-oppdatering i huset.
+ * - Ingen faner: én flyt med utvidbare seksjoner, som resten av dashbordet.
+ * - Knappefliser i samme stil som button-card-flisene (gray200 -> active-big).
+ * - Tallvalg bruker <select>, så iOS/Android viser sin egen hjulvelger.
+ * - Grafer hentes fra HA sin historikk, ikke fra en ekstra sensor.
+ * - Tegner bare når bassengets egne entiteter faktisk har endret seg.
  */
 (() => {
   "use strict";
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.1.0";
+  const VERSJON = "1.2.0";
 
   const finnLit = () => {
     const base =
@@ -25,9 +28,9 @@
     const html = LitElement.prototype.html;
     const css = LitElement.prototype.css;
 
-    /* -------------------------------------------------------------- */
-    /* Entiteter                                                       */
-    /* -------------------------------------------------------------- */
+    /* ---------------------------------------------------------------- */
+    /* Entiteter og tekster                                              */
+    /* ---------------------------------------------------------------- */
 
     const KEYS = {
       modus: ["sensor", ["pumpemodus"]],
@@ -51,6 +54,7 @@
       auto: ["switch", ["automatikk"]],
       pris: ["switch", ["prisstyring"]],
       varme: ["switch", ["varmeprioritet"]],
+      tvingVarme: ["switch", ["tving_oppvarming"]],
       styrVp: ["switch", ["styr_varmepumpe"]],
       pulsVarme: ["switch", ["puls_med_varme"]],
       spredprogram: ["switch", ["spreder_program"]],
@@ -91,13 +95,6 @@
       egendefinert: "Egen",
     };
 
-    const FANER = {
-      oversikt: "Oversikt",
-      sirkulasjon: "Sirkulasjon",
-      spreder: "Spreder",
-      innstillinger: "Innstillinger",
-    };
-
     const nf = (v, d = 1) =>
       v === null || v === undefined || v === "" || isNaN(v)
         ? "–"
@@ -106,8 +103,7 @@
     const klokke = (iso) => {
       if (!iso || typeof iso !== "string") return null;
       const d = new Date(iso);
-      if (isNaN(d)) return null;
-      return d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+      return isNaN(d) ? null : d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
     };
 
     const blokker = (timer) => {
@@ -126,13 +122,19 @@
       return ut;
     };
 
-    /* -------------------------------------------------------------- */
-    /* Kortet                                                          */
-    /* -------------------------------------------------------------- */
+    /* ---------------------------------------------------------------- */
+    /* Kortet                                                            */
+    /* ---------------------------------------------------------------- */
 
     class KiBassengCard extends LitElement {
       static get properties() {
-        return { hass: {}, _config: {}, _fane: { state: true } };
+        return {
+          hass: {},
+          _config: {},
+          _apne: { state: true },
+          _hist: { state: true },
+          _timer: { state: true },
+        };
       }
 
       static getStubConfig() {
@@ -145,33 +147,35 @@
 
       constructor() {
         super();
-        this._fane = null;
+        this._apne = {};
+        this._hist = null;
+        this._timer = 24;
         this._ider = new Map();
         this._prefiks = null;
         this._modusId = null;
         this._sistSok = 0;
+        this._sistHist = 0;
+        this._henter = false;
       }
 
       setConfig(config) {
-        this._config = {
-          tittel: "Badebasseng",
-          faner: ["oversikt", "sirkulasjon", "spreder", "innstillinger"],
-          ...config,
-        };
-        if (typeof this._config.faner === "string") {
-          this._config.faner = [this._config.faner];
-        }
-        this._fane = this._config.fane || this._config.faner[0];
+        this._config = { tittel: "Badebasseng", graf: true, ...config };
         this._ider.clear();
         this._prefiks = this._config.prefix || null;
         this._modusId = null;
+        this._hist = null;
       }
 
       getCardSize() {
-        return 8;
+        return 12;
       }
 
-      /* --- ytelse: tegn bare når egne entiteter endret seg -------- */
+      disconnectedCallback() {
+        super.disconnectedCallback();
+        this._sistHist = 0;
+      }
+
+      /* --- ytelse -------------------------------------------------- */
 
       shouldUpdate(endret) {
         if (!endret.has("hass") || endret.size > 1) return true;
@@ -180,11 +184,14 @@
         for (const id of this._ider.values()) {
           if (id && gammel.states[id] !== this.hass.states[id]) return true;
         }
-        // Ingen entiteter løst ennå: integrasjonen kan ha dukket opp.
         return this._ider.size === 0;
       }
 
-      /* --- oppslag ------------------------------------------------- */
+      updated() {
+        if (this._config.graf !== false) this._hentHistorikk();
+      }
+
+      /* --- oppslag -------------------------------------------------- */
 
       _finnPrefiks() {
         if (this._prefiks && this._modusId) return this._prefiks;
@@ -193,20 +200,14 @@
         this._sistSok = na;
 
         const states = this.hass.states;
-        let merket = null;
         for (const id in states) {
           if (!id.startsWith("sensor.")) continue;
           const a = states[id].attributes;
           if (a.integrasjon !== "ki_basseng") continue;
           if (this._config.prefix && a.prefiks !== this._config.prefix) continue;
-          merket = id;
-          break;
-        }
-        if (merket) {
-          this._modusId = merket;
+          this._modusId = id;
           this._prefiks =
-            states[merket].attributes.prefiks ||
-            merket.slice(7).replace(/_pumpemodus(_\d+)?$/, "");
+            a.prefiks || id.slice(7).replace(/_pumpemodus(_\d+)?$/, "");
           return this._prefiks;
         }
         if (this._config.prefix) return this._config.prefix;
@@ -268,7 +269,138 @@
         return (s && s.attributes.unit_of_measurement) || "";
       }
 
-      /* --- handlinger ---------------------------------------------- */
+      /* --- historikk ------------------------------------------------ */
+
+      async _hentHistorikk(tvang = false) {
+        if (this._henter || !this.hass) return;
+        const na = Date.now();
+        if (!tvang && na - this._sistHist < 300000) return;
+        const temp = this.id("vanntemp");
+        const effekt = this.id("pumpeEffekt");
+        if (!temp) return;
+        this._henter = true;
+        this._sistHist = na;
+        try {
+          const start = new Date(na - this._timer * 3600000).toISOString();
+          const svar = await this.hass.callWS({
+            type: "history/history_during_period",
+            start_time: start,
+            entity_ids: effekt ? [temp, effekt] : [temp],
+            minimal_response: true,
+            no_attributes: true,
+            significant_changes_only: false,
+          });
+          const les = (id) =>
+            (svar[id] || [])
+              .map((r) => ({ t: (r.lu || r.last_updated) * 1000, v: Number(r.s ?? r.state) }))
+              .filter((r) => !isNaN(r.v) && r.t);
+          this._hist = {
+            fra: na - this._timer * 3600000,
+            til: na,
+            temp: les(temp),
+            effekt: effekt ? les(effekt) : [],
+          };
+        } catch (e) {
+          this._hist = { feil: true };
+        } finally {
+          this._henter = false;
+        }
+      }
+
+      _byttVindu(timer) {
+        this._timer = timer;
+        this._hentHistorikk(true);
+      }
+
+      _graf() {
+        const h = this._hist;
+        if (!h || h.feil || !h.temp || h.temp.length < 2) {
+          return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
+        }
+        const B = 320;
+        const H = 92;
+        const verdier = h.temp.map((p) => p.v);
+        const mal = this.attr("vanntemp", "maltemperatur");
+        let lav = Math.min(...verdier);
+        let hoy = Math.max(...verdier);
+        if (mal != null && !isNaN(mal)) {
+          lav = Math.min(lav, Number(mal));
+          hoy = Math.max(hoy, Number(mal));
+        }
+        if (hoy - lav < 1) {
+          const m = (hoy + lav) / 2;
+          lav = m - 0.5;
+          hoy = m + 0.5;
+        }
+        const pad = (hoy - lav) * 0.15;
+        lav -= pad;
+        hoy += pad;
+        const x = (t) => ((t - h.fra) / (h.til - h.fra)) * B;
+        const y = (v) => H - ((v - lav) / (hoy - lav)) * H;
+
+        const linje = h.temp
+          .map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`)
+          .join("");
+        const flate = `${linje}L${B},${H}L0,${H}Z`;
+
+        // Blå bånd der pumpen faktisk trakk effekt
+        const band = [];
+        let paa = null;
+        for (const p of h.effekt) {
+          if (p.v > 10 && paa === null) paa = p.t;
+          else if (p.v <= 10 && paa !== null) {
+            band.push([paa, p.t]);
+            paa = null;
+          }
+        }
+        if (paa !== null) band.push([paa, h.til]);
+
+        const timerTilbake = this._timer;
+        const merker = [];
+        const steg = timerTilbake <= 24 ? 6 : 24;
+        for (let i = steg; i < timerTilbake; i += steg) {
+          const t = h.til - (timerTilbake - i) * 3600000;
+          merker.push(
+            html`<text class="akse" x="${x(t)}" y="${H + 14}" text-anchor="middle">
+              ${new Date(t).getHours().toString().padStart(2, "0")}
+            </text>`
+          );
+        }
+
+        return html`
+          <svg class="graf" viewBox="0 0 ${B} ${H + 18}" preserveAspectRatio="none">
+            ${band.map(
+              ([a, b]) => html`
+                <rect
+                  class="band"
+                  x="${x(a)}"
+                  y="0"
+                  width="${Math.max(1, x(b) - x(a))}"
+                  height="${H}"
+                ></rect>
+              `
+            )}
+            ${mal != null && !isNaN(mal) && Number(mal) > lav && Number(mal) < hoy
+              ? html`<line
+                  class="mal"
+                  x1="0"
+                  x2="${B}"
+                  y1="${y(Number(mal))}"
+                  y2="${y(Number(mal))}"
+                ></line>`
+              : ""}
+            <path class="flate" d="${flate}"></path>
+            <path class="linje" d="${linje}"></path>
+            ${merker}
+          </svg>
+          <div class="graf-tekst">
+            <span>${nf(Math.min(...verdier), 1)} – ${nf(Math.max(...verdier), 1)} °C</span>
+            <span>${band.length} pumpeperioder</span>
+          </div>
+        `;
+      }
+
+      /* --- handlinger ----------------------------------------------- */
 
       _kall(domain, service, key, data = {}) {
         const id = this.id(key);
@@ -301,7 +433,121 @@
         this.dispatchEvent(ev);
       }
 
-      /* --- byggeklosser -------------------------------------------- */
+      _apneLukk(navn) {
+        this._apne = { ...this._apne, [navn]: !this._apne[navn] };
+      }
+
+      /* --- byggeklosser --------------------------------------------- */
+
+      // Flis i samme form som button-card-flisene i dashbordet
+      _flis(ikon, navn, tekst, aktiv, klikk, farge) {
+        return html`
+          <button
+            class="flis ${aktiv ? "aktiv" : ""}"
+            style=${aktiv && farge ? `background:${farge}` : ""}
+            @click=${klikk}
+          >
+            <span class="flis-ikon"><ha-icon icon="${ikon}"></ha-icon></span>
+            <span class="flis-navn">${navn}</span>
+            <span class="flis-tekst">${tekst}</span>
+          </button>
+        `;
+      }
+
+      // <select> gir systemets egen hjulvelger på iOS og Android
+      _velger(key, tekst, opts = {}) {
+        const s = this.st(key);
+        if (!s) return "";
+        const min = opts.min ?? Number(s.attributes.min ?? 0);
+        const maks = opts.max ?? Number(s.attributes.max ?? 100);
+        const steg = opts.step ?? Number(s.attributes.step ?? 1);
+        const des = opts.desimaler ?? (steg < 1 ? 2 : 0);
+        const suffiks = opts.suffiks ?? "";
+        const naa = Number(s.state);
+
+        const verdier = [];
+        for (let v = min; v <= maks + 1e-9 && verdier.length < 400; v += steg) {
+          verdier.push(+v.toFixed(4));
+        }
+        if (!verdier.some((v) => Math.abs(v - naa) < 1e-6)) verdier.push(naa);
+
+        return html`
+          <label class="velger">
+            <span class="velger-tekst">${tekst}</span>
+            <span class="velger-verdi">
+              ${nf(naa, des)}${suffiks}
+              <ha-icon icon="mdi:chevron-down"></ha-icon>
+              <select
+                .value=${String(naa)}
+                @change=${(e) => this._sett(key, Number(e.target.value))}
+              >
+                ${verdier.map(
+                  (v) => html`
+                    <option value="${v}" ?selected=${Math.abs(v - naa) < 1e-6}>
+                      ${nf(v, des)}${suffiks}
+                    </option>
+                  `
+                )}
+              </select>
+            </span>
+          </label>
+        `;
+      }
+
+      _velgerEntitet(key, tekst, tekster = {}) {
+        const s = this.st(key);
+        if (!s) return "";
+        const opts = s.attributes.options || [];
+        return html`
+          <label class="velger">
+            <span class="velger-tekst">${tekst}</span>
+            <span class="velger-verdi">
+              ${tekster[s.state] || s.state}
+              <ha-icon icon="mdi:chevron-down"></ha-icon>
+              <select .value=${s.state} @change=${(e) => this._velg(e.target.value)}>
+                ${opts.map(
+                  (o) => html`<option value="${o}" ?selected=${o === s.state}>
+                    ${tekster[o] || o}
+                  </option>`
+                )}
+              </select>
+            </span>
+          </label>
+        `;
+      }
+
+      _bryterRad(key, tekst) {
+        const s = this.st(key);
+        if (!s) return "";
+        const paa = s.state === "on";
+        return html`
+          <button class="bryterrad" @click=${() => this._veksle(key)}>
+            <span>${tekst}</span>
+            <span class="knott ${paa ? "paa" : ""}"></span>
+          </button>
+        `;
+      }
+
+      _rad(tekst, verdi) {
+        return html`<div class="rad"><span>${tekst}</span><span class="rad-verdi">${verdi}</span></div>`;
+      }
+
+      _seksjon(navn, ikon, tittel, undertekst, innhold) {
+        const apen = !!this._apne[navn];
+        return html`
+          <div class="seksjon ${apen ? "apen" : ""}">
+            <button class="seksjon-hode" @click=${() => this._apneLukk(navn)}>
+              <ha-icon class="seksjon-ikon" icon="${ikon}"></ha-icon>
+              <span class="seksjon-tittel">${tittel}</span>
+              <span class="seksjon-under">${undertekst}</span>
+              <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+            </button>
+            ${apen ? html`<div class="seksjon-kropp">${innhold()}</div>` : ""}
+          </div>
+        `;
+      }
+
+      /* --- deler ----------------------------------------------------- */
 
       _hero() {
         const modus = this.val("modus", "hvile");
@@ -311,6 +557,7 @@
         const andel = Math.max(0, Math.min(1, gjort / mal));
         const gar = this.on("skalGa") || ["filtrering", "oppvarming", "boost"].includes(modus);
         const temp = this.val("vanntemp");
+        const maltemp = this.attr("vanntemp", "maltemperatur");
         const begrunnelse = this.attr("modus", "begrunnelse", "");
 
         return html`
@@ -320,8 +567,13 @@
             </div>
             <div class="hero-innhold">
               <div class="hero-topp">
-                <div class="temp" @click=${(e) => { e.stopPropagation(); this._mer("vanntemp"); }}>
-                  ${nf(temp, 1)}<span>°C</span>
+                <div>
+                  <div class="temp" @click=${(e) => { e.stopPropagation(); this._mer("vanntemp"); }}>
+                    ${nf(temp, 1)}<span>°C</span>
+                  </div>
+                  ${maltemp != null
+                    ? html`<div class="maltemp">mål ${nf(maltemp, 0)} °C</div>`
+                    : ""}
                 </div>
                 <div class="merke" style="--merke:${farge}">
                   <ha-icon icon="${ikon}"></ha-icon>${tekst}
@@ -344,18 +596,17 @@
         const na = new Date();
         const naPst = ((na.getHours() * 60 + na.getMinutes()) / 1440) * 100;
         const gar = this.on("skalGa");
-        const segmenter = blokker(timer).map(
-          ([fra, til]) => html`
-            <div
-              class="segment ${fra <= na.getHours() && na.getHours() < til ? "na" : ""}"
-              style="left:${(fra / 24) * 100}%;width:${((til - fra) / 24) * 100}%"
-            ></div>
-          `
-        );
         return html`
           <div class="plan">
             <div class="spor">
-              ${segmenter}
+              ${blokker(timer).map(
+                ([fra, til]) => html`
+                  <div
+                    class="segment ${fra <= na.getHours() && na.getHours() < til ? "na" : ""}"
+                    style="left:${(fra / 24) * 100}%;width:${((til - fra) / 24) * 100}%"
+                  ></div>
+                `
+              )}
               <div class="na-strek ${gar ? "gar" : ""}" style="left:${naPst}%"></div>
             </div>
             <div class="skala">
@@ -365,98 +616,81 @@
         `;
       }
 
-      _tall(key, verdi, tekst) {
+      _knapper() {
+        const sprederGar = this.on("spreder");
+        const igjen = Math.ceil(this.val("spredertid", 0) || 0);
+        const tvang = this.on("tvingVarme");
+        const maltemp = this.attr("vanntemp", "maltemperatur");
+        const pumpeGar = this.on("skalGa");
+
         return html`
-          <div class="tall" @click=${() => this._mer(key)}>
-            <div class="tall-verdi">${verdi}</div>
-            <div class="tall-tekst">${tekst}</div>
+          <div class="fliser">
+            ${this._flis(
+              tvang ? "mdi:fire" : "mdi:fire-off",
+              "Varm nå",
+              tvang ? "til målet" : maltemp != null ? `mot ${nf(maltemp, 0)}°` : "av",
+              tvang,
+              () => this._veksle("tvingVarme"),
+              "var(--kib-orange)"
+            )}
+            ${this._flis(
+              "mdi:fan-plus",
+              "Boost",
+              pumpeGar ? "pumpen går" : "30 min",
+              false,
+              () => this._trykk("boost")
+            )}
+            ${this._flis(
+              sprederGar ? "mdi:sprinkler-variant" : "mdi:sprinkler",
+              "Spreder",
+              sprederGar ? `${igjen} min igjen` : "start",
+              sprederGar,
+              () => this._trykk(sprederGar ? "stoppSpreder" : "startSpreder"),
+              "var(--kib-blue)"
+            )}
+            ${this._flis(
+              "mdi:robot-outline",
+              "Automatikk",
+              this.on("auto") ? "på" : "av",
+              this.on("auto"),
+              () => this._veksle("auto")
+            )}
+            ${this._flis(
+              "mdi:cash-clock",
+              "Prisstyring",
+              this.on("pris") ? "på" : "av",
+              this.on("pris"),
+              () => this._veksle("pris")
+            )}
+            ${this._flis(
+              "mdi:heat-wave",
+              "Varmeprioritet",
+              this.on("varme") ? "på" : "av",
+              this.on("varme"),
+              () => this._veksle("varme")
+            )}
           </div>
         `;
       }
 
-      _bryter(key, tekst, ikon) {
-        if (!this.st(key)) return "";
-        const paa = this.on(key);
-        return html`
-          <button class="pille ${paa ? "aktiv" : ""}" @click=${() => this._veksle(key)}>
-            <ha-icon icon="${ikon}"></ha-icon><span>${tekst}</span>
-          </button>
-        `;
-      }
-
-      _stepper(key, tekst, steg, desimaler = 0, suffiks = "") {
-        const s = this.st(key);
-        if (!s) return "";
-        const v = Number(s.state);
-        const min = Number(s.attributes.min ?? 0);
-        const maks = Number(s.attributes.max ?? 100);
-        const sett = (ny) => this._sett(key, Math.max(min, Math.min(maks, +ny.toFixed(4))));
-        return html`
-          <div class="stepper">
-            <span class="stepper-tekst">${tekst}</span>
-            <div class="stepper-styring">
-              <button @click=${() => sett(v - steg)} aria-label="Mindre">
-                <ha-icon icon="mdi:minus"></ha-icon>
-              </button>
-              <span class="stepper-verdi">${nf(v, desimaler)}${suffiks}</span>
-              <button @click=${() => sett(v + steg)} aria-label="Mer">
-                <ha-icon icon="mdi:plus"></ha-icon>
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
-      _rad(tekst, verdi) {
-        return html`
-          <div class="rad"><span>${tekst}</span><span class="rad-verdi">${verdi}</span></div>
-        `;
-      }
-
-      /* --- faner --------------------------------------------------- */
-
-      _oversikt() {
-        const modus = this.val("modus", "hvile");
+      _tallrad() {
         const valuta = this.enhet("kostnad");
         const effekt = (this.val("pumpeEffekt", 0) || 0) + (this.val("vpEffekt", 0) || 0);
-        const neste = klokke(this.val("nesteStart"));
-        const pagar = ["filtrering", "oppvarming", "boost"].includes(modus);
-        const planlagt = this.attr("modus", "timer_planlagt", 0);
-        const sprederGar = this.on("spreder");
-
         return html`
-          ${this._hero()}
-          ${this._plan()}
-          <div class="plan-tekst">
-            <span>${pagar ? "Pumpen går nå" : neste ? `Neste start ${neste}` : "Ingen start planlagt"}</span>
-            <span>${planlagt} t i planen</span>
-          </div>
-
           <div class="tallrad">
-            ${this._tall("pumpetid", `${nf(this.val("pumpetid", 0), 1)} t`, "pumpet i dag")}
-            ${this._tall("pumpeEffekt", `${nf(effekt, 0)} W`, "effekt nå")}
-            ${this._tall("spart", `${nf(this.val("spart", 0), 0)} ${valuta}`, "spart i dag")}
+            <div class="tall" @click=${() => this._mer("pumpetid")}>
+              <div class="tall-verdi">${nf(this.val("pumpetid", 0), 1)} t</div>
+              <div class="tall-tekst">pumpet i dag</div>
+            </div>
+            <div class="tall" @click=${() => this._mer("pumpeEffekt")}>
+              <div class="tall-verdi">${nf(effekt, 0)} W</div>
+              <div class="tall-tekst">effekt nå</div>
+            </div>
+            <div class="tall" @click=${() => this._mer("spart")}>
+              <div class="tall-verdi">${nf(this.val("spart", 0), 0)} ${valuta}</div>
+              <div class="tall-tekst">spart i dag</div>
+            </div>
           </div>
-
-          <div class="handlinger">
-            <button class="handling" @click=${() => this._trykk("boost")}>
-              <ha-icon icon="mdi:fan-plus"></ha-icon>Boost 30 min
-            </button>
-            <button
-              class="handling ${sprederGar ? "stopp" : ""}"
-              @click=${() => this._trykk(sprederGar ? "stoppSpreder" : "startSpreder")}
-            >
-              <ha-icon icon="${sprederGar ? "mdi:stop" : "mdi:sprinkler"}"></ha-icon>
-              ${sprederGar ? `Stopp spreder · ${Math.ceil(this.val("spredertid", 0))} min` : "Start spreder"}
-            </button>
-          </div>
-
-          ${this.on("overstyrt")
-            ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>`
-            : ""}
-          ${this.on("vpVenter")
-            ? html`<div class="varsel">Varmepumpen står av til sirkulasjonen er tilbake.</div>`
-            : ""}
         `;
       }
 
@@ -465,53 +699,28 @@
         const blm = this.attr("modus", "blokker_i_morgen", []) || [];
         const snittPlan = this.attr("modus", "snittpris_plan");
         const snittDogn = this.attr("modus", "snittpris_dogn");
-        const profil = this.st("profil");
         const anbefalt = this.attr("omsetninger", "anbefalt");
         const enOms = this.attr("omsetninger", "en_omsetning_timer");
-
         return html`
-          ${this._plan()}
-          <div class="blokk">
-            ${bl.length
-              ? bl.map((b, i) => this._rad(`Blokk ${i + 1}`, b))
-              : html`<div class="dempet">Ingen blokker planlagt i dag.</div>`}
-            ${blm.length ? this._rad("I morgen", blm.join("  ·  ")) : ""}
-            ${snittPlan != null
-              ? html`
-                  <div class="skille"></div>
-                  ${this._rad("Snittpris i planen", nf(snittPlan, 2))}
-                  ${this._rad("Snittpris hele døgnet", nf(snittDogn, 2))}
-                `
-              : ""}
-          </div>
-
-          ${profil
+          ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
+          ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
+          ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
+          ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
+          <div class="skille"></div>
+          ${bl.length
+            ? bl.map((b, i) => this._rad(`Blokk ${i + 1}`, b))
+            : html`<div class="dempet">Ingen blokker planlagt i dag.</div>`}
+          ${blm.length ? this._rad("I morgen", blm.join("  ·  ")) : ""}
+          ${snittPlan != null
             ? html`
-                <div class="chips">
-                  ${(profil.attributes.options || []).map(
-                    (o) => html`
-                      <button class="chip ${profil.state === o ? "aktiv" : ""}" @click=${() => this._velg(o)}>
-                        ${PROFIL[o] || o}
-                      </button>
-                    `
-                  )}
-                </div>
+                ${this._rad("Snittpris i planen", nf(snittPlan, 2))}
+                ${this._rad("Snittpris hele døgnet", nf(snittDogn, 2))}
               `
             : ""}
-
-          <div class="blokk">
-            ${this._stepper("mal", "Omsetninger per døgn", 0.25, 2, "×")}
-            ${this._stepper("puls", "Vedlikeholdspuls", 1, 0, " min/t")}
-            <div class="dempet">
-              Én omsetning tar ${nf(enOms, 1)} t.
-              ${anbefalt ? ` Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger.` : ""}
-            </div>
-          </div>
-
-          <div class="piller">
-            ${this._bryter("auto", "Automatikk", "mdi:robot-outline")}
-            ${this._bryter("pris", "Prisstyring", "mdi:cash-clock")}
-            ${this._bryter("varme", "Varmeprioritet", "mdi:heat-wave")}
+          <div class="dempet">
+            Én omsetning tar ${nf(enOms, 1)} t.${anbefalt
+              ? ` Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger.`
+              : ""}
           </div>
         `;
       }
@@ -522,74 +731,41 @@
         const varighet = this.val("spredVarighet", 10) || 10;
         const brukt = this.attr("spredertid", "brukt_i_dag_min", 0);
         const maks = this.val("spredMaks", 0) || 0;
-        const status = this.attr("spredertid", "status", "Klar");
-        const andel = gar ? Math.max(0, Math.min(1, igjen / varighet)) : 0;
-
         return html`
-          <div class="spreder ${gar ? "gar" : ""}">
-            <div class="spreder-vann" style="width:${andel * 100}%"></div>
-            <div class="spreder-innhold">
-              <ha-icon icon="${gar ? "mdi:sprinkler-variant" : "mdi:sprinkler"}"></ha-icon>
-              <div>
-                <div class="spreder-tall">${gar ? `${Math.ceil(igjen)} min igjen` : status}</div>
-                <div class="dempet">
-                  ${nf(brukt, 0)} min brukt i dag${maks ? ` av ${nf(maks, 0)}` : ""}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="chips">
-            ${[5, 10, 20, 30].map(
-              (m) => html`
-                <button
-                  class="chip ${Math.round(varighet) === m ? "aktiv" : ""}"
-                  @click=${() => this._sett("spredVarighet", m)}
-                >
-                  ${m} min
-                </button>
-              `
-            )}
-          </div>
-
-          <button class="stor ${gar ? "stopp" : ""}" @click=${() => this._trykk(gar ? "stoppSpreder" : "startSpreder")}>
+          <button
+            class="stor ${gar ? "stopp" : ""}"
+            @click=${() => this._trykk(gar ? "stoppSpreder" : "startSpreder")}
+          >
             <ha-icon icon="${gar ? "mdi:stop" : "mdi:play"}"></ha-icon>
-            ${gar ? "Stopp sprederen" : `Start sprederen i ${Math.round(varighet)} min`}
+            ${gar
+              ? `Stopp sprederen · ${Math.ceil(igjen)} min igjen`
+              : `Start sprederen i ${Math.round(varighet)} min`}
           </button>
-
-          <div class="blokk">
-            ${this._stepper("spredIntervall", "Program: start hver", 1, 0, " t")}
-            <div class="piller">
-              ${this._bryter("spredprogram", "Program", "mdi:repeat")}
-              ${this._bryter("frostvakt", "Frostvakt", "mdi:snowflake-alert")}
-            </div>
-            <div class="dempet">Programmet går mellom 10 og 20, og stopper ved døgnets grense.</div>
-          </div>
+          ${this._velger("spredVarighet", "Varighet", { suffiks: " min" })}
+          ${this._velger("spredIntervall", "Program: start hver", { suffiks: " t" })}
+          ${this._velger("spredMaks", "Maks per døgn", { step: 10, suffiks: " min" })}
+          ${this._bryterRad("spredprogram", "Program på")}
+          ${this._bryterRad("frostvakt", "Frostvakt")}
+          <div class="skille"></div>
+          ${this._rad("Brukt i dag", `${nf(brukt, 0)} min${maks ? ` av ${nf(maks, 0)}` : ""}`)}
         `;
       }
 
       _innstillinger() {
         const energi = (this.val("pumpeEnergi", 0) || 0) + (this.val("vpEnergi", 0) || 0);
         return html`
-          <div class="blokk">
-            ${this._stepper("dagtimer", "Dagtimer i planen", 1, 0, " t")}
-            ${this._stepper("minTid", "Minste kjøretid", 5, 0, " min")}
-            ${this._stepper("overstyringTid", "Manuell overstyring varer", 15, 0, " min")}
-            ${this._stepper("varmeStart", "Varmevindu start", 1, 0, ":00")}
-            ${this._stepper("varmeSlutt", "Varmevindu slutt", 1, 0, ":00")}
-            ${this._stepper("basislast", "Pumpe basislast", 10, 0, " W")}
-            ${this._stepper("spredMaks", "Spreder maks per døgn", 10, 0, " min")}
-          </div>
-          <div class="piller">
-            ${this._bryter("styrVp", "Styr varmepumpe", "mdi:heat-pump-outline")}
-            ${this._bryter("pulsVarme", "Puls med varme", "mdi:fire-circle")}
-          </div>
-          <div class="blokk">
-            ${this._rad("Pumpet totalt", `${nf(this.val("volumTotalt", 0), 1)} m³`)}
-            ${this._rad("Pumpet i dag", `${nf(this.val("volum", 0), 1)} m³`)}
-            ${this._rad("Energi i dag", `${nf(energi, 1)} kWh`)}
-            ${this._rad("Kostnad i dag", `${nf(this.val("kostnad", 0), 1)} ${this.enhet("kostnad")}`)}
-          </div>
+          ${this._velger("minTid", "Minste kjøretid", { step: 5, suffiks: " min" })}
+          ${this._velger("overstyringTid", "Manuell overstyring varer", { step: 15, suffiks: " min" })}
+          ${this._velger("varmeStart", "Varmevindu start", { suffiks: ":00" })}
+          ${this._velger("varmeSlutt", "Varmevindu slutt", { suffiks: ":00" })}
+          ${this._velger("basislast", "Pumpe basislast", { step: 10, suffiks: " W" })}
+          ${this._bryterRad("styrVp", "Styr varmepumpe")}
+          ${this._bryterRad("pulsVarme", "Puls med varme")}
+          <div class="skille"></div>
+          ${this._rad("Pumpet totalt", `${nf(this.val("volumTotalt", 0), 1)} m³`)}
+          ${this._rad("Pumpet i dag", `${nf(this.val("volum", 0), 1)} m³`)}
+          ${this._rad("Energi i dag", `${nf(energi, 1)} kWh`)}
+          ${this._rad("Kostnad i dag", `${nf(this.val("kostnad", 0), 1)} ${this.enhet("kostnad")}`)}
           <button class="stor stille" @click=${() => this._trykk("nullstill")}>
             <ha-icon icon="mdi:backup-restore"></ha-icon>Nullstill dagens tellere
           </button>
@@ -597,45 +773,91 @@
         `;
       }
 
-      /* --- render -------------------------------------------------- */
+      /* --- render ---------------------------------------------------- */
 
       render() {
         if (!this.hass || !this._config) return html``;
         if (!this.st("modus")) {
           return html`
             <ha-card>
-              <div class="blokk tom">
+              <div class="seksjon tom">
                 Fant ingen KI Basseng-integrasjon. Sett den opp under Enheter og
                 tjenester, eller oppgi <code>prefix:</code> i kortet.
               </div>
             </ha-card>
           `;
         }
-        const faner = this._config.faner;
-        const aktiv = faner.includes(this._fane) ? this._fane : faner[0];
-        const innhold = {
-          oversikt: () => this._oversikt(),
-          sirkulasjon: () => this._sirkulasjon(),
-          spreder: () => this._spreder(),
-          innstillinger: () => this._innstillinger(),
-        };
+        const modus = this.val("modus", "hvile");
+        const pagar = ["filtrering", "oppvarming", "boost"].includes(modus);
+        const neste = klokke(this.val("nesteStart"));
+        const planlagt = this.attr("modus", "timer_planlagt", 0);
+
         return html`
           <ha-card>
             ${this._config.tittel ? html`<div class="tittel">${this._config.tittel}</div>` : ""}
-            ${faner.length > 1
-              ? html`
-                  <div class="faner">
-                    ${faner.map(
-                      (f) => html`
-                        <button class="fane ${aktiv === f ? "aktiv" : ""}" @click=${() => (this._fane = f)}>
-                          ${FANER[f] || f}
-                        </button>
-                      `
-                    )}
-                  </div>
-                `
-              : ""}
-            <div class="innhold">${(innhold[aktiv] || innhold.oversikt)()}</div>
+            <div class="innhold">
+              ${this._hero()}
+              ${this._plan()}
+              <div class="plan-tekst">
+                <span>
+                  ${pagar ? "Pumpen går nå" : neste ? `Neste start ${neste}` : "Ingen start planlagt"}
+                </span>
+                <span>${planlagt} t i planen</span>
+              </div>
+              ${this._knapper()}
+              ${this._tallrad()}
+              ${this._config.graf !== false
+                ? html`
+                    <div class="grafblokk">
+                      <div class="grafhode">
+                        <span>Vanntemperatur</span>
+                        <span class="vindu">
+                          ${[24, 72, 168].map(
+                            (t) => html`
+                              <button
+                                class="${this._timer === t ? "aktiv" : ""}"
+                                @click=${() => this._byttVindu(t)}
+                              >
+                                ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
+                              </button>
+                            `
+                          )}
+                        </span>
+                      </div>
+                      ${this._graf()}
+                    </div>
+                  `
+                : ""}
+              ${this.on("overstyrt")
+                ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>`
+                : ""}
+              ${this.on("vpVenter")
+                ? html`<div class="varsel">Varmepumpen står av til sirkulasjonen er tilbake.</div>`
+                : ""}
+              ${this._seksjon(
+                "sirk",
+                "mdi:pump",
+                "Sirkulasjon",
+                `${nf(this.val("omsetninger", 0), 2)}× i dag`,
+                () => this._sirkulasjon()
+              )}
+              ${this._seksjon(
+                "spred",
+                "mdi:sprinkler",
+                "Spreder",
+                this.on("spreder")
+                  ? `${Math.ceil(this.val("spredertid", 0))} min igjen`
+                  : `${nf(this.attr("spredertid", "brukt_i_dag_min", 0), 0)} min i dag`,
+                () => this._spreder()
+              )}
+              ${this._seksjon(
+                "innst",
+                "mdi:tune-variant",
+                "Innstillinger",
+                "",
+                () => this._innstillinger()
+              )}
+            </div>
           </ha-card>
         `;
       }
@@ -651,6 +873,7 @@
             --kib-blue: var(--blue, #4a9df8);
             --kib-orange: var(--orange, #f0a03c);
             --kib-red: var(--red, #e8604c);
+            --kib-sort: var(--black, #000);
             display: block;
             max-width: 100%;
             overflow: hidden;
@@ -668,6 +891,7 @@
             color: inherit;
             background: none;
             padding: 0;
+            text-align: left;
           }
           button:focus-visible {
             outline: 2px solid var(--kib-accent);
@@ -678,41 +902,16 @@
             font-weight: 600;
             padding: 0 4px 10px;
           }
-          .faner {
-            display: flex;
-            gap: 4px;
-            padding: 4px;
-            margin-bottom: 12px;
-            border-radius: 16px;
-            background: var(--kib-surface);
-          }
-          .fane {
-            flex: 1 1 0;
-            min-width: 0;
-            padding: 9px 4px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--kib-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .fane.aktiv {
-            background: var(--kib-accent);
-            color: #000;
-            font-weight: 600;
-          }
           .innhold {
             display: flex;
             flex-direction: column;
             gap: 10px;
           }
 
-          /* Hero: vannstanden er dagens omsetning */
+          /* Hero */
           .hero {
             position: relative;
-            min-height: 168px;
+            min-height: 172px;
             border-radius: 24px;
             background: var(--kib-surface);
             overflow: hidden;
@@ -723,7 +922,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(180deg, rgba(74, 157, 248, 0.45), rgba(74, 157, 248, 0.7));
+            background: linear-gradient(180deg, rgba(74, 157, 248, 0.42), rgba(74, 157, 248, 0.68));
             transition: height 0.8s ease;
           }
           .bolge {
@@ -749,7 +948,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-height: 168px;
+            min-height: 172px;
             padding: 18px 20px 16px;
             box-sizing: border-box;
           }
@@ -771,6 +970,11 @@
             opacity: 0.6;
             margin-left: 2px;
           }
+          .maltemp {
+            padding-top: 4px;
+            font-size: 12px;
+            opacity: 0.7;
+          }
           .merke {
             flex: none;
             display: inline-flex;
@@ -779,7 +983,7 @@
             padding: 5px 12px 5px 9px;
             border-radius: 999px;
             background: var(--merke);
-            color: #000;
+            color: var(--kib-sort);
             font-size: 13px;
             font-weight: 600;
           }
@@ -796,7 +1000,7 @@
             font-size: 12px;
             line-height: 1.4;
             opacity: 0.75;
-            max-width: 60%;
+            max-width: 58%;
           }
           .omsetning {
             text-align: right;
@@ -865,6 +1069,64 @@
             color: var(--kib-muted);
           }
 
+          /* Knappefliser, samme form som button-card-flisene */
+          .fliser {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+          .flis {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 14px 12px 12px;
+            border-radius: 24px;
+            background: var(--kib-surface);
+            min-width: 0;
+            transition: background 0.2s ease;
+          }
+          .flis-ikon {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            margin-bottom: 8px;
+            border-radius: 50%;
+            background: var(--kib-inner);
+          }
+          .flis-ikon ha-icon {
+            --mdc-icon-size: 21px;
+            color: var(--kib-text);
+          }
+          .flis-navn {
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .flis-tekst {
+            font-size: 11px;
+            color: var(--kib-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .flis.aktiv {
+            background: var(--kib-accent);
+            color: var(--kib-sort);
+          }
+          .flis.aktiv .flis-ikon {
+            background: rgba(0, 0, 0, 0.12);
+          }
+          .flis.aktiv .flis-ikon ha-icon,
+          .flis.aktiv .flis-tekst {
+            color: var(--kib-sort);
+          }
+          .flis.aktiv .flis-tekst {
+            opacity: 0.7;
+          }
+
           /* Tall */
           .tallrad {
             display: grid;
@@ -879,7 +1141,7 @@
             min-width: 0;
           }
           .tall-verdi {
-            font-size: 20px;
+            font-size: 19px;
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
@@ -891,65 +1153,136 @@
             color: var(--kib-muted);
           }
 
-          /* Handlinger */
-          .handlinger {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-          }
-          .handling,
-          .stor {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 14px 10px;
+          /* Graf */
+          .grafblokk {
+            padding: 14px 16px 10px;
             border-radius: 18px;
             background: var(--kib-surface);
+          }
+          .grafhode {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding-bottom: 10px;
             font-size: 14px;
             font-weight: 500;
+          }
+          .vindu {
+            display: flex;
+            gap: 4px;
+            padding: 3px;
+            border-radius: 12px;
+            background: var(--kib-inner);
+          }
+          .vindu button {
+            padding: 4px 10px;
+            border-radius: 9px;
+            font-size: 12px;
+            color: var(--kib-muted);
+          }
+          .vindu button.aktiv {
+            background: var(--kib-accent);
+            color: var(--kib-sort);
+            font-weight: 600;
+          }
+          .graf {
+            display: block;
+            width: 100%;
+            height: 110px;
+            overflow: visible;
+          }
+          .graf .band {
+            fill: var(--kib-blue);
+            opacity: 0.16;
+          }
+          .graf .flate {
+            fill: var(--kib-orange);
+            opacity: 0.12;
+          }
+          .graf .linje {
+            fill: none;
+            stroke: var(--kib-orange);
+            stroke-width: 2;
+            stroke-linejoin: round;
+            vector-effect: non-scaling-stroke;
+          }
+          .graf .mal {
+            stroke: var(--kib-muted);
+            stroke-width: 1;
+            stroke-dasharray: 3 3;
+            vector-effect: non-scaling-stroke;
+          }
+          .graf .akse {
+            fill: var(--kib-muted);
+            font-size: 9px;
+          }
+          .graf-tom {
+            padding: 30px 0;
+          }
+          .graf-tekst {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 4px;
+            font-size: 11px;
+            color: var(--kib-muted);
+          }
+
+          /* Seksjoner */
+          .seksjon {
+            border-radius: 18px;
+            background: var(--kib-surface);
+            overflow: hidden;
+          }
+          .seksjon.tom {
+            padding: 18px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--kib-muted);
+          }
+          .seksjon-hode {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 16px;
+            box-sizing: border-box;
+          }
+          .seksjon-ikon {
+            --mdc-icon-size: 21px;
+            color: var(--kib-text);
+            flex: none;
+          }
+          .seksjon-tittel {
+            font-size: 15px;
+            font-weight: 500;
+          }
+          .seksjon-under {
+            flex: 1;
+            text-align: right;
+            font-size: 13px;
+            color: var(--kib-muted);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
           }
-          .handling ha-icon,
-          .stor ha-icon {
+          .pil {
             --mdc-icon-size: 20px;
+            color: var(--kib-muted);
             flex: none;
+            transition: transform 0.2s ease;
           }
-          .stor {
-            width: 100%;
-            padding: 16px;
-            background: var(--kib-accent);
-            color: #000;
-            font-weight: 600;
-            font-size: 15px;
+          .seksjon.apen .pil {
+            transform: rotate(180deg);
           }
-          .handling.stopp,
-          .stor.stopp {
-            background: var(--kib-red);
-            color: #000;
-          }
-          .stor.stille {
-            background: var(--kib-surface);
-            color: var(--kib-text);
-            font-weight: 500;
-          }
-
-          /* Blokker og rader */
-          .blokk {
+          .seksjon-kropp {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            padding: 14px 16px;
-            border-radius: 18px;
-            background: var(--kib-surface);
+            gap: 8px;
+            padding: 0 16px 16px;
           }
-          .blokk.tom {
-            line-height: 1.5;
-            font-size: 13px;
-            color: var(--kib-muted);
-          }
+
+          /* Rader, velgere, brytere */
           .rad {
             display: flex;
             justify-content: space-between;
@@ -965,7 +1298,109 @@
           }
           .skille {
             height: 1px;
+            margin: 2px 0;
             background: var(--kib-inner);
+          }
+          .velger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 44px;
+          }
+          .velger-tekst {
+            font-size: 14px;
+            color: var(--kib-muted);
+          }
+          .velger-verdi {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--kib-inner);
+            font-size: 15px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+          }
+          .velger-verdi ha-icon {
+            --mdc-icon-size: 16px;
+            color: var(--kib-muted);
+          }
+          .velger select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            border: none;
+            -webkit-appearance: none;
+            appearance: none;
+            font: inherit;
+          }
+          .bryterrad {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+            min-height: 44px;
+            font-size: 14px;
+            color: var(--kib-muted);
+          }
+          .knott {
+            flex: none;
+            width: 46px;
+            height: 28px;
+            border-radius: 999px;
+            background: var(--kib-inner);
+            position: relative;
+            transition: background 0.2s ease;
+          }
+          .knott::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--kib-text);
+            transition: transform 0.2s ease;
+          }
+          .knott.paa {
+            background: var(--kib-accent);
+          }
+          .knott.paa::after {
+            transform: translateX(18px);
+            background: var(--kib-sort);
+          }
+          .stor {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 15px;
+            border-radius: 18px;
+            background: var(--kib-accent);
+            color: var(--kib-sort);
+            font-size: 15px;
+            font-weight: 600;
+            box-sizing: border-box;
+          }
+          .stor ha-icon {
+            --mdc-icon-size: 20px;
+          }
+          .stor.stopp {
+            background: var(--kib-red);
+          }
+          .stor.stille {
+            background: var(--kib-inner);
+            color: var(--kib-text);
+            font-weight: 500;
           }
           .dempet {
             font-size: 12px;
@@ -983,132 +1418,19 @@
             font-size: 13px;
           }
 
-          /* Chips og piller */
-          .chips,
-          .piller {
-            display: flex;
-            gap: 8px;
-          }
-          .chip,
-          .pille {
-            flex: 1 1 0;
-            min-width: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 11px 6px;
-            border-radius: 14px;
-            background: var(--kib-surface);
-            font-size: 13px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .blokk .chip,
-          .blokk .pille {
-            background: var(--kib-inner);
-          }
-          .pille ha-icon {
-            --mdc-icon-size: 18px;
-            flex: none;
-          }
-          .chip.aktiv,
-          .pille.aktiv {
-            background: var(--kib-accent);
-            color: #000;
-            font-weight: 600;
-          }
-
-          /* Stepper */
-          .stepper {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-          }
-          .stepper-tekst {
-            font-size: 14px;
-            color: var(--kib-muted);
-            min-width: 0;
-          }
-          .stepper-styring {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            flex: none;
-          }
-          .stepper-styring button {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            background: var(--kib-inner);
-            display: grid;
-            place-items: center;
-          }
-          .stepper-styring ha-icon {
-            --mdc-icon-size: 18px;
-          }
-          .stepper-verdi {
-            min-width: 76px;
-            text-align: center;
-            font-size: 15px;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-          }
-
-          /* Spreder */
-          .spreder {
-            position: relative;
-            border-radius: 22px;
-            background: var(--kib-surface);
-            overflow: hidden;
-          }
-          .spreder-vann {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            background: rgba(74, 157, 248, 0.35);
-            transition: width 1s linear;
-          }
-          .spreder-innhold {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 20px;
-          }
-          .spreder-innhold ha-icon {
-            --mdc-icon-size: 36px;
-            color: var(--kib-muted);
-            flex: none;
-          }
-          .spreder.gar .spreder-innhold ha-icon {
-            color: var(--kib-blue);
-            animation: vipp 2.4s ease-in-out infinite;
-          }
-          @keyframes vipp {
-            0%,
-            100% {
-              transform: rotate(-10deg);
-            }
-            50% {
-              transform: rotate(10deg);
+          @media (max-width: 380px) {
+            .fliser {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
             }
           }
-          .spreder-tall {
-            font-size: 20px;
-            font-weight: 600;
-          }
-
           @media (prefers-reduced-motion: reduce) {
-            .hero.gar .bolge,
-            .spreder.gar .spreder-innhold ha-icon {
+            .hero.gar .bolge {
               animation: none;
             }
             .vann,
-            .spreder-vann {
+            .knott,
+            .knott::after,
+            .pil {
               transition: none;
             }
           }
@@ -1116,9 +1438,9 @@
       }
     }
 
-    /* -------------------------------------------------------------- */
-    /* Editor                                                          */
-    /* -------------------------------------------------------------- */
+    /* ---------------------------------------------------------------- */
+    /* Editor                                                            */
+    /* ---------------------------------------------------------------- */
 
     class KiBassengCardEditor extends LitElement {
       static get properties() {
@@ -1142,25 +1464,19 @@
         const schema = [
           { name: "tittel", selector: { text: {} } },
           { name: "prefix", selector: { text: {} } },
-          {
-            name: "faner",
-            selector: {
-              select: {
-                multiple: true,
-                mode: "list",
-                options: Object.entries(FANER).map(([value, label]) => ({ value, label })),
-              },
-            },
-          },
+          { name: "graf", selector: { boolean: {} } },
         ];
-        const data = { faner: Object.keys(FANER), ...this._config };
         return html`
           <ha-form
             .hass=${this.hass}
-            .data=${data}
+            .data=${{ graf: true, ...this._config }}
             .schema=${schema}
             .computeLabel=${(s) =>
-              ({ tittel: "Tittel", prefix: "Entitetsprefiks (valgfritt)", faner: "Faner" })[s.name] || s.name}
+              ({
+                tittel: "Tittel",
+                prefix: "Entitetsprefiks (valgfritt)",
+                graf: "Vis graf",
+              })[s.name] || s.name}
             @value-changed=${this._endret}
           ></ha-form>
         `;

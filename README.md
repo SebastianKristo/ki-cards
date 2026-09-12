@@ -811,3 +811,7 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.20.1
 - `ki-hjem-card`: eget navn per rom (`navn: Cybele<br>Soverom`, også i editoren) og plasserings-UI i editoren – to kolonner per etasje, flytt rom med ▲▼ og ◀▶ (skriver `kolonne`/`rekkefolge`).
+
+## v2.47.0
+- `ki-basseng-card` 1.2.0: ingen faner - en flyt med utvidbare seksjoner, knappefliser i button-card-stil, `<select>` for tallvalg, grafer fra HA-historikken.
+- `ki-rom-card` 1.7.0: flere klimaenheter i rommet vises som en side per enhet i en swipe under Klima (`klima_layout: liste` for gammel visning).

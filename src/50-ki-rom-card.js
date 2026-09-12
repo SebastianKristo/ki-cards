@@ -1,9 +1,10 @@
 /* ============================================================================
- * ki-rom-card  v1.6.1  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.7.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
  *  media_layout: swipe            # flere spillere: swipe (standard) | liste
+ *  klima_layout: swipe            # flere klimaenheter: swipe (standard) | liste
  *  gap: 8                         # px mellom kortene
  *  scener_ekstra: [script.stue_lys_mer_lys, scene.stue_nede_alt_av]   # i tillegg til de med rommet som område
  *  skjul: [light.kjokken_spot_1, switch.x]                             # enheter som ikke skal vises
@@ -426,11 +427,24 @@
     if (!ov.klima.length) return null;
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
     const wIds = ov.klima.map((d) => d.effekt).filter(Boolean);
+    const cards = ov.klima.map((d) => climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix));
+    let body;
+    if (cards.length === 1 || cfg.klima_layout === 'liste') {
+      body = [{ square: false, type: 'grid', columns: 1, cards }];
+    } else {
+      body = [{
+        type: 'custom:css-swipe-card', cardId: 'ki_rom_klima_' + (ov.prefix || 'x') + '_' + (++klimaSwipeSeq),
+        height: cfg.klima_hoyde || '186px', pagination: true,
+        custom_css: { '--pagination-bullet-active-background-color': 'var(--gray400)', '--pagination-bullet-background-color': 'var(--gray100)', '--pagination-bullet-border': 'none', '--pagination-bullet-distance': '0px' },
+        cards,
+      }];
+    }
     return expander(
       [headerTitle('Klima', 'mdi:thermostat'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
-      [{ square: false, type: 'grid', columns: 1, cards: ov.klima.map((d) => climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix)) }]
+      body
     );
   }
+  let klimaSwipeSeq = 0;
 
   // 160 px-kort i samme stil som klima-kortene: navn, "artist – tittel", albumbilde i sirkelen,
   // kontrollrad nederst (av/på · forrige · play/pause · neste · …). Grønt når det spiller.
@@ -959,5 +973,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.6.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.7.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

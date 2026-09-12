@@ -27,11 +27,7 @@ cards:
 
   - type: custom:ki-basseng-card
     tittel: null
-    faner:
-      - oversikt
-      - sirkulasjon
-      - spreder
-      - innstillinger
+    graf: true
 
   # Hurtigknapper: lys, pumpe, varmepumpe, stillemodus, stikkontakt
   - square: false
