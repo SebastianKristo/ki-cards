@@ -11,6 +11,7 @@
  * velger: [{navn: Stue TV, entity: media_player.stue_tv}, {navn: Google TV, entity: media_player.google_tv}]
  *         # flere spillere: sveip mellom dem, med prikker under
  * sveip: false            # bytt tilbake til pillerad i stedet for sveiping
+ * folg: true              # kontrollkortet følger spilleren du sveiper til i hero-kortet
  * spillknapp: av_pa                                 # av_pa | spill – midtknappen i transportraden
  * kontroll: {play_pause: script..., neste: ..., forrige: ..., shuffle: ..., repeat: ...}
  * grupper: [{navn: Oppe, entity: input_boolean.sonos_group_oppe}]
@@ -19,7 +20,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.5.0";
+const KI_MEDIA_VERSJON = "1.6.0";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -154,7 +155,7 @@ const KI_MEDIA_STIL = `
   .vknapp2.spiller i { display:block; }
   .vknapp2.mangler { opacity:.4; text-decoration:line-through; }
   /* sveip mellom spillere */
-  .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
+  .sveip { position:relative; overflow:hidden; touch-action:pan-y; overscroll-behavior-y:auto; }
   .spor { display:flex; transition:transform .35s var(--myk, cubic-bezier(.2,.8,.2,1)); will-change:transform; }
   .spor.drar { transition:none; }
   .side { flex:0 0 100%; min-width:0; }
@@ -169,7 +170,7 @@ const KI_MEDIA_STIL = `
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
     cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; flex:none; }
   .vknapp:active { transform:scale(.92); }
-  .gruppe { display:flex; gap:6px; }
+  .gruppe { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
   .gknapp { border:0; font:inherit; font-size:13px; font-weight:500; padding:8px 14px; border-radius:999px;
     background:var(--gray200); color:var(--gray1000); cursor:pointer; transition:background .2s, color .2s, transform .12s var(--fjaer); }
   .gknapp:active { transform:scale(.96); }
@@ -180,8 +181,7 @@ const KI_MEDIA_STIL = `
     background:var(--gray1000); border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
   input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--gray1000);
     border:0; box-shadow:0 1px 4px rgba(0,0,0,.4); cursor:grab; }
-  .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; text-align:right; }
-  .vtall { font-size:14px; font-weight:500; text-align:right; font-variant-numeric:tabular-nums; }
+  .vtall { font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; text-align:right; opacity:.85; }
 
   /* ---- radiokanaler ---- */
   .radio { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px; margin:0 -2px; scroll-snap-type:x proximity; }
@@ -258,15 +258,17 @@ class KiMediaCard extends HTMLElement {
       this._faneListe = Array.isArray(rå) ? rå : [rå];
       this._valgt = liste[0];
       this._spillere = liste;
+      this._meldValg(liste[0]);
       this._bygget = false;
       if (this._h) { this._bygg(); this._oppdater(); }
     };
     window.addEventListener("ki-tab-changed", this._faneAv);
   }
 
-  connectedCallback() { this._start(); this._fanelytter(); if (this._bygget) this._oppdater(); }
+  connectedCallback() { this._start(); this._fanelytter(); this._folgelytter(); if (this._bygget) this._oppdater(); }
   disconnectedCallback() {
-    if (this._faneAv) { window.removeEventListener("ki-tab-changed", this._faneAv); this._faneAv = null; } clearInterval(this._ur); }
+    if (this._faneAv) { window.removeEventListener("ki-tab-changed", this._faneAv); this._faneAv = null; }
+    if (this._folgAv) { window.removeEventListener("ki-media-valgt", this._folgAv); this._folgAv = null; } clearInterval(this._ur); }
   _start() { clearInterval(this._ur); this._ur = setInterval(() => this._tikk(), 1000); }
 
   /* Med flere spillere velges den som spiller, ellers den som er på, ellers den første */
@@ -411,6 +413,7 @@ class KiMediaCard extends HTMLElement {
       const ny = (naa + retning + liste.length) % liste.length;
       this._valgt = liste[ny].entity;
       this._spillere = liste.map((v) => v.entity);
+      this._meldValg(liste[ny].entity);
       /* la kortet gli ut, bygg om, og la det gli inn igjen */
       spor.style.transform = `translateX(${retning > 0 ? -100 : 100}%)`;
       setTimeout(() => {
@@ -426,23 +429,33 @@ class KiMediaCard extends HTMLElement {
       }, 180);
     };
 
-    let x0 = null, dx = 0;
+    let x0 = null, y0 = 0, dx = 0, retning = null;
     boks.addEventListener("pointerdown", (e) => {
       if (e.target.closest(".hknapp")) return;
-      x0 = e.clientX; dx = 0; spor.classList.add("drar");
+      x0 = e.clientX; y0 = e.clientY; dx = 0; retning = null;
     });
     boks.addEventListener("pointermove", (e) => {
       if (x0 === null) return;
       dx = e.clientX - x0;
-      if (Math.abs(dx) > 6) spor.style.transform = `translateX(${dx * 0.6}px)`;
+      const dy = e.clientY - y0;
+      /* Bestem retning én gang: er bevegelsen mest loddrett, skal siden rulle
+         som normalt og kortet holde seg i ro. */
+      if (retning === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        retning = Math.abs(dx) > Math.abs(dy) * 1.3 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") spor.classList.add("drar");
+      }
+      if (retning !== "vannrett") return;
+      if (e.cancelable) e.preventDefault();
+      spor.style.transform = `translateX(${dx * 0.6}px)`;
     });
     const slipp = () => {
       if (x0 === null) return;
       spor.classList.remove("drar");
-      const flyttet = Math.abs(dx) > 55;
+      const flyttet = retning === "vannrett" && Math.abs(dx) > 55;
       spor.style.transform = "translateX(0)";
       if (flyttet) { this._sveipet = true; bytt(dx < 0 ? 1 : -1); }
-      x0 = null; dx = 0;
+      x0 = null; dx = 0; retning = null;
     };
     boks.addEventListener("pointerup", slipp);
     boks.addEventListener("pointercancel", slipp);
@@ -451,8 +464,32 @@ class KiMediaCard extends HTMLElement {
     r.querySelectorAll("[data-p]").forEach((pr) => pr.addEventListener("click", () => {
       const ny = liste[+pr.dataset.p]; if (!ny || ny.entity === this._id()) return;
       this._valgt = ny.entity; this._spillere = liste.map((v) => v.entity);
+      this._meldValg(ny.entity);
       this._bygg(); this._oppdater();
     }));
+  }
+
+  /* Sier fra til de andre kortene hvilken spiller som er valgt */
+  _meldValg(entity) {
+    window.dispatchEvent(new CustomEvent("ki-media-valgt", { detail: { entity } }));
+  }
+
+  /* Kontrollkortet kan følge spilleren som velges i hero-kortet */
+  _folgelytter() {
+    const c = this._c;
+    const folg = c.folg !== undefined ? c.folg : (c.visning === "kontroll" && !c.velger);
+    if (!folg || this._folgAv) return;
+    this._folgAv = (e) => {
+      const ny = e && e.detail && e.detail.entity;
+      if (!ny || ny === this._id()) return;
+      /* følg bare spillere vi faktisk kjenner, ellers bytter TV-valget musikkortet */
+      const kjent = this._velgere().map((v) => v.entity);
+      if (kjent.length && !kjent.includes(ny)) return;
+      this._valgt = ny;
+      if (!this._spillere || !this._spillere.includes(ny)) this._spillere = [...(this._spillere || []), ny];
+      this._bygg(); this._oppdater();
+    };
+    window.addEventListener("ki-media-valgt", this._folgAv);
   }
 
   /* Kontroll-visning: bare kanaler, transport, volum og grupper */
@@ -468,7 +505,7 @@ class KiMediaCard extends HTMLElement {
       strom.querySelector("ha-icon").setAttribute("icon", av ? "mdi:power" : "mdi:power-off");
     }
     const mute = r.querySelector('[data-v="av"] ha-icon');
-    if (mute) mute.setAttribute("icon", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-mute");
+    if (mute) mute.setAttribute("icon", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-high");
     const sh = r.querySelector('[data-t="shuffle"] ha-icon');
     if (sh) sh.setAttribute("icon", a.shuffle ? "mdi:shuffle" : "mdi:shuffle-disabled");
     const rp = r.querySelector('[data-t="repeat"] ha-icon');
@@ -768,6 +805,8 @@ class KiMediaCard extends HTMLElement {
       vol.value = p; vol.style.setProperty("--p", p + "%");
       r.querySelector(".vtall").textContent = p + " %";
     }
+    const mute2 = r.querySelector('[data-v="av"] ha-icon');
+    if (mute2) mute2.setAttribute("icon", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-high");
     this._merkGrupper();
     this._merkKanal(a, spiller || pause);
 

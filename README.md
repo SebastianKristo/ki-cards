@@ -709,6 +709,9 @@ velger:
   - {navn: Kjøkken, entity: media_player.radio_kjokken, ikon: mdi:radio}
 ```
 
+Kontrollkortet under kan følge det du sveiper til: `folg: true` gjør at kanaler, av/på, volum og grupper
+alltid gjelder spilleren som vises i hero-kortet. Da trenger du ingen egen velger i kontrollkortet.
+
 `spillknapp: av_pa` bytter midtknappen i transportraden fra play/pause til av/på – standard i
 `visning: kontroll`. Volumraden har demp, ned, slider og opp med prosenten til høyre. Radiokanaler kan peke
 på `skript:` eller `entity:` – knapp, bryter, scene eller script virker, og en ren streng spilles som
