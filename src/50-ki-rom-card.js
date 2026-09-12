@@ -253,12 +253,29 @@
     [/av$|lys.?av|alt.?av/i, 'mdi:lightbulb-off-outline'], [/natta|sov/i, 'mdi:sleep'],
   ];
 
-  function sectionScener(hass, ov, roomName, ekstra) {
+  /* Lysscenene fra KI Lys for dette rommet – knappene ligger som button-entiteter */
+  function lysScener(hass, ov) {
+    const rom = new Set((ov.rooms || []).map((r) => r.area_id).filter(Boolean));
+    const ut = [];
+    Object.keys(hass.states).forEach((id) => {
+      if (!id.startsWith('sensor.')) return;
+      const a = hass.states[id].attributes || {};
+      if (a.integrasjon !== 'ki_lys' || a.ki_type !== 'oversikt') return;
+      if (rom.size && !rom.has(a.area_id)) return;
+      (a.scener || []).forEach((sc) => {
+        if (sc && sc.entity && hass.states[sc.entity]) ut.push({ entity: sc.entity, navn: sc.navn, ikon: sc.ikon });
+      });
+    });
+    return ut;
+  }
+
+  function sectionScener(hass, ov, roomName, ekstra, cfg) {
     const seen = new Set();
     const items = [];
-    [...ov.skript, ...ov.scener, ...(ekstra || [])].forEach((raw) => {
+    const fraLys = (cfg && cfg.lysscener === false) ? [] : lysScener(hass, ov);
+    [...fraLys, ...ov.skript, ...ov.scener, ...(ekstra || [])].forEach((raw) => {
       const e = typeof raw === 'string' ? raw : raw && raw.entity;
-      if (!e || seen.has(e) || !/^(script|scene)\./.test(e)) return;
+      if (!e || seen.has(e) || !/^(script|scene|button)\./.test(e)) return;
       seen.add(e);
       items.push({ e, kind: e.split('.')[0], navn: raw && raw.navn, ikon: raw && raw.ikon });
     });
@@ -269,13 +286,16 @@
       let icon = ikon || st.attributes.icon;
       if (!icon) {
         const hit = ICON_GUESS.find(([re]) => re.test(objId(e)));
-        icon = hit ? hit[1] : (kind === 'scene' ? 'mdi:palette-outline' : 'mdi:script-text-outline');
+        icon = hit ? hit[1] : (kind === 'scene' ? 'mdi:palette-outline'
+          : kind === 'button' ? 'mdi:lightbulb-group' : 'mdi:script-text-outline');
       }
       return {
         icon, layout: 'icon_name_state', name,
         tap_action: kind === 'script'
           ? { action: 'call-service', service: e }
-          : { action: 'call-service', service: 'scene.turn_on', target: { entity_id: e }, data: { transition: 1 } },
+          : kind === 'button'
+            ? { action: 'call-service', service: 'button.press', target: { entity_id: e } }
+            : { action: 'call-service', service: 'scene.turn_on', target: { entity_id: e }, data: { transition: 1 } },
         styles: {
           name: { color: 'var(--gray800)' },
           button: { padding: '12px', width: '76px', height: '76px', 'flex-basis': 1, 'flex-shrink': 0, display: 'flex', 'background-color': 'var(--gray200)', 'border-radius': '24px', color: 'var(--white)' },
@@ -711,7 +731,7 @@
       // én header uansett antall rom: første temperatur-/fuktsensor og første klima (eller overstyring i cfg)
       header: () => sectionHeader(hass, ov, cfg, cfg.navn || (Array.isArray(roomName) ? roomName.join(' + ') : roomName)),
       gardiner: () => sectionGardiner(hass, ov, roomName),
-      scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra),
+      scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra, cfg),
       lys: () => sectionLys(hass, ov, roomName),
       enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE, cfg),
       klima: () => sectionKlima(hass, ov, cfg, roomName),
@@ -1074,5 +1094,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.11.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.12.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

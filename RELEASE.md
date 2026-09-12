@@ -1,7 +1,9 @@
-## Endret
+## Nytt
+
+**ki-rom-card 1.12.0**
+- Scener-raden plukker nå opp lysscenene fra [KI Lys](https://github.com/SebastianKristo/ki-lys) automatisk. Kortet finner `sensor.<rom>_lys_oversikt` for rommene det viser, og legger knappene først i raden – foran skriptene og scenene du har fra før
+- `lysscener: false` slår det av
+- Sceneknapper kan nå være `button`-entiteter, ikke bare `script` og `scene`
 
 **ki-rom-card 1.11.0**
-- Enheter-seksjonen parer nå bryter og effektsensor mot **samme fysiske enhet** i enhetsregisteret, ikke bare på navn. `switch.fryseskap` finner `sensor.hvitevarer_plug_1_power` selv om de heter helt ulikt
-- Ligger det flere sensorer på enheten, velges den som måler effekt nå – døgn- og totaltall (`_energy_daily`, `_total`) velges bort, og alt i kWh forkastes
-- Navnemønstrene er utvidet med `_strom` og `_stromforbruk`, og som siste utvei godtas en sensor som starter med samme slug og måler watt
-- Registeret hentes én gang per sidevisning, og kortene tegnes på nytt når det er klart
+- Bryter og effektsensor pares mot samme fysiske enhet i enhetsregisteret, ikke bare på navn. Ligger flere sensorer på enheten, velges den som måler effekt nå, og alt i kWh forkastes
