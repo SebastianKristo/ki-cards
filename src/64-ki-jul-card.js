@@ -3,15 +3,53 @@
  * type: custom:ki-jul-card
  * nedtelling: sensor.ki_jul_nedtelling   # oppdages automatisk
  * faner: [lys, automasjon]
+ * hero: true                            # julekortscene øverst (hero: false skrur den av)
+ * sveip: true                           # sveip mellom julekortet og nedtellingen
+ * snoe: true                            # snø over hele kortet i julesesongen
  * automasjoner:                          # valgfritt, vises i Automasjon-fanen
  *   - {entity: automation.julelys_sla_pa_1_november, navn: Slå på, under: 1. november, ikon: mdi:calendar-arrow-right}
  */
-const KI_JUL_VERSJON = "1.0.0";
+const KI_JUL_VERSJON = "1.2.0";
 
 const KI_JUL_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
-  .rot { display:grid; gap:12px; max-width:100%; }
+  .rot { position:relative; display:grid; gap:12px; max-width:100%; }
+
+  /* snø over hele kortet, ikke bare i scenen */
+  .snolag { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:3; border-radius:24px; }
+  .snolag i { position:absolute; top:-8px; width:5px; height:5px; border-radius:50%; background:#fff;
+    opacity:.5; animation:jul-drys linear infinite; }
+  @keyframes jul-drys { 0% { transform:translateY(-8px) translateX(0) scale(.8); opacity:0; }
+    12% { opacity:.55; } 100% { transform:translateY(var(--h,900px)) translateX(24px) scale(1.1); opacity:0; } }
+
+  /* sveip mellom julekortet og nedtellingen */
+  .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
+  .spor { display:flex; transition:transform .35s var(--myk); will-change:transform; align-items:stretch; }
+  .spor.drar { transition:none; }
+  .side { flex:0 0 100%; min-width:0; display:flex; }
+  .side > * { flex:1; }
+  .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
+  .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
+    transition:opacity .25s, transform .25s; cursor:pointer; }
+  .prikker i.valgt { opacity:.95; transform:scale(1.15); }
+
+  /* scenen som vokser ut av julesesong-flisen */
+  .utvidet { position:absolute; left:0; right:0; top:0; z-index:4; border-radius:var(--ha-card-border-radius,24px);
+    overflow:hidden; clip-path:inset(var(--t,0) var(--r,0) var(--b,0) var(--l,0) round 24px);
+    transition:clip-path .55s var(--myk); }
+  .utvidet.lukker { clip-path:inset(var(--t0,0) var(--r0,0) var(--b0,0) var(--l0,0) round 24px); }
+  .utvidet .scene { height:100%; border-radius:0; }
+  .utvidet .scene svg { position:absolute; inset:0; width:100%; height:100%; }
+  .utvidet .scenetekst { left:20px; bottom:18px; }
+  .utvidet .scenetekst b { font-size:24px; }
+  .utvidet .scenetekst span { display:none; }          /* tallet står til høyre i stedet */
+  .utvidet .lukk { position:absolute; right:14px; top:14px; z-index:5; width:34px; height:34px; border:0;
+    border-radius:50%; background:rgba(0,0,0,.35); color:#fff; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:20px; }
+  .utvidet .telling { position:absolute; right:18px; bottom:16px; text-align:right; color:#fff; }
+  .utvidet .telling b { display:block; font-size:34px; font-weight:300; line-height:1; }
+  .utvidet .telling span { font-size:13px; opacity:.75; }
 
   /* nedtellingskortet – samme oppsett som button-card-utgaven */
   .tell { position:relative; height:160px; background:var(--gray200); border-radius:var(--ha-card-border-radius,24px);
@@ -37,6 +75,36 @@ const KI_JUL_STIL = `
     animation:jul-sno linear infinite; }
   @keyframes jul-sno { 0% { transform:translateY(-8px) translateX(0); opacity:0; }
     10% { opacity:.5; } 100% { transform:translateY(170px) translateX(14px); opacity:0; } }
+
+  /* julekortscenen */
+  .scene { position:relative; height:200px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden;
+    background:linear-gradient(180deg,#101b2e 0%,#17283f 55%,#1d3350 100%); cursor:pointer; }
+  .scene svg { position:absolute; inset:0; width:100%; height:100%; }
+  .stjerne-himmel circle { animation:jul-blink 3.4s ease-in-out infinite; }
+  @keyframes jul-blink { 0%,100% { opacity:.25; } 50% { opacity:.9; } }
+  .royk { opacity:0; animation:jul-royk 6s ease-out infinite; }
+  .royk.r2 { animation-delay:-2s; } .royk.r3 { animation-delay:-4s; }
+  @keyframes jul-royk { 0% { opacity:0; transform:translate(0,0) scale(.6); }
+    20% { opacity:.5; } 100% { opacity:0; transform:translate(-10px,-34px) scale(1.6); } }
+  .snoefall i { animation:jul-fall linear infinite; }
+  @keyframes jul-fall { 0% { transform:translateY(-10px) translateX(0); opacity:0; }
+    10% { opacity:.75; } 100% { transform:translateY(210px) translateX(16px); opacity:0; } }
+  /* pærer i hekken – lyser etter tur når utelyset står på */
+  .paere { opacity:.18; }
+  .scene.ute .paere { animation:jul-paere 2.6s ease-in-out infinite; }
+  @keyframes jul-paere { 0%,100% { opacity:.25; } 50% { opacity:1; } }
+  .vindu { fill:#3b4a63; transition:fill .6s var(--myk); }
+  .scene.inne .vindu { fill:#e0b45f; }
+  .stjerne { opacity:.2; transform-box:fill-box; transform-origin:center; }
+  .scene.stjerne-pa .stjerne { opacity:1; animation:jul-puls 3.2s ease-in-out infinite; }
+  @keyframes jul-puls { 0%,100% { transform:scale(1); filter:none; } 50% { transform:scale(1.08); } }
+  .flamme { opacity:0; transform-box:fill-box; transform-origin:50% 100%; }
+  .scene.stake-pa .flamme { opacity:1; animation:jul-flamme 1.7s ease-in-out infinite; }
+  .scene.stake-pa .flamme.f2 { animation-delay:-.6s; } .scene.stake-pa .flamme.f3 { animation-delay:-1.1s; }
+  @keyframes jul-flamme { 0%,100% { transform:scaleY(1) rotate(-4deg); } 50% { transform:scaleY(1.25) rotate(4deg); } }
+  .scenetekst { position:absolute; left:18px; bottom:14px; }
+  .scenetekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  .scenetekst span { font-size:13px; opacity:.75; }
 
   /* to fliser: sesong og antall tent */
   .fliser { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -68,9 +136,9 @@ const KI_JUL_STIL = `
 const KI_JUL_STIL2 = `
   /* faner, som i resten av kortene */
   .faner { display:flex; justify-content:center; }
-  .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px; font-weight:500;
-    padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+  .skinne { display:inline-flex; gap:4px; padding:3px; border:1px solid rgba(255,255,255,.3); border-radius:999px; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:15px; font-weight:500;
+    padding:9px 22px; border-radius:999px; cursor:pointer; white-space:nowrap; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
 
   /* overskriftsrad */
@@ -150,6 +218,88 @@ class KiJulCard extends HTMLElement {
   _mer(id) {
     if (!id) return;
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true }));
+  }
+
+  /* Julekort: hus med lysslynge i hekken, stjerne og lysestake i vinduene.
+     Lysene i tegningen følger lysene som faktisk står på. */
+  _scene(d) {
+    const grupper = d.grupper || [];
+    const pa = (id) => (grupper.find((g) => g.id === id) || { lys: [] }).lys.some((x) => this._paa(x.entity));
+    const stjerne = pa("stjerner"), stake = pa("staker"), ute = pa("ute");
+    const inne = stjerne || stake || (d.tent || 0) > 0;
+
+    const stjerner = Array.from({ length: 14 }, (_, i) =>
+      `<circle cx="${(i * 27 + 14) % 360}" cy="${(i * 13) % 60 + 8}" r="${i % 3 === 0 ? 1.6 : 1.1}"
+        fill="#fff" style="animation-delay:-${(i * 0.42).toFixed(1)}s"/>`).join("");
+
+    /* hekken foran huset, med pærerad langs toppen */
+    const paerer = Array.from({ length: 16 }, (_, i) => {
+      const x = 22 + i * 21, y = 158 + Math.sin(i * 0.9) * 3;
+      const f = ["#ff8f8f", "#ffd98a", "#8fd3ff", "#a6f0a6"][i % 4];
+      return `<circle class="paere" cx="${x}" cy="${y}" r="3.1" fill="${f}"
+        style="animation-delay:-${(i * 0.17).toFixed(2)}s"/>`;
+    }).join("");
+
+    const snø = Array.from({ length: 16 }, (_, i) =>
+      `<i style="position:absolute;left:${(i * 6.4 + 2).toFixed(0)}%;top:-6px;width:4px;height:4px;
+        border-radius:50%;background:#fff;opacity:.6;animation-duration:${(7 + (i % 6) * 1.6).toFixed(1)}s;
+        animation-delay:-${(i * 1.1).toFixed(1)}s"></i>`).join("");
+
+    return `<div class="scene ${ute ? "ute" : ""} ${inne ? "inne" : ""}
+      ${stjerne ? "stjerne-pa" : ""} ${stake ? "stake-pa" : ""}" data-mer="1" role="button" tabindex="0">
+      <svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <g class="stjerne-himmel">${stjerner}</g>
+
+        <!-- grantrær i bakgrunnen -->
+        <g fill="#16321f" opacity=".9">
+          <path d="M40 150 62 96l22 54z"/><path d="M48 126 62 92l14 34z"/>
+          <path d="M300 152 322 100l22 52z"/>
+        </g>
+
+        <!-- huset -->
+        <g>
+          <path d="M118 96 186 52l68 44v72H118z" fill="#243c57"/>
+          <path d="M110 100 186 46l76 54-6 8-70-50-70 50z" fill="#f2f6ff" opacity=".9"/>
+          <rect x="228" y="60" width="14" height="26" rx="2" fill="#243c57"/>
+          <g fill="#eaf6ff">
+            <circle class="royk" cx="235" cy="56" r="5"/>
+            <circle class="royk r2" cx="235" cy="56" r="4"/>
+            <circle class="royk r3" cx="235" cy="56" r="6"/>
+          </g>
+          <!-- vindu med julestjerne -->
+          <rect class="vindu" x="136" y="112" width="34" height="30" rx="4"/>
+          <g class="stjerne">
+            <circle cx="153" cy="127" r="13" fill="#fff3c4" opacity=".22"/>
+            <path d="M153 113l4.5 10.5 10.5 4.5-10.5 4.5-4.5 10.5-4.5-10.5-10.5-4.5 10.5-4.5z"
+              fill="#fff6d6" stroke="#8a6a18" stroke-width="1.2" stroke-linejoin="round"/>
+          </g>
+          <!-- vindu med lysestake -->
+          <rect class="vindu" x="200" y="112" width="34" height="30" rx="4"/>
+          <g fill="#8a6a18">
+            <path d="M206 140h22v3h-22z"/><path d="M215 128h4v12h-4z"/>
+            <path d="M207 132h3v8h-3zM224 132h3v8h-3z"/>
+            <path d="M209 136h16v2h-16z" opacity=".7"/>
+          </g>
+          <g fill="#fff2b0">
+            <path class="flamme" d="M217 128c2-2 .8-4 0-5-.8 1-2 3 0 5z"/>
+            <path class="flamme f2" d="M208.5 132c2-2 .8-4 0-5-.8 1-2 3 0 5z"/>
+            <path class="flamme f3" d="M225.5 132c2-2 .8-4 0-5-.8 1-2 3 0 5z"/>
+          </g>
+          <rect x="176" y="126" width="20" height="42" rx="3" fill="#1b2c42"/>
+        </g>
+
+        <!-- hekken med lysslynge -->
+        <path d="M8 200v-30q14-18 30-16t26 14q16-16 34-12t24 18q14-14 30-10t22 16q16-14 32-10t24 16q14-12 28-8t26 16v6z"
+          fill="#1c3a26"/>
+        <path d="M18 160q26-14 52 0t52 0 52 0 52 0 52 0" fill="none" stroke="#2b5138" stroke-width="2" opacity=".8"/>
+        ${paerer}
+        <!-- snødekt bakke -->
+        <path d="M0 186q60-10 120 0t120 0 120 0v14H0z" fill="#f2f6ff" opacity=".92"/>
+      </svg>
+      <div class="snoefall" style="position:absolute;inset:0;pointer-events:none">${snø}</div>
+      <div class="scenetekst"><b>${kiJulEsc(d.overskrift === "Julaften" ? "God jul" : "Snart jul")}</b>
+        <span>${d.tent || 0} av ${d.antall || (d.lys || []).length} lys tent</span></div>
+    </div>`;
   }
 
   _nedtelling(d) {
@@ -255,6 +405,82 @@ class KiJulCard extends HTMLElement {
       ${rader.map((x) => this._rad(x, "automasjon")).join("")}`;
   }
 
+  /* Julekortet vokser ut av julesesong-flisen, som nattkortet gjør */
+  _utvid(flis) {
+    const r = this.shadowRoot, rot = r.querySelector(".rot");
+    if (!rot || r.querySelector(".utvidet")) return;
+    const d = this._d(); if (!d) return;
+    const rf = rot.getBoundingClientRect(), ff = flis.getBoundingClientRect();
+    /* laget dekker toppen av kortet – ikke hele lista under */
+    const hoyde = Math.min(rf.height, 420);
+    const inset = {
+      t: Math.round(ff.top - rf.top),
+      b: Math.max(0, Math.round(hoyde - (ff.bottom - rf.top))),
+      l: Math.round(ff.left - rf.left),
+      r: Math.round(rf.right - ff.right),
+    };
+    const lag = document.createElement("div");
+    lag.className = "utvidet";
+    lag.style.height = hoyde + "px";
+    lag.style.setProperty("--t0", inset.t + "px"); lag.style.setProperty("--b0", inset.b + "px");
+    lag.style.setProperty("--l0", inset.l + "px"); lag.style.setProperty("--r0", inset.r + "px");
+    lag.style.clipPath = `inset(${inset.t}px ${inset.r}px ${inset.b}px ${inset.l}px round 24px)`;
+    lag.innerHTML = `${this._scene(d)}
+      <button class="lukk"><ha-icon icon="mdi:close"></ha-icon></button>
+      <div class="telling"><b>${d.tent || 0}</b><span>av ${d.antall || (d.lys || []).length} lys tent</span></div>`;
+    /* i full størrelse skal hele motivet være synlig, ikke zoomes inn */
+    const svg = lag.querySelector(".scene svg");
+    if (svg) svg.setAttribute("preserveAspectRatio", "xMidYMax meet");
+    rot.appendChild(lag);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      lag.style.clipPath = "inset(0px 0px 0px 0px round 24px)";
+    }));
+    const lukk = () => {
+      lag.style.clipPath = `inset(${inset.t}px ${inset.r}px ${inset.b}px ${inset.l}px round 24px)`;
+      setTimeout(() => lag.remove(), 560);
+    };
+    lag.querySelector(".lukk").addEventListener("click", (e) => { e.stopPropagation(); lukk(); });
+    lag.querySelector(".scene").addEventListener("click", lukk);
+  }
+
+  /* Sveip mellom julekortet og nedtellingen */
+  _koblSveip(r) {
+    const boks = r.querySelector(".sveip"), spor = r.querySelector(".spor");
+    if (!boks || !spor) return;
+    const antall = r.querySelectorAll(".side").length;
+    const gaTil = (i) => {
+      this._side = Math.max(0, Math.min(antall - 1, i));
+      spor.style.transform = `translateX(-${this._side * 100}%)`;
+      r.querySelectorAll("[data-s]").forEach((p, n) => p.classList.toggle("valgt", n === this._side));
+    };
+    let x0 = null, y0 = 0, dx = 0, retning = null;
+    boks.addEventListener("pointerdown", (e) => { x0 = e.clientX; y0 = e.clientY; dx = 0; retning = null; });
+    boks.addEventListener("pointermove", (e) => {
+      if (x0 === null) return;
+      dx = e.clientX - x0;
+      const dy = e.clientY - y0;
+      if (retning === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        retning = Math.abs(dx) > Math.abs(dy) * 1.6 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") { spor.classList.add("drar"); boks.style.touchAction = "none"; }
+      }
+      if (retning !== "vannrett") return;
+      if (e.cancelable) e.preventDefault();
+      spor.style.transform = `translateX(calc(-${this._side * 100}% + ${dx * 0.7}px))`;
+    });
+    const slipp = () => {
+      if (x0 === null) return;
+      spor.classList.remove("drar"); boks.style.touchAction = "";
+      if (retning === "vannrett" && Math.abs(dx) > 55) { this._sveipet = true; gaTil(this._side + (dx < 0 ? 1 : -1)); }
+      else gaTil(this._side);
+      x0 = null; dx = 0; retning = null;
+    };
+    boks.addEventListener("pointerup", slipp);
+    boks.addEventListener("pointercancel", slipp);
+    boks.addEventListener("pointerleave", slipp);
+    r.querySelectorAll("[data-s]").forEach((p) => p.addEventListener("click", () => gaTil(+p.dataset.s)));
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const d = this._d();
@@ -266,9 +492,28 @@ class KiJulCard extends HTMLElement {
     }
     const faner = [].concat(c.faner || ["lys", "automasjon"]);
     const navn = { lys: "Lys", automasjon: "Automasjon" };
+    const sider = [];
+    if (c.hero !== false) sider.push(this._scene(d));
+    sider.push(this._nedtelling(d));
+    if (this._side === undefined || this._side >= sider.length) this._side = 0;
+    const topp = sider.length > 1 && c.sveip !== false
+      ? `<div class="sveip"><div class="spor" style="transform:translateX(-${this._side * 100}%)">
+          ${sider.map((x) => `<div class="side">${x}</div>`).join("")}</div></div>
+        <div class="prikker">${sider.map((_, i) =>
+          `<i class="${i === this._side ? "valgt" : ""}" data-s="${i}"></i>`).join("")}</div>`
+      : sider.join("");
+
+    const snoer = c.snoe !== false && d.fase === "jul"
+      ? `<div class="snolag">${Array.from({ length: 22 }, (_, i) =>
+          `<i style="left:${(i * 4.6 + 1).toFixed(1)}%;--h:1100px;
+            animation-duration:${(11 + (i % 7) * 2.2).toFixed(1)}s;
+            animation-delay:-${(i * 1.4).toFixed(1)}s"></i>`).join("")}</div>`
+      : "";
+
     const html = `<style>${KI_JUL_STIL}${KI_JUL_STIL2}</style>
       <div class="rot">
-        ${this._nedtelling(d)}
+        ${snoer}
+        ${topp}
         ${this._fliser(d)}
         ${this._handlinger()}
         ${faner.length > 1 ? `<div class="faner"><div class="skinne">${faner.map((f) =>
@@ -299,7 +544,12 @@ class KiJulCard extends HTMLElement {
     });
     r.querySelectorAll("[data-alle]").forEach((b) => b.addEventListener("click", () => this._alle(b.dataset.alle === "pa")));
     const sesong = r.querySelector("[data-sesong]");
-    if (sesong) sesong.addEventListener("click", () => this._alle(!sesong.classList.contains("pa")));
+    if (sesong) sesong.addEventListener("click", (e) => {
+      /* knappen til høyre tenner og slukker, resten av flisen åpner julekortet */
+      if (e.target.closest(".knapp")) return this._alle(!sesong.classList.contains("pa"));
+      this._utvid(sesong);
+    });
+    this._koblSveip(r);
     r.querySelectorAll("[data-mer]").forEach((el) => el.addEventListener("click", () => this._mer(this._id())));
   }
 }

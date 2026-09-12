@@ -1,8 +1,7 @@
 ## Nytt
 
-**ki-jul-card 1.0.0**
-- Julelysene fra KI Lys, i samme form som julepopupen: nedtellingskort med dager til julaften, stripet framdriftslinje og snø som daler i sesongen; sesongflis som tenner og slukker alt; flis med hvor mange lys som står på; «Alle av» og «Alle på»
-- Lys-fanen grupperer i julestjerner, julestaker og utendørs, med pillerad per lys – gul når den står på
-- Automasjon-fanen finner juleautomasjonene selv, eller tar lista du gir i `automasjoner:`
-
-Krever KI Lys 2.0.0 med julelysdelen slått på.
+**ki-jul-card 1.2.0**
+- Julekortet og nedtellingen ligger nå i et sveip med prikker under – `sveip: false` stabler dem som før
+- Trykk på julesesong-flisen, så vokser julekortet ut av den og fyller toppen av kortet, med antall tente lys i hjørnet. Trykk igjen eller på krysset, så trekker det seg tilbake i flisen
+- Snø daler over hele kortet i julesesongen, ikke bare inne i scenen. `snoe: false` skrur det av
+- Toggle-knappen på flisen tenner og slukker som før – resten av flisen åpner julekortet

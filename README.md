@@ -339,7 +339,16 @@ faner: [lys, automasjon]
 # automasjoner:                          # ellers finner kortet dem selv
 #   - {entity: automation.julelys_sla_pa_1_november, navn: Slå på, under: 1. november}
 ```
-Julelysene fra [KI Lys](https://github.com/SebastianKristo/ki-lys). Øverst et nedtellingskort med dager til
+Julelysene fra [KI Lys](https://github.com/SebastianKristo/ki-lys). Øverst et julekort: hus i vinternatt med
+stjernehimmel, røyk fra pipa, snø som daler, lysslynge i hekken, julestjerne i det ene vinduet og lysestake i
+det andre. Lysene i tegningen følger de virkelige – stjerna lyser når en julestjerne står på, flammene
+flakker når en stake er tent, og pærene i hekken blinker når utelyset er på. `hero: false` skrur den av, og `sveip: false` stabler julekortet og nedtellingen i stedet for å sveipe.
+
+Øverst sveiper du mellom julekortet og nedtellingen, med prikker under. Trykker du på julesesong-flisen,
+vokser julekortet ut av den og fyller toppen av kortet med antall tente lys i hjørnet – trykk igjen, eller på
+krysset, så trekker det seg tilbake i flisen. I julesesongen daler det snø over hele kortet.
+
+Nedtellingskortet med dager til
 julaften, stripet framdriftslinje og snø som daler i sesongen. Under: sesongflis som tenner og slukker alt,
 en flis med hvor mange lys som står på, og knappene «Alle av» og «Alle på».
 
