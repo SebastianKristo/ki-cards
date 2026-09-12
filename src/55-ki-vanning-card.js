@@ -12,12 +12,14 @@
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  */
-const KI_VANN_VERSJON = "2.1.0";
+const KI_VANN_VERSJON = "2.2.0";
 
 const KI_VANN_STIL = `
-  :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
-  * { box-sizing:border-box; }
-  .rot { display:grid; gap:12px; }
+  :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  /* alt skal krympe med kortet, aldri dytte det bredere enn skjermen */
+  .rot { display:grid; gap:12px; max-width:100%; min-width:0; }
+  .rot > *, .panel > * { min-width:0; max-width:100%; }
   [tabindex]:focus-visible, button:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
   /* ---- hero ---- */
@@ -94,7 +96,8 @@ const KI_VANN_STIL = `
   .scene.vinter .blomst, .scene.vinter .straa { animation:none; opacity:.6; }
 
   /* ---- hurtigknapper ---- */
-  .hurtig { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
+  .hurtig { display:grid; grid-template-columns:repeat(auto-fit, minmax(72px, 1fr)); gap:8px; }
+  .hk span { overflow:hidden; text-overflow:ellipsis; max-width:100%; white-space:nowrap; }
   .hk { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:500;
     border-radius:24px; padding:14px 4px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px;
     --mdc-icon-size:24px; transition:transform .12s var(--fjaer), background .2s; }
@@ -108,7 +111,7 @@ const KI_VANN_STIL = `
   .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
     padding:7px 16px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
-  .panel { display:none; } .panel.valgt { display:grid; gap:10px; }
+  .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
   /* ---- soner ---- */
   .boks { background:var(--gray200); border-radius:20px; padding:6px; }
@@ -116,14 +119,15 @@ const KI_VANN_STIL = `
   .bokstittel span { opacity:.55; font-size:12px; margin-left:auto; }
   .sone { border-radius:16px; background:var(--gray100); margin:0 0 6px; overflow:hidden; transition:background .3s; }
   .sone.gaar { background:var(--blue,#6ec6ff); color:var(--black,#000); }
-  .sonerad { display:grid; grid-template-columns:64px 1fr min-content; grid-template-areas:"i n t" "i l t";
-    align-items:center; cursor:pointer; }
+  .sonerad { display:grid; grid-template-columns:64px minmax(0,1fr) min-content; grid-template-areas:"i n t" "i l t";
+    align-items:center; cursor:pointer; min-width:0; }
+  .sonerad .n, .sonerad .l { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sonerad .ic { grid-area:i; justify-self:start; width:48px; height:48px; margin:6px; border-radius:12px;
     display:flex; align-items:center; justify-content:center; --mdc-icon-size:26px; }
   .sonerad .n { grid-area:n; align-self:end; font-weight:600; padding-top:6px; }
   .sonerad .l { grid-area:l; align-self:start; font-size:12px; opacity:.65; padding-bottom:6px; }
   .sonerad .t { grid-area:t; padding-right:14px; font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .varigheter { display:grid; grid-template-columns:repeat(var(--ant,6), minmax(0,1fr)); gap:6px; padding:0 6px 8px; }
+  .varigheter { display:grid; grid-template-columns:repeat(var(--ant,6), minmax(0,1fr)); gap:6px; padding:0 6px 8px; min-width:0; }
   .vk { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:13px; font-weight:600;
     border-radius:12px; padding:10px 2px; cursor:pointer; transition:transform .12s var(--fjaer), background .2s; }
   .sone.gaar .vk { background:rgba(0,0,0,.18); color:var(--black,#000); }
@@ -132,24 +136,31 @@ const KI_VANN_STIL = `
   .sone.av .sonerad { opacity:.45; }
 
   /* ---- programmer ---- */
-  .prog { display:grid; grid-template-columns:56px 1fr min-content; grid-template-areas:"i n t" "i l t";
+  .prog { display:grid; grid-template-columns:56px minmax(0,1fr) min-content; grid-template-areas:"i n t" "i l t";
     align-items:center; background:var(--gray200); border-radius:16px; cursor:pointer; transition:background .3s; }
   .prog.gaar { background:var(--blue,#6ec6ff); color:var(--black,#000); }
   .prog.av { opacity:.55; }
   .prog .ic { grid-area:i; justify-self:start; width:40px; height:40px; margin:8px; border-radius:10px; background:rgba(0,0,0,.15);
     display:flex; align-items:center; justify-content:center; --mdc-icon-size:22px; }
-  .prog .n { grid-area:n; align-self:end; font-weight:600; font-size:15px; padding-top:6px; }
-  .prog .l { grid-area:l; align-self:start; font-size:12px; opacity:.7; padding-bottom:6px; }
+  .prog .n { grid-area:n; align-self:end; font-weight:600; font-size:15px; padding-top:6px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .prog .l { grid-area:l; align-self:start; font-size:12px; opacity:.7; padding-bottom:6px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .prog .t { grid-area:t; padding-right:14px; font-size:12px; opacity:.7; font-variant-numeric:tabular-nums; }
   .hint { font-size:11px; opacity:.55; padding:0 4px 4px; }
   .tom { padding:18px; font-size:13px; opacity:.6; text-align:center; }
-  .nokkel { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:8px; }
+  .nokkel { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:8px; min-width:0; }
+  .nk .v { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nk { background:var(--gray200); border-radius:16px; padding:12px 14px; }
   .nk .n { font-size:12px; opacity:.55; }
   .nk .v { font-size:16px; font-weight:500; margin-top:2px; }
   /* ---- estimat og forbruk ---- */
-  .maal { background:var(--gray200); border-radius:20px; padding:16px 18px; display:grid; gap:10px; }
-  .maal .rad { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .maal { background:var(--gray200); border-radius:20px; padding:16px 18px; display:grid; gap:10px;
+    min-width:0; max-width:100%; overflow:hidden; }
+  .maal .rad { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    min-width:0; }
+  .maal .rad > div { min-width:0; }
+  .maal .und { overflow-wrap:anywhere; }
   .maal .stor { font-size:2em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; }
   .maal .und { font-size:12px; opacity:.6; }
   .stolpe { height:10px; border-radius:6px; background:var(--gray100); overflow:hidden; position:relative; }
@@ -159,7 +170,8 @@ const KI_VANN_STIL = `
     background:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); animation:va-sveip 2.4s ease-in-out infinite; }
   @keyframes va-sveip { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
   .fordeling { display:grid; gap:7px; }
-  .frad { display:grid; grid-template-columns:1fr 64px; gap:10px; align-items:center; font-size:13px; }
+  .frad { display:grid; grid-template-columns:minmax(0,1fr) 64px; gap:10px; align-items:center; font-size:13px; min-width:0; }
+  .frad > div { min-width:0; }
   .fbar { height:8px; border-radius:5px; background:var(--gray100); overflow:hidden; }
   .fbar i { display:block; height:100%; border-radius:5px; background:var(--blue,#6ec6ff); width:0;
     transition:width 1s var(--myk); }
@@ -167,13 +179,13 @@ const KI_VANN_STIL = `
   .frad .navn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .frad .tall { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
   .knagg { font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; background:var(--gray100); opacity:.7; }
-  .periodefaner { display:flex; gap:6px; }
+  .periodefaner { display:flex; gap:6px; flex-wrap:wrap; }
   .pf { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
     padding:6px 12px; border-radius:999px; cursor:pointer; opacity:.6; }
   .pf.valgt { opacity:1; background:var(--gray1000); color:var(--gray100); }
 
   /* ---- program med soner ---- */
-  .pdetalj { display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 10px; }
+  .pdetalj { display:flex; flex-wrap:wrap; gap:6px; padding:0 12px 10px; min-width:0; }
   .pz { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(0,0,0,.16); }
   .prog.gaar .pz.aktiv { background:var(--gray1000); color:var(--gray100); animation:va-blink 1.4s ease-in-out infinite; }
   @keyframes va-blink { 0%,100% { opacity:1; } 50% { opacity:.6; } }
