@@ -457,8 +457,10 @@ class KiVanningCard extends HTMLElement {
     /* uten markøren (integrasjonen ikke lastet på nytt ennå) gjenkjennes de på navnet */
     if (!treff) {
       const moenster = {
-        vannpris: /^number\..*vannpris/, ferie_faktor: /^number\..*(ferie|lengre)/,
-        ferie: /^switch\..*ferie/, hent_plan: /^button\..*(hent|plan)/,
+        anlegg: /^switch\..*anlegg/, regnpause: /^number\..*regnpause/,
+        regn_24t: /^button\..*regn(pause)?_?24/, regn_48t: /^button\..*regn(pause)?_?48/,
+        nullstill_regnpause: /^button\..*nullstill_regnpause/, stopp_alt: /^button\..*stopp/,
+        hent_plan: /^button\..*(hent|plan)/,
         nullstill_forbruk: /^button\..*nullstill_forbruk/, nullstill_kalibrering: /^button\..*nullstill_kalibrering/,
       }[type];
       if (moenster) treff = Object.keys(S).find((id) => moenster.test(id) && /ki_vanning|vanning/.test(id)) || null;
@@ -572,8 +574,24 @@ class KiVanningCard extends HTMLElement {
     this._tjeneste("stop", {}, id || this._styring().aktiv);
   }
   _regn(t) {
-    if (this._ventilmodus()) return this._ki_tjeneste("sett_ferie", { pa: t > 0 });
+    if (this._ventilmodus()) {
+      return t > 0 ? this._ki_tjeneste("sett_regnpause", { timer: t })
+        : this._ki_tjeneste("nullstill_regnpause", {});
+    }
     this._tjeneste("set_rain_delay", { rain_delay: t }, this._styring().aktiv);
+  }
+  /* Hovedbryteren: egen entitet i ventilmodus, ellers OpenSprinklers «enabled» */
+  _anlegg() {
+    const ki = this._ki();
+    if (this._ventilmodus()) return this._kiEnt("anlegg");
+    return this._c.vinter || this._styring().aktiv;
+  }
+  _veksleAnlegg() {
+    const id = this._anlegg();
+    if (id) return this._veksle(id);
+    const ki = this._ki();
+    const pa = !(ki && ki.anlegg === false);
+    this._ki_tjeneste("sett_anlegg", { pa: !pa });
   }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
   _veksle(id) { if (navigator.vibrate) navigator.vibrate(8); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
@@ -607,7 +625,7 @@ class KiVanningCard extends HTMLElement {
           <button class="hk" data-h="regn24"><ha-icon icon="mdi:weather-rainy"></ha-icon><span>Regn 24t</span></button>
           <button class="hk" data-h="regn0"><ha-icon icon="mdi:weather-sunny"></ha-icon><span>Nullstill</span></button>
           <button class="hk skjult" data-h="program"><ha-icon icon="mdi:play-circle"></ha-icon><span>Kjør program</span></button>
-          <button class="hk" data-h="vinter"><ha-icon icon="mdi:snowflake"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegg"}</span></button>
+          <button class="hk" data-h="vinter"><ha-icon icon="mdi:power"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegget"}</span></button>
         </div>
 
         ${faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${faner.map((f) =>
@@ -626,7 +644,7 @@ class KiVanningCard extends HTMLElement {
       else if (h === "stopp") this._stopp();
       else if (h === "regn24") this._regn(24);
       else if (h === "regn0") this._regn(0);
-      else this._veksle(c.vinter || this._styring().aktiv);
+      else this._veksleAnlegg();
     }));
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._tegn(); }));
     this._bygget = true;
@@ -649,18 +667,24 @@ class KiVanningCard extends HTMLElement {
           : knapp ? `<ha-icon icon="mdi:play-circle-outline"></ha-icon>` : `<ha-icon icon="mdi:pencil"></ha-icon>`}
       </div>`;
     };
-    const pris = this._kiEnt("vannpris"), ferie = this._kiEnt("ferie"), faktor = this._kiEnt("ferie_faktor");
+    const regn = this._kiEnt("regnpause"), anlegg = this._kiEnt("anlegg");
+    const igjen = ki && ki.regnpause_minutter
+      ? (ki.regnpause_minutter >= 60 ? Math.round(ki.regnpause_minutter / 60) + " t igjen"
+        : ki.regnpause_minutter + " min igjen") : "Ingen pause";
     const deler = [
-      rad(ferie, "Feriemodus", undefined),
-      rad(faktor, "Ferie – lengre vanning", faktor && this._st(faktor) ? "×" + this._st(faktor).state : ""),
-      rad(pris, "Vannpris", pris && this._st(pris) ? this._st(pris).state + " kr/m³" : ""),
+      rad(anlegg, "Anlegget", undefined),
+      rad(regn, "Regnpause", igjen),
+      rad(this._kiEnt("regn_24t"), "Regnpause 24 timer", "Kjør"),
+      rad(this._kiEnt("regn_48t"), "Regnpause 48 timer", "Kjør"),
+      rad(this._kiEnt("nullstill_regnpause"), "Nullstill regnpause", "Kjør"),
+      rad(this._kiEnt("stopp_alt"), "Stopp alt nå", "Kjør"),
       rad(this._kiEnt("hent_plan"), "Hent programplan på nytt", "Kjør"),
       rad(this._kiEnt("nullstill_forbruk"), "Nullstill forbruk", "Kjør"),
       rad(this._kiEnt("nullstill_kalibrering"), "Nullstill kalibrering", "Kjør"),
     ].filter(Boolean).join("");
     if (!deler) return `<div class="tom">Installer <b>KI Vanning</b> for innstillinger her.</div>`;
     return `<div class="innboks">${deler}</div>
-      ${ki ? `<div class="hint">Vannpris og feriemodus kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
+      ${ki ? `<div class="hint">Regnpause og hovedbryter kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
   }
 
   _panelForbruk() {

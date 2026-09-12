@@ -1,4 +1,4 @@
-/* ki-cards v3.9.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.12.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.9.0";
+  KI.VERSION = "3.12.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9829,8 +9829,10 @@ class KiVanningCard extends HTMLElement {
     /* uten markøren (integrasjonen ikke lastet på nytt ennå) gjenkjennes de på navnet */
     if (!treff) {
       const moenster = {
-        vannpris: /^number\..*vannpris/, ferie_faktor: /^number\..*(ferie|lengre)/,
-        ferie: /^switch\..*ferie/, hent_plan: /^button\..*(hent|plan)/,
+        anlegg: /^switch\..*anlegg/, regnpause: /^number\..*regnpause/,
+        regn_24t: /^button\..*regn(pause)?_?24/, regn_48t: /^button\..*regn(pause)?_?48/,
+        nullstill_regnpause: /^button\..*nullstill_regnpause/, stopp_alt: /^button\..*stopp/,
+        hent_plan: /^button\..*(hent|plan)/,
         nullstill_forbruk: /^button\..*nullstill_forbruk/, nullstill_kalibrering: /^button\..*nullstill_kalibrering/,
       }[type];
       if (moenster) treff = Object.keys(S).find((id) => moenster.test(id) && /ki_vanning|vanning/.test(id)) || null;
@@ -9944,8 +9946,24 @@ class KiVanningCard extends HTMLElement {
     this._tjeneste("stop", {}, id || this._styring().aktiv);
   }
   _regn(t) {
-    if (this._ventilmodus()) return this._ki_tjeneste("sett_ferie", { pa: t > 0 });
+    if (this._ventilmodus()) {
+      return t > 0 ? this._ki_tjeneste("sett_regnpause", { timer: t })
+        : this._ki_tjeneste("nullstill_regnpause", {});
+    }
     this._tjeneste("set_rain_delay", { rain_delay: t }, this._styring().aktiv);
+  }
+  /* Hovedbryteren: egen entitet i ventilmodus, ellers OpenSprinklers «enabled» */
+  _anlegg() {
+    const ki = this._ki();
+    if (this._ventilmodus()) return this._kiEnt("anlegg");
+    return this._c.vinter || this._styring().aktiv;
+  }
+  _veksleAnlegg() {
+    const id = this._anlegg();
+    if (id) return this._veksle(id);
+    const ki = this._ki();
+    const pa = !(ki && ki.anlegg === false);
+    this._ki_tjeneste("sett_anlegg", { pa: !pa });
   }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
   _veksle(id) { if (navigator.vibrate) navigator.vibrate(8); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
@@ -9979,7 +9997,7 @@ class KiVanningCard extends HTMLElement {
           <button class="hk" data-h="regn24"><ha-icon icon="mdi:weather-rainy"></ha-icon><span>Regn 24t</span></button>
           <button class="hk" data-h="regn0"><ha-icon icon="mdi:weather-sunny"></ha-icon><span>Nullstill</span></button>
           <button class="hk skjult" data-h="program"><ha-icon icon="mdi:play-circle"></ha-icon><span>Kjør program</span></button>
-          <button class="hk" data-h="vinter"><ha-icon icon="mdi:snowflake"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegg"}</span></button>
+          <button class="hk" data-h="vinter"><ha-icon icon="mdi:power"></ha-icon><span>${c.vinter ? "Vintermodus" : "Anlegget"}</span></button>
         </div>
 
         ${faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${faner.map((f) =>
@@ -9998,7 +10016,7 @@ class KiVanningCard extends HTMLElement {
       else if (h === "stopp") this._stopp();
       else if (h === "regn24") this._regn(24);
       else if (h === "regn0") this._regn(0);
-      else this._veksle(c.vinter || this._styring().aktiv);
+      else this._veksleAnlegg();
     }));
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._tegn(); }));
     this._bygget = true;
@@ -10021,18 +10039,24 @@ class KiVanningCard extends HTMLElement {
           : knapp ? `<ha-icon icon="mdi:play-circle-outline"></ha-icon>` : `<ha-icon icon="mdi:pencil"></ha-icon>`}
       </div>`;
     };
-    const pris = this._kiEnt("vannpris"), ferie = this._kiEnt("ferie"), faktor = this._kiEnt("ferie_faktor");
+    const regn = this._kiEnt("regnpause"), anlegg = this._kiEnt("anlegg");
+    const igjen = ki && ki.regnpause_minutter
+      ? (ki.regnpause_minutter >= 60 ? Math.round(ki.regnpause_minutter / 60) + " t igjen"
+        : ki.regnpause_minutter + " min igjen") : "Ingen pause";
     const deler = [
-      rad(ferie, "Feriemodus", undefined),
-      rad(faktor, "Ferie – lengre vanning", faktor && this._st(faktor) ? "×" + this._st(faktor).state : ""),
-      rad(pris, "Vannpris", pris && this._st(pris) ? this._st(pris).state + " kr/m³" : ""),
+      rad(anlegg, "Anlegget", undefined),
+      rad(regn, "Regnpause", igjen),
+      rad(this._kiEnt("regn_24t"), "Regnpause 24 timer", "Kjør"),
+      rad(this._kiEnt("regn_48t"), "Regnpause 48 timer", "Kjør"),
+      rad(this._kiEnt("nullstill_regnpause"), "Nullstill regnpause", "Kjør"),
+      rad(this._kiEnt("stopp_alt"), "Stopp alt nå", "Kjør"),
       rad(this._kiEnt("hent_plan"), "Hent programplan på nytt", "Kjør"),
       rad(this._kiEnt("nullstill_forbruk"), "Nullstill forbruk", "Kjør"),
       rad(this._kiEnt("nullstill_kalibrering"), "Nullstill kalibrering", "Kjør"),
     ].filter(Boolean).join("");
     if (!deler) return `<div class="tom">Installer <b>KI Vanning</b> for innstillinger her.</div>`;
     return `<div class="innboks">${deler}</div>
-      ${ki ? `<div class="hint">Vannpris og feriemodus kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
+      ${ki ? `<div class="hint">Regnpause og hovedbryter kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
   }
 
   _panelForbruk() {
@@ -15051,6 +15075,537 @@ if (!customElements.get("ki-jul-card-editor")) window.KI.define("ki-jul-card-edi
 window.customCards = window.customCards || [];
 if (!window.customCards.some((k) => k.type === "ki-jul-card")) window.customCards.push({ type: "ki-jul-card", name: "KI Jul", description: "Julelys, nedtelling og sesong", preview: true });
 } catch (e) { console.error("ki-cards: 64-ki-jul-card feilet", e); }
+
+/* ===== 65-ki-plante-scene-card ===== */
+try {
+/* ki-plante-scene-card – vinduskarmen med plantene dine, som hero over plantekortet.
+ *
+ * type: custom:ki-plante-scene-card
+ * sted: Sebastians soverom        # ellers tas det første stedet fra KI Planter
+ * hoyde: 210
+ * demo: false | tort | vannet     # se kortet med eksempeldata
+ * natt: false                     # tving dag- eller nattbilde
+ */
+const KI_PSC_VERSJON = "1.0.0";
+
+const KI_PSC_STIL = `
+  :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { position:relative; overflow:hidden; border-radius:var(--ha-card-border-radius,24px);
+    background:linear-gradient(180deg,#1a2b22 0%,#14231d 60%,#111d19 100%); color:var(--gray1000);
+    cursor:pointer; }
+  .kort.natt { background:linear-gradient(180deg,#141a2a 0%,#111726 60%,#0e141f 100%); }
+  .kort svg { position:absolute; inset:0; width:100%; height:100%; }
+
+  /* sola som beveger seg over vinduet, og lysstriper inn i rommet */
+  .sol { transform-box:fill-box; animation:pl-sol 12s ease-in-out infinite alternate; }
+  @keyframes pl-sol { from { transform:translate(-16px,10px); } to { transform:translate(16px,-6px); } }
+  .straale { opacity:.14; animation:pl-straale 7s ease-in-out infinite alternate; }
+  .straale.s2 { animation-delay:-2.5s; } .straale.s3 { animation-delay:-4.5s; }
+  @keyframes pl-straale { from { opacity:.07; } to { opacity:.2; } }
+
+  /* bladene vaier, hver i sin takt */
+  .blad { transform-box:fill-box; transform-origin:50% 100%; animation:pl-vai 5.5s ease-in-out infinite alternate; }
+  .blad.b2 { animation-duration:6.8s; animation-delay:-1.4s; }
+  .blad.b3 { animation-duration:7.6s; animation-delay:-3.1s; }
+  .blad.b4 { animation-duration:6.2s; animation-delay:-2.2s; }
+  @keyframes pl-vai { from { transform:rotate(-3deg); } to { transform:rotate(3.5deg); } }
+
+  /* tørst plante henger litt og har lys jord */
+  .plante.torst .blad { animation-duration:9s; transform-origin:50% 100%; }
+  .plante.torst .krone { transform:translateY(3px) scaleY(.94); transform-box:fill-box; }
+  .jord { transition:fill .8s var(--myk); }
+
+  /* vanndråper faller på den som trenger vann */
+  .draape { opacity:0; animation:pl-draape 2.6s ease-in infinite; }
+  .draape.d2 { animation-delay:-.9s; } .draape.d3 { animation-delay:-1.7s; }
+  @keyframes pl-draape { 0% { opacity:0; transform:translateY(-14px); } 25% { opacity:.9; }
+    75% { opacity:.9; } 100% { opacity:0; transform:translateY(26px); } }
+
+  /* støvkorn i lyset */
+  .stov { animation:pl-stov linear infinite; opacity:.5; }
+  @keyframes pl-stov { from { transform:translate(0,0); opacity:0; } 20% { opacity:.55; }
+    to { transform:translate(-18px,-26px); opacity:0; } }
+
+  .tekst { position:absolute; left:18px; bottom:14px; z-index:2; }
+  .tekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  .tekst span { font-size:13px; opacity:.8; }
+  .kort::after { content:""; position:absolute; left:0; right:0; bottom:0; height:78px; pointer-events:none;
+    background:linear-gradient(180deg, rgba(10,16,14,0) 0%, rgba(10,16,14,.72) 72%, rgba(10,16,14,.86) 100%); }
+  .merke { position:absolute; right:16px; top:16px; z-index:2; font-size:11px; font-weight:700;
+    padding:6px 12px; border-radius:999px; background:rgba(255,255,255,.14); backdrop-filter:blur(6px); }
+  .merke.torst { background:var(--orange,#f0883e); color:var(--black,#000); }
+  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+`;
+
+const kiPsEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+class KiPlanteSceneCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getConfigElement() { return document.createElement("ki-plante-scene-card-editor"); }
+  static getStubConfig() { return { hoyde: 210 }; }
+  getCardSize() { return 4; }
+
+  setConfig(c) { this._c = { hoyde: 210, ...(c || {}) }; this._forrige = null; }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    if (!g || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 300000); }
+  disconnectedCallback() { clearInterval(this._i); }
+
+  /* Plantene fra KI Planter: binærsensorene bærer alt vi trenger */
+  _planter() {
+    if (this._c.demo) return this._demo();
+    const h = this._h; if (!h) return [];
+    const sted = this._c.sted;
+    return Object.keys(h.states)
+      .filter((id) => {
+        const a = h.states[id].attributes || {};
+        if (a.integrasjon !== "ki_planter" || a.type !== "plante") return false;
+        return !sted || a.sted === sted || a.sted_prefix === sted;
+      })
+      .map((id) => {
+        const a = h.states[id].attributes || {};
+        return {
+          id, navn: a.navn || id, latin: a.latin, ikon: a.ikon,
+          trenger: h.states[id].state === "on",
+          dager_igjen: a.dager_igjen, dager_siden: a.dager_siden,
+          prosent: Number(a.prosent) || 0, sesong: a.sesong,
+          daglengde: a.daglengde_timer, fuktighet: a.fuktighet,
+          sted: a.sted,
+        };
+      })
+      .sort((a, b) => (a.dager_igjen ?? 99) - (b.dager_igjen ?? 99));
+  }
+  _demo() {
+    const modus = this._c.demo;
+    return [
+      { id: "demo1", navn: "Arekapalme", latin: "Dypsis lutescens", trenger: modus === "tort",
+        dager_igjen: modus === "tort" ? 0 : 3, prosent: modus === "tort" ? 100 : 55,
+        sesong: "vekst", daglengde: 12.4 },
+      { id: "demo2", navn: "Palmelilje", latin: "Yucca elephantipes", trenger: false,
+        dager_igjen: 7, prosent: 30, sesong: "vekst", daglengde: 12.4 },
+    ];
+  }
+
+  _mer(id) {
+    if (!id) return;
+    this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true }));
+  }
+
+  /* Én potteplante: potte, jord, stamme og blader som vaier */
+  _plante(p, x, skala, farge) {
+    const torst = p.trenger;
+    const jord = torst ? "#6b5138" : "#3a2a1c";
+    const blader = [
+      { d: "M0 0 C -26 -14 -34 -36 -30 -52 C -14 -44 -2 -24 0 0 Z", kl: "" },
+      { d: "M0 0 C 26 -14 34 -36 30 -52 C 14 -44 2 -24 0 0 Z", kl: "b2" },
+      { d: "M0 0 C -16 -30 -12 -54 -2 -66 C 8 -54 10 -30 0 0 Z", kl: "b3" },
+      { d: "M0 0 C -34 -6 -48 -20 -50 -34 C -32 -32 -14 -18 0 0 Z", kl: "b4" },
+      { d: "M0 0 C 34 -6 48 -20 50 -34 C 32 -32 14 -18 0 0 Z", kl: "" },
+    ];
+    const draaper = torst ? [0, 1, 2].map((i) =>
+      `<circle class="draape ${i ? "d" + (i + 1) : ""}" cx="${-8 + i * 9}" cy="-58" r="2.6" fill="#8fd3ff"/>`).join("") : "";
+    return `<g class="plante ${torst ? "torst" : ""}" transform="translate(${x} 150) scale(${skala})">
+      ${draaper}
+      <g class="krone">
+        ${blader.map((b, i) => `<path class="blad ${b.kl}" d="${b.d}"
+          transform="translate(0 -34)" fill="${farge}" opacity="${0.72 + (i % 3) * 0.09}"/>`).join("")}
+        <path d="M-2 -34 L-1 0 L1 0 L2 -34z" fill="#5b4a2e"/>
+      </g>
+      <path class="jord" d="M-19 0h38l-2 6h-34z" fill="${jord}"/>
+      <path d="M-22 4h44l-6 30h-32z" fill="#b5754a"/>
+      <path d="M-22 4h44l-1 5h-42z" fill="#c98a5c"/>
+    </g>`;
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const planter = this._planter();
+    if (!planter.length) {
+      const tom = `<style>${KI_PSC_STIL}</style>
+        <div class="tom">Fant ingen planter fra <b>KI Planter</b>${c.sted ? ` på «${kiPsEsc(c.sted)}»` : ""}.</div>`;
+      if (tom !== this._forrige) { this.shadowRoot.innerHTML = tom; this._forrige = tom; }
+      return;
+    }
+    const torste = planter.filter((p) => p.trenger);
+    const neste = planter.find((p) => !p.trenger);
+    const time = c.time !== undefined ? Number(c.time) : new Date().getHours();
+    const natt = c.natt !== undefined ? !!c.natt : (time < 6 || time > 21);
+    const p0 = planter[0] || {};
+
+    /* plantene settes bortover karmen, med litt ulik størrelse */
+    const bredde = 360;
+    const antall = Math.min(planter.length, 4);
+    const farger = ["#4f9b5c", "#3f8a52", "#5aa76a", "#2f7a48"];
+    const figurer = planter.slice(0, 4).map((p, i) => {
+      const x = bredde / (antall + 1) * (i + 1);
+      return this._plante(p, x, 0.86 + (i % 2) * 0.14, farger[i % farger.length]);
+    }).join("");
+
+    const stov = Array.from({ length: 7 }, (_, i) =>
+      `<circle class="stov" cx="${90 + i * 26}" cy="${60 + (i % 4) * 14}" r="1.5" fill="#ffe9b8"
+        style="animation-duration:${(9 + i * 1.6).toFixed(1)}s;animation-delay:-${(i * 1.7).toFixed(1)}s"/>`).join("");
+
+    const tekst = torste.length
+      ? `${torste.map((p) => kiPsEsc(p.navn)).join(" og ")} trenger vann`
+      : neste && neste.dager_igjen !== undefined && neste.dager_igjen !== null
+        ? `Neste vanning om ${neste.dager_igjen} ${neste.dager_igjen === 1 ? "dag" : "dager"}`
+        : "Alt er vannet";
+    const sesong = p0.sesong ? p0.sesong.replace(/^./, (x) => x.toUpperCase()) : "";
+    const under = [sesong, p0.daglengde ? `${p0.daglengde} t dagslys` : "",
+      `${planter.length} ${planter.length === 1 ? "plante" : "planter"}`].filter(Boolean).join(" · ");
+
+    const html = `<style>${KI_PSC_STIL}</style>
+      <div class="kort ${natt ? "natt" : ""}" style="height:${Number(c.hoyde) || 210}px"
+        data-mer="${kiPsEsc((torste[0] || p0).id || "")}" role="button" tabindex="0">
+        <svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <!-- vinduet bak -->
+          <rect x="196" y="14" width="150" height="112" rx="8" fill="${natt ? "#10192b" : "#2d4a63"}"/>
+          <g class="sol">
+            <circle cx="300" cy="52" r="${natt ? 13 : 17}" fill="${natt ? "#dfe7ff" : "#ffd98a"}" opacity=".9"/>
+            <circle cx="300" cy="52" r="30" fill="${natt ? "#dfe7ff" : "#ffd98a"}" opacity=".14"/>
+          </g>
+          ${natt ? "" : `
+            <path class="straale" d="M212 30 L150 200 L226 200 L262 30z" fill="#ffe9b8"/>
+            <path class="straale s2" d="M262 30 L206 200 L282 200 L312 30z" fill="#ffe9b8"/>
+            <path class="straale s3" d="M312 30 L268 200 L344 200 L346 30z" fill="#ffe9b8"/>`}
+          <rect x="196" y="14" width="150" height="112" rx="8" fill="none" stroke="#e8eefc" stroke-width="4" opacity=".7"/>
+          <path d="M271 14v112M196 70h150" stroke="#e8eefc" stroke-width="3" opacity=".5"/>
+          ${natt ? "" : stov}
+          <!-- karmen -->
+          <path d="M0 150h360v12H0z" fill="#e8eefc" opacity=".9"/>
+          <path d="M0 162h360v38H0z" fill="#cfd8ea" opacity=".25"/>
+          ${figurer}
+        </svg>
+        <span class="merke ${torste.length ? "torst" : ""}">${torste.length ? `${torste.length} trenger vann` : "Alt i orden"}</span>
+        <div class="tekst"><b>${kiPsEsc(tekst)}</b><span>${kiPsEsc(under)}</span></div>
+      </div>`;
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html;
+    const kort = this.shadowRoot.querySelector(".kort");
+    if (kort) kort.addEventListener("click", () => this._mer(kort.dataset.mer));
+  }
+
+  _ider() { return this._planter().map((p) => p.id); }
+}
+if (!customElements.get("ki-plante-scene-card")) window.KI.define("ki-plante-scene-card", KiPlanteSceneCard);
+
+class KiPlanteSceneCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { sted: "Sted", hoyde: "Høyde", demo: "Eksempeldata" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "sted", selector: { text: {} } },
+      { name: "hoyde", selector: { number: { mode: "box", min: 140, max: 320 } } },
+      { name: "demo", selector: { select: { mode: "dropdown", options: [
+        { value: "", label: "Av" }, { value: "tort", label: "Trenger vann" },
+        { value: "vannet", label: "Nylig vannet" }] } } },
+    ];
+  }
+}
+if (!customElements.get("ki-plante-scene-card-editor")) window.KI.define("ki-plante-scene-card-editor", KiPlanteSceneCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-plante-scene-card")) window.customCards.push({ type: "ki-plante-scene-card", name: "KI Plantescene", description: "Vinduskarmen med plantene dine", preview: true });
+} catch (e) { console.error("ki-cards: 65-ki-plante-scene-card feilet", e); }
+
+/* ===== 66-ki-k2-scene-card ===== */
+try {
+/* ki-k2-scene-card – 3D-printeren som levende bilde, ment øverst i #3d-popupen.
+ *
+ * type: custom:ki-k2-scene-card
+ * prefix: creality_k2          # entitetene finnes ut fra prefikset
+ * navn: Creality K2
+ * hoyde: 210
+ * # framdrift/status/dyse/seng/gjenstaar/lag/av_lag/filnavn kan settes manuelt
+ * demo: skriver | ferdig | pause | av
+ */
+const KI_K2S_VERSJON = "1.0.0";
+
+const KI_K2S_STIL = `
+  :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { position:relative; overflow:hidden; border-radius:var(--ha-card-border-radius,24px);
+    background:linear-gradient(180deg,#1b2030 0%,#161a26 60%,#12151f 100%); color:var(--gray1000);
+    cursor:pointer; }
+  .kort.skriver { background:linear-gradient(180deg,#1d2a3a 0%,#17222f 60%,#121a24 100%); }
+  .kort.ferdig { background:linear-gradient(180deg,#1b3026 0%,#16261f 60%,#121d18 100%); }
+  .kort.feil { background:linear-gradient(180deg,#3a1f22 0%,#2a171a 60%,#1d1215 100%); }
+  .kort svg { position:absolute; inset:0; width:100%; height:100%; }
+
+  /* skrivehodet går fram og tilbake, og stiger med laget */
+  .hode { transform-box:fill-box; animation:k2-hode 3.2s ease-in-out infinite alternate; }
+  .kort.pause .hode, .kort.av .hode, .kort.ferdig .hode { animation:none; }
+  @keyframes k2-hode { from { transform:translateX(-46px); } to { transform:translateX(46px); } }
+  .traad { opacity:0; }
+  .kort.skriver .traad { opacity:.9; animation:k2-traad 1.1s linear infinite; }
+  @keyframes k2-traad { 0% { transform:translateY(-3px); opacity:.2; } 60% { opacity:.9; }
+    100% { transform:translateY(4px); opacity:0; } }
+
+  /* spolen snurrer når den skriver */
+  .spole { transform-box:fill-box; transform-origin:center; }
+  .kort.skriver .spole { animation:k2-spole 6s linear infinite; }
+  @keyframes k2-spole { to { transform:rotate(360deg); } }
+  /* vifta går litt raskere */
+  .vifte { transform-box:fill-box; transform-origin:center; }
+  .kort.skriver .vifte { animation:k2-vifte 1.1s linear infinite; }
+  @keyframes k2-vifte { to { transform:rotate(360deg); } }
+
+  /* varmen over sengen når den er varm */
+  .varme { opacity:0; }
+  .kort.varm .varme { opacity:.5; animation:k2-varme 3.4s ease-in-out infinite; }
+  @keyframes k2-varme { 0%,100% { transform:translateY(0); opacity:.15; }
+    50% { transform:translateY(-7px); opacity:.5; } }
+
+  .emne { transition:height .8s var(--myk), y .8s var(--myk); }
+  .glass { opacity:.12; }
+
+  .tekst { position:absolute; left:18px; bottom:14px; z-index:2; }
+  .tekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  .tekst span { font-size:13px; opacity:.82; }
+  .kort::after { content:""; position:absolute; left:0; right:0; bottom:0; height:78px; pointer-events:none;
+    background:linear-gradient(180deg, rgba(10,13,20,0) 0%, rgba(10,13,20,.74) 72%, rgba(10,13,20,.88) 100%); }
+  .merke { position:absolute; right:16px; top:16px; z-index:2; font-size:11px; font-weight:700;
+    padding:6px 12px; border-radius:999px; background:rgba(255,255,255,.14); backdrop-filter:blur(6px); }
+  .kort.skriver .merke { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+  .kort.ferdig .merke { background:var(--green,#7ee081); color:var(--black,#000); }
+  .kort.feil .merke { background:var(--red,#e8657a); color:var(--black,#000); }
+
+  /* framdriftslinje nederst */
+  .bar { position:absolute; left:0; right:0; bottom:0; height:6px; z-index:2; background:rgba(255,255,255,.12); }
+  .bar i { display:block; height:6px; background:var(--active-big,#ee95ff); transition:width .8s var(--myk); }
+  .kort.ferdig .bar i { background:var(--green,#7ee081); }
+  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+`;
+
+const kiK2Esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+class KiK2SceneCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getConfigElement() { return document.createElement("ki-k2-scene-card-editor"); }
+  static getStubConfig() { return { prefix: "creality_k2", hoyde: 210 }; }
+  getCardSize() { return 4; }
+
+  setConfig(c) {
+    this._c = { prefix: "creality_k2", navn: "Creality K2", hoyde: 210, ...(c || {}) };
+    this._forrige = null; this._cache = {};
+  }
+  set hass(h) {
+    const g = this._h; this._h = h; if (!this._c) return;
+    if (!g || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 30000); }
+  disconnectedCallback() { clearInterval(this._i); }
+
+  /* Finner entitetene ut fra prefikset – eller tar dem du har satt selv */
+  _finn(navn, monstre, domener) {
+    const c = this._c;
+    if (c[navn]) return c[navn];
+    if (this._cache[navn] !== undefined) return this._cache[navn];
+    const h = this._h, p = String(c.prefix || "").toLowerCase();
+    let treff = null;
+    if (h) {
+      const kandidater = Object.keys(h.states).filter((id) =>
+        id.toLowerCase().includes(p) && (!domener || domener.includes(id.split(".")[0])));
+      for (const m of monstre) {
+        treff = kandidater.find((id) => m.test(id));
+        if (treff) break;
+      }
+    }
+    this._cache[navn] = treff;
+    return treff;
+  }
+  _ider() {
+    return ["framdrift", "status", "dyse", "seng", "gjenstaar", "lag", "av_lag", "filnavn"]
+      .map((n) => this[`_id_${n}`] && this[`_id_${n}`]()).filter(Boolean);
+  }
+  _id_framdrift() { return this._finn("framdrift", [/progress|framdrift|prosent/i], ["sensor", "number"]); }
+  _id_status() { return this._finn("status", [/print_?stat|_status|_state|tilstand/i], ["sensor", "binary_sensor"]); }
+  _id_dyse() { return this._finn("dyse", [/nozzle|dyse|hotend|extruder.*temp/i], ["sensor"]); }
+  _id_seng() { return this._finn("seng", [/bed|seng|plate.*temp/i], ["sensor"]); }
+  _id_gjenstaar() { return this._finn("gjenstaar", [/remain|gjenst|left|eta/i], ["sensor"]); }
+  _id_lag() { return this._finn("lag", [/current_?layer|lag_?na|layer$/i], ["sensor"]); }
+  _id_av_lag() { return this._finn("av_lag", [/total_?layer|lag_?total/i], ["sensor"]); }
+  _id_filnavn() { return this._finn("filnavn", [/file|jobb|job|print_?name|filnavn/i], ["sensor"]); }
+
+  _tall(id, standard = null) {
+    const st = id && this._h && this._h.states[id];
+    if (!st) return standard;
+    const n = Number(st.state);
+    return isNaN(n) ? standard : n;
+  }
+  _tekst(id) {
+    const st = id && this._h && this._h.states[id];
+    return st ? String(st.state) : "";
+  }
+
+  /* Tilstanden i klartekst: skriver, pause, ferdig, feil eller av */
+  _tilstand() {
+    if (this._c.demo) return this._c.demo === true ? "skriver" : this._c.demo;
+    const s = this._tekst(this._id_status()).toLowerCase();
+    if (/print|kjør|running|busy|skriver/.test(s)) return "skriver";
+    if (/paus/.test(s)) return "pause";
+    if (/finish|complete|ferdig|done|idle_?finish/.test(s)) return "ferdig";
+    if (/error|feil|fail/.test(s)) return "feil";
+    if (/off|unavailable|unknown|av$/.test(s) || !s) return "av";
+    return "klar";
+  }
+  _minutter(n) {
+    if (n === null || n === undefined) return "";
+    const m = Math.max(0, Math.round(Number(n)));
+    if (m < 60) return `${m} min`;
+    const t = Math.floor(m / 60);
+    return `${t} t ${String(m % 60).padStart(2, "0")} min`;
+  }
+
+  _tegn() {
+    const c = this._c, h = this._h; if (!c || !h) return;
+    const demo = !!c.demo;
+    const tilstand = this._tilstand();
+    if (!demo && !this._id_status() && !this._id_framdrift()) {
+      const tom = `<style>${KI_K2S_STIL}</style>
+        <div class="tom">Fant ingen entiteter med prefikset <b>${kiK2Esc(c.prefix)}</b>.</div>`;
+      if (tom !== this._forrige) { this.shadowRoot.innerHTML = tom; this._forrige = tom; }
+      return;
+    }
+    const pct = demo
+      ? ({ skriver: 46, pause: 46, ferdig: 100, av: 0 }[tilstand] ?? 0)
+      : Math.max(0, Math.min(100, this._tall(this._id_framdrift(), 0) || 0));
+    const dyse = demo ? (tilstand === "skriver" ? 245 : 24) : this._tall(this._id_dyse());
+    const seng = demo ? (tilstand === "skriver" ? 60 : 22) : this._tall(this._id_seng());
+    const igjen = demo ? (tilstand === "skriver" ? 96 : null) : this._tall(this._id_gjenstaar());
+    const lag = demo ? 128 : this._tall(this._id_lag());
+    const avLag = demo ? 280 : this._tall(this._id_av_lag());
+    const fil = demo ? "brakett_v3.gcode" : this._tekst(this._id_filnavn());
+    const varm = (dyse || 0) > 50 || (seng || 0) > 35;
+
+    /* emnet vokser på platen etter framdriften */
+    const maksH = 54;
+    const h2 = Math.max(2, Math.round(maksH * pct / 100));
+    const dyseY = 150 - h2 - 16;
+
+    const tekst = {
+      skriver: fil ? fil.replace(/\.(gcode|3mf)$/i, "") : "Skriver ut",
+      pause: "Satt på pause", ferdig: "Ferdig", feil: "Noe gikk galt",
+      av: "Printeren er av", klar: "Klar",
+    }[tilstand];
+    const under = [
+      tilstand === "skriver" && igjen ? `${this._minutter(igjen)} igjen` : "",
+      lag && avLag ? `lag ${lag}/${avLag}` : "",
+      dyse ? `dyse ${Math.round(dyse)}°` : "",
+      seng ? `seng ${Math.round(seng)}°` : "",
+    ].filter(Boolean).join(" · ");
+    const merke = { skriver: `${Math.round(pct)} %`, pause: "Pause", ferdig: "Ferdig",
+      feil: "Feil", av: "Av", klar: "Klar" }[tilstand];
+
+    const html = `<style>${KI_K2S_STIL}</style>
+      <div class="kort ${tilstand} ${varm ? "varm" : ""}" style="height:${Number(c.hoyde) || 210}px"
+        role="button" tabindex="0">
+        <svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <!-- kabinettet -->
+          <rect x="58" y="28" width="244" height="140" rx="10" fill="#0f141d"/>
+          <rect class="glass" x="66" y="36" width="228" height="124" rx="6" fill="#8fd3ff"/>
+          <rect x="58" y="28" width="244" height="140" rx="10" fill="none" stroke="#3d4a5f" stroke-width="4"/>
+          <!-- portalen -->
+          <path d="M74 52h212" stroke="#54627a" stroke-width="6" stroke-linecap="round"/>
+          <path d="M74 46v112M286 46v112" stroke="#3d4a5f" stroke-width="5" stroke-linecap="round"/>
+
+          <!-- skrivehodet -->
+          <g transform="translate(180 0)"><g class="hode">
+            <rect x="-20" y="46" width="40" height="22" rx="5" fill="#6f7f99"/>
+            <path d="M-6 68h12l-4 12h-4z" fill="#c9d4e6"/>
+            <g class="vifte" transform="translate(14 57)">
+              <circle r="7" fill="none" stroke="#c9d4e6" stroke-width="2"/>
+              <path d="M0 -6 A6 6 0 0 1 5 3z" fill="#c9d4e6" opacity=".8"/>
+            </g>
+            <rect class="traad" x="-1.2" y="80" width="2.4" height="${Math.max(6, 150 - h2 - 82)}" fill="#ffd98a"/>
+          </g></g>
+
+          <!-- varmeflimmer -->
+          <g class="varme" fill="#ffb066">
+            <circle cx="150" cy="140" r="3"/><circle cx="180" cy="136" r="2.4"/><circle cx="212" cy="141" r="3"/>
+          </g>
+
+          <!-- emnet som vokser, og platen -->
+          <rect class="emne" x="150" y="${150 - h2}" width="62" height="${h2}" rx="3" fill="#8fd3ff" opacity=".85"/>
+          <rect class="emne" x="162" y="${150 - h2}" width="38" height="${Math.max(1, h2 - 8)}" rx="2" fill="#b9e3ff" opacity=".5"/>
+          <rect x="120" y="150" width="122" height="8" rx="3" fill="#c9d4e6"/>
+          <rect x="112" y="158" width="138" height="6" rx="3" fill="#54627a"/>
+
+          <!-- filamentspolen -->
+          <g transform="translate(318 74)">
+            <g class="spole">
+              <circle r="26" fill="#2b3446"/><circle r="26" fill="none" stroke="#54627a" stroke-width="3"/>
+              <circle r="16" fill="#ffd98a" opacity=".85"/>
+              <circle r="6" fill="#1b2030"/>
+              <path d="M0 -16v-10M16 0h10M0 16v10M-16 0h-10" stroke="#54627a" stroke-width="3"/>
+            </g>
+            <path d="M-4 20 C -24 60 -60 62 -96 62" fill="none" stroke="#ffd98a" stroke-width="2.4" opacity=".7"/>
+          </g>
+        </svg>
+        <span class="merke">${kiK2Esc(merke)}</span>
+        <div class="tekst"><b>${kiK2Esc(tekst)}</b><span>${kiK2Esc(under)}</span></div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+      </div>`;
+    if (html === this._forrige) return;
+    this.shadowRoot.innerHTML = html; this._forrige = html;
+    const kort = this.shadowRoot.querySelector(".kort");
+    if (kort) kort.addEventListener("click", () => {
+      const id = this._id_status() || this._id_framdrift();
+      if (id) this.dispatchEvent(new CustomEvent("hass-more-info",
+        { detail: { entityId: id }, bubbles: true, composed: true }));
+    });
+  }
+}
+if (!customElements.get("ki-k2-scene-card")) window.KI.define("ki-k2-scene-card", KiK2SceneCard);
+
+class KiK2SceneCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { prefix: "Prefiks", navn: "Navn", hoyde: "Høyde", demo: "Eksempeldata" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
+        { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+      const p = document.createElement("p");
+      p.style.cssText = "font-size:12px;opacity:.6;margin:8px 2px";
+      p.textContent = "Entitetene finnes ut fra prefikset. Sett framdrift, status, dyse eller seng i YAML om gjetningen bommer.";
+      this.appendChild(p);
+    }
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [
+      { name: "prefix", selector: { text: {} } },
+      { name: "navn", selector: { text: {} } },
+      { name: "hoyde", selector: { number: { mode: "box", min: 140, max: 320 } } },
+      { name: "demo", selector: { select: { mode: "dropdown", options: [
+        { value: "", label: "Av" }, { value: "skriver", label: "Skriver" },
+        { value: "pause", label: "Pause" }, { value: "ferdig", label: "Ferdig" }] } } },
+    ];
+  }
+}
+if (!customElements.get("ki-k2-scene-card-editor")) window.KI.define("ki-k2-scene-card-editor", KiK2SceneCardEditor);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-k2-scene-card")) window.customCards.push({ type: "ki-k2-scene-card", name: "KI K2 scene", description: "3D-printeren som levende bilde", preview: true });
+} catch (e) { console.error("ki-cards: 66-ki-k2-scene-card feilet", e); }
 
 /* ===== family-status-card ===== */
 window.KI.lit((LitElement, html, css) => {

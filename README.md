@@ -18,6 +18,23 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 
 ## Kortene
 
+### ki-k2-scene-card
+```yaml
+type: custom:ki-k2-scene-card
+prefix: creality_k2
+hoyde: 210
+# demo: skriver   # se kortet med eksempeldata
+```
+Printeren tegnet som et levende bilde, ment øverst i 3D-popupen. Skrivehodet går fram og tilbake langs
+portalen, filamenttråden strekker seg ned mot emnet, vifta snurrer og spolen roterer mens den skriver. Emnet
+på platen vokser etter framdriften, og over sengen flimrer det varme når dysa eller plata er varm.
+
+Fargen følger tilstanden: blå mens den skriver, grønn når den er ferdig, rød ved feil og grå når den er av.
+Teksten viser filnavnet, tiden som er igjen, lag og temperaturer, og nederst går en framdriftslinje.
+
+Entitetene finnes ut fra `prefix`. Bommer gjetningen, kan du sette `framdrift`, `status`, `dyse`, `seng`,
+`gjenstaar`, `lag`, `av_lag` og `filnavn` direkte.
+
 ### Systemkort (ki-*)
 
 | | Kort | Navn | Bruk |
@@ -34,6 +51,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-ruter-card.svg" width="28" align="absmiddle"> | `ki-ruter-card` | KI Ruter | Kollektivavganger fra Entur med avviksvarsler |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-helse-card.svg" width="28" align="absmiddle"> | `ki-helse-card` | KI Helse | Aktivitet, hjerte, søvn og kropp fra Apple Health |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-card.svg" width="28" align="absmiddle"> | `ki-k2-card` | KI Creality K2 | 3D-printer med status, kamera, filament, vifter og energi |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-k2-scene-card.svg" width="28" align="absmiddle"> | `ki-k2-scene-card` | KI K2 scene | 3D-printeren som levende bilde, med framdrift og temperaturer |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Er personen hjemme, viser merket søvntilstanden i stedet for stedet. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
@@ -68,6 +86,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | `ki-sovn-pro-card` | Søvn **og vekking** i ett kort: ring med antall som sover, personer som ekspanderbare rader, vekkealarm(ene) som blokker under (`vekking: false` skjuler, `vekking_prefix:` velger én) |
 | `ki-vekking-pro-card` | Vekkealarm: ring med neste alarm og nedtelling, ukeplan, (Avansert) lys, person, betingelser og logg |
 | `ki-planter-pro-card` | Planter: ring med antall vannet, planter som rader med fremdrift, tips, «vannet nå», (Avansert) intervall og varsling |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-plante-scene-card.svg" width="28" align="absmiddle"> | `ki-plante-scene-card` | KI Plantescene | Vinduskarmen med plantene dine, som hero over plantekortet |
 
 Eksempler: `examples/sovn-popup.yaml` (søvn + vekking), `planter-popup.yaml`, `oversikt-tiles.yaml`.
 
@@ -910,6 +929,22 @@ faller lokket over linsa, øyet lukkes, en hengelås kommer til syne med teksten
 flisen blir rolig grønn. Er det fortsatt helgemodus du bruker, oppfører flisen seg som før – sett
 `privat: false` hvis navnet forvirrer gjenkjenningen.
 Trykk på nattkortet slår av nattmodus igjen, og kortet trekker seg tilbake til den lille flisen. Har egen visuell editor.
+
+### ki-plante-scene-card
+```yaml
+type: custom:ki-plante-scene-card
+sted: Sebastians soverom
+hoyde: 210
+# natt: false      # tving dag- eller nattbilde
+# demo: tort       # se kortet med eksempeldata
+```
+Vinduskarmen med plantene dine, hentet fra [KI Planter](https://github.com/SebastianKristo/ki-planter). Sola
+vandrer sakte over vinduet, lysstripene faller inn i rommet, støv driver i lyset og bladene vaier hver i sin
+takt. En plante som trenger vann henger litt, får lysere jord, og det faller dråper ned i potta. Etter klokka
+21 blir det natt: kjølig blått rom og måne i vinduet.
+
+Teksten nederst sier hvem som trenger vann eller hvor lenge det er til neste vanning, med sesong og
+dagslengde under. Trykk åpner planten som trenger vann.
 
 ### ki-planter-card
 ```yaml
