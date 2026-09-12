@@ -510,8 +510,11 @@ legges til under `profiler:` med samme nøkler.
 `profil: stromstad` velger fast, `profil_entity:` lar en `input_select` bestemme, og kortet bygger seg om
 når verdien endrer seg.
 
-Den visuelle editoren dekker alle de innebygde bitene med tekst- og entitetsfelt og en av-bryter per bit;
-apparater, hjemkomst og egne setninger settes i YAML.
+Den visuelle editoren dekker hele kortet: du velger profil øverst (og kan skru på «rediger denne profilen»
+for at endringene skal lagres i profilen i stedet for i kortet), setter entitet, ikon, enhet, desimaler,
+setning og trykkmål for hver bit, og skrur biter av og på. Apparater, På vei hjem og Egne setninger er
+lister med «Legg til» og «Fjern», der hver rad har entitetsvelger for når den skal vises, hvilken verdi
+pillen skal hente, ikonvelger og setningstekst. Felt du lar stå tomme arver fra profilen.
 
 ### ki-media-card
 ```yaml

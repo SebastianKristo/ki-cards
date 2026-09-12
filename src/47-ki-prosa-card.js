@@ -154,6 +154,7 @@ const KI_PROSA_STIL = `
   .pille img { height:1.25em; width:auto; display:block; }
   .pille:focus-visible { outline:2px solid var(--active-big, #ee95ff); outline-offset:2px; }
   .pille.lav { text-transform:lowercase; }
+  .pille .v { display:inline-block; }
   .pille .prikk { width:.42em; height:.42em; border-radius:50%; background:var(--tone,var(--green)); box-shadow:0 0 8px var(--tone,var(--green)); }
   .pille.varsel { background:var(--red); color:#fff; --tone:var(--red); animation:pr-puls 1.6s ease-in-out infinite; }
   .pille.gradient { background:var(--k-grad, linear-gradient(135deg,#ffc88a,#ee95ff)); color:rgba(70,58,64,.95); }
@@ -432,11 +433,13 @@ class KiProsaCard extends HTMLElement {
     }
     const ik = this._ikonHtml(d.ikon, d);
     const prikk = d.prikk ? `<i class="prikk" style="--tone:${kiPEsc(d.prikk)}"></i>` : "";
-    const innhold = d.ikon_plassering === "slutt" ? `${prikk}${tekst}${ik ? " " + ik : ""}` : `${prikk}${ik ? ik + " " : ""}${tekst}`;
+    const verdi = `<b class="v">${tekst}</b>`;
+    const innhold = d.ikon_plassering === "slutt" ? `${prikk}${verdi}${ik ? " " + ik : ""}` : `${prikk}${ik ? ik + " " : ""}${verdi}`;
     const a = d.tjeneste ? `svc:${d.tjeneste}` : d.path ? `nav:${d.path}` : d.mer ? `more:${d.mer}` : "";
     const h = d.hold ? `svc:${d.hold}` : "";
     const klasser = ["pille", d.stil && d.stil !== "vanlig" ? d.stil : "", d.små_bokstaver ? "lav" : ""].filter(Boolean).join(" ");
-    return `<span class="${klasser}" role="button" tabindex="0" data-a="${a}"` +
+    const pid = kiPEsc(d.id || d.entity || d.mal || d.path || d.tjeneste || "p");
+    return `<span class="${klasser}" role="button" tabindex="0" data-p="${pid}" data-a="${a}"` +
       (d.data ? ` data-d="${kiPEsc(JSON.stringify(d.data))}"` : "") +
       (h ? ` data-h="${h}" data-hd="${kiPEsc(JSON.stringify(d.hold_data || {}))}"` : "") +
       (d.entity ? ` data-e="${kiPEsc(d.entity)}"` : "") + `>${innhold}</span>`;
@@ -612,131 +615,319 @@ class KiProsaCard extends HTMLElement {
     const forrige = this._nokler || [];
     /* «ny»-animasjonen beholdes bare på setninger som ikke sto der sist */
     const rene = deler.map((d, i) => (forrige.includes(nokler[i]) ? String(d).replace(/ class="ny"/g, "") : d));
-    this._nokler = nokler;
-    const html = `<div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p>${rene.map((d) => `<span class="setning">${d}</span>`).join(" ")}</p></div>`;
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_PROSA_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; return; }
-    if (html !== this._forrige) { this.shadowRoot.querySelector(".prosa").outerHTML = html; this._forrige = html; }
+    const html = `<div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p>${
+      rene.map((d, i) => `<span class="setning" data-k="${kiPEsc(nokler[i])}">${d}</span>`).join(" ")}</p></div>`;
+    if (!this._bygget) {
+      this.shadowRoot.innerHTML = `<style>${KI_PROSA_STIL}</style>${html}`;
+      this._koble(); this._bygget = true; this._forrige = html; this._nokler = nokler;
+      return;
+    }
+    if (html === this._forrige) return;
+    /* Er det de samme setningene, byttes bare tallene i pillene – ellers blinker
+       hele teksten hver gang effektmåleren tikker. */
+    const like = nokler.length === forrige.length && nokler.every((n, i) => n === forrige[i]);
+    if (like && this._mykOppdater(html)) { this._forrige = html; return; }
+    this.shadowRoot.querySelector(".prosa").outerHTML = html;
+    this._forrige = html; this._nokler = nokler;
+  }
+
+  /* Forsøker å oppdatere teksten uten å bygge DOM-en på nytt. Returnerer false
+     hvis strukturen har endret seg, og da tegnes alt om som før. */
+  _mykOppdater(html) {
+    const rot = this.shadowRoot.querySelector(".prosa");
+    if (!rot) return false;
+    const mal = document.createElement("div");
+    mal.innerHTML = html;
+    const nye = mal.querySelectorAll(".setning"), gamle = rot.querySelectorAll(".setning");
+    if (nye.length !== gamle.length) return false;
+    for (let i = 0; i < nye.length; i++) {
+      if (nye[i].dataset.k !== gamle[i].dataset.k) return false;
+      const np = nye[i].querySelectorAll(".pille"), gp = gamle[i].querySelectorAll(".pille");
+      if (np.length !== gp.length) return false;
+      for (let j = 0; j < np.length; j++) {
+        if (np[j].dataset.p !== gp[j].dataset.p) return false;
+        const nv = np[j].querySelector(".v"), gv = gp[j].querySelector(".v");
+        if (!nv || !gv) return false;
+        if (nv.textContent !== gv.textContent) gv.textContent = nv.textContent;
+        if (np[j].className !== gp[j].className) gp[j].className = np[j].className;
+        const npr = np[j].querySelector(".prikk"), gpr = gp[j].querySelector(".prikk");
+        if (npr && gpr && npr.getAttribute("style") !== gpr.getAttribute("style")) gpr.setAttribute("style", npr.getAttribute("style"));
+        /* tekst utenfor pillene (for eksempel «1 lys» vs «2 lys») */
+      }
+      const nt = nye[i].textContent, gt = gamle[i].textContent;
+      if (nt !== gt && np.length === 0) gamle[i].textContent = nt;
+    }
+    return true;
   }
 }
 if (!customElements.get("ki-prosa-card")) customElements.define("ki-prosa-card", KiProsaCard);
 
 class KiProsaCardEditor extends HTMLElement {
-  setConfig(c) { this._c = c || {}; this._r(); }
+  setConfig(c) { this._c = JSON.parse(JSON.stringify(c || {})); this._r(); }
   set hass(h) { this._h = h; this._r(); }
-  _e(v) { this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: v }, bubbles: true, composed: true })); }
+  _send() { this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._c }, bubbles: true, composed: true })); }
 
-  /* Skriver en delvis overstyring inn i en gren av konfigurasjonen.
-     Skjemaet bygges bare én gang – ellers mister entitetsvelgeren fokus
-     hver gang Home Assistant sender en ny hass. */
-  _sett(gren, felt, verdi) {
-    const c = JSON.parse(JSON.stringify(this._c || {}));
-    if (gren) {
-      const naa = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] && typeof c[gren] === "object" ? c[gren] : {});
-      if (verdi === "" || verdi === undefined || verdi === null) delete naa[felt]; else naa[felt] = verdi;
-      if (Object.keys(naa).length) c[gren] = naa; else delete c[gren];
-    } else if (verdi === "" || verdi === undefined || verdi === null) delete c[felt]; else c[felt] = verdi;
-    this._c = c; this._e(c); this._oppdater();
+  /* Hvilken del av konfigurasjonen redigeres: rota, eller én profil */
+  _mal() {
+    const c = this._c;
+    if (!this._redigerProfil) return c;
+    c.profiler = c.profiler || {};
+    c.profiler[this._redigerProfil] = c.profiler[this._redigerProfil] || {};
+    return c.profiler[this._redigerProfil];
   }
-  _av(gren, av) {
-    const c = JSON.parse(JSON.stringify(this._c || {}));
-    if (av) c[gren] = false; else delete c[gren];
-    this._c = c; this._e(c); this._oppdater();
+  _standard(gren) {
+    const p = this._redigerProfil && KI_PROSA_PROFILER[this._redigerProfil];
+    const fra = p && p[gren] !== undefined ? p[gren] : KI_PROSA_STD[gren];
+    return fra;
   }
   _les(gren, felt) {
-    const c = this._c || {};
-    const std = gren ? KI_PROSA_STD[gren] : KI_PROSA_STD;
-    if (!gren) return c[felt] !== undefined ? c[felt] : (std && std[felt]);
-    if (c[gren] === false) return "";
-    const b = typeof c[gren] === "string" ? { entity: c[gren] } : (c[gren] || {});
-    return b[felt] !== undefined ? b[felt] : (std && typeof std === "object" ? std[felt] : undefined);
+    const m = this._mal();
+    const std = gren ? this._standard(gren) : KI_PROSA_STD;
+    if (!gren) return m[felt] !== undefined ? m[felt] : std[felt];
+    if (m[gren] === false) return "";
+    const b = typeof m[gren] === "string" ? { entity: m[gren] } : (m[gren] || {});
+    if (b[felt] !== undefined) return b[felt];
+    const s2 = typeof std === "string" ? { entity: std } : (std || {});
+    return s2[felt];
+  }
+  _sett(gren, felt, verdi) {
+    const m = this._mal();
+    const tom = verdi === "" || verdi === undefined || verdi === null;
+    if (gren) {
+      const naa = typeof m[gren] === "string" ? { entity: m[gren] } : (m[gren] && typeof m[gren] === "object" ? { ...m[gren] } : {});
+      if (tom) delete naa[felt]; else naa[felt] = verdi;
+      if (Object.keys(naa).length) m[gren] = naa; else delete m[gren];
+    } else if (tom) delete m[felt]; else m[felt] = verdi;
+    this._send(); this._oppdater();
+  }
+  _av(gren, av) {
+    const m = this._mal();
+    if (av) m[gren] = false; else delete m[gren];
+    this._send(); this._bygg();
+  }
+  /* lister: apparater, hjemkomst, setninger */
+  _liste(navn) { const m = this._mal(); return Array.isArray(m[navn]) ? m[navn] : (this._standard(navn) || []); }
+  _settListe(navn, liste) { const m = this._mal(); m[navn] = liste; this._send(); this._bygg(); }
+  _settRad(navn, i, felt, verdi) {
+    const liste = JSON.parse(JSON.stringify(this._liste(navn)));
+    const rad = liste[i] || {};
+    if (verdi === "" || verdi === undefined) delete rad[felt]; else rad[felt] = verdi;
+    liste[i] = rad; const m = this._mal(); m[navn] = liste; this._send();
   }
 
   static get GRUPPER() {
     return [
-      ["", "Generelt", [["storrelse", "Tekststørrelse", "text"]]],
       ["vaer", "Vær", [["entity", "Entitet", "entity"], ["attributt", "Attributt", "text"], ["enhet", "Enhet", "text"],
         ["desimaler", "Desimaler", "number"], ["mellomrom", "Mellomrom før enhet", "bool"],
-        ["ikon", "Ikon (auto, mdi:…, emoji, /local/…, attributt:current.icon)", "text"],
-        ["ikon_plassering", "Ikonplassering (start/slutt)", "text"], ["tekst", "Setning", "text"],
-        ["path", "Trykk går til (f.eks. #weather)", "text"]]],
+        ["ikon", "Ikon", "text"], ["ikon_plassering", "Ikon start/slutt", "text"],
+        ["tekst", "Setning ({pille})", "text"], ["path", "Trykk går til", "text"]]],
       ["pris", "Strømpris", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
-        ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
-        ["billig", "Billig til og med (kr)", "number"], ["dyr", "Dyrt over (kr)", "number"],
-        ["ord", "Skriv billig/dyrt i pillen", "bool"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+        ["billig", "Billig til og med", "number"], ["dyr", "Dyrt over", "number"], ["ord", "Skriv billig/dyrt", "bool"],
+        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["spot", "Spotpris (fargeprikk)", [["entity", "Entitet", "entity"]]],
-      ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"], ["desimaler", "Desimaler", "number"],
+      ["effekt", "Forbruk nå", [["entity", "Entitet", "entity"], ["enhet", "Enhet", "text"],
         ["mellomrom", "Mellomrom før enhet", "bool"], ["tusenskille", "Tusenskille", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon (uten trinn)", "text"],
-        ["tekst_null", "Tekst når ingen lys er på", "text"], ["skjul_null", "Vis også når ingen lys er på", "bool"],
+      ["lys", "Lys", [["entity", "Entitet eller auto", "text"], ["ikon", "Ikon", "text"],
+        ["tekst_null", "Tekst uten lys på", "text"], ["skjul_null", "Vis når ingen lys er på", "bool"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
-      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
-        ["path", "Trykk går til", "text"]]],
-      ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
-        ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+      ["kalender", "Kalender", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"],
+        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["ringeklokke", "Ringeklokke", [["entity", "Entitet", "entity"], ["ikon", "Ikon", "text"],
+        ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"]]],
       ["laser", "Låser om natta", [["entity", "Entiteter eller auto", "text"], ["ikon", "Ikon", "text"],
-        ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+        ["tekst", "Setning", "text"], ["tjeneste", "Tjeneste ved trykk", "text"]]],
       ["planter", "Planter", [["entity", "Entitet eller auto", "text"], ["attributt", "Attributt", "text"],
         ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["bursdag", "Bursdag", [["vis", "Vis når på", "entity"], ["skjult", "Skjult-bryter", "entity"],
-        ["navn", "Navn-sensor", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"],
-        ["tjeneste", "Tjeneste ved trykk", "text"], ["path", "Trykk går til", "text"]]],
+        ["navn", "Navn-sensor", "entity"], ["ikon", "Ikon", "text"], ["tekst", "Setning", "text"]]],
+    ];
+  }
+  static get LISTER() {
+    return [
+      ["apparater", "Apparater", [["navn", "Navn", "text"], ["aktiv_entity", "Aktiv når denne", "entity"],
+        ["aktiv_state", "har tilstanden", "text"], ["aktiv_over", "eller er over", "number"],
+        ["verdi", "Viser verdien fra", "entity"], ["enhet", "Enhet", "text"], ["ikon", "Ikon", "icon"],
+        ["tekst", "Setning ({navn}, {pille})", "text"], ["path", "Trykk går til", "text"]]],
+      ["hjemkomst", "På vei hjem", [["navn", "Navn", "text"], ["aktiv", "På vei hjem-bryter", "entity"],
+        ["reisetid", "Reisetid i minutter", "entity"], ["ikon", "Ikon", "icon"],
+        ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
+      ["setninger", "Egne setninger", [["tekst", "Setning ({pille})", "text"], ["nar_entity", "Vis når denne", "entity"],
+        ["nar_state", "har tilstanden", "text"], ["nar_over", "eller er over", "number"],
+        ["pille_entity", "Pillen viser", "entity"], ["pille_mal", "eller teksten", "text"],
+        ["pille_ikon", "Ikon", "icon"], ["pille_path", "Trykk går til", "text"],
+        ["pille_tjeneste", "Tjeneste ved trykk", "text"]]],
     ];
   }
 
-  _r() {
+  _felt(type, etikett, les, skriv) {
+    let el, hent, sett;
+    if (type === "entity") {
+      el = document.createElement("ha-entity-picker");
+      el.hass = this._h; el.label = etikett; el.allowCustomEntity = true;
+      el.addEventListener("value-changed", (e) => { e.stopPropagation(); skriv(e.detail.value); });
+      hent = () => el.value || ""; sett = (v) => { el.value = v ?? ""; };
+    } else if (type === "icon") {
+      el = document.createElement("ha-icon-picker");
+      el.hass = this._h; el.label = etikett;
+      el.addEventListener("value-changed", (e) => { e.stopPropagation(); skriv(e.detail.value); });
+      hent = () => el.value || ""; sett = (v) => { el.value = v ?? ""; };
+    } else if (type === "bool") {
+      el = document.createElement("ha-formfield"); el.label = etikett;
+      const sw = document.createElement("ha-switch");
+      sw.addEventListener("change", (e) => skriv(e.target.checked));
+      el.appendChild(sw);
+      hent = () => sw.checked; sett = (v) => { sw.checked = v !== false; };
+    } else {
+      el = document.createElement("ha-textfield");
+      el.label = etikett; if (type === "number") el.type = "number";
+      el.addEventListener("change", (e) => skriv(type === "number"
+        ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value));
+      hent = () => el.value; sett = (v) => { el.value = v ?? ""; };
+    }
+    this._felter.push({ el, hent, sett, les });
+    return el;
+  }
+
+  _r() { if (!this._h || !this._c) return; if (this._rot) { this._oppdater(); return; } this._bygg(); }
+
+  _bygg() {
     if (!this._h || !this._c) return;
-    if (this._rot) { this._oppdater(); return; }          /* bygges bare én gang */
-    this._rot = document.createElement("div");
-    this._rot.innerHTML = `<style>
-      .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
-      .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; }
-      .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-      .rad > * { min-width:0; }
-      .hint { font-size:12px; opacity:.6; margin:6px 0 0; }
-    </style><div class="innhold"></div>`;
-    this.appendChild(this._rot);
+    if (!this._rot) {
+      this._rot = document.createElement("div");
+      this._rot.innerHTML = `<style>
+        .gr { border:1px solid var(--divider-color,#444); border-radius:12px; padding:10px 12px; margin:0 0 10px; }
+        .gr > h4 { margin:0 0 8px; font-size:14px; font-weight:600; opacity:.8; display:flex; align-items:center; gap:8px; }
+        .rad { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .rad > * { min-width:0; }
+        .rk { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:8px 0 4px; }
+        .rk b { font-size:13px; opacity:.75; }
+        .knapp { border:0; background:var(--secondary-background-color,#333); color:var(--primary-text-color,#fff);
+          border-radius:10px; padding:7px 12px; font:inherit; font-size:13px; cursor:pointer; }
+        .knapp.fjern { color:var(--error-color,#e8657a); }
+        .hint { font-size:12px; opacity:.6; margin:6px 0 10px; }
+      </style><div class="innhold"></div>`;
+      this.appendChild(this._rot);
+    }
     const inn = this._rot.querySelector(".innhold");
+    inn.innerHTML = "";
     this._felter = [];
+
+    /* --- profil --- */
+    const pb = document.createElement("div"); pb.className = "gr";
+    pb.innerHTML = "<h4>Profil</h4>";
+    const prad = document.createElement("div"); prad.className = "rad";
+    const valg = document.createElement("ha-select");
+    valg.label = "Aktiv profil";
+    const navn = [...new Set([...Object.keys(KI_PROSA_PROFILER), ...Object.keys(this._c.profiler || {})])];
+    valg.innerHTML = `<mwc-list-item value=""></mwc-list-item>` +
+      navn.map((n) => `<mwc-list-item value="${n}">${(KI_PROSA_PROFILER[n] || {}).navn || n}</mwc-list-item>`).join("");
+    valg.value = this._c.profil || "";
+    valg.addEventListener("selected", (e) => {
+      const v = e.target.value;
+      if (v) this._c.profil = v; else delete this._c.profil;
+      this._send(); this._bygg();
+    });
+    prad.appendChild(valg);
+    prad.appendChild(this._felt("entity", "Profil styres av", () => this._c.profil_entity,
+      (v) => { if (v) this._c.profil_entity = v; else delete this._c.profil_entity; this._send(); }));
+    pb.appendChild(prad);
+
+    const rediger = document.createElement("ha-formfield");
+    rediger.label = this._redigerProfil
+      ? `Endringene lagres i profilen «${this._redigerProfil}»`
+      : "Rediger den valgte profilen i stedet for kortet";
+    const rsw = document.createElement("ha-switch");
+    rsw.checked = !!this._redigerProfil;
+    rsw.addEventListener("change", (e) => {
+      this._redigerProfil = e.target.checked ? (this._c.profil || navn[0]) : null;
+      this._bygg();
+    });
+    rediger.appendChild(rsw); pb.appendChild(rediger);
+    inn.appendChild(pb);
+
+    /* --- generelt --- */
+    const gb = document.createElement("div"); gb.className = "gr";
+    gb.innerHTML = "<h4>Generelt</h4>";
+    const grad = document.createElement("div"); grad.className = "rad";
+    grad.appendChild(this._felt("text", "Tekststørrelse", () => this._les("", "storrelse"), (v) => this._sett("", "storrelse", v)));
+    gb.appendChild(grad); inn.appendChild(gb);
+
+    /* --- bitene --- */
     for (const [gren, tittel, felter] of KiProsaCardEditor.GRUPPER) {
       const boks = document.createElement("div"); boks.className = "gr";
       const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
-      const rad = document.createElement("div"); rad.className = "rad";
-      for (const [felt, etikett, type] of felter) {
-        let el, hent, sett;
-        if (type === "entity") {
-          el = document.createElement("ha-entity-picker");
-          el.hass = this._h; el.label = etikett; el.allowCustomEntity = true;
-          el.addEventListener("value-changed", (e) => { e.stopPropagation(); this._sett(gren, felt, e.detail.value); });
-          hent = () => el.value || ""; sett = (v) => { el.value = v ?? ""; };
-        } else if (type === "bool") {
-          el = document.createElement("ha-formfield"); el.label = etikett;
-          const sw = document.createElement("ha-switch");
-          sw.addEventListener("change", (e) => this._sett(gren, felt, e.target.checked));
-          el.appendChild(sw);
-          hent = () => sw.checked; sett = (v) => { sw.checked = v !== false; };
-        } else {
-          el = document.createElement("ha-textfield");
-          el.label = etikett; if (type === "number") el.type = "number";
-          el.addEventListener("change", (e) =>
-            this._sett(gren, felt, type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value));
-          hent = () => el.value; sett = (v) => { el.value = v ?? ""; };
-        }
-        this._felter.push({ gren, felt, el, hent, sett });
-        rad.appendChild(el);
+      const av = this._mal()[gren] === false;
+      if (!av) {
+        const rad = document.createElement("div"); rad.className = "rad";
+        for (const [felt, etikett, type] of felter)
+          rad.appendChild(this._felt(type, etikett, () => this._les(gren, felt), (v) => this._sett(gren, felt, v)));
+        boks.appendChild(rad);
       }
-      boks.appendChild(rad);
-      if (gren) {
-        const ff = document.createElement("ha-formfield"); ff.label = "Skru av denne biten";
-        const sw = document.createElement("ha-switch");
-        sw.addEventListener("change", (e) => this._av(gren, e.target.checked));
-        ff.appendChild(sw); boks.appendChild(ff);
-        this._felter.push({ gren, felt: "__av", el: ff, hent: () => sw.checked, sett: (v) => { sw.checked = !!v; } });
-      }
+      const ff = document.createElement("ha-formfield"); ff.label = "Skru av denne biten";
+      const sw = document.createElement("ha-switch");
+      sw.checked = av;
+      sw.addEventListener("change", (e) => this._av(gren, e.target.checked));
+      ff.appendChild(sw); boks.appendChild(ff);
       inn.appendChild(boks);
     }
+
+    /* --- lister --- */
+    for (const [navnListe, tittel, felter] of KiProsaCardEditor.LISTER) {
+      const boks = document.createElement("div"); boks.className = "gr";
+      const h = document.createElement("h4"); h.textContent = tittel; boks.appendChild(h);
+      const liste = this._liste(navnListe);
+      liste.forEach((rad, i) => {
+        const topp = document.createElement("div"); topp.className = "rk";
+        const b = document.createElement("b"); b.textContent = rad.navn || rad.tekst || `${tittel} ${i + 1}`;
+        const fjern = document.createElement("button"); fjern.className = "knapp fjern"; fjern.textContent = "Fjern";
+        fjern.addEventListener("click", () => {
+          const ny = JSON.parse(JSON.stringify(this._liste(navnListe))); ny.splice(i, 1);
+          this._settListe(navnListe, ny);
+        });
+        topp.appendChild(b); topp.appendChild(fjern); boks.appendChild(topp);
+        const r2 = document.createElement("div"); r2.className = "rad";
+        for (const [felt, etikett, type] of felter) {
+          const les = () => {
+            if (felt === "aktiv_entity") return (rad.aktiv && (rad.aktiv.entity || rad.aktiv)) || "";
+            if (felt === "aktiv_state") return (rad.aktiv && rad.aktiv.state) || "";
+            if (felt === "aktiv_over") return (rad.aktiv && rad.aktiv.over) ?? "";
+            if (felt === "nar_entity") return (rad.nar && rad.nar.entity) || "";
+            if (felt === "nar_state") return (rad.nar && rad.nar.state) || "";
+            if (felt === "nar_over") return (rad.nar && rad.nar.over) ?? "";
+            if (felt.startsWith("pille_")) return (rad.pille || {})[felt.slice(6)] ?? "";
+            return rad[felt] ?? "";
+          };
+          const skriv = (v) => {
+            const ny = JSON.parse(JSON.stringify(this._liste(navnListe)));
+            const r3 = ny[i] || {};
+            const settInn = (obj, n, verdi) => { if (verdi === "" || verdi === undefined) delete obj[n]; else obj[n] = verdi; };
+            if (felt.startsWith("aktiv_")) {
+              const a = typeof r3.aktiv === "string" ? { entity: r3.aktiv } : (r3.aktiv || {});
+              settInn(a, felt.slice(6), v); r3.aktiv = a;
+            } else if (felt.startsWith("nar_")) {
+              const a = r3.nar || {}; settInn(a, felt.slice(4), v); r3.nar = a;
+            } else if (felt.startsWith("pille_")) {
+              const a = r3.pille || {}; settInn(a, felt.slice(6), v); r3.pille = a;
+            } else settInn(r3, felt, v);
+            ny[i] = r3; const m = this._mal(); m[navnListe] = ny; this._send();
+          };
+          r2.appendChild(this._felt(type, etikett, les, skriv));
+        }
+        boks.appendChild(r2);
+      });
+      const legg = document.createElement("button"); legg.className = "knapp"; legg.textContent = "Legg til";
+      legg.addEventListener("click", () => {
+        const ny = JSON.parse(JSON.stringify(this._liste(navnListe)));
+        ny.push(navnListe === "setninger" ? { tekst: "Ny setning {pille}" } : { navn: "Nytt" });
+        this._settListe(navnListe, ny);
+      });
+      boks.appendChild(legg);
+      inn.appendChild(boks);
+    }
+
     const hint = document.createElement("p"); hint.className = "hint";
-    hint.textContent = "Profiler, apparater, hjemkomst og egne setninger (setninger:) redigeres i YAML – se README.";
+    hint.textContent = "Feltene som står tomme bruker verdien fra profilen. Skru av en bit for å fjerne den fra teksten.";
     inn.appendChild(hint);
     this._oppdater();
   }
@@ -745,11 +936,9 @@ class KiProsaCardEditor extends HTMLElement {
   _oppdater() {
     if (!this._felter) return;
     for (const f of this._felter) {
-      if (f.el.contains && f.el.contains(document.activeElement)) continue;
-      if (f.el === document.activeElement) continue;
-      const v = f.felt === "__av" ? this._c[f.gren] === false : this._les(f.gren, f.felt);
-      const naa = f.hent();
-      if (String(naa ?? "") !== String(v ?? "")) f.sett(v);
+      if (f.el === document.activeElement || (f.el.contains && f.el.contains(document.activeElement))) continue;
+      const v = f.les();
+      if (String(f.hent() ?? "") !== String(v ?? "")) f.sett(v);
       if (f.el.hass !== undefined) f.el.hass = this._h;
     }
   }
