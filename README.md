@@ -861,3 +861,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.52.0
 - `ki-strompris-card` 2.1.0: I dag / I morgen bruker samme fanepiller som ki-tabs-card og ki-hjem-card (rund ramme, aktiv fane i --active-big).
+
+## v2.53.0
+- `ki-strompris-card` 2.4.0: tittel og faner ligger over kortflaten, fanepiller som ki-tabs-card, I morgen leser ogsaa `tomorrow` / `prices_tomorrow` og kan alltid trykkes, ingen ny opptegning ved scrolling (beroering leser av grafen forst ved sidelengs draging), sveipeanimasjon bare foerste gang, effektmaaleren bytter bare tallet, ingenting stikker utenfor skjermbredden, og blokkene under grafen kan slaas av med `vis_stat`, `vis_vindu`, `vis_spart` og `vis_forklaring`.
