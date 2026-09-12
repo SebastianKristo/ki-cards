@@ -530,6 +530,10 @@ setning og trykkmål for hver bit, og skrur biter av og på. Apparater, På vei 
 lister med «Legg til» og «Fjern», der hver rad har entitetsvelger for når den skal vises, hvilken verdi
 pillen skal hente, ikonvelger og setningstekst. Felt du lar stå tomme arver fra profilen.
 
+Ikonfeltet godtar også tre små tegninger som lever: `ki:vaskemaskin`, `ki:oppvask` og `ki:torketrommel`.
+Maskinen rister forsiktig, trommelen er blå fordi det står vann i den, bølgen vugger og skummet stiger.
+`animasjon: ingen` lar tegningen stå stille.
+
 ### ki-media-card
 ```yaml
 type: custom:ki-media-card

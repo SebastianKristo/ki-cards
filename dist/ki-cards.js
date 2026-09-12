@@ -1,4 +1,4 @@
-/* ki-cards v2.68.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.69.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.68.0";
+  KI.VERSION = "2.69.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5047,6 +5047,7 @@ try {
  *    mellomrom: false              # mellomrom mellom tall og enhet
  *    tusenskille: false            # tusenskille i tallet (3860 i stedet for 3 860)
  *    ikon: auto                    # auto | mdi:... | emoji | /local/bilde.png | attributt:current.icon
+ *                                  # ki:vaskemaskin, ki:oppvask, ki:torketrommel – små tegninger som lever
  *    ikon_plassering: slutt        # start | slutt
  *    små_bokstaver: true
  *    tekst: 'Ute er det {pille}.'  # {pille} er der pillen settes inn
@@ -5082,7 +5083,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.10.0";
+const KI_PROSA_VERSJON = "2.11.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5105,11 +5106,11 @@ const KI_PROSA_STD = {
   apparater: [
     { navn: "Oppvaskmaskinen", aktiv: { entity: "input_select.oppvaskmaskin_status", state: "Vasker" },
       verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:dishwasher", animasjon: "ingen",
+      ikon: "ki:oppvask", animasjon: "auto",
       tekst: "{navn} vasker {pille} nå.", path: "#kjokken" },
     { navn: "Vaskemaskinen", aktiv: { entity: "sensor.vaskemaskin_power", over: 10 },
       verdi: "sensor.vaskemaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:washing-machine", animasjon: "ingen",
+      ikon: "ki:vaskemaskin", animasjon: "auto",
       tekst: "{navn} vasker {pille} nå.", path: "#vaskegang" }],
   hjemkomst: [{ navn: "Mamma", aktiv: "input_boolean.ki_cybele_pa_vei_hjem_fra_jobb",
                 reisetid: "sensor.cybele_reisetid_fra_job", ikon: "🚗", animasjon: "hopp",
@@ -5172,6 +5173,51 @@ const KI_PROSA_PROFILER = {
   },
 };
 
+/* Små tegnede ikoner som beveger seg. Trommelen er blå fordi det er vann i den. */
+const KI_PROSA_FIGURER = {
+  vaskemaskin: `<svg class="ki-fig ki-vask" viewBox="0 0 24 24" aria-hidden="true">
+    <g class="rist">
+      <rect class="kropp" x="3.5" y="2.5" width="17" height="19" rx="3"/>
+      <rect class="panel" x="5.5" y="4.5" width="13" height="3" rx="1.5"/>
+      <circle class="knapp1" cx="16.6" cy="6" r=".9"/>
+      <circle class="luke" cx="12" cy="14.5" r="5.6"/>
+      <circle class="vann" cx="12" cy="14.5" r="4.3"/>
+      <g class="tromle">
+        <path class="boelge" d="M7.7 15.4q1.1-1 2.15 0t2.15 0q1.1-1 2.15 0t2.15 0v4.2H7.7z"/>
+        <circle class="skum" cx="10.2" cy="12.8" r=".85"/>
+        <circle class="skum s2" cx="13.6" cy="13.4" r=".6"/>
+        <circle class="skum s3" cx="12.1" cy="11.9" r=".5"/>
+      </g>
+      <circle class="glass" cx="12" cy="14.5" r="4.3"/>
+    </g>
+    <path class="fot" d="M5.6 21.5v1.3M18.4 21.5v1.3"/>
+  </svg>`,
+  oppvask: `<svg class="ki-fig ki-vask" viewBox="0 0 24 24" aria-hidden="true">
+    <g class="rist">
+      <rect class="kropp" x="3.5" y="2.5" width="17" height="19" rx="3"/>
+      <rect class="panel" x="5.5" y="4.5" width="13" height="3" rx="1.5"/>
+      <rect class="vann" x="6" y="9" width="12" height="10" rx="2"/>
+      <g class="tromle">
+        <path class="boelge" d="M6.4 15.6q1.15-1 2.3 0t2.3 0q1.15-1 2.3 0t2.3 0v3.4H6.4z"/>
+        <circle class="skum" cx="9.4" cy="12.6" r=".8"/>
+        <circle class="skum s2" cx="14.2" cy="13.2" r=".55"/>
+      </g>
+      <path class="tallerken" d="M9.6 10.4v5.2M12 10v5.6M14.4 10.4v5.2"/>
+    </g>
+    <path class="fot" d="M5.6 21.5v1.3M18.4 21.5v1.3"/>
+  </svg>`,
+  torketrommel: `<svg class="ki-fig ki-tork" viewBox="0 0 24 24" aria-hidden="true">
+    <g class="rist">
+      <rect class="kropp" x="3.5" y="2.5" width="17" height="19" rx="3"/>
+      <rect class="panel" x="5.5" y="4.5" width="13" height="3" rx="1.5"/>
+      <circle class="luke" cx="12" cy="14.5" r="5.6"/>
+      <g class="snurr"><path class="klaer" d="M9.4 12.4q2.6-1.6 5.2 0 1.3 2.1 0 4.2-2.6 1.6-5.2 0-1.3-2.1 0-4.2z"/></g>
+      <circle class="glass" cx="12" cy="14.5" r="4.3"/>
+    </g>
+    <path class="fot" d="M5.6 21.5v1.3M18.4 21.5v1.3"/>
+  </svg>`,
+};
+
 const KI_PROSA_VAER = {
   "sunny": "mdi:weather-sunny", "clear-night": "mdi:weather-night", "partlycloudy": "mdi:weather-partly-cloudy", "cloudy": "mdi:weather-cloudy",
   "rainy": "mdi:weather-rainy", "pouring": "mdi:weather-pouring", "snowy": "mdi:weather-snowy", "snowy-rainy": "mdi:weather-snowy-rainy",
@@ -5201,6 +5247,30 @@ const KI_PROSA_STIL = `
   .pille.glans::after { content:""; position:absolute; top:0; bottom:0; width:30%; left:0;
     background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent); animation:pr-glans 2.8s ease-in-out infinite; pointer-events:none; }
   .snurr-ik { display:inline-block; animation:pr-snurr 2.4s linear infinite; }
+  /* tegnede ikoner */
+  .ki-fig { width:1.35em; height:1.35em; vertical-align:-.28em; overflow:visible; }
+  .ki-fig .kropp { fill:none; stroke:currentColor; stroke-width:1.5; }
+  .ki-fig .panel { fill:currentColor; opacity:.28; }
+  .ki-fig .knapp1 { fill:currentColor; opacity:.6; }
+  .ki-fig .luke { fill:none; stroke:currentColor; stroke-width:1.4; opacity:.7; }
+  .ki-fig .glass { fill:none; stroke:currentColor; stroke-width:1; opacity:.35; }
+  .ki-fig .vann { fill:#4da3e0; opacity:.85; }
+  .ki-fig .boelge { fill:#8fd3ff; opacity:.9; }
+  .ki-fig .skum { fill:#eaf6ff; opacity:.9; }
+  .ki-fig .tallerken { stroke:#eaf6ff; stroke-width:1.1; opacity:.75; fill:none; stroke-linecap:round; }
+  .ki-fig .klaer { fill:#8fd3ff; opacity:.85; }
+  .ki-fig .fot { stroke:currentColor; stroke-width:1.4; stroke-linecap:round; opacity:.55; }
+  .ki-fig .rist { transform-box:fill-box; transform-origin:50% 90%; }
+  .ki-fig .tromle, .ki-fig .snurr { transform-box:fill-box; transform-origin:50% 50%; }
+  /* i ro står maskinen stille */
+  .ki-fig.gaar .rist { animation:pr-rist .34s ease-in-out infinite; }
+  .ki-fig.gaar .tromle { animation:pr-vask 2.6s ease-in-out infinite; }
+  .ki-fig.gaar .snurr { animation:pr-snurr 1.6s linear infinite; }
+  .ki-fig.gaar .skum { animation:pr-skum 2.2s ease-in-out infinite; }
+  .ki-fig.gaar .s2 { animation-delay:-.7s; } .ki-fig.gaar .s3 { animation-delay:-1.4s; }
+  @keyframes pr-rist { 0%,100% { transform:translateX(-.35px) rotate(-.5deg); } 50% { transform:translateX(.35px) rotate(.5deg); } }
+  @keyframes pr-vask { 0%,100% { transform:rotate(-16deg); } 50% { transform:rotate(16deg); } }
+  @keyframes pr-skum { 0%,100% { transform:translateY(0); opacity:.9; } 50% { transform:translateY(-1.1px); opacity:.5; } }
   .hopp { display:inline-block; animation:pr-hopp 1.6s ease-in-out infinite; }
   .vink { display:inline-block; transform-origin:50% 10%; animation:pr-vink 1.2s ease-in-out infinite; }
   @keyframes pr-inn { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:none; } }
@@ -5449,6 +5519,14 @@ class KiProsaCard extends HTMLElement {
       for (const d of sti) v = v ? v[d] : undefined;
       if (!v) return "";
       k = String(v);
+    }
+    if (k.startsWith("ki:")) {
+      const fig = KI_PROSA_FIGURER[k.slice(3)];
+      if (fig) {
+        /* figurene beveger seg når apparatet går – «ingen» lar dem stå stille */
+        const lever = o.animasjon !== "ingen" && o.animasjon !== false;
+        return fig.replace('class="ki-fig', `class="ki-fig${lever ? " gaar" : ""}`);
+      }
     }
     const inner = k.startsWith("mdi:") ? `<ha-icon icon="${kiPEsc(k)}"></ha-icon>`
       : /^(https?:|\/)/.test(k) ? `<img src="${kiPEsc(k)}" alt="">`
@@ -5721,6 +5799,9 @@ class KiProsaCard extends HTMLElement {
       const ni = np[j].querySelector("ha-icon"), gi = gp[j].querySelector("ha-icon");
       if (!!ni !== !!gi) return false;
       if (ni && ni.getAttribute("icon") !== gi.getAttribute("icon")) gi.setAttribute("icon", ni.getAttribute("icon"));
+      const nf = np[j].querySelector(".ki-fig"), gf = gp[j].querySelector(".ki-fig");
+      if (!!nf !== !!gf) return false;
+      if (nf && nf.getAttribute("class") !== gf.getAttribute("class")) gf.setAttribute("class", nf.getAttribute("class"));
     }
     /* teksten utenom pillene må være den samme */
     const rens = (el) => [...el.childNodes].filter((x) => x.nodeType === 3).map((x) => x.textContent).join("");
