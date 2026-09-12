@@ -484,7 +484,8 @@ setninger:                        # egne setninger (gammelt navn: ekstra)
 Forsideteksten satt sammen av det som faktisk skjer i huset: temperatur ute, strømpris med fargeprikk etter
 hvor dyr timen er, forbruk nå, lys som står på, dagens avtaler, apparater som kjører, noen på vei hjem,
 planter som trenger vann, bursdager, ringeklokka og låser som står åpne om natta. Setningene kommer og går
-etter tilstanden, med en myk animasjon når en ny dukker opp.
+etter tilstanden, med en myk animasjon når en ny dukker opp – tall som endrer seg gir ingen ny animasjon,
+bare setninger som faktisk kommer eller forsvinner.
 
 Alt er konfigurerbart: hver bit tar enten en entitets-id, `false` for å skru den av, eller et objekt der du
 bytter tekst, ikon, enhet, desimaler, mellomrom og hva trykket skal gjøre. Mangler en bit, faller setningen

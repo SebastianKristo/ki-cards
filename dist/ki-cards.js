@@ -1,4 +1,4 @@
-/* ki-cards v2.62.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.63.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.62.0";
+  KI.VERSION = "2.63.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5079,7 +5079,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.5.0";
+const KI_PROSA_VERSJON = "2.6.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5101,10 +5101,12 @@ const KI_PROSA_STD = {
   kalender: { entity: "sensor.alle_kalendere", ikon: "⏰", tekst: "Vi har {pille} i dag.", path: "#kalender" },
   apparater: [
     { navn: "Oppvaskmaskinen", aktiv: { entity: "input_select.oppvaskmaskin_status", state: "Vasker" },
-      verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false, ikon: "🍽️", animasjon: "snurr",
+      verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
+      ikon: "mdi:dishwasher", animasjon: "snurr",
       tekst: "{navn} vasker {pille} nå.", path: "#kjokken" },
     { navn: "Vaskemaskinen", aktiv: { entity: "sensor.vaskemaskin_power", over: 10 },
-      verdi: "sensor.vaskegang_vaskemaskin_effekt", enhet: "W", mellomrom: false, tusenskille: false, ikon: "🧺", animasjon: "snurr",
+      verdi: "sensor.vaskemaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
+      ikon: "mdi:washing-machine", animasjon: "snurr",
       tekst: "{navn} vasker {pille} nå.", path: "#vaskegang" }],
   hjemkomst: [{ navn: "Mamma", aktiv: "input_boolean.ki_cybele_pa_vei_hjem_fra_jobb",
                 reisetid: "sensor.cybele_reisetid_fra_job", ikon: "🚗", animasjon: "hopp",
@@ -5476,6 +5478,9 @@ class KiProsaCard extends HTMLElement {
       (d.entity ? ` data-e="${kiPEsc(d.entity)}"` : "") + `>${innhold}</span>`;
   }
   /* Setter pillen inn i setningen der {pille} står */
+  /* Nøkkel som sier hvilken setning dette er, uten tallene i den.
+     Slik animeres bare setninger som faktisk dukker opp, ikke hver gang et tall endrer seg. */
+  _nokkel(html) { return String(html).replace(/<[^>]*>/g, "").replace(/[\d.,:]+/g, "#").trim(); }
   _setning(tekst, pille, felt = {}) {
     let t = String(tekst || "{pille}");
     for (const [k, v] of Object.entries(felt)) t = t.split("{" + k + "}").join(kiPEsc(v));
@@ -5569,8 +5574,11 @@ class KiProsaCard extends HTMLElement {
     /* apparater */
     (c.apparater || []).forEach((a) => {
       if (!this._aktiv(a.aktiv)) return;
-      const p = this._pille({ entity: a.verdi, enhet: a.enhet, mellomrom: a.mellomrom, tusenskille: a.tusenskille, desimaler: a.desimaler ?? 0,
-        ikon: a.ikon, animasjon: a.animasjon, ikon_plassering: a.ikon_plassering, path: a.path, mer: a.path ? undefined : a.verdi, stil: a.stil });
+      /* mangler verdi-sensoren, brukes sensoren som utløste apparatet */
+      const kilde = this._st(a.verdi) ? a.verdi : (a.aktiv && a.aktiv.entity) || a.aktiv;
+      const p = this._pille({ entity: kilde, enhet: a.enhet, mellomrom: a.mellomrom, tusenskille: a.tusenskille, desimaler: a.desimaler ?? 0,
+        ikon: a.ikon, animasjon: a.animasjon, ikon_plassering: a.ikon_plassering, path: a.path,
+        mer: a.path ? undefined : kilde, stil: a.stil });
       deler.push(`<span class="ny">${this._setning(a.tekst, p, { navn: a.navn })}</span>`);
     });
     /* hjemkomst */
@@ -5635,7 +5643,13 @@ class KiProsaCard extends HTMLElement {
 
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
-    const html = `<div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p>${this._deler().map((d) => `<span class="setning">${d}</span>`).join(" ")}</p></div>`;
+    const deler = this._deler();
+    const nokler = deler.map((d) => this._nokkel(d));
+    const forrige = this._nokler || [];
+    /* «ny»-animasjonen beholdes bare på setninger som ikke sto der sist */
+    const rene = deler.map((d, i) => (forrige.includes(nokler[i]) ? String(d).replace(/ class="ny"/g, "") : d));
+    this._nokler = nokler;
+    const html = `<div class="prosa" style="${c.storrelse ? `--str:${kiPEsc(c.storrelse)}` : ""}"><p>${rene.map((d) => `<span class="setning">${d}</span>`).join(" ")}</p></div>`;
     if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_PROSA_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; return; }
     if (html !== this._forrige) { this.shadowRoot.querySelector(".prosa").outerHTML = html; this._forrige = html; }
   }
