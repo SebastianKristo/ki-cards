@@ -696,6 +696,17 @@ tabs:
 
 Listeelementer: `{rom: x}` / `{kind: …}` = `ki-rom-tile-card`, `{swipe: {…}}` = css-swipe-card (`type: plain` = swipe-card), alt med `type:` = kortet som det er. Krever ki-rom ≥ 1.2.0 for etasjer.
 
+## Feilsøking
+
+Vises «Custom element doesn't exist: ki-…-card» for flere kort samtidig, er som regel hele bundelen stoppet:
+
+1. Åpne konsollen og se etter linja `KI-CARDS v…` – står det feil versjon, er det en gammel fil i cache.
+   Bytt versjonsnummeret bakerst i ressursen (Innstillinger → Dashbord → Ressurser) og last på nytt.
+2. Sjekk at det ikke ligger egne ressurser for enkeltkort i `/config/www/` i tillegg – to definisjoner av
+   samme element gjør at det er tilfeldig hvilken som vinner.
+3. Fila laster ikke fra et eksternt CDN. Kort som bruker LitElement henter den fra Home Assistant selv,
+   så bundelen virker også uten internett.
+
 ## Utvikling
 
 Kildekoden ligger i `src/` (de nye kortene, ett per fil) og `src/cards/` (ki-kortene, uendret).

@@ -1,14 +1,37 @@
-/* ki-cards v2.48.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
-import { LitElement, html, css, } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+/* ki-cards v2.48.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
+window.KI.lit = (kjor) => {
+  const kandidater = ["ha-panel-lovelace", "hui-view", "hui-masonry-view", "home-assistant", "ha-card"];
+  const hent = () => {
+    for (const navn of kandidater) {
+      const el = customElements.get(navn);
+      if (!el) continue;
+      let p = Object.getPrototypeOf(el);
+      for (let i = 0; i < 6 && p; i++) {
+        if (p.prototype && p.prototype.html && p.prototype.css) return p;
+        p = Object.getPrototypeOf(p);
+      }
+    }
+    return null;
+  };
+  const start = () => {
+    const L = hent();
+    if (!L) return false;
+    try { kjor(L, L.prototype.html, L.prototype.css); } catch (e) { console.error("ki-cards: kort feilet", e); }
+    return true;
+  };
+  if (start()) return;
+  let n = 0;
+  const t = setInterval(() => { if (start() || ++n > 120) clearInterval(t); }, 100);
+};
 
 /* ===== 00-ki-base ===== */
 try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.48.0";
+  KI.VERSION = "2.48.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9563,7 +9586,7 @@ try {
 } catch (e) { console.error("ki-cards: 60-ki-basseng-card feilet", e); }
 
 /* ===== family-status-card ===== */
-try {
+window.KI.lit((LitElement, html, css) => {
 
 /* ------------------------------------------------------------------ */
 /*  family-status-card                                                */
@@ -11169,7 +11192,7 @@ window.customCards.push({
   description:
     "Hilsen + familiemedlemmers hjemme/borte-status med tilpassbare soner, navn og størrelser. Trykk på en person åpner en popup for hjemme/borte og våken/sover.",
 });
-} catch (e) { console.error("ki-cards: family-status-card feilet", e); }
+});
 
 /* ===== ki-alarm-card ===== */
 try {
