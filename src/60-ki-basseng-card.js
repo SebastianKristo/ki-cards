@@ -2,7 +2,8 @@
  * ki-basseng-card 1.2.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
- * - Ingen faner: én flyt med utvidbare seksjoner, som resten av dashbordet.
+ * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
+ *   faner: false gir én flyt med utvidbare seksjoner i stedet.
  * - Knappefliser i samme stil som button-card-flisene (gray200 -> active-big).
  * - Tallvalg bruker <select>, så iOS/Android viser sin egen hjulvelger.
  * - Grafer hentes fra HA sin historikk, ikke fra en ekstra sensor.
@@ -13,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
 
   const finnLit = () => {
     const base =
@@ -132,6 +133,7 @@
           hass: {},
           _config: {},
           _apne: { state: true },
+          _fane: { state: true },
           _hist: { state: true },
           _timer: { state: true },
         };
@@ -148,6 +150,7 @@
       constructor() {
         super();
         this._apne = {};
+        this._fane = null;
         this._hist = null;
         this._timer = 24;
         this._ider = new Map();
@@ -532,6 +535,39 @@
         return html`<div class="rad"><span>${tekst}</span><span class="rad-verdi">${verdi}</span></div>`;
       }
 
+      _faneListe() {
+        const valgt = this._config.faner;
+        const alle = [
+          { id: "oversikt", navn: "Oversikt" },
+          { id: "sirkulasjon", navn: "Sirkulasjon" },
+          { id: "spreder", navn: "Spreder" },
+          { id: "innstillinger", navn: "Innstillinger" },
+        ];
+        if (Array.isArray(valgt) && valgt.length) {
+          return valgt
+            .map((v) => alle.find((f) => f.id === v) || (typeof v === "object" && v.id ? { id: v.id, navn: v.navn || v.id } : null))
+            .filter(Boolean);
+        }
+        return alle;
+      }
+
+      _faner(liste, aktiv) {
+        return html`
+          <div class="faner">
+            ${liste.map(
+              (f) => html`
+                <button
+                  class="fane ${f.id === aktiv ? "aktiv" : ""}"
+                  @click=${() => { this._fane = f.id; }}
+                >
+                  ${f.navn}
+                </button>
+              `
+            )}
+          </div>
+        `;
+      }
+
       _seksjon(navn, ikon, tittel, undertekst, innhold) {
         const apen = !!this._apne[navn];
         return html`
@@ -792,10 +828,19 @@
         const neste = klokke(this.val("nesteStart"));
         const planlagt = this.attr("modus", "timer_planlagt", 0);
 
+        const medFaner = this._config.faner !== false;
+        const faneListe = medFaner ? this._faneListe() : [];
+        const aktiv = medFaner
+          ? (faneListe.some((f) => f.id === this._fane) ? this._fane : faneListe[0].id)
+          : null;
+        const vis = (id) => !medFaner || aktiv === id;
+
         return html`
           <ha-card>
             ${this._config.tittel ? html`<div class="tittel">${this._config.tittel}</div>` : ""}
+            ${medFaner && faneListe.length > 1 ? this._faner(faneListe, aktiv) : ""}
             <div class="innhold">
+              ${vis("oversikt") ? html`
               ${this._hero()}
               ${this._plan()}
               <div class="plan-tekst">
@@ -834,6 +879,14 @@
               ${this.on("vpVenter")
                 ? html`<div class="varsel">Varmepumpen står av til sirkulasjonen er tilbake.</div>`
                 : ""}
+              ` : ""}
+              ${medFaner
+                ? html`
+                    ${vis("sirkulasjon") ? html`<div class="faneinnhold">${this._sirkulasjon()}</div>` : ""}
+                    ${vis("spreder") ? html`<div class="faneinnhold">${this._spreder()}</div>` : ""}
+                    ${vis("innstillinger") ? html`<div class="faneinnhold">${this._innstillinger()}</div>` : ""}
+                  `
+                : html`
               ${this._seksjon(
                 "sirk",
                 "mdi:pump",
@@ -857,6 +910,7 @@
                 "",
                 () => this._innstillinger()
               )}
+            `}
             </div>
           </ha-card>
         `;
@@ -896,6 +950,45 @@
           button:focus-visible {
             outline: 2px solid var(--kib-accent);
             outline-offset: 2px;
+          }
+          .faner {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            box-sizing: border-box;
+            width: fit-content;
+            max-width: 100%;
+            margin: 0 auto 12px auto;
+            padding: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 999px;
+            overflow-x: auto;
+            scrollbar-width: none;
+          }
+          .faner::-webkit-scrollbar {
+            display: none;
+          }
+          .fane {
+            flex: 0 0 auto;
+            padding: 9px 22px;
+            border-radius: 999px;
+            font-size: 15px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.72);
+            white-space: nowrap;
+          }
+          .fane:hover {
+            color: rgba(255, 255, 255, 0.95);
+          }
+          .fane.aktiv {
+            background: var(--kib-accent);
+            color: rgba(70, 58, 64, 0.95);
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+          }
+          .faneinnhold {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
           }
           .tittel {
             font-size: 15px;
@@ -1454,6 +1547,7 @@
       _endret(ev) {
         ev.stopPropagation();
         const config = { ...this._config, ...ev.detail.value };
+        if (config.faner === true) delete config.faner;
         this.dispatchEvent(
           new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true })
         );
@@ -1465,17 +1559,19 @@
           { name: "tittel", selector: { text: {} } },
           { name: "prefix", selector: { text: {} } },
           { name: "graf", selector: { boolean: {} } },
+          { name: "faner", selector: { boolean: {} } },
         ];
         return html`
           <ha-form
             .hass=${this.hass}
-            .data=${{ graf: true, ...this._config }}
+            .data=${{ graf: true, ...this._config, faner: this._config.faner !== false }}
             .schema=${schema}
             .computeLabel=${(s) =>
               ({
                 tittel: "Tittel",
                 prefix: "Entitetsprefiks (valgfritt)",
                 graf: "Vis graf",
+                faner: "Faner (av = én flyt med utvidbare seksjoner)",
               })[s.name] || s.name}
             @value-changed=${this._endret}
           ></ha-form>

@@ -8,7 +8,7 @@
  * type: sensor.y
  * path: '#soppel'
  */
-const KI_SOPPEL_VERSJON = "1.0.0";
+const KI_SOPPEL_VERSJON = "1.1.0";
 
 const KI_SOPPEL_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -23,7 +23,7 @@ const KI_SOPPEL_STIL = `
   .kort.idag .tall { animation:so-tall 2.6s ease-in-out infinite; }
   @keyframes so-tall { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
   .lab { grid-area:l; justify-self:start; align-self:end; font-size:22px; font-weight:500; line-height:1.15; }
-  .type { grid-area:type; justify-self:start; align-self:start; padding-top:12px; font-size:14px; font-weight:500; opacity:.85;
+  .type { grid-area:type; justify-self:start; align-self:start; padding-top:26px; font-size:14px; font-weight:500; opacity:.85;
     display:inline-flex; align-items:center; gap:7px; }
   .type .dot { width:9px; height:9px; border-radius:50%; background:var(--sotone, currentColor); }
 

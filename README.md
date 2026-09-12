@@ -330,14 +330,19 @@ spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # bruker raw_t
 norgespris: sensor.norgespris_pris_na      # egen stiplet linje, flat når den mangler timedata
 billig: 0.80                               # fargegrenser for kurven
 dyr: 0.85
-hoyde: 260
+hoyde: 300
+bredde_per_time: 48              # grafen kan rulles sidelengs
+rull_til_naa: true               # starter ved «Nå»-streken
+norgespris_farge: var(--yellow)
 desimaler: 2
 ```
 Erstatter apexcharts-kortet, de to `local-conditional-card`-ene og `paper-buttons-row`. Faneskinnen er den
 samme pillen som `ki-tabs-card`, og «I morgen» er grået ut til morgendagens priser er klare. Kurven er en
 trappelinje som tegnes inn, fargelagt etter prisen akkurat nå, med fylt flate under, Norgespris som stiplet
-linje oppå, «Nå»-strek med pulserende punkt, og markert høyeste og laveste time. Under grafen står prisen nå,
-Norgespris, snitt og når det er billigst og dyrest. Har egen visuell editor.
+linje oppå, «Nå»-strek med pulserende punkt, og markert høyeste og laveste time. Grafen er bredere enn kortet og rulles sidelengs – den starter ved «Nå»-streken, med tonede kanter som viser
+at det er mer å se, og `bredde_per_time` styrer hvor bredt døgnet blir. Under grafen står prisen nå,
+Norgespris, snitt og når det er billigst og dyrest; mangler Norgespris-sensoren data, sier forklaringen fra
+i stedet for at linja forsvinner stille. Har egen visuell editor.
 
 ### ki-prosa-card
 ```yaml

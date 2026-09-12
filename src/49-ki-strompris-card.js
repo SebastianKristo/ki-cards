@@ -6,9 +6,10 @@
  * spot: sensor.totalpris_inkludert_grid_el_company_og_stromstotte   # raw_today / raw_tomorrow
  * norgespris: sensor.norgespris_pris_na        # egen linje, flat hvis den mangler timedata
  * billig: 0.80        dyr: 0.85                # fargegrenser
- * hoyde: 260
+ * hoyde: 300          bredde_per_time: 48       # grafen kan rulles sidelengs
+ * rull_til_naa: true
  */
-const KI_PRIS_VERSJON = "1.0.0";
+const KI_PRIS_VERSJON = "1.1.0";
 
 const KI_PRIS_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -26,8 +27,15 @@ const KI_PRIS_STIL = `
   .fane:disabled { opacity:.4; cursor:default; }
   .fane:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-  .graf { position:relative; background:var(--gray200); border-radius:var(--ha-card-border-radius,24px); padding:14px 12px 8px; }
-  .graf svg { width:100%; display:block; overflow:visible; }
+  .graf { position:relative; background:var(--gray200); border-radius:var(--ha-card-border-radius,24px); padding:14px 0 8px; }
+  .rull { overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding:0 12px; }
+  .rull::-webkit-scrollbar { display:none; }
+  .graf svg { display:block; overflow:visible; }
+  /* tonede kanter som viser at grafen kan rulles */
+  .graf::before, .graf::after { content:""; position:absolute; top:8px; bottom:8px; width:26px; pointer-events:none; z-index:2;
+    border-radius:var(--ha-card-border-radius,24px); }
+  .graf::before { left:0; background:linear-gradient(to right, var(--gray200), transparent); }
+  .graf::after { right:0; background:linear-gradient(to left, var(--gray200), transparent); }
   .rute { stroke:var(--gray300, rgba(255,255,255,.12)); stroke-width:1; }
   .akse { font-size:10px; fill:currentColor; opacity:.5; }
   .flate { opacity:0; animation:pr-flate 1.1s ease-out .35s forwards; }
@@ -35,8 +43,10 @@ const KI_PRIS_STIL = `
   .linje { fill:none; stroke-width:3.5; stroke-linejoin:round; stroke-linecap:round;
     stroke-dasharray:var(--len,2000); stroke-dashoffset:var(--len,2000); animation:pr-tegn 1.5s var(--myk) forwards; }
   @keyframes pr-tegn { to { stroke-dashoffset:0; } }
-  .nspris { fill:none; stroke:var(--yellow,#f5c542); stroke-width:2.5; stroke-dasharray:6 6; opacity:0; animation:pr-inn .6s ease-out .9s forwards; }
-  @keyframes pr-inn { to { opacity:.9; } }
+  .nspris { fill:none; stroke:var(--ns-farge, var(--yellow,#f5c542)); stroke-width:3; stroke-dasharray:7 6; stroke-linecap:round;
+    opacity:0; animation:pr-inn .6s ease-out .8s forwards; }
+  @keyframes pr-inn { to { opacity:1; } }
+  .nsmerke { font-size:11px; font-weight:700; fill:var(--ns-farge, var(--yellow,#f5c542)); opacity:0; animation:pr-inn .6s ease-out 1s forwards; }
   .naa { stroke:#ffb581; stroke-width:2; }
   .naapunkt { fill:#ffb581; }
   .naapunkt.puls { animation:pr-puls 2.4s ease-out infinite; transform-box:fill-box; transform-origin:center; }
@@ -63,7 +73,8 @@ class KiStromprisCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || (!c.spot && !c.norgespris)) throw new Error("Sett spot: eller norgespris:");
-    this._c = { tittel: "Strømpriser", billig: 0.8, dyr: 0.85, hoyde: 260, desimaler: 2, ...c };
+    this._c = { tittel: "Strømpriser", billig: 0.8, dyr: 0.85, hoyde: 300, bredde_per_time: 48,
+                rull_til_naa: true, desimaler: 2, ...c };
     this._bygget = false; this._tegn();
   }
   set hass(h) {
@@ -130,7 +141,8 @@ class KiStromprisCard extends HTMLElement {
     const lav = Math.min(...alle), hoy = Math.max(...alle);
     const pad = Math.max(0.05, (hoy - lav) * 0.25);
     const min = Math.max(0, lav - pad), maks = hoy + pad;
-    const B = 660, H = c.hoyde, mv = 38, mh = 22, mt = 16, mb = 24;
+    const mv = 42, mh = 26, mt = 20, mb = 26;
+    const B = Math.max(360, mv + mh + 24 * (c.bredde_per_time || 48)), H = c.hoyde;
     const x = (t) => mv + (t / 24) * (B - mv - mh);
     const y = (v) => mt + (1 - (v - min) / (maks - min || 1)) * (H - mt - mb);
 
@@ -148,25 +160,42 @@ class KiStromprisCard extends HTMLElement {
     const ekstrem = spot ? [spot.reduce((a, b) => (b.v < a.v ? b : a)), spot.reduce((a, b) => (b.v > a.v ? b : a))] : [];
     const linjer = [0, 0.25, 0.5, 0.75, 1].map((f) => { const v = min + (maks - min) * f; return { v, y: y(v) }; });
 
-    graf.innerHTML = `<svg viewBox="0 0 ${B} ${H}" role="img" aria-label="${morgen ? "Priser i morgen" : "Priser i dag"}">
+    const nsSlutt = ns ? ns[ns.length - 1] : null;
+    graf.innerHTML = `<div class="rull"><svg viewBox="0 0 ${B} ${H}" width="${B}" height="${H}" role="img" aria-label="${morgen ? "Priser i morgen" : "Priser i dag"}">
       ${linjer.map((l) => `<line class="rute" x1="${mv}" y1="${l.y.toFixed(1)}" x2="${B - mh}" y2="${l.y.toFixed(1)}"/>
         <text class="akse" x="${mv - 6}" y="${(l.y + 3.5).toFixed(1)}" text-anchor="end">${kiPrKr(l.v, 1)}</text>`).join("")}
       ${[0, 6, 12, 18, 24].map((t) => `<text class="akse" x="${x(t).toFixed(1)}" y="${H - 6}" text-anchor="middle">${String(t % 24).padStart(2, "0")}</text>`).join("")}
       ${spot ? `<path class="flate" d="${trapp(spot)} L${x(24).toFixed(1)} ${y(min)} L${x(0).toFixed(1)} ${y(min)} Z" fill="${linjefarge}"/>
         <path class="linje" d="${trapp(spot)}" stroke="${linjefarge}" style="--len:${(B * 2.4).toFixed(0)}"/>` : ""}
-      ${ns ? `<path class="nspris" d="${trapp(ns)}"/>` : ""}
+      ${ns ? `<path class="nspris" d="${trapp(ns)}"/>
+        <text class="nsmerke" x="${(x(24) - 4).toFixed(1)}" y="${(y(nsSlutt.v) - 8).toFixed(1)}" text-anchor="end">Norgespris</text>` : ""}
       ${!morgen ? `<line class="naa" x1="${x(time).toFixed(1)}" y1="${mt}" x2="${x(time).toFixed(1)}" y2="${H - mb}"/>
         ${spotNaa !== null ? `<circle class="naapunkt puls" cx="${x(time).toFixed(1)}" cy="${y(spotNaa).toFixed(1)}" r="5"/>
         <circle class="naapunkt" cx="${x(time).toFixed(1)}" cy="${y(spotNaa).toFixed(1)}" r="5"/>` : ""}
         <text class="merke" x="${(x(time) + 6).toFixed(1)}" y="${(mt + 10).toFixed(1)}" fill="#ffb581">Nå</text>` : ""}
       ${ekstrem.map((p, i) => `<circle class="${i ? "topplokk" : "bunnlokk"}" cx="${x(p.t + 0.5).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="4"/>
         <text class="merke" x="${x(p.t + 0.5).toFixed(1)}" y="${(y(p.v) + (i ? -10 : 16)).toFixed(1)}" text-anchor="middle">${kiPrKr(p.v, c.desimaler)}</text>`).join("")}
-    </svg>`;
+    </svg></div>`;
+
+    graf.style.setProperty("--ns-farge", c.norgespris_farge || "var(--yellow,#f5c542)");
+    /* rull fram til nå-streken – prøver på nytt til bredden er kjent */
+    const rull = graf.querySelector(".rull");
+    if (rull && c.rull_til_naa !== false) {
+      const plasser = () => {
+        if (!rull.clientWidth || !rull.scrollWidth) return false;
+        const mal = morgen ? 0 : (x(time) / B) * rull.scrollWidth - rull.clientWidth / 2;
+        rull.scrollLeft = Math.max(0, Math.min(mal, rull.scrollWidth - rull.clientWidth));
+        return true;
+      };
+      requestAnimationFrame(() => { if (!plasser()) setTimeout(plasser, 120); });
+      setTimeout(plasser, 260);
+    }
 
     const snitt = spot ? spot.reduce((a, b) => a + b.v, 0) / spot.length : null;
     r.querySelector(".bunn").innerHTML = [
       spot ? `<span class="n" style="color:${linjefarge}"><i></i><span>Spotpris${spotNaa !== null && !morgen ? ` nå <b>${kiPrKr(spotNaa, c.desimaler)} kr</b>` : ""}</span></span>` : "",
-      ns ? `<span class="n" style="color:var(--yellow,#f5c542)"><i class="stiplet"></i><span>Norgespris <b>${kiPrKr(nsNaa, c.desimaler)} kr</b></span></span>` : "",
+      ns ? `<span class="n" style="color:${c.norgespris_farge || "var(--yellow,#f5c542)"}"><i class="stiplet"></i><span>Norgespris <b>${kiPrKr(nsNaa, c.desimaler)} kr</b></span></span>`
+        : c.norgespris ? `<span class="n" style="opacity:.6"><i class="stiplet"></i><span>Norgespris – ingen data fra ${kiPrEsc(c.norgespris)}</span></span>` : "",
       spot ? `<span class="n"><span>Snitt <b>${kiPrKr(snitt, c.desimaler)}</b> · lavest <b>${kiPrKr(ekstrem[0].v, c.desimaler)}</b> kl. ${String(ekstrem[0].t).padStart(2, "0")} · høyest <b>${kiPrKr(ekstrem[1].v, c.desimaler)}</b> kl. ${String(ekstrem[1].t).padStart(2, "0")}</span></span>` : "",
     ].join("");
   }
@@ -181,7 +210,8 @@ class KiStromprisCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { tittel: "Tittel", spot: "Spotpris (med raw_today)", norgespris: "Norgespris", billig: "Billig til og med (kr)",
-        dyr: "Dyrt over (kr)", hoyde: "Høyde på grafen", desimaler: "Desimaler" };
+        dyr: "Dyrt over (kr)", hoyde: "Høyde på grafen", bredde_per_time: "Bredde per time (px)",
+        norgespris_farge: "Farge på Norgespris-linja", desimaler: "Desimaler" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -194,7 +224,9 @@ class KiStromprisCardEditor extends HTMLElement {
       { name: "norgespris", selector: { entity: { domain: ["sensor"] } } },
       { name: "billig", selector: { number: { mode: "box", step: "any" } } },
       { name: "dyr", selector: { number: { mode: "box", step: "any" } } },
-      { name: "hoyde", selector: { number: { mode: "box", min: 120, max: 500 } } },
+      { name: "hoyde", selector: { number: { mode: "box", min: 120, max: 600 } } },
+      { name: "bredde_per_time", selector: { number: { mode: "box", min: 12, max: 120 } } },
+      { name: "norgespris_farge", selector: { text: {} } },
       { name: "desimaler", selector: { number: { mode: "box", min: 0, max: 4 } } },
     ];
   }
