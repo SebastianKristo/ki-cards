@@ -1,9 +1,9 @@
-## Nytt
+## Endret
 
-**ki-rom-card 1.12.0**
-- Scener-raden plukker nå opp lysscenene fra [KI Lys](https://github.com/SebastianKristo/ki-lys) automatisk. Kortet finner `sensor.<rom>_lys_oversikt` for rommene det viser, og legger knappene først i raden – foran skriptene og scenene du har fra før
-- `lysscener: false` slår det av
-- Sceneknapper kan nå være `button`-entiteter, ikke bare `script` og `scene`
+**ki-rom-card 1.12.1**
+- Lysscenene fra KI Lys knyttes til riktig rom også når oversiktssensoren mangler `area_id` – da matches rommet på navn i stedet
+- (Fra 1.12.0: Scener-raden henter scenene fra KI Lys automatisk og legger dem først, foran skriptene og scenene du har fra før. `lysscener: false` slår det av)
 
-**ki-rom-card 1.11.0**
-- Bryter og effektsensor pares mot samme fysiske enhet i enhetsregisteret, ikke bare på navn. Ligger flere sensorer på enheten, velges den som måler effekt nå, og alt i kWh forkastes
+## Krav
+
+Scenene krever [KI Lys](https://github.com/SebastianKristo/ki-lys) 1.0.1 eller nyere, og at rommet er valgt der.

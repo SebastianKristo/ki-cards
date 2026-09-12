@@ -255,13 +255,20 @@
 
   /* Lysscenene fra KI Lys for dette rommet – knappene ligger som button-entiteter */
   function lysScener(hass, ov) {
-    const rom = new Set((ov.rooms || []).map((r) => r.area_id).filter(Boolean));
+    const norm = (x) => String(x || '').toLowerCase().replace(/[^a-zæøå0-9]+/g, '');
+    const omr = new Set((ov.rooms || []).map((r) => r.area_id).filter(Boolean));
+    const navn = new Set((ov.rooms || []).map((r) => norm(r.rom)).filter(Boolean));
     const ut = [];
     Object.keys(hass.states).forEach((id) => {
       if (!id.startsWith('sensor.')) return;
       const a = hass.states[id].attributes || {};
       if (a.integrasjon !== 'ki_lys' || a.ki_type !== 'oversikt') return;
-      if (rom.size && !rom.has(a.area_id)) return;
+      /* rommet matches på area_id, ellers på navn – slik at det virker
+         også når oversikten mangler area_id */
+      if (omr.size || navn.size) {
+        const treff = (a.area_id && omr.has(a.area_id)) || (a.rom && navn.has(norm(a.rom)));
+        if (!treff) return;
+      }
       (a.scener || []).forEach((sc) => {
         if (sc && sc.entity && hass.states[sc.entity]) ut.push({ entity: sc.entity, navn: sc.navn, ikon: sc.ikon });
       });
@@ -1094,5 +1101,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.12.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.12.1 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
