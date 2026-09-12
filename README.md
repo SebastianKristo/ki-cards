@@ -858,3 +858,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 
 ## v2.50.0
 - `ki-strompris-card` 2.0.0: spotpris time for time med Norgespris som stiplet linje, billigste vindu, spart i dag/i aar og forbruk naa.
+
+## v2.52.0
+- `ki-strompris-card` 2.1.0: I dag / I morgen bruker samme fanepiller som ki-tabs-card og ki-hjem-card (rund ramme, aktiv fane i --active-big).

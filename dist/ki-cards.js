@@ -1,4 +1,4 @@
-/* ki-cards v2.51.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.52.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.51.0";
+  KI.VERSION = "2.52.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5767,7 +5767,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.0.0";
+const KI_SP_VERSJON = "2.1.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -5776,13 +5776,16 @@ const KI_SP_STIL = `
     color:var(--gray1000, var(--primary-text-color)); padding:16px 16px 12px; overflow:hidden; isolation:isolate; }
   .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:.2;
     background:radial-gradient(60% 100% at 30% 0%, var(--tone,#8fe3c0), transparent 70%); }
-  .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .topp .valg { margin-left:auto; }
   .tittel { font-size:16px; font-weight:500; }
-  .valg { display:flex; gap:4px; }
-  .valg .v { padding:5px 12px; border-radius:24px; font-size:13px; font-weight:500; cursor:pointer; opacity:.7;
-    border:1px solid var(--gray400,rgba(128,128,128,.4)); transition:all .3s; -webkit-tap-highlight-color:transparent; }
-  .valg .v.aktiv { background:var(--active-big,#ee95ff); border-color:transparent; color:rgba(70,58,64,.95); opacity:1; }
-  .valg .v[disabled] { opacity:.28; pointer-events:none; }
+  /* faner i samme pilleform som ki-tabs-card / ki-hjem-card */
+  .valg { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
+  .valg .v { padding:9px 18px; border-radius:999px; font-size:14px; font-weight:500; cursor:pointer; white-space:nowrap;
+    color:rgba(255,255,255,.72); transition:background .18s, color .18s; -webkit-tap-highlight-color:transparent; }
+  .valg .v:hover { color:rgba(255,255,255,.95); }
+  .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  .valg .v[disabled] { opacity:.35; pointer-events:none; }
   .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:12px 0 2px; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
   .stor small { font-size:.34em; font-weight:400; opacity:.6; margin-left:6px; letter-spacing:0; }
