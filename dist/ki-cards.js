@@ -1,4 +1,4 @@
-/* ki-cards v2.98.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.98.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.98.0";
+  KI.VERSION = "2.98.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1387,7 +1387,7 @@ try {
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.8.0";
+const KI_MEDIA_VERSJON = "1.8.1";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1546,9 +1546,11 @@ const KI_MEDIA_STIL = `
   .gknapp.pa { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   /* spor i --gray100, framdrift i --active-big, hvit rund gripeknapp */
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:4px; margin:0; outline:none;
-    background-color:var(--gray100);
-    background-image:linear-gradient(to right, var(--active-big,#ee95ff) 0 var(--p,0%), transparent var(--p,0%) 100%);
-    background-repeat:no-repeat; }
+    background-color:var(--gray100); background-repeat:no-repeat;
+    background-image:linear-gradient(to right, var(--active-big,#ee95ff) var(--p,0%), rgba(0,0,0,0) var(--p,0%)); }
+  input[type=range]::-webkit-slider-runnable-track { -webkit-appearance:none; background:none; height:8px; border-radius:4px; }
+  input[type=range]::-moz-range-track { background:none; height:8px; border-radius:4px; }
+  input[type=range]::-moz-range-progress { background:var(--active-big,#ee95ff); height:8px; border-radius:4px; }
   .vnavn:active { opacity:.6; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
     background:var(--gray1000); border:0; cursor:grab; }
