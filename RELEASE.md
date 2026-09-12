@@ -1,7 +1,11 @@
+## Endret
+
+**ki-jul-card 1.3.0**
+- Julekortet er nå selve bryteren: trykk tenner eller slukker alle julelysene, og merket i hjørnet viser «Tent» eller «Slukket». Hold inne for å åpne kortet stort
+- Flisene «Julesesong» og «Tent nå» er fjernet – tallet står i kortet i stedet
+
 ## Nytt
 
-**ki-jul-card 1.2.0**
-- Julekortet og nedtellingen ligger nå i et sveip med prikker under – `sveip: false` stabler dem som før
-- Trykk på julesesong-flisen, så vokser julekortet ut av den og fyller toppen av kortet, med antall tente lys i hjørnet. Trykk igjen eller på krysset, så trekker det seg tilbake i flisen
-- Snø daler over hele kortet i julesesongen, ikke bare inne i scenen. `snoe: false` skrur det av
-- Toggle-knappen på flisen tenner og slukker som før – resten av flisen åpner julekortet
+- **24. desember**: nissen sitter på mønet med sekken og vinker, og to reinsdyr beiter i hagen
+- **31. desember**: fyrverkeri spretter over hustaket i tre farger, og teksten blir «Godt nytt år»
+- `dato: '2026-12-24'` tegner kortet som en bestemt dag, så du kan se hvordan det blir

@@ -344,9 +344,13 @@ stjernehimmel, røyk fra pipa, snø som daler, lysslynge i hekken, julestjerne i
 det andre. Lysene i tegningen følger de virkelige – stjerna lyser når en julestjerne står på, flammene
 flakker når en stake er tent, og pærene i hekken blinker når utelyset er på. `hero: false` skrur den av, og `sveip: false` stabler julekortet og nedtellingen i stedet for å sveipe.
 
-Øverst sveiper du mellom julekortet og nedtellingen, med prikker under. Trykker du på julesesong-flisen,
-vokser julekortet ut av den og fyller toppen av kortet med antall tente lys i hjørnet – trykk igjen, eller på
-krysset, så trekker det seg tilbake i flisen. I julesesongen daler det snø over hele kortet.
+Julekortet er selve bryteren: trykk tenner eller slukker alle julelysene, og merket i hjørnet sier «Tent»
+eller «Slukket». Hold inne, så vokser kortet ut og fyller toppen med antall tente lys – trykk igjen for å
+lukke. Øverst sveiper du mellom julekortet og nedtellingen, og i julesesongen daler det snø over hele kortet.
+
+**24. desember** sitter nissen på mønet med sekken, og to reinsdyr beiter i hagen. **31. desember** spretter
+det fyrverkeri over hustaket, og teksten blir «Godt nytt år». `dato: '2026-12-24'` viser hvordan det ser ut
+en bestemt dag.
 
 Nedtellingskortet med dager til
 julaften, stripet framdriftslinje og snø som daler i sesongen. Under: sesongflis som tenner og slukker alt,

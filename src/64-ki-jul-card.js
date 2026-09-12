@@ -6,10 +6,11 @@
  * hero: true                            # julekortscene øverst (hero: false skrur den av)
  * sveip: true                           # sveip mellom julekortet og nedtellingen
  * snoe: true                            # snø over hele kortet i julesesongen
+ * dato: '2026-12-24'                    # se hvordan kortet ser ut en bestemt dag
  * automasjoner:                          # valgfritt, vises i Automasjon-fanen
  *   - {entity: automation.julelys_sla_pa_1_november, navn: Slå på, under: 1. november, ikon: mdi:calendar-arrow-right}
  */
-const KI_JUL_VERSJON = "1.2.0";
+const KI_JUL_VERSJON = "1.3.0";
 
 const KI_JUL_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -102,6 +103,27 @@ const KI_JUL_STIL = `
   .scene.stake-pa .flamme { opacity:1; animation:jul-flamme 1.7s ease-in-out infinite; }
   .scene.stake-pa .flamme.f2 { animation-delay:-.6s; } .scene.stake-pa .flamme.f3 { animation-delay:-1.1s; }
   @keyframes jul-flamme { 0%,100% { transform:scaleY(1) rotate(-4deg); } 50% { transform:scaleY(1.25) rotate(4deg); } }
+  /* julaften: nissen på taket og reinsdyr i hagen */
+  .nisse { transform-box:fill-box; transform-origin:50% 100%; animation:jul-nisse 3.4s ease-in-out infinite; }
+  @keyframes jul-nisse { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-3px) rotate(2deg); } }
+  .sekk { transform-box:fill-box; transform-origin:50% 0; animation:jul-sekk 3.4s ease-in-out infinite; }
+  @keyframes jul-sekk { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(3deg); } }
+  .rein { transform-box:fill-box; transform-origin:50% 100%; animation:jul-rein 4.6s ease-in-out infinite; }
+  .rein.r2 { animation-delay:-1.8s; }
+  @keyframes jul-rein { 0%,100% { transform:translateX(0); } 50% { transform:translateX(6px); } }
+  .reinhode { transform-box:fill-box; transform-origin:80% 100%; animation:jul-beite 5.2s ease-in-out infinite; }
+  @keyframes jul-beite { 0%,60%,100% { transform:rotate(0deg); } 75% { transform:rotate(26deg); } }
+
+  /* nyttårsaften: fyrverkeri */
+  .rakett { transform-box:fill-box; animation:jul-rakett 4s ease-out infinite; }
+  .rakett.f2 { animation-delay:-1.4s; } .rakett.f3 { animation-delay:-2.6s; }
+  @keyframes jul-rakett { 0% { opacity:0; transform:scale(.1); } 12% { opacity:1; }
+    55% { opacity:.9; transform:scale(1); } 100% { opacity:0; transform:scale(1.25); } }
+  .rakett line { stroke-linecap:round; }
+
+  .sesongmerke { position:absolute; right:16px; top:16px; font-size:11px; font-weight:700; letter-spacing:.03em;
+    padding:6px 12px; border-radius:999px; background:rgba(255,255,255,.14); backdrop-filter:blur(6px); }
+  .scene.inne .sesongmerke { background:var(--yellow); color:var(--black,#000); }
   .scenetekst { position:absolute; left:18px; bottom:14px; }
   .scenetekst b { display:block; font-size:19px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.6); }
   .scenetekst span { font-size:13px; opacity:.75; }
@@ -227,6 +249,7 @@ class KiJulCard extends HTMLElement {
     const pa = (id) => (grupper.find((g) => g.id === id) || { lys: [] }).lys.some((x) => this._paa(x.entity));
     const stjerne = pa("stjerner"), stake = pa("staker"), ute = pa("ute");
     const inne = stjerne || stake || (d.tent || 0) > 0;
+    const fig = this._dagensFigurer();
 
     const stjerner = Array.from({ length: 14 }, (_, i) =>
       `<circle cx="${(i * 27 + 14) % 360}" cy="${(i * 13) % 60 + 8}" r="${i % 3 === 0 ? 1.6 : 1.1}"
@@ -249,6 +272,7 @@ class KiJulCard extends HTMLElement {
       ${stjerne ? "stjerne-pa" : ""} ${stake ? "stake-pa" : ""}" data-mer="1" role="button" tabindex="0">
       <svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
         <g class="stjerne-himmel">${stjerner}</g>
+        ${fig.fyrverkeri}
 
         <!-- grantrær i bakgrunnen -->
         <g fill="#16321f" opacity=".9">
@@ -288,6 +312,9 @@ class KiJulCard extends HTMLElement {
           <rect x="176" y="126" width="20" height="42" rx="3" fill="#1b2c42"/>
         </g>
 
+        ${fig.nisse}
+        ${fig.rein}
+
         <!-- hekken med lysslynge -->
         <path d="M8 200v-30q14-18 30-16t26 14q16-16 34-12t24 18q14-14 30-10t22 16q16-14 32-10t24 16q14-12 28-8t26 16v6z"
           fill="#1c3a26"/>
@@ -297,9 +324,65 @@ class KiJulCard extends HTMLElement {
         <path d="M0 186q60-10 120 0t120 0 120 0v14H0z" fill="#f2f6ff" opacity=".92"/>
       </svg>
       <div class="snoefall" style="position:absolute;inset:0;pointer-events:none">${snø}</div>
-      <div class="scenetekst"><b>${kiJulEsc(d.overskrift === "Julaften" ? "God jul" : "Snart jul")}</b>
+      <span class="sesongmerke">${(d.tent || 0) > 0 ? "Tent" : "Slukket"}</span>
+      <div class="scenetekst"><b>${kiJulEsc(fig.nyttaar ? "Godt nytt år"
+        : fig.julaften ? "God jul" : d.fase === "jul" ? "Snart jul" : "Venter på jul")}</b>
         <span>${d.tent || 0} av ${d.antall || (d.lys || []).length} lys tent</span></div>
     </div>`;
+  }
+
+  /* Julaften: nissen på taket, reinsdyr i hagen. Nyttårsaften: fyrverkeri. */
+  _dagensFigurer() {
+    const nå = this._c && this._c.dato ? new Date(this._c.dato + "T12:00:00") : new Date();
+    const julaften = nå.getMonth() === 11 && nå.getDate() === 24;
+    const nyttaar = nå.getMonth() === 11 && nå.getDate() === 31;
+
+    const nisse = julaften ? `
+      <g transform="translate(-12 8)"><g class="nisse">
+        <path d="M196 44c8-12 22-12 30 0z" fill="#d9433f"/>
+        <circle cx="211" cy="41" r="3.2" fill="#fff"/>
+        <path d="M197 44h28v6h-28z" fill="#fff"/>
+        <path d="M199 50h24l-4 18h-16z" fill="#d9433f"/>
+        <circle cx="211" cy="57" r="6" fill="#f3d9bd"/>
+        <path d="M204 60q7 10 14 0z" fill="#fff"/>
+        <path d="M198 58l-9 7" stroke="#d9433f" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M224 58l9 5" stroke="#d9433f" stroke-width="4.5" stroke-linecap="round"/>
+      </g></g>
+      <g transform="translate(-12 8)"><g class="sekk">
+        <path d="M230 56q16 3 13 18-13 5-18-4z" fill="#8a5a2b"/>
+        <path d="M232 58q8 2 8 9" stroke="#6d461f" stroke-width="2" fill="none"/>
+      </g></g>` : "";
+
+    const rein = julaften ? `
+      <g class="rein">
+        <path d="M64 178v-14M76 178v-14" stroke="#6b4a2f" stroke-width="3" stroke-linecap="round"/>
+        <rect x="58" y="152" width="26" height="14" rx="6" fill="#8a5f3a"/>
+        <g class="reinhode">
+          <circle cx="88" cy="150" r="7" fill="#8a5f3a"/>
+          <path d="M85 143l-4-8M91 143l4-8M81 135l-5-3M95 135l5-3" stroke="#5d4028" stroke-width="2.4" stroke-linecap="round"/>
+          <circle cx="93" cy="151" r="2.2" fill="#ff6b6b"/>
+        </g>
+      </g>
+      <g class="rein r2" opacity=".85">
+        <path d="M276 180v-12M286 180v-12" stroke="#6b4a2f" stroke-width="3" stroke-linecap="round"/>
+        <rect x="270" y="158" width="22" height="12" rx="5" fill="#7a5232"/>
+        <circle cx="296" cy="156" r="6" fill="#7a5232"/>
+        <path d="M293 150l-3-7M299 150l3-7" stroke="#5d4028" stroke-width="2.2" stroke-linecap="round"/>
+      </g>` : "";
+
+    const fyrverkeri = nyttaar ? [0, 1, 2].map((i) => {
+      const cx = [90, 200, 290][i], cy = [46, 30, 58][i];
+      const farge = ["#ffd98a", "#ff9ec4", "#8fd3ff"][i];
+      const straaler = Array.from({ length: 12 }, (_, k) => {
+        const v = (k / 12) * Math.PI * 2;
+        return `<line x1="${cx}" y1="${cy}" x2="${(cx + Math.cos(v) * 26).toFixed(1)}"
+          y2="${(cy + Math.sin(v) * 26).toFixed(1)}" stroke="${farge}" stroke-width="2" opacity=".9"/>`;
+      }).join("");
+      return `<g class="rakett ${i ? "f" + (i + 1) : ""}" style="transform-origin:${cx}px ${cy}px">
+        ${straaler}<circle cx="${cx}" cy="${cy}" r="3" fill="${farge}"/></g>`;
+    }).join("") : "";
+
+    return { nisse, rein, fyrverkeri, julaften, nyttaar };
   }
 
   _nedtelling(d) {
@@ -408,7 +491,7 @@ class KiJulCard extends HTMLElement {
   /* Julekortet vokser ut av julesesong-flisen, som nattkortet gjør */
   _utvid(flis) {
     const r = this.shadowRoot, rot = r.querySelector(".rot");
-    if (!rot || r.querySelector(".utvidet")) return;
+    if (!rot || r.querySelector(".utvidet") || !flis) return;
     const d = this._d(); if (!d) return;
     const rf = rot.getBoundingClientRect(), ff = flis.getBoundingClientRect();
     /* laget dekker toppen av kortet – ikke hele lista under */
@@ -514,7 +597,6 @@ class KiJulCard extends HTMLElement {
       <div class="rot">
         ${snoer}
         ${topp}
-        ${this._fliser(d)}
         ${this._handlinger()}
         ${faner.length > 1 ? `<div class="faner"><div class="skinne">${faner.map((f) =>
           `<button class="fane ${f === this._fane ? "valgt" : ""}" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
@@ -543,12 +625,26 @@ class KiJulCard extends HTMLElement {
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); slaa(); } });
     });
     r.querySelectorAll("[data-alle]").forEach((b) => b.addEventListener("click", () => this._alle(b.dataset.alle === "pa")));
-    const sesong = r.querySelector("[data-sesong]");
-    if (sesong) sesong.addEventListener("click", (e) => {
-      /* knappen til høyre tenner og slukker, resten av flisen åpner julekortet */
-      if (e.target.closest(".knapp")) return this._alle(!sesong.classList.contains("pa"));
-      this._utvid(sesong);
-    });
+
+    /* julekortet er bryteren: trykk tenner og slukker, hold åpner det stort */
+    const scene = r.querySelector(".scene");
+    if (scene) {
+      let holdt = false, t = null;
+      const start = () => { holdt = false; t = setTimeout(() => { holdt = true; this._utvid(scene); }, 500); };
+      const slutt = () => { clearTimeout(t); };
+      scene.addEventListener("pointerdown", start);
+      scene.addEventListener("pointerup", slutt);
+      scene.addEventListener("pointercancel", slutt);
+      scene.addEventListener("pointerleave", slutt);
+      scene.addEventListener("click", () => {
+        if (holdt || this._sveipet) { holdt = false; this._sveipet = false; return; }
+        const paa = scene.classList.contains("inne");
+        scene.classList.toggle("inne", !paa);
+        const merke = scene.querySelector(".sesongmerke");
+        if (merke) merke.textContent = paa ? "Slukket" : "Tent";
+        this._alle(!paa);
+      });
+    }
     this._koblSveip(r);
     r.querySelectorAll("[data-mer]").forEach((el) => el.addEventListener("click", () => this._mer(this._id())));
   }
