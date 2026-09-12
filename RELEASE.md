@@ -1,12 +1,9 @@
-## Nytt
+## Rettet
 
-**Scenene kan stå som hero i de eksisterende kortene**
+**ki-plante-scene-card 1.1.0 / ki-planter-pro-card**
+- Scenen sa «fant ingen planter» selv når kortet hadde dem. Den krevde eksakt treff på stedsnavnet; nå matcher den like løst som plantekortet – navn eller prefiks, uten forskjell på store og små bokstaver – og pro-kortet sender dessuten sine egne planter rett inn i scenen. Treffer filteret ingenting, vises alle plantene i stedet for en tom boks
 
-- `ki-planter-pro-card` med `scene: true` bytter ut ringraden øverst med vinduskarmen og plantene. `scene_hoyde` og `scene_natt` sendes videre
-- `ki-k2-card` med `scene: true` erstatter ringen og statusteksten med printerbildet, og mater det med de samme entitetene kortet allerede bruker – status, framdrift, tid igjen, lag og temperaturer
-
-Begge kortene virker som før uten `scene`, så du kan bytte tilbake når som helst.
-
-## Fra 3.12.0
-
-`ki-k2-scene-card` – 3D-printeren som levende bilde.
+**ki-vanning-card 4.1.0**
+- Feriemodus og vannpris er ute av kortet: ferievalget i programskjemaet, «Ferie»-merket på programkortene og feriestatusen i heroen er fjernet, og kostnad vises bare når integrasjonen faktisk har en vannpris
+- Heroen viser nå «Regnpause» og «Anlegget er av» fra planleggeren i stedet
+- Mangler regnpause og hovedbryter i «Mer»-fanen, sier kortet fra at KI Vanning må oppdateres til 3.0.0 og lastes på nytt

@@ -1,4 +1,4 @@
-/* ki-cards v3.13.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.13.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.13.0";
+  KI.VERSION = "3.13.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4383,6 +4383,15 @@ try {
         this._sceneEl = document.createElement("ki-plante-scene-card");
         this._sceneEl.setConfig({
           sted: this._config.sted,
+          entities: this._plants().map((p) => p.entity),   // nøyaktig de samme plantene
+          hoyde: this._config.scene_hoyde || 200,
+          natt: this._config.scene_natt,
+        });
+      }
+      else {
+        this._sceneEl.setConfig({
+          sted: this._config.sted,
+          entities: this._plants().map((p) => p.entity),
           hoyde: this._config.scene_hoyde || 200,
           natt: this._config.scene_natt,
         });
@@ -9838,7 +9847,7 @@ class KiVanningCard extends HTMLElement {
     return st ? { id, ...st.attributes } : null;
   }
   /* Finner en entitet fra KI Vanning ut fra markøren i attributtene,
-     slik at vannpris, feriemodus og knappene ikke må skrives inn. */
+     slik at regnpause, hovedbryter og knappene ikke må skrives inn. */
   _kiEnt(type) {
     const S = this._states; if (!S) return null;
     this._kiEntCache = this._kiEntCache || {};
@@ -10075,8 +10084,13 @@ class KiVanningCard extends HTMLElement {
       rad(this._kiEnt("nullstill_forbruk"), "Nullstill forbruk", "Kjør"),
       rad(this._kiEnt("nullstill_kalibrering"), "Nullstill kalibrering", "Kjør"),
     ].filter(Boolean).join("");
-    if (!deler) return `<div class="tom">Installer <b>KI Vanning</b> for innstillinger her.</div>`;
-    return `<div class="innboks">${deler}</div>
+    if (!deler) {
+      return `<div class="tom">Installer <b>KI Vanning</b> for innstillinger her.</div>`;
+    }
+    const mangler = !anlegg && !regn && this._ventilmodus()
+      ? `<div class="hint">Fant ikke regnpause og hovedbryter – oppdater <b>KI Vanning</b> til 3.0.0
+          og last integrasjonen på nytt.</div>` : "";
+    return `<div class="innboks">${deler}</div>${mangler}
       ${ki ? `<div class="hint">Regnpause og hovedbryter kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
   }
 
@@ -10096,7 +10110,7 @@ class KiVanningCard extends HTMLElement {
         `<button class="pf ${k === valgt ? "valgt" : ""}" data-per="${k}">${per[k]}</button>`).join("")}</div>
       <div class="maal">
         <div class="rad"><div><div class="stor">${this._litertekst(total)}</div>
-          <div class="und">${per[valgt]} · ${(total / 1000 * pris).toFixed(2)} kr</div></div>
+          <div class="und">${per[valgt]}${pris ? ` · ${(total / 1000 * pris).toFixed(2)} kr` : ""}</div></div>
           <div style="text-align:right"><div class="stor" style="font-size:1.2em">${this._litertekst(est)}</div>
           <div class="und">estimat i dag</div></div></div>
         <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${andel.toFixed(1)}%"></i></div>
@@ -10137,7 +10151,7 @@ class KiVanningCard extends HTMLElement {
         const n = ki.neste || {};
         return `<div class="maal">
           <div class="rad"><div><div class="stor">${this._litertekst(ki.i_dag)}</div>
-            <div class="und">brukt i dag · ${Number(ki.kostnad_i_dag || 0).toFixed(2)} kr</div></div>
+            <div class="und">brukt i dag${ki.kostnad_i_dag ? ` · ${Number(ki.kostnad_i_dag).toFixed(2)} kr` : ""}</div></div>
             <div style="text-align:right"><div class="stor" style="font-size:1.1em">${this._litertekst(ki.estimat_i_dag)}</div>
             <div class="und">planlagt i dag</div></div></div>
           <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${
@@ -10231,11 +10245,6 @@ class KiVanningCard extends HTMLElement {
         </div>`; }).join("")}
       </div>
 
-      <div class="bryterrad"><span>Bare i feriemodus</span>
-        <span class="velg">
-          <button data-fe="nei" class="${d.ferie ? "" : "valgt"}">Nei</button>
-          <button data-fe="ja" class="${d.ferie ? "valgt" : ""}">Ja</button>
-        </span></div>
 
       <div class="skjemaknapper">
         <button class="sk" data-skjema="avbryt">Avbryt</button>
@@ -10267,7 +10276,6 @@ class KiVanningCard extends HTMLElement {
       d.samtidig = el.dataset.s === "samtidig"; tegn();
     }));
     r.querySelectorAll("[data-fe]").forEach((el) => el.addEventListener("click", () => {
-      d.ferie = el.dataset.fe === "ja"; tegn();
     }));
     const lesSoner = () => {
       const ut = [];
@@ -10299,7 +10307,6 @@ class KiVanningCard extends HTMLElement {
         start_dato: d.start_dato || "",
         soner: d.soner || [],
         samtidig: !!d.samtidig,
-        ferie: !!d.ferie,
         aktiv: d.aktiv !== false,
       });
       this._nyttProgram = null; tegn();
@@ -10341,7 +10348,6 @@ class KiVanningCard extends HTMLElement {
       return `<div class="pkort ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
         <div class="topp">
           <div class="navn"><span>${kiVaEsc(x.navn)}</span>
-            ${o.ferie ? `<span class="merkelapp">Ferie</span>` : ""}
             ${o.samtidig ? `<span class="merkelapp">Samtidig</span>` : ""}
             ${gaar ? `<span class="merkelapp">Kjører</span>` : ""}</div>
           <div style="text-align:right"><div class="klokke">${kiVaEsc(tid)}</div>
@@ -10456,12 +10462,12 @@ class KiVanningCard extends HTMLElement {
   _tegnScene(scene, z, vinter, s) {
     const ki = this._ki(), st = z ? this._st(z.status) : null;
     const pl = ki && ki.planlegger;
-    const regn = this._on(s.regn) || !!(ki && ki.ferie);
+    const regn = this._on(s.regn) || !!(ki && ki.regnpause);
     scene.classList.toggle("vanner", !!z);
     scene.classList.toggle("vinter", !z && !!vinter);
     scene.classList.toggle("regn", !z && !vinter && regn);
     scene.querySelector(".tittel").textContent = z ? "Vanner " + z.navn
-      : vinter ? "Vintermodus" : (ki && ki.ferie) ? "Feriemodus" : regn ? "Regnpause"
+      : vinter ? "Vintermodus" : (ki && ki.anlegg === false) ? "Anlegget er av" : regn ? "Regnpause"
       : this._on(s.aktiv) || this._ventilmodus() ? "Hagen er tørr og klar" : "Anlegget er av";
     const n = (ki && ki.neste) || {};
     scene.querySelector(".under").textContent = z
@@ -10535,7 +10541,7 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
       const forste = this._soner()[0];
       this._nyttProgram = { navn: "", tid: "06:00", dager: ["man", "tor"], intervall: 0, samtidig: false,
-        ferie: false, soner: forste ? [{ entity: forste.bryter, min: 10 }] : [] };
+        soner: forste ? [{ entity: forste.bryter, min: 10 }] : [] };
       this._tegn();
     }));
     r.querySelectorAll("[data-rediger]").forEach((el) => el.addEventListener("click", (e) => {
@@ -15103,11 +15109,12 @@ try {
  *
  * type: custom:ki-plante-scene-card
  * sted: Sebastians soverom        # ellers tas det første stedet fra KI Planter
+ * entities: [binary_sensor.x]     # eller pek på plantene direkte
  * hoyde: 210
  * demo: false | tort | vannet     # se kortet med eksempeldata
  * natt: false                     # tving dag- eller nattbilde
  */
-const KI_PSC_VERSJON = "1.0.0";
+const KI_PSC_VERSJON = "1.1.0";
 
 const KI_PSC_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -15180,13 +15187,24 @@ class KiPlanteSceneCard extends HTMLElement {
   _planter() {
     if (this._c.demo) return this._demo();
     const h = this._h; if (!h) return [];
-    const sted = this._c.sted;
-    return Object.keys(h.states)
-      .filter((id) => {
+    const sted = String(this._c.sted || "").toLowerCase();
+    const valgte = this._c.entities ? [].concat(this._c.entities) : null;
+    const alle = Object.keys(h.states).filter((id) => {
+      const a = h.states[id].attributes || {};
+      return a.integrasjon === "ki_planter" && a.type === "plante";
+    });
+    /* stedet matches like løst som i plantekortet – navn eller prefiks,
+       og faller tilbake på alle planter når filteret ikke treffer noe */
+    let ider = valgte && valgte.length ? alle.filter((id) => valgte.includes(id)) : alle;
+    if (!valgte && sted) {
+      const traff = ider.filter((id) => {
         const a = h.states[id].attributes || {};
-        if (a.integrasjon !== "ki_planter" || a.type !== "plante") return false;
-        return !sted || a.sted === sted || a.sted_prefix === sted;
-      })
+        return String(a.sted || "").toLowerCase().includes(sted)
+          || String(a.sted_prefix || "").toLowerCase().includes(sted);
+      });
+      if (traff.length) ider = traff;
+    }
+    return ider
       .map((id) => {
         const a = h.states[id].attributes || {};
         return {

@@ -2,11 +2,12 @@
  *
  * type: custom:ki-plante-scene-card
  * sted: Sebastians soverom        # ellers tas det første stedet fra KI Planter
+ * entities: [binary_sensor.x]     # eller pek på plantene direkte
  * hoyde: 210
  * demo: false | tort | vannet     # se kortet med eksempeldata
  * natt: false                     # tving dag- eller nattbilde
  */
-const KI_PSC_VERSJON = "1.0.0";
+const KI_PSC_VERSJON = "1.1.0";
 
 const KI_PSC_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -79,13 +80,24 @@ class KiPlanteSceneCard extends HTMLElement {
   _planter() {
     if (this._c.demo) return this._demo();
     const h = this._h; if (!h) return [];
-    const sted = this._c.sted;
-    return Object.keys(h.states)
-      .filter((id) => {
+    const sted = String(this._c.sted || "").toLowerCase();
+    const valgte = this._c.entities ? [].concat(this._c.entities) : null;
+    const alle = Object.keys(h.states).filter((id) => {
+      const a = h.states[id].attributes || {};
+      return a.integrasjon === "ki_planter" && a.type === "plante";
+    });
+    /* stedet matches like løst som i plantekortet – navn eller prefiks,
+       og faller tilbake på alle planter når filteret ikke treffer noe */
+    let ider = valgte && valgte.length ? alle.filter((id) => valgte.includes(id)) : alle;
+    if (!valgte && sted) {
+      const traff = ider.filter((id) => {
         const a = h.states[id].attributes || {};
-        if (a.integrasjon !== "ki_planter" || a.type !== "plante") return false;
-        return !sted || a.sted === sted || a.sted_prefix === sted;
-      })
+        return String(a.sted || "").toLowerCase().includes(sted)
+          || String(a.sted_prefix || "").toLowerCase().includes(sted);
+      });
+      if (traff.length) ider = traff;
+    }
+    return ider
       .map((id) => {
         const a = h.states[id].attributes || {};
         return {

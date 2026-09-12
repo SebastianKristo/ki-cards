@@ -59,6 +59,15 @@
         this._sceneEl = document.createElement("ki-plante-scene-card");
         this._sceneEl.setConfig({
           sted: this._config.sted,
+          entities: this._plants().map((p) => p.entity),   // nøyaktig de samme plantene
+          hoyde: this._config.scene_hoyde || 200,
+          natt: this._config.scene_natt,
+        });
+      }
+      else {
+        this._sceneEl.setConfig({
+          sted: this._config.sted,
+          entities: this._plants().map((p) => p.entity),
           hoyde: this._config.scene_hoyde || 200,
           natt: this._config.scene_natt,
         });
