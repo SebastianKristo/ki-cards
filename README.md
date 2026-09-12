@@ -344,8 +344,8 @@ bakgrunnsbilde, plakat, tittel, episode og merkelapper for tidspunkt, sesong og 
 spilletid og kanal. Under kommer resten som en liste med små plakater – er det flere enn du viser, ligger det en pil nederst som
 folder ut resten. Med begge sensorene satt får du faner for Alle, Serier og Filmer, og en kalenderknapp.
 
-Kalenderen er en månedsrute der hver dag er en ring, med et rosa merke som viser hvor mange lanseringer som
-kommer den dagen – gult når det bare er filmer. Trykk på en dag for å se hva som slippes, og bla mellom
+Kalenderen er en månedsrute der hver dag er en stor ring, uten kortbakgrunn bak – den står rett på popupens
+egen bakgrunn. Et rosa merke viser hvor mange lanseringer som kommer den dagen, gult når det bare er filmer. Trykk på en dag for å se hva som slippes, og bla mellom
 måneder med pilene. `visning: kalender` starter rett i kalenderen, `kalender: false` skjuler knappen.
 
 Trykk på en rad åpner serien eller filmen i Sonarr eller Radarr via `deep_link`.

@@ -9,7 +9,7 @@
  * kalender: true            # vis knappen som bytter mellom liste og månedskalender
  * plakater: true            # vis plakater i lista
  */
-const KI_LANS_VERSJON = "1.1.0";
+const KI_LANS_VERSJON = "1.2.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -73,28 +73,30 @@ const KI_LANS_STIL = `
   .mer:active { background:var(--gray100); }
 
   /* ---- månedskalender ---- */
-  .kal { background:var(--gray200); border-radius:20px; padding:14px; }
+  /* kalenderen står rett på popup-bakgrunnen – ingen egen boks bak */
+  .kal { background:none; border-radius:20px; padding:4px 2px 2px; }
   .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center; gap:10px;
     padding:0 2px 10px; }
-  .kaltopp .mnd { text-align:center; font-size:15px; font-weight:600; text-transform:capitalize; }
-  .pil { border:0; background:var(--gray100); color:var(--gray1000); width:32px; height:32px; border-radius:50%;
-    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; }
+  .kaltopp .mnd { text-align:center; font-size:16px; font-weight:600; text-transform:capitalize; }
+  .pil { border:0; background:none; color:var(--gray1000); width:36px; height:36px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:24px; opacity:.7; }
+  .pil:hover { opacity:1; }
   .pil:active { transform:scale(.92); }
-  .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; padding-bottom:5px; }
-  .ukedager span { text-align:center; font-size:11px; font-weight:600; opacity:.45; }
-  .rutenett { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
-  .dag { position:relative; aspect-ratio:1; border-radius:50%; background:var(--gray100); display:flex;
-    align-items:center; justify-content:center; font-size:13px; cursor:pointer;
+  .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; padding-bottom:7px; }
+  .ukedager span { text-align:center; font-size:12px; font-weight:600; opacity:.45; }
+  .rutenett { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; }
+  .dag { position:relative; aspect-ratio:1; border-radius:50%; background:var(--gray200); display:flex;
+    align-items:center; justify-content:center; font-size:15px; cursor:pointer;
     transition:transform .14s var(--fjaer), background .2s; }
   .dag.utenfor { opacity:.25; background:transparent; cursor:default; }
   .dag.har { background:var(--gray100); font-weight:600; }
   .dag.idag { outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; }
   .dag.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); transform:scale(1.06); }
-  .dag .antall { position:absolute; top:-2px; left:-2px; min-width:20px; height:20px; border-radius:10px;
-    background:#ffc0dd; color:#3a2430; font-size:11px; font-weight:700; display:flex; align-items:center;
-    justify-content:center; padding:0 5px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  .dag .antall { position:absolute; top:-3px; left:-3px; min-width:22px; height:22px; border-radius:11px;
+    background:#ffc0dd; color:#3a2430; font-size:12px; font-weight:700; display:flex; align-items:center;
+    justify-content:center; padding:0 6px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
   .dag.film .antall { background:#ffd98a; }
-  .valgtdag { font-size:12px; opacity:.6; padding:12px 4px 0; text-transform:capitalize; }
+  .valgtdag { font-size:13px; opacity:.6; padding:14px 4px 2px; text-transform:capitalize; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; transition:none !important; } }
 `;
 
