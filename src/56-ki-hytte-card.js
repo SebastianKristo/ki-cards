@@ -7,11 +7,15 @@
  * faner: [kalender, opphold, statistikk, helger]
  * alle_steder: true          # Opphold viser alle stedene, med filter øverst
  * sveip: true                # sveip mellom «Alle steder» og ett kort per sted
+ * steder:                    # farge og motiv per sted (ellers gjettes det fra navnet)
+ *   Strömstad: { farge: var(--blue), motiv: kyst }
+ *   Toten: { farge: var(--yellow), motiv: land }
+ *   Oslo: { farge: var(--green), motiv: hus }
  * demo: true                 # eksempeldata for Oslo, Strömstad og Toten
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "2.2.1";
+const KI_HYTTE_VERSJON = "2.3.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -43,6 +47,9 @@ const KI_HYTTE_STIL = `
   .synk.gaar ha-icon { animation:hy-snurr 1s linear infinite; }
   @keyframes hy-snurr { to { transform:rotate(360deg); } }
   .hytte { position:absolute; right:14px; bottom:-6px; width:104px; height:84px; opacity:.5; z-index:-1; }
+  /* kyst og land trenger litt mer plass, og skal ikke skjæres av i bunnen */
+  .hero.kyst .hytte, .hero.land .hytte { right:8px; bottom:0; width:136px; height:100px; opacity:.6; }
+  .hero.kyst.her .hytte, .hero.land.her .hytte { opacity:.85; }
   .hero.her .hytte { opacity:.75; }
   .royk { opacity:0; }
   .hero.her .royk { animation:hy-royk 4.2s ease-out infinite; }
@@ -68,6 +75,28 @@ const KI_HYTTE_STIL = `
 
   /* master-kortet: alle stedene under ett */
   .hero.master { background:linear-gradient(135deg,#243447 0%,#1d2b3a 55%,#1e2a26 100%); }
+  .hero.kyst { background:linear-gradient(135deg,#1b3a55 0%,#16293c 60%,#152230 100%); }
+  .hero.kyst.her { background:linear-gradient(135deg,#255a7e 0%,#1a3a54 60%,#152230 100%); }
+  .hero.land { background:linear-gradient(135deg,#4a3f1e 0%,#2e2a17 60%,#221f14 100%); }
+  .hero.land.her { background:linear-gradient(135deg,#6e5a24 0%,#3d3418 60%,#241f12 100%); }
+  /* kyst: fyrtårn, bølger og måker */
+  .boelge { animation:hy-boelge 5.5s ease-in-out infinite alternate; transform-box:view-box; }
+  .boelge.b2 { animation-duration:7s; animation-delay:-2s; }
+  @keyframes hy-boelge { from { transform:translateX(-4px); } to { transform:translateX(6px); } }
+  .fyrlys { opacity:0; transform-box:fill-box; transform-origin:right center; }
+  .hero.her .fyrlys { animation:hy-fyr 4.5s linear infinite; }
+  @keyframes hy-fyr { 0% { opacity:0; transform:rotate(-25deg); } 12% { opacity:.55; }
+    45% { opacity:.55; } 60% { opacity:0; transform:rotate(28deg); } 100% { opacity:0; } }
+  .maake { animation:hy-maake 9s linear infinite; transform-box:view-box; }
+  .maake.m2 { animation-duration:12s; animation-delay:-4s; }
+  @keyframes hy-maake { from { transform:translate(0,0); } to { transform:translate(-46px,-8px); } }
+  /* land: åker, silo og traktor */
+  .traktor { animation:hy-traktor 11s linear infinite; transform-box:view-box; }
+  .hjul { transform-box:fill-box; transform-origin:center; animation:hy-hjul 1.4s linear infinite; }
+  @keyframes hy-traktor { from { transform:translateX(-30px); } to { transform:translateX(120px); } }
+  @keyframes hy-hjul { to { transform:rotate(360deg); } }
+  .aks { transform-box:fill-box; transform-origin:50% 100%; animation:hy-aks 3.6s ease-in-out infinite alternate; }
+  @keyframes hy-aks { from { transform:rotate(-5deg); } to { transform:rotate(5deg); } }
   .stedrad { display:flex; gap:8px; flex-wrap:wrap; margin-top:2px; }
   .stedpille { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
     padding:5px 10px; border-radius:999px; background:rgba(255,255,255,.12); }
@@ -336,13 +365,24 @@ class KiHytteCard extends HTMLElement {
       .map((x) => ({ id: x, ...h.states[x].attributes }))
       .sort((a, b) => (a.rolle === "hjem" ? -1 : b.rolle === "hjem" ? 1 : String(a.sted).localeCompare(String(b.sted), "nb")));
   }
-  _stedFarge2(sted) {
+  /* Farge per sted: eget valg først, så gjetning fra navnet, ellers etter tur */
+  _stedOppsett(sted) {
+    const egen = ((this._c && this._c.steder) || {})[sted] || {};
+    const n = String(sted || "").toLowerCase();
+    let gjett = {};
+    if (/ström|strom|kyst|sjø|sjo|hav/.test(n)) gjett = { farge: "var(--blue)", motiv: "kyst" };
+    else if (/toten|gård|gard|land|åker|aker/.test(n)) gjett = { farge: "var(--yellow)", motiv: "land" };
+    else if (/oslo|hjem/.test(n)) gjett = { farge: "var(--green)", motiv: "hus" };
     const alle = this._alleSteder();
     const s = alle.find((x) => x.sted === sted);
-    if (s && s.rolle === "hjem") return "var(--green)";
-    const i = Math.max(0, alle.findIndex((x) => x.sted === sted));
-    return ["var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 4];
+    if (!gjett.farge && s && s.rolle === "hjem") gjett = { farge: "var(--green)", motiv: "hus" };
+    if (!gjett.farge) {
+      const i = Math.max(0, alle.findIndex((x) => x.sted === sted));
+      gjett = { farge: ["var(--blue)", "var(--yellow)", "var(--orange)", "var(--active-big)"][i % 4], motiv: "hus" };
+    }
+    return { motiv: "hus", ...gjett, ...egen };
   }
+  _stedFarge2(sted) { return this._stedOppsett(sted).farge; }
 
   /* «Alle steder»: slår sammen de tre stedene til ett datasett.
      Kalenderdagene fargelegges da etter sted i stedet for person. */
@@ -483,16 +523,50 @@ class KiHytteCard extends HTMLElement {
     return (d.helger || []).map(kort).join("");
   }
 
+  /* Bytter bare innholdet i fanene, uten å bygge hero-sveipet på nytt */
+  _oppdaterPaneler() {
+    const r = this.shadowRoot, c = this._c; if (!r || !c) return;
+    const sider = this._sider || [];
+    const d = sider[this._side] || this._data();
+    if (!d) return;
+    (c.faner || []).forEach((f) => {
+      const panel = r.querySelector(`.panel[data-p="${f}"]`);
+      if (!panel) return;
+      panel.innerHTML = f === "kalender" ? this._kalender(d)
+        : f === "opphold" ? this._opphold(d)
+        : f === "helger" ? this._helger() : this._statistikk(d);
+    });
+    this._koblPaneler(r);
+  }
+
+  /* Knappene inne i fanene – kalles både ved full tegning og ved sidebytte */
+  _koblPaneler(r) {
+    r.querySelectorAll("[data-dagvalg]").forEach((el) => el.addEventListener("click", () => {
+      this._dagValgt = this._dagValgt === el.dataset.dagvalg ? null : el.dataset.dagvalg;
+      this._oppdaterPaneler();
+    }));
+    r.querySelectorAll("[data-sted]").forEach((b) => b.addEventListener("click", () => {
+      this._sted = b.dataset.sted || null; this._oppdaterPaneler();
+    }));
+    r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
+      this._mnd += Number(b.dataset.mnd); this._dagValgt = null; this._oppdaterPaneler();
+    }));
+  }
+
   /* Sveip mellom stedene, med retningslås så siden kan rulles som normalt */
   _koblSveip(r, antall) {
     if (antall < 2) return;
     const boks = r.querySelector(".sveip"), spor = r.querySelector(".spor");
     if (!boks || !spor) return;
+    /* La sporet gli ferdig først, og bytt innholdet under etterpå –
+       ellers bygges hele kortet om midt i bevegelsen og det hakker. */
     const gaTil = (i) => {
-      this._side = Math.max(0, Math.min(antall - 1, i));
-      this._sted = null; this._dagValgt = null;
-      this._forrige = null;
-      this._tegn();
+      const ny = Math.max(0, Math.min(antall - 1, i));
+      this._side = ny; this._sted = null; this._dagValgt = null;
+      spor.style.transform = `translateX(-${ny * 100}%)`;
+      r.querySelectorAll("[data-s]").forEach((p, n) => p.classList.toggle("valgt", n === ny));
+      clearTimeout(this._bytteTimer);
+      this._bytteTimer = setTimeout(() => this._oppdaterPaneler(), 360);
     };
     let x0 = null, y0 = 0, dx = 0, retning = null;
     boks.addEventListener("pointerdown", (e) => { if (e.target.closest(".synk")) return; x0 = e.clientX; y0 = e.clientY; dx = 0; retning = null; });
@@ -535,11 +609,49 @@ class KiHytteCard extends HTMLElement {
       return;
     }
     const navn = { kalender: "Kalender", opphold: "Opphold", statistikk: "Statistikk", helger: "Helger" };
-    const heroFor = (dd) => {
-      const her = dd.her_naa || [];
-      const siste = dd.siste;
-      return `<div class="hero ${her.length ? "her" : ""} ${dd.master ? "master" : ""}" role="button" tabindex="0">
-      <svg class="hytte" viewBox="0 0 120 90" aria-hidden="true">
+    /* Motivet bak hvert sted: hus, kyst med fyrtårn, eller åker med traktor */
+    const motivFor = (dd) => {
+      const m = dd.master ? "hus" : this._stedOppsett(dd.sted).motiv;
+      if (m === "kyst") {
+        return `<svg class="hytte" viewBox="0 0 120 90" aria-hidden="true">
+          <g class="maake" fill="none" stroke="#eaf6ff" stroke-width="1.6" opacity=".5">
+            <path d="M16 20q4-4 8 0M26 16q3-3 6 0"/></g>
+          <g class="maake m2" fill="none" stroke="#eaf6ff" stroke-width="1.4" opacity=".35">
+            <path d="M44 12q3-3 6 0"/></g>
+          <g fill="currentColor">
+            <path d="M74 28h14l-3 44H77z" opacity=".55"/>
+            <rect x="73" y="22" width="16" height="8" rx="2" opacity=".75"/>
+            <path d="M76 34h9v6h-9zM76 46h9v6h-9z" opacity=".3"/>
+            <path d="M70 72h22v4H70z" opacity=".5"/>
+          </g>
+          <rect class="vindu" x="77" y="24" width="8" height="5" rx="1.5"/>
+          <g class="fyrlys"><path d="M77 26 L40 12 L40 40 Z" fill="#ffd98a" opacity=".5"/></g>
+          <path class="boelge" d="M0 78q10-5 20 0t20 0 20 0 20 0 20 0 20 0V90H0z" fill="#4da3e0" opacity=".35"/>
+          <path class="boelge b2" d="M0 84q12-4 24 0t24 0 24 0 24 0 24 0V90H0z" fill="#6ec6ff" opacity=".28"/>
+        </svg>`;
+      }
+      if (m === "land") {
+        return `<svg class="hytte" viewBox="0 0 120 90" aria-hidden="true">
+          <g fill="currentColor" opacity=".5">
+            <path d="M84 34h16v38H84z"/><path d="M82 34l10-10 10 10z"/>
+            <rect x="88" y="46" width="8" height="10" rx="1.5" opacity=".6"/>
+          </g>
+          <g class="aks" stroke="#e8c86a" stroke-width="1.6" fill="none" opacity=".55">
+            <path d="M10 74v-12M16 74v-14M22 74v-11M28 74v-13M34 74v-12"/></g>
+          <path d="M0 74h120v3H0z" fill="currentColor" opacity=".4"/>
+          <g class="traktor">
+            <g fill="currentColor">
+              <path d="M44 62h16v8H44z" opacity=".85"/>
+              <path d="M50 54h10v8H50z" opacity=".7"/>
+              <rect x="60" y="60" width="10" height="8" rx="2" opacity=".85"/>
+            </g>
+            <circle class="hjul" cx="48" cy="72" r="6" fill="none" stroke="currentColor" stroke-width="2.6"/>
+            <circle class="hjul" cx="66" cy="73" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/>
+          </g>
+          <rect class="vindu" x="52" y="56" width="6" height="5" rx="1.5"/>
+        </svg>`;
+      }
+      return `<svg class="hytte" viewBox="0 0 120 90" aria-hidden="true">
         <g fill="currentColor" opacity=".9">
           <path d="M18 44 60 16l42 28v40H18z" opacity=".35"/>
           <path d="M14 46 60 14l46 32-4 5-42-29-42 29z"/>
@@ -549,7 +661,15 @@ class KiHytteCard extends HTMLElement {
         <rect class="vindu" x="66" y="52" width="16" height="14" rx="3"/>
         <g fill="#eaf6ff"><circle class="royk" cx="79" cy="20" r="4"/>
           <circle class="royk r2" cx="79" cy="20" r="3"/><circle class="royk r3" cx="79" cy="20" r="5"/></g>
-      </svg>
+      </svg>`;
+    };
+
+    const heroFor = (dd) => {
+      const her = dd.her_naa || [];
+      const siste = dd.siste;
+      const motiv = dd.master ? "master" : this._stedOppsett(dd.sted).motiv;
+      return `<div class="hero ${her.length ? "her" : ""} ${dd.master ? "master" : motiv}" role="button" tabindex="0">
+      ${motivFor(dd)}
       <button class="synk" data-synk="1" title="Les kalenderen på nytt"><ha-icon icon="mdi:calendar-sync"></ha-icon></button>
       <div class="tit"><span>${kiHyEsc(dd.sted || "Hytta")}</span>
         <span class="ansikter">${her.map((p) =>
@@ -571,7 +691,7 @@ class KiHytteCard extends HTMLElement {
     const sider = this._c.sveip !== false && alleSteder.length > 1
       ? [this._master(), ...alleSteder] : [d];
     if (this._side === undefined || this._side >= sider.length) this._side = 0;
-    this._antallSider = sider.length;
+    this._antallSider = sider.length; this._sider = sider;
     const valgtD = sider[this._side] || d;
     const heroer = sider.length > 1
       ? `<div class="sveip"><div class="spor" style="transform:translateX(-${this._side * 100}%)">
@@ -612,17 +732,12 @@ class KiHytteCard extends HTMLElement {
       if (knapp) this._h.callService("button", "press", { entity_id: knapp });
       else this._h.callService("ki_hyttebesok", "les_kalender", {});
     });
-    r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
-    r.querySelectorAll("[data-dagvalg]").forEach((el) => el.addEventListener("click", () => {
-      this._dagValgt = this._dagValgt === el.dataset.dagvalg ? null : el.dataset.dagvalg;
-      this._forrige = null; this._tegn();
+    r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => {
+      this._fane = b.dataset.f;
+      r.querySelectorAll(".fane").forEach((x) => x.classList.toggle("valgt", x === b));
+      r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
     }));
-    r.querySelectorAll("[data-sted]").forEach((b) => b.addEventListener("click", () => {
-      this._sted = b.dataset.sted || null; this._forrige = null; this._tegn();
-    }));
-    r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
-      this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();
-    }));
+    this._koblPaneler(r);
   }
 }
 if (!customElements.get("ki-hytte-card")) customElements.define("ki-hytte-card", KiHytteCard);

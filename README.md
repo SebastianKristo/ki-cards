@@ -430,6 +430,16 @@ fanene følger kortet du står på. «Alle steder» summerer netter og besøk p�
 akkurat nå, og fargelegger kalenderdagene etter **sted** i stedet for person. `sveip: false` gir bare det ene
 stedet.
 
+Hvert sted har sin farge og sitt motiv: Oslo grønt med hus, Strömstad blått med fyrtårn, bølger og måker,
+Toten gult med åker, silo og en traktor som kjører forbi. Fargen gjettes fra navnet, og kan settes selv:
+
+```yaml
+steder:
+  Strömstad: {farge: var(--blue), motiv: kyst}
+  Toten: {farge: var(--yellow), motiv: land}
+  Oslo: {farge: var(--green), motiv: hus}
+```
+
 Statuskortet viser hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
 besøk og neste planlagte tur.
 
