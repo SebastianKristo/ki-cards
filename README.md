@@ -44,7 +44,7 @@ last ned *KI Cards*, last dashboardet på nytt. Ressursen registreres automatisk
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-soppel-card.svg" width="28" align="absmiddle"> | `ki-soppel-card` | KI Søppel | Dager til neste tømming, med søppelbil og ristende dunk på tømmedagen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-strompris-card.svg" width="28" align="absmiddle"> | `ki-strompris-card` | KI Strømpris | Døgnets priser med spotpris og Norgespris, faner for i dag og i morgen |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vanning-card.svg" width="28" align="absmiddle"> | `ki-vanning-card` | KI Vanning | OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebesok): månedskalender, opphold og statistikk |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebes-k): månedskalender, opphold og statistikk |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fremover-card.svg" width="28" align="absmiddle"> | `ki-fremover-card` | KI Framover | Kommende hendelser fra kalenderne, gruppert per dag med filter per kalender |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-lansering-card.svg" width="28" align="absmiddle"> | `ki-lansering-card` | KI Lansering | Kommende episoder og filmer fra Sonarr og Radarr, med plakat og bakgrunnsbilde |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-post-card.svg" width="28" align="absmiddle"> | `ki-post-card` | KI Post | Når posten kommer |
@@ -421,9 +421,15 @@ type: custom:ki-hytte-card
 sted: Strömstad                 # velger riktig sted når du har flere
 # oversikt: sensor.ki_hyttebesok_stromstad_oversikt   # oppdages automatisk
 faner: [kalender, opphold, helger, statistikk]
+sveip: true                     # sveip mellom Alle steder og hvert enkelt sted
 ```
-Viser hyttebesøkene fra [KI Hyttebesøk](https://github.com/SebastianKristo/ki-hyttebesok). Øverst et
-statuskort med hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
+Viser hyttebesøkene fra [KI Hyttebesøk](https://github.com/SebastianKristo/ki-hyttebes-k). Har du flere
+steder, sveiper du øverst mellom **Alle steder** og ett kort per sted – prikker under viser hvor du er, og
+fanene følger kortet du står på. «Alle steder» summerer netter og besøk på tvers, viser hvem som er hvor
+akkurat nå, og fargelegger kalenderdagene etter **sted** i stedet for person. `sveip: false` gir bare det ene
+stedet.
+
+Statuskortet viser hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
 besøk og neste planlagte tur.
 
 **Kalender** er en månedsrute der hver dag fargelegges etter hvem som var der; er flere der samtidig, deles

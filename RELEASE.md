@@ -1,11 +1,8 @@
 ## Endret
 
-**ki-hytte-card 1.3.0**
-- Opphold viser nå alle stedene under ett, med filter øverst for Alle / Oslo / Strömstad / Toten. Stedsnavnet står som merkelapp bak navnet når du ser alle. Fanen virker likt fra alle tre kortene
-- `alle_steder: false` begrenser fanen til stedet kortet gjelder
-
-**ki-post-card 2.0.0**
-- Nytt design: datoskive der ringen fyller seg jo nærmere leveringen kommer, ukedag og nedtellingspille i midten, postkasse til høyre. På selve dagen får kortet blå toning, flagget vaier og et brev glir inn i kassa
-
-**ki-bursdag-pro-card 2.1.0**
-- Radene under den første er bygget om: datoskive med fyllende ring, initial i egen farge per person, alder og ukedag, og nedtelling som pille til høyre
+**ki-hytte-card 2.0.0**
+- Øverst sveiper du nå mellom **Alle steder** og ett kort per sted, med prikker under. Fanene følger kortet du står på
+- «Alle steder» summerer netter og besøk på tvers av Oslo, Strömstad og Toten, viser hvem som er hvor akkurat nå, og har en pille per sted med antall netter
+- I «Alle steder» fargelegges kalenderdagene etter **sted**; på et enkelt sted fargelegges de etter person som før
+- Opphold-fanen har stedsfilter på masterkortet og viser bare sitt eget sted når du står på et stedskort
+- `sveip: false` gir den gamle oppførselen med ett sted
