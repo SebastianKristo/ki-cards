@@ -5,10 +5,11 @@
  * serier: sensor.sonarr_sonarr_upcoming_media
  * filmer: sensor.radarr_radarr_upcoming_media
  * antall: 6                 # hvor mange i lista under heroen
- * visning: full             # full (hero + liste) | liste | hero
+ * visning: full             # full (hero + liste) | liste | hero | kalender
+ * kalender: true            # vis knappen som bytter mellom liste og månedskalender
  * plakater: true            # vis plakater i lista
  */
-const KI_LANS_VERSJON = "1.0.0";
+const KI_LANS_VERSJON = "1.1.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -62,6 +63,38 @@ const KI_LANS_STIL = `
     padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
   .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .tom { background:var(--gray200); border-radius:20px; padding:24px; text-align:center; font-size:13px; opacity:.6; }
+
+  /* ---- vis mer ---- */
+  .mer { border:0; width:100%; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:13px;
+    font-weight:500; padding:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;
+    border-top:1px solid rgba(255,255,255,.05); --mdc-icon-size:20px; }
+  .mer ha-icon { transition:transform .25s var(--myk); }
+  .mer.apen ha-icon { transform:rotate(180deg); }
+  .mer:active { background:var(--gray100); }
+
+  /* ---- månedskalender ---- */
+  .kal { background:var(--gray200); border-radius:20px; padding:14px; }
+  .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center; gap:10px;
+    padding:0 2px 10px; }
+  .kaltopp .mnd { text-align:center; font-size:15px; font-weight:600; text-transform:capitalize; }
+  .pil { border:0; background:var(--gray100); color:var(--gray1000); width:32px; height:32px; border-radius:50%;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; }
+  .pil:active { transform:scale(.92); }
+  .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; padding-bottom:5px; }
+  .ukedager span { text-align:center; font-size:11px; font-weight:600; opacity:.45; }
+  .rutenett { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .dag { position:relative; aspect-ratio:1; border-radius:50%; background:var(--gray100); display:flex;
+    align-items:center; justify-content:center; font-size:13px; cursor:pointer;
+    transition:transform .14s var(--fjaer), background .2s; }
+  .dag.utenfor { opacity:.25; background:transparent; cursor:default; }
+  .dag.har { background:var(--gray100); font-weight:600; }
+  .dag.idag { outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; }
+  .dag.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); transform:scale(1.06); }
+  .dag .antall { position:absolute; top:-2px; left:-2px; min-width:20px; height:20px; border-radius:10px;
+    background:#ffc0dd; color:#3a2430; font-size:11px; font-weight:700; display:flex; align-items:center;
+    justify-content:center; padding:0 5px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  .dag.film .antall { background:#ffd98a; }
+  .valgtdag { font-size:12px; opacity:.6; padding:12px 4px 0; text-transform:capitalize; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; transition:none !important; } }
 `;
 
@@ -75,7 +108,9 @@ class KiLanseringCard extends HTMLElement {
   getCardSize() { return 8; }
 
   setConfig(c) {
-    this._c = { antall: 6, visning: "full", plakater: true, ...(c || {}) };
+    this._c = { antall: 6, visning: "full", plakater: true, kalender: true, ...(c || {}) };
+    this._visKal = this._c.visning === "kalender";
+    this._mnd = 0; this._valgtDag = null; this._alt = false;
     if (!this._c.serier && !this._c.filmer) throw new Error("Sett serier: eller filmer: til upcoming media-sensoren");
     this._forrige = null;
   }
@@ -142,14 +177,73 @@ class KiLanseringCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: x.kilde }, bubbles: true, composed: true }));
   }
 
+  /* Månedskalender: en ring per dag, med antall lanseringer som merke */
+  _kalender(alle) {
+    const nå = new Date(); nå.setHours(0, 0, 0, 0);
+    const vist = new Date(nå.getFullYear(), nå.getMonth() + this._mnd, 1);
+    const start = new Date(vist);
+    start.setDate(1 - ((vist.getDay() + 6) % 7));                   /* mandag først */
+    const perDag = {};
+    alle.forEach((x) => {
+      const d = new Date(x.naar); d.setHours(0, 0, 0, 0);
+      (perDag[d.toDateString()] = perDag[d.toDateString()] || []).push(x);
+    });
+    const ruter = [];
+    for (let i = 0; i < 42; i++) {
+      const dag = new Date(start); dag.setDate(start.getDate() + i);
+      const liste = perDag[dag.toDateString()] || [];
+      const utenfor = dag.getMonth() !== vist.getMonth();
+      const bareFilm = liste.length > 0 && liste.every((x) => x.type === "film");
+      ruter.push(`<div class="dag ${utenfor ? "utenfor" : ""} ${liste.length ? "har" : ""}
+        ${dag.getTime() === nå.getTime() ? "idag" : ""} ${bareFilm ? "film" : ""}
+        ${this._valgtDag === dag.toDateString() ? "valgt" : ""}"
+        ${liste.length ? `data-dag="${dag.toDateString()}"` : ""}>
+        ${liste.length ? `<span class="antall">${liste.length}</span>` : ""}${dag.getDate()}</div>`);
+    }
+    const valgt = this._valgtDag ? (perDag[this._valgtDag] || []) : (perDag[nå.toDateString()] || []);
+    const dagTekst = this._valgtDag ? new Date(this._valgtDag) : nå;
+    return `<div class="kal">
+      <div class="kaltopp">
+        <button class="pil" data-mnd="-1"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="mnd">${vist.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</div>
+        <button class="pil" data-mnd="1"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+      </div>
+      <div class="ukedager">${["M", "T", "O", "T", "F", "L", "S"].map((u) => `<span>${u}</span>`).join("")}</div>
+      <div class="rutenett">${ruter.join("")}</div>
+      <div class="valgtdag">${kiLaEsc(dagTekst.toLocaleDateString("nb-NO",
+        { weekday: "long", day: "numeric", month: "long" }))}${valgt.length ? "" : " · ingenting"}</div>
+    </div>
+    ${valgt.length ? this._liste(valgt, 0) : ""}`;
+  }
+
+  /* Én liste med rader, brukt både under heroen og under kalenderen */
+  _liste(rader, forskyv, hale = "") {
+    const c = this._c;
+    const i_dag = new Date(); i_dag.setHours(0, 0, 0, 0);
+    return `<div class="liste">${rader.map((x, i) => {
+      const n = this._naartekst(x.naar);
+      const dag = new Date(x.naar); dag.setHours(0, 0, 0, 0);
+      const under = [x.episode || (x.type === "film" ? (x.kino ? "Kino" : "Film") : ""), x.nummer, x.studio]
+        .filter(Boolean).join(" · ");
+      return `<div class="rad ${dag.getTime() === i_dag.getTime() ? "idag" : ""}" data-i="${i + forskyv}"
+        role="button" tabindex="0">
+        ${c.plakater !== false ? `<span class="p" style="${x.plakat ? `background-image:url('${kiLaEsc(x.plakat)}')` : ""}"></span>` : "<span></span>"}
+        <span><span class="n">${kiLaEsc(x.tittel)}</span><span class="d">${kiLaEsc(under)}</span></span>
+        <span class="hoyre"><span class="dag">${kiLaEsc(n.kort)}</span>
+          <span class="dato">${kiLaEsc(x.naar.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }))}</span></span>
+      </div>`;
+    }).join("")}${hale}</div>`;
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const alle = this._alle();
     const forste = alle[0];
-    const resten = alle.slice(c.visning === "liste" ? 0 : 1, (c.visning === "liste" ? 0 : 1) + Number(c.antall || 6));
+    const fra = c.visning === "liste" ? 0 : 1;
+    const resten = this._alt ? alle.slice(fra) : alle.slice(fra, fra + Number(c.antall || 6));
     const begge = !!c.serier && !!c.filmer;
 
-    const hero = forste && c.visning !== "liste" ? (() => {
+    const hero = forste && c.visning !== "liste" && !this._visKal ? (() => {
       const n = this._naartekst(forste.naar);
       const bits = [forste.rating, forste.lengde ? `${forste.lengde} min` : "", forste.studio].filter(Boolean);
       return `<div class="hero" data-i="0" role="button" tabindex="0">
@@ -168,35 +262,51 @@ class KiLanseringCard extends HTMLElement {
       </div>`;
     })() : "";
 
-    const i_dag = new Date(); i_dag.setHours(0, 0, 0, 0);
-    const liste = resten.length ? `<div class="liste">${resten.map((x, i) => {
-      const n = this._naartekst(x.naar);
-      const dag = new Date(x.naar); dag.setHours(0, 0, 0, 0);
-      const under = [x.episode || (x.type === "film" ? (x.kino ? "Kino" : "Film") : ""), x.nummer, x.studio]
-        .filter(Boolean).join(" · ");
-      return `<div class="rad ${dag.getTime() === i_dag.getTime() ? "idag" : ""}" data-i="${i + (c.visning === "liste" ? 0 : 1)}" role="button" tabindex="0">
-        ${c.plakater !== false ? `<span class="p" style="${x.plakat ? `background-image:url('${kiLaEsc(x.plakat)}')` : ""}"></span>` : `<span></span>`}
-        <span><span class="n">${kiLaEsc(x.tittel)}</span><span class="d">${kiLaEsc(under)}</span></span>
-        <span class="hoyre"><span class="dag">${kiLaEsc(n.kort)}</span>
-          <span class="dato">${kiLaEsc(x.naar.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }))}</span></span>
-      </div>`;
-    }).join("")}</div>` : "";
+    const forskyv = c.visning === "liste" ? 0 : 1;
+    const igjen = Math.max(0, alle.length - forskyv - Number(c.antall || 6));
+    const merKnapp = igjen || this._alt
+      ? `<button class="mer ${this._alt ? "apen" : ""}" data-mer="1">
+          <ha-icon icon="mdi:chevron-down"></ha-icon>${this._alt ? "Vis færre" : `Vis ${igjen} til`}</button>`
+      : "";
+    const liste = resten.length ? this._liste(resten, forskyv, merKnapp) : "";
 
     const html = `<style>${KI_LANS_STIL}</style>
       <div class="rot">
-        ${begge ? `<div class="faner"><div class="skinne">
-          ${[["alle", "Alle"], ["serie", "Serier"], ["film", "Filmer"]].map(([k, n]) =>
-            `<button class="fane ${this._fane === k ? "valgt" : ""}" data-f="${k}">${n}</button>`).join("")}
+        ${begge || c.kalender !== false ? `<div class="faner"><div class="skinne">
+          ${begge ? [["alle", "Alle"], ["serie", "Serier"], ["film", "Filmer"]].map(([k, n]) =>
+            `<button class="fane ${this._fane === k ? "valgt" : ""}" data-f="${k}">${n}</button>`).join("") : ""}
+          ${c.kalender !== false ? `<button class="fane ${this._visKal ? "valgt" : ""}" data-v="kal"
+            title="Kalender">${begge ? `<ha-icon icon="mdi:calendar-month" style="--mdc-icon-size:18px"></ha-icon>` : "Kalender"}</button>` : ""}
         </div></div>` : ""}
-        ${hero || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)}
-        ${liste}
+        ${this._visKal ? this._kalender(alle)
+          : (hero || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)) + liste}
       </div>`;
 
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
     const r = this.shadowRoot;
-    r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
+      this._fane = b.dataset.f; this._visKal = false; this._forrige = null; this._tegn();
+    }));
+    const kalKnapp = r.querySelector('[data-v="kal"]');
+    if (kalKnapp) kalKnapp.addEventListener("click", () => { this._visKal = !this._visKal; this._forrige = null; this._tegn(); });
+    const mer = r.querySelector("[data-mer]");
+    if (mer) mer.addEventListener("click", () => { this._alt = !this._alt; this._forrige = null; this._tegn(); });
+    r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
+      this._mnd += Number(b.dataset.mnd); this._valgtDag = null; this._forrige = null; this._tegn();
+    }));
+    r.querySelectorAll("[data-dag]").forEach((el) => el.addEventListener("click", () => {
+      this._valgtDag = this._valgtDag === el.dataset.dag ? null : el.dataset.dag;
+      this._forrige = null; this._tegn();
+    }));
     r.querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => {
+      if (this._visKal) {
+        const nå = new Date(); nå.setHours(0, 0, 0, 0);
+        const dag = this._valgtDag || nå.toDateString();
+        const denne = this._alle().filter((x) => { const d = new Date(x.naar); d.setHours(0, 0, 0, 0); return d.toDateString() === dag; });
+        const x = denne[+el.dataset.i]; if (x) this._apne(x);
+        return;
+      }
       const x = this._alle()[+el.dataset.i]; if (x) this._apne(x);
     }));
   }

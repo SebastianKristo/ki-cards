@@ -1,11 +1,10 @@
 ## Endret
 
+**ki-lansering-card 1.1.0**
+- Månedskalender: hver dag er en ring med et merke som viser hvor mange lanseringer som kommer – rosa for serier, gult når det bare er filmer. Trykk på en dag for å se hva som slippes, og bla mellom måneder med pilene
+- Knappen ved siden av fanene bytter mellom liste og kalender. `visning: kalender` starter i kalenderen, `kalender: false` skjuler knappen
+- Pil nederst i lista folder ut resten når det er flere enn `antall:`
+
 **ki-media-card 1.5.0**
-- `visning: stor` kan sveipes mellom spillerne når flere er satt opp i `velger:` eller under en fane i `fane_media:`. Prikker under viser hvor du er, og trykk på en prikk går rett dit. `sveip: false` gir pillerad i stedet
-- Volumraden er strammet inn til samme form som i media-delen av `ki-rom-card`: dempeknapp, tynt spor med lilla fyll og rund gripeknapp, prosent til høyre
-- Spillere som ikke finnes vises gjennomstreket i pilleraden
-
-## Fra 2.84.0
-
-**ki-lansering-card** – kommende episoder og filmer fra Sonarr og Radarr, med hero, plakater og faner for Alle, Serier og Filmer.
-**ki-post-card** og **ki-bursdag-pro-card** – post og bursdager i kalenderkort-stil, lilla på selve dagen.
+- `visning: stor` sveipes mellom spillerne når flere er satt opp, med prikker under
+- Volumraden er strammet inn til samme form som i `ki-rom-card`
