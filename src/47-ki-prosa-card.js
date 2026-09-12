@@ -43,7 +43,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.6.0";
+const KI_PROSA_VERSJON = "2.8.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -66,11 +66,11 @@ const KI_PROSA_STD = {
   apparater: [
     { navn: "Oppvaskmaskinen", aktiv: { entity: "input_select.oppvaskmaskin_status", state: "Vasker" },
       verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:dishwasher", animasjon: "snurr",
+      ikon: "mdi:dishwasher", animasjon: "ingen",
       tekst: "{navn} vasker {pille} nå.", path: "#kjokken" },
     { navn: "Vaskemaskinen", aktiv: { entity: "sensor.vaskemaskin_power", over: 10 },
       verdi: "sensor.vaskemaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:washing-machine", animasjon: "snurr",
+      ikon: "mdi:washing-machine", animasjon: "ingen",
       tekst: "{navn} vasker {pille} nå.", path: "#vaskegang" }],
   hjemkomst: [{ navn: "Mamma", aktiv: "input_boolean.ki_cybele_pa_vei_hjem_fra_jobb",
                 reisetid: "sensor.cybele_reisetid_fra_job", ikon: "🚗", animasjon: "hopp",
@@ -250,7 +250,7 @@ class KiProsaCard extends HTMLElement {
     /* apparater og hjemkomst: fyll ut hvert element med standardnøklene */
     const fyll = (liste, std) => (liste || []).map((x) => ({ ...std, ...x }));
     k.apparater = b.apparater === false ? [] : fyll(b.apparater || KI_PROSA_STD.apparater,
-      { enhet: "W", mellomrom: false, tusenskille: false, animasjon: "snurr", tekst: "{navn} vasker {pille} nå." });
+      { enhet: "W", mellomrom: false, tusenskille: false, animasjon: "ingen", tekst: "{navn} vasker {pille} nå." });
     k.hjemkomst = b.hjemkomst === false ? [] : fyll(b.hjemkomst || KI_PROSA_STD.hjemkomst,
       { ikon: "🚗", animasjon: "hopp", tekst: "{navn} kommer hjem ca. kl {pille}." });
     k.setninger = [].concat(b.setninger || [], b.ekstra || []);   /* ekstra er gammelt navn */
@@ -748,9 +748,11 @@ class KiProsaCardEditor extends HTMLElement {
       ["apparater", "Apparater", [["navn", "Navn", "text"], ["aktiv_entity", "Aktiv når denne", "entity"],
         ["aktiv_state", "har tilstanden", "text"], ["aktiv_over", "eller er over", "number"],
         ["verdi", "Viser verdien fra", "entity"], ["enhet", "Enhet", "text"], ["ikon", "Ikon", "icon"],
+        ["animasjon", "Animasjon: ingen, snurr, hopp, vink", "text"],
         ["tekst", "Setning ({navn}, {pille})", "text"], ["path", "Trykk går til", "text"]]],
       ["hjemkomst", "På vei hjem", [["navn", "Navn", "text"], ["aktiv", "På vei hjem-bryter", "entity"],
         ["reisetid", "Reisetid i minutter", "entity"], ["ikon", "Ikon", "icon"],
+        ["animasjon", "Animasjon: ingen, snurr, hopp, vink", "text"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["setninger", "Egne setninger", [["tekst", "Setning ({pille})", "text"], ["nar_entity", "Vis når denne", "entity"],
         ["nar_state", "har tilstanden", "text"], ["nar_over", "eller er over", "number"],

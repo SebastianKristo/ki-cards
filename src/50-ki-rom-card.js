@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.8.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.9.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
@@ -112,6 +112,9 @@
     },
     cards,
   });
+
+  /* Samme sensor kan ligge både på en bryter og i effekt_andre – da må den bare telles én gang. */
+  const unike = (ids) => [...new Set((ids || []).filter(Boolean))];
 
   const sumWattTemplate = (ids) =>
     T('const ids = ' + JSON.stringify(ids) + '; const total = ids.reduce((s, e) => { const st = states[e]; if (!st) return s; const v = parseFloat(st.state); return isNaN(v) ? s : s + v; }, 0); return total.toFixed(0) + " W";');
@@ -351,7 +354,7 @@
 
   function sectionEnheter(hass, ov, roomName, palette) {
     if (!ov.brytere.length && !ov.vifter.length) return null;
-    const wIds = [...ov.brytere, ...ov.vifter].map((d) => d.effekt).filter(Boolean).concat(ov.effekt_andre || []);
+    const wIds = unike([...ov.brytere, ...ov.vifter].map((d) => d.effekt).concat(ov.effekt_andre || []));
     const cards = [
       ...ov.brytere.map((d, i) => switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), palette[i % palette.length])),
       ...ov.vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
@@ -426,7 +429,7 @@
   function sectionKlima(hass, ov, cfg, roomName) {
     if (!ov.klima.length) return null;
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
-    const wIds = ov.klima.map((d) => d.effekt).filter(Boolean);
+    const wIds = unike(ov.klima.map((d) => d.effekt));
     const cards = ov.klima.map((d) => climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
@@ -607,13 +610,22 @@
      så det integrasjonen har paret, til slutt navnegjetting. */
   function parEffekt(hass, ov, cfg) {
     const par = cfg.effekt_par || {};
+    const brukt = new Set();
     [...(ov.brytere || []), ...(ov.vifter || [])].forEach((d) => {
       if (!d || typeof d !== 'object') return;
-      if (par[d.entity]) { d.effekt = par[d.entity] === false ? null : par[d.entity]; return; }
-      const st = d.effekt ? hass.states[d.effekt] : null;
-      const brukbar = st && String(st.attributes.device_class || '') === 'power';
-      if (!brukbar) { const funnet = finnEffekt(hass, d.entity); if (funnet) d.effekt = funnet; }
+      if (par[d.entity] !== undefined) { d.effekt = par[d.entity] === false ? null : par[d.entity]; }
+      else {
+        const st = d.effekt ? hass.states[d.effekt] : null;
+        const brukbar = st && String(st.attributes.device_class || '') === 'power';
+        if (!brukbar) { const funnet = finnEffekt(hass, d.entity); if (funnet) d.effekt = funnet; }
+      }
+      /* samme sensor skal ikke havne på to enheter */
+      if (d.effekt && brukt.has(d.effekt)) d.effekt = null;
+      if (d.effekt) brukt.add(d.effekt);
     });
+    /* det som nå er paret, fjernes fra «andre» så totalen ikke dobles */
+    if (Array.isArray(ov.effekt_andre)) ov.effekt_andre = ov.effekt_andre.filter((id) => !brukt.has(id));
+    if (Array.isArray(ov.effekt)) ov.effekt = ov.effekt.filter((id) => !brukt.has(typeof id === 'string' ? id : id.entity));
   }
 
   function mergeOversikt(ovStates, skjul) {

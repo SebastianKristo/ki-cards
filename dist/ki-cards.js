@@ -1,4 +1,4 @@
-/* ki-cards v2.65.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.66.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.65.0";
+  KI.VERSION = "2.66.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -5079,7 +5079,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.6.0";
+const KI_PROSA_VERSJON = "2.8.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5102,11 +5102,11 @@ const KI_PROSA_STD = {
   apparater: [
     { navn: "Oppvaskmaskinen", aktiv: { entity: "input_select.oppvaskmaskin_status", state: "Vasker" },
       verdi: "sensor.oppvaskmaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:dishwasher", animasjon: "snurr",
+      ikon: "mdi:dishwasher", animasjon: "ingen",
       tekst: "{navn} vasker {pille} nå.", path: "#kjokken" },
     { navn: "Vaskemaskinen", aktiv: { entity: "sensor.vaskemaskin_power", over: 10 },
       verdi: "sensor.vaskemaskin_power", enhet: "W", mellomrom: false, tusenskille: false,
-      ikon: "mdi:washing-machine", animasjon: "snurr",
+      ikon: "mdi:washing-machine", animasjon: "ingen",
       tekst: "{navn} vasker {pille} nå.", path: "#vaskegang" }],
   hjemkomst: [{ navn: "Mamma", aktiv: "input_boolean.ki_cybele_pa_vei_hjem_fra_jobb",
                 reisetid: "sensor.cybele_reisetid_fra_job", ikon: "🚗", animasjon: "hopp",
@@ -5286,7 +5286,7 @@ class KiProsaCard extends HTMLElement {
     /* apparater og hjemkomst: fyll ut hvert element med standardnøklene */
     const fyll = (liste, std) => (liste || []).map((x) => ({ ...std, ...x }));
     k.apparater = b.apparater === false ? [] : fyll(b.apparater || KI_PROSA_STD.apparater,
-      { enhet: "W", mellomrom: false, tusenskille: false, animasjon: "snurr", tekst: "{navn} vasker {pille} nå." });
+      { enhet: "W", mellomrom: false, tusenskille: false, animasjon: "ingen", tekst: "{navn} vasker {pille} nå." });
     k.hjemkomst = b.hjemkomst === false ? [] : fyll(b.hjemkomst || KI_PROSA_STD.hjemkomst,
       { ikon: "🚗", animasjon: "hopp", tekst: "{navn} kommer hjem ca. kl {pille}." });
     k.setninger = [].concat(b.setninger || [], b.ekstra || []);   /* ekstra er gammelt navn */
@@ -5784,9 +5784,11 @@ class KiProsaCardEditor extends HTMLElement {
       ["apparater", "Apparater", [["navn", "Navn", "text"], ["aktiv_entity", "Aktiv når denne", "entity"],
         ["aktiv_state", "har tilstanden", "text"], ["aktiv_over", "eller er over", "number"],
         ["verdi", "Viser verdien fra", "entity"], ["enhet", "Enhet", "text"], ["ikon", "Ikon", "icon"],
+        ["animasjon", "Animasjon: ingen, snurr, hopp, vink", "text"],
         ["tekst", "Setning ({navn}, {pille})", "text"], ["path", "Trykk går til", "text"]]],
       ["hjemkomst", "På vei hjem", [["navn", "Navn", "text"], ["aktiv", "På vei hjem-bryter", "entity"],
         ["reisetid", "Reisetid i minutter", "entity"], ["ikon", "Ikon", "icon"],
+        ["animasjon", "Animasjon: ingen, snurr, hopp, vink", "text"],
         ["tekst", "Setning", "text"], ["path", "Trykk går til", "text"]]],
       ["setninger", "Egne setninger", [["tekst", "Setning ({pille})", "text"], ["nar_entity", "Vis når denne", "entity"],
         ["nar_state", "har tilstanden", "text"], ["nar_over", "eller er over", "number"],
@@ -6599,7 +6601,7 @@ console.info(`%c KI-STROMPRIS-CARD %c v${KI_SP_VERSJON} `, "color:#fff;backgroun
 /* ===== 50-ki-rom-card ===== */
 try {
 /* ============================================================================
- * ki-rom-card  v1.8.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.9.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
@@ -6712,6 +6714,9 @@ try {
     },
     cards,
   });
+
+  /* Samme sensor kan ligge både på en bryter og i effekt_andre – da må den bare telles én gang. */
+  const unike = (ids) => [...new Set((ids || []).filter(Boolean))];
 
   const sumWattTemplate = (ids) =>
     T('const ids = ' + JSON.stringify(ids) + '; const total = ids.reduce((s, e) => { const st = states[e]; if (!st) return s; const v = parseFloat(st.state); return isNaN(v) ? s : s + v; }, 0); return total.toFixed(0) + " W";');
@@ -6951,7 +6956,7 @@ try {
 
   function sectionEnheter(hass, ov, roomName, palette) {
     if (!ov.brytere.length && !ov.vifter.length) return null;
-    const wIds = [...ov.brytere, ...ov.vifter].map((d) => d.effekt).filter(Boolean).concat(ov.effekt_andre || []);
+    const wIds = unike([...ov.brytere, ...ov.vifter].map((d) => d.effekt).concat(ov.effekt_andre || []));
     const cards = [
       ...ov.brytere.map((d, i) => switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), palette[i % palette.length])),
       ...ov.vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
@@ -7026,7 +7031,7 @@ try {
   function sectionKlima(hass, ov, cfg, roomName) {
     if (!ov.klima.length) return null;
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
-    const wIds = ov.klima.map((d) => d.effekt).filter(Boolean);
+    const wIds = unike(ov.klima.map((d) => d.effekt));
     const cards = ov.klima.map((d) => climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
@@ -7207,13 +7212,22 @@ try {
      så det integrasjonen har paret, til slutt navnegjetting. */
   function parEffekt(hass, ov, cfg) {
     const par = cfg.effekt_par || {};
+    const brukt = new Set();
     [...(ov.brytere || []), ...(ov.vifter || [])].forEach((d) => {
       if (!d || typeof d !== 'object') return;
-      if (par[d.entity]) { d.effekt = par[d.entity] === false ? null : par[d.entity]; return; }
-      const st = d.effekt ? hass.states[d.effekt] : null;
-      const brukbar = st && String(st.attributes.device_class || '') === 'power';
-      if (!brukbar) { const funnet = finnEffekt(hass, d.entity); if (funnet) d.effekt = funnet; }
+      if (par[d.entity] !== undefined) { d.effekt = par[d.entity] === false ? null : par[d.entity]; }
+      else {
+        const st = d.effekt ? hass.states[d.effekt] : null;
+        const brukbar = st && String(st.attributes.device_class || '') === 'power';
+        if (!brukbar) { const funnet = finnEffekt(hass, d.entity); if (funnet) d.effekt = funnet; }
+      }
+      /* samme sensor skal ikke havne på to enheter */
+      if (d.effekt && brukt.has(d.effekt)) d.effekt = null;
+      if (d.effekt) brukt.add(d.effekt);
     });
+    /* det som nå er paret, fjernes fra «andre» så totalen ikke dobles */
+    if (Array.isArray(ov.effekt_andre)) ov.effekt_andre = ov.effekt_andre.filter((id) => !brukt.has(id));
+    if (Array.isArray(ov.effekt)) ov.effekt = ov.effekt.filter((id) => !brukt.has(typeof id === 'string' ? id : id.entity));
   }
 
   function mergeOversikt(ovStates, skjul) {
