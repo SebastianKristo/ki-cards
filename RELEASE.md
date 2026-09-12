@@ -1,5 +1,7 @@
-## Rettet
+## Endret
 
-**ki-media-card 1.9.0**
-- Volumsporet er ikke lenger et stylet `input[type=range]`. Nettleserne tegner det ulikt, og i WebKit – altså Safari og companion-appen – forsvant fargen uansett hvordan gradienten ble skrevet. Nå er spor, fyll og knott vanlige elementer, med et usynlig range-felt oppå for berøring, drag og tastatur
-- Samme mål som før: 8 px spor i `--gray100`, fyll i `--active-big`, hvit knott på 18 px
+**ki-rom-card 1.11.0**
+- Enheter-seksjonen parer nå bryter og effektsensor mot **samme fysiske enhet** i enhetsregisteret, ikke bare på navn. `switch.fryseskap` finner `sensor.hvitevarer_plug_1_power` selv om de heter helt ulikt
+- Ligger det flere sensorer på enheten, velges den som måler effekt nå – døgn- og totaltall (`_energy_daily`, `_total`) velges bort, og alt i kWh forkastes
+- Navnemønstrene er utvidet med `_strom` og `_stromforbruk`, og som siste utvei godtas en sensor som starter med samme slug og måler watt
+- Registeret hentes én gang per sidevisning, og kortene tegnes på nytt når det er klart

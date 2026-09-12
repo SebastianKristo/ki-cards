@@ -1,4 +1,4 @@
-/* ki-cards v2.99.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.99.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.99.0";
+  KI.VERSION = "2.99.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -7696,21 +7696,63 @@ try {
   // ------------------------------------------------------------ generator
   const LIST_KEYS = ['lys', 'media', 'brytere', 'vifter', 'klima', 'gardiner', 'sensorer', 'skript', 'scener', 'temperatur', 'fuktighet', 'lysniva', 'effekt', 'effekt_andre'];
 
-  /* Finner effektsensoren til en bryter når integrasjonen ikke har paret dem.
-     Prøver kjente navnemønstre på samme slug: switch.fryseskap -> sensor.fryseskap_power. */
+  /* Enhetsregisteret: hvilken fysisk enhet hver entitet hører til.
+     Hentes én gang, og kortene tegnes på nytt når det er klart. */
+  let REG = null, REG_HENTES = false;
+  const REG_VENTER = new Set();
+  function hentRegister(hass, kort) {
+    if (kort) REG_VENTER.add(kort);
+    if (REG || REG_HENTES || !hass || !hass.callWS) return;
+    REG_HENTES = true;
+    hass.callWS({ type: 'config/entity_registry/list' }).then((liste) => {
+      REG = {};
+      (liste || []).forEach((e) => { if (e.entity_id) REG[e.entity_id] = e.device_id || null; });
+      REG_HENTES = false;
+      REG_VENTER.forEach((k) => { try { k._dirty = true; if (k._hass) { k.hass = k._hass; } } catch (feil) { /* kortet er borte */ } });
+      REG_VENTER.clear();
+    }).catch(() => { REG = {}; REG_HENTES = false; });
+  }
+
+  /* Er sensoren en brukbar effektsensor – watt, ikke kilowattimer? */
+  function erEffekt(st) {
+    if (!st) return false;
+    const enhet = String(st.attributes.unit_of_measurement || '');
+    if (/wh$/i.test(enhet)) return false;                       // energi, ikke effekt
+    if (String(st.attributes.device_class || '') === 'power') return true;
+    return /^w$|^kw$|watt/i.test(enhet);
+  }
+
+  /* Finner effektsensoren til en bryter.
+     1) samme fysiske enhet i enhetsregisteret, 2) kjente navnemønstre,
+     3) sensor som starter med samme slug og måler watt. */
   function finnEffekt(hass, entity) {
     const slug = String(entity).split('.')[1];
     if (!slug) return null;
+
+    const enhetId = REG && REG[entity];
+    if (enhetId) {
+      const paaEnheten = Object.keys(REG).filter((id) => REG[id] === enhetId && id.startsWith('sensor.'));
+      /* foretrekk den som ser ut som en «nå»-måling framfor døgn-/totaltall */
+      const sortert = paaEnheten.sort((a, b) => {
+        const poeng = (x) => (/(_power|_effekt|_watt|_current_power)/i.test(x) ? 0 : 1)
+          + (/(daily|dag|total|energy|energi|maned|month)/i.test(x) ? 2 : 0);
+        return poeng(a) - poeng(b);
+      });
+      for (const id of sortert) if (erEffekt(hass.states[id])) return id;
+    }
+
     const kandidater = [
       `sensor.${slug}_power`, `sensor.${slug}_effekt`, `sensor.${slug}_current_power_w`,
       `sensor.${slug}_power_w`, `sensor.${slug}_watt`, `sensor.${slug}_forbruk_na`,
+      `sensor.${slug}_strom`, `sensor.${slug}_stromforbruk`,
     ];
-    for (const id of kandidater) {
-      const st = hass.states[id];
-      if (st && String(st.attributes.device_class || '') === 'power') return id;
-      if (st && /^w$|watt/i.test(String(st.attributes.unit_of_measurement || ''))) return id;
-    }
-    return null;
+    for (const id of kandidater) if (erEffekt(hass.states[id])) return id;
+
+    /* siste utvei: en sensor med samme slug foran seg som måler watt */
+    const treff = Object.keys(hass.states)
+      .filter((id) => id.startsWith(`sensor.${slug}_`) && erEffekt(hass.states[id]))
+      .sort((a, b) => a.length - b.length);
+    return treff[0] || null;
   }
 
   /* Parer bryter og effektsensor: eksplisitt `effekt_par` i kortet først,
@@ -7966,6 +8008,7 @@ try {
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
+      if (!REG) hentRegister(hass, this);   // paring mot fysisk enhet krever registeret
       // Ytelse: sammenlign state-objektene på referanse (HA lager nytt objekt bare når entiteten endres)
       // i stedet for å JSON-serialisere attributtene ved hver hass-oppdatering.
       const ov = findOversikt(hass, this._config);
@@ -8123,7 +8166,7 @@ try {
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.7.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.11.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();
 } catch (e) { console.error("ki-cards: 50-ki-rom-card feilet", e); }
 
