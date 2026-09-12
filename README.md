@@ -848,6 +848,11 @@ i stor visning øverst i kortet med samme spiller og seertid, og da skjules stat
 automatisk – `vis_status` og `vis_seertid` overstyrer hvis du vil ha begge. Slik bestemmer du selv om
 mediakortet står over fjernkontrollen eller over fanene. Har egen visuell editor.
 
+Hold inne hjem-knappen for å sende `home_hold` – det er kommandoen som åpner appbytteren på Apple TV. Meny og
+Siri har tilsvarende lange varianter. Dempeknappen bruker `media_player.volume_mute` når spilleren støtter
+det, og faller tilbake på fjernkontrollkommandoen ellers.
+
+
 ### ki-vaer-card
 ```yaml
 type: custom:ki-vaer-card

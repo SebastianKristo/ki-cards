@@ -1,6 +1,5 @@
 ## Rettet
 
-**ki-prosa-card 2.12.0 – editoren**
-- Profilvelgeren lot seg ikke bruke. Menyen ligger inne i en dialog og ble klippet bort; nå settes `fixedMenuPosition`, og valget leses både fra `selected` og `change`, så det virker med mus og tastatur
-- Feltene sto tomme fordi verdiene ble satt før `ha-textfield`, `ha-entity-picker` og `ha-select` var ferdig lastet i frontend. Nå fylles de inn på nytt når elementene er klare – testet med elementer som først dukker opp 150 ms etter at skjemaet er bygget: alle 15 entitetsfeltene og profilvalget kom på plass
-- Entitets- og ikonvelgerne får `hass` på nytt ved hver oppdatering, så lista over entiteter ikke blir stående tom
+**ki-fjernkontroll-card 1.4.0**
+- Hold inne på hjem-knappen gjorde ingenting. Nå sendes `home_hold` etter et halvt sekund – kommandoen som åpner appbytteren på Apple TV. Meny og Siri har fått de samme lange variantene, og et vanlig trykk virker som før
+- Dempeknappen sendte en `mute`-kommando fjernkontrollen ikke kjenner. Nå brukes `media_player.volume_mute` når spilleren støtter det, med fjernkontrollkommandoen som reserve

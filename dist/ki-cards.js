@@ -1,4 +1,4 @@
-/* ki-cards v3.8.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v3.9.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.8.0";
+  KI.VERSION = "3.9.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -3780,6 +3780,34 @@ class KiFjernkontrollCard extends HTMLElement {
     this._oppdater();
     this._h.callService("media_player", this._forvent.state === "off" ? "turn_off" : "turn_on", { entity_id: c.media });
   }
+  /* Demping: Apple TV-fjernkontrollen har ikke alltid «mute» som kommando,
+     så vi bruker media_player.volume_mute når spilleren støtter det. */
+  _demp() {
+    const c = this._c, h = this._h; if (!h) return;
+    this._vibrer(10);
+    const st = c.media && h.states[c.media];
+    const funksjoner = (st && Number(st.attributes.supported_features)) || 0;
+    const kanMute = (funksjoner & 8) === 8;               /* VOLUME_MUTE */
+    if (st && kanMute) {
+      return h.callService("media_player", "volume_mute",
+        { entity_id: c.media, is_volume_muted: !st.attributes.is_volume_muted });
+    }
+    this._send("mute");
+  }
+
+  /* Hold på hjem-knappen: Apple TV har en egen «home_hold»-kommando,
+     og faller vi gjennom sendes vanlig home med hold_secs. */
+  _holdKommando(kommando) {
+    const c = this._c; if (!c.fjernkontroll || !this._h) return;
+    this._vibrer(18);
+    const lang = { home: "home_hold", menu: "top_menu", select: "select_hold" }[kommando];
+    this._h.callService("remote", "send_command", {
+      entity_id: c.fjernkontroll,
+      command: lang || kommando,
+      hold_secs: lang ? 0 : 1,
+    });
+  }
+
   _velgKilde(kilde) {
     this._vibrer(10);
     this._h.callService("media_player", "select_source", { entity_id: this._c.media, source: kilde });
@@ -3919,15 +3947,28 @@ class KiFjernkontrollCard extends HTMLElement {
     }
     const pad = r.querySelector(".pad"); if (pad) this._kobblePad(pad);
     const kom = { meny: "menu", hjem: "home", mikrofon: "siri" };
-    r.querySelectorAll(".rund").forEach((b) => b.addEventListener("click", () => {
+    r.querySelectorAll(".rund").forEach((b) => {
       const k = b.dataset.k;
-      if (k === "stromav") this._veksle();
-      else if (k === "spill") { const t = this._tilstand(); this._send(t === "playing" ? "pause" : "play"); }
-      else this._send(kom[k]);
-    }));
+      let holdt = false, t = null;
+      const trykk = () => {
+        if (k === "stromav") this._veksle();
+        else if (k === "spill") { const st = this._tilstand(); this._send(st === "playing" ? "pause" : "play"); }
+        else this._send(kom[k]);
+      };
+      b.addEventListener("pointerdown", () => {
+        holdt = false;
+        if (!kom[k]) return;                     /* hold gjelder meny, hjem og Siri */
+        t = setTimeout(() => { holdt = true; this._holdKommando(kom[k]); }, 500);
+      });
+      const slipp = () => clearTimeout(t);
+      b.addEventListener("pointerup", slipp);
+      b.addEventListener("pointercancel", slipp);
+      b.addEventListener("pointerleave", slipp);
+      b.addEventListener("click", () => { if (holdt) { holdt = false; return; } trykk(); });
+    });
     r.querySelectorAll("[data-lyd]").forEach((b) => {
       const k = b.dataset.lyd;
-      if (k === "mute") b.addEventListener("click", () => this._send("mute"));
+      if (k === "mute") b.addEventListener("click", () => this._demp());
       else this._hold(b, k);
     });
     r.querySelectorAll(".kilde").forEach((b) => b.addEventListener("click", () => this._velgKilde(b.dataset.kilde)));
