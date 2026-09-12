@@ -433,6 +433,9 @@ stedet.
 Statuskortet viser hvem som er der nå – hytta får lys i vinduene og røyk fra pipa når noen er hjemme – og netter,
 besøk og neste planlagte tur.
 
+Trykk på en dag i kalenderen for å se hvem eller hva som lå der: på «Alle steder» listes stedene med hvem
+som var der, på et stedskort listes personene.
+
 **Kalender** er en månedsrute der hver dag fargelegges etter hvem som var der; er flere der samtidig, deles
 dagen i striper. Planlagte turer får stiplet kant, i dag er markert, og du blar mellom månedene med pilene.
 **Opphold** lister planlagte turer øverst og historikken under, med navn, datoer og antall netter – fra alle

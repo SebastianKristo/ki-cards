@@ -20,7 +20,7 @@
  * tid:                                    # egne sensorer per spiller
  *   media_player.stue_tv: {i_dag: sensor.tv_seertid_i_dag, maned: sensor.tv_seertid_denne_maned}
  */
-const KI_MEDIA_VERSJON = "1.6.0";
+const KI_MEDIA_VERSJON = "1.6.1";
 
 const KI_MEDIA_STIL = `
   :host { display:block; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -442,16 +442,18 @@ class KiMediaCard extends HTMLElement {
          som normalt og kortet holde seg i ro. */
       if (retning === null) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        retning = Math.abs(dx) > Math.abs(dy) * 1.3 ? "vannrett" : "loddrett";
-        if (retning === "vannrett") spor.classList.add("drar");
+        retning = Math.abs(dx) > Math.abs(dy) * 1.6 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") { spor.classList.add("drar"); if (boks.setPointerCapture) boks.setPointerCapture(e.pointerId); }
       }
       if (retning !== "vannrett") return;
+      boks.style.touchAction = "none";          /* stopp rullingen mens man drar */
       if (e.cancelable) e.preventDefault();
       spor.style.transform = `translateX(${dx * 0.6}px)`;
     });
     const slipp = () => {
       if (x0 === null) return;
       spor.classList.remove("drar");
+      boks.style.touchAction = "";
       const flyttet = retning === "vannrett" && Math.abs(dx) > 55;
       spor.style.transform = "translateX(0)";
       if (flyttet) { this._sveipet = true; bytt(dx < 0 ? 1 : -1); }

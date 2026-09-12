@@ -12,7 +12,7 @@
  *   # eller: { regex: bursdag, entities: [...] }
  * plakater: true            # vis plakater i lista
  */
-const KI_LANS_VERSJON = "1.4.0";
+const KI_LANS_VERSJON = "1.4.1";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -242,16 +242,18 @@ class KiLanseringCard extends HTMLElement {
       const dy = e.clientY - y0;
       if (retning === null) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        retning = Math.abs(dx) > Math.abs(dy) * 1.3 ? "vannrett" : "loddrett";
-        if (retning === "vannrett") spor.classList.add("drar");
+        retning = Math.abs(dx) > Math.abs(dy) * 1.6 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") { spor.classList.add("drar"); if (boks.setPointerCapture) boks.setPointerCapture(e.pointerId); }
       }
       if (retning !== "vannrett") return;
+      boks.style.touchAction = "none";
       if (e.cancelable) e.preventDefault();
       spor.style.transform = `translateX(calc(-${this._side * 100}% + ${dx * 0.7}px))`;
     });
     const slipp = () => {
       if (x0 === null) return;
       spor.classList.remove("drar");
+      boks.style.touchAction = "";
       if (retning === "vannrett" && Math.abs(dx) > 55) { this._sveipet = true; gaTil(this._side + (dx < 0 ? 1 : -1)); }
       else gaTil(this._side);
       x0 = null; dx = 0; retning = null;

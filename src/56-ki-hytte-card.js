@@ -11,7 +11,7 @@
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "2.1.0";
+const KI_HYTTE_VERSJON = "2.2.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -21,8 +21,9 @@ const KI_HYTTE_STIL = `
 
   /* ---- hero ---- */
   .hero { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
-    background:var(--gray200); color:var(--gray1000); padding:16px 18px; display:grid; gap:10px; min-height:104px;
-    transition:background .6s var(--myk), color .4s; }
+    background:var(--gray200); color:var(--gray1000); padding:16px 18px; display:grid; gap:10px; min-height:168px;
+    align-content:start; transition:background .6s var(--myk), color .4s; }
+  .hero .fyll { flex:1; }
   .hero.her { background:linear-gradient(135deg, #2b5c46, #1d3a33); }
   .hero .tit { font-size:17px; font-weight:600; display:flex; align-items:center; gap:8px; }
   .hero .und { font-size:13px; opacity:.75; }
@@ -54,7 +55,9 @@ const KI_HYTTE_STIL = `
   .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
   .spor { display:flex; transition:transform .35s var(--myk); will-change:transform; }
   .spor.drar { transition:none; }
-  .side { flex:0 0 100%; min-width:0; }
+  .spor { align-items:stretch; }
+  .side { flex:0 0 100%; min-width:0; display:flex; }
+  .side > .hero { flex:1; }
   .prikker { display:flex; gap:6px; justify-content:center; padding:8px 0 0; }
   .prikker i { width:7px; height:7px; border-radius:50%; background:var(--gray1000); opacity:.25;
     transition:opacity .25s, transform .25s; cursor:pointer; }
@@ -96,6 +99,13 @@ const KI_HYTTE_STIL = `
   .dag .nr { position:relative; z-index:1; }
   .dag .strimler i { flex:1; }
   .dag:hover { transform:scale(1.06); }
+  .dag.valgtdag { outline:2px solid var(--gray1000); outline-offset:-2px; }
+  /* hvem eller hvor, for dagen du trykker på */
+  .dagboks { background:var(--gray100); border-radius:16px; padding:12px 14px; margin-top:12px; display:grid; gap:8px; }
+  .dagboks .tit2 { font-size:12px; opacity:.6; text-transform:capitalize; }
+  .dagboks .rad2 { display:flex; align-items:center; gap:9px; font-size:13.5px; }
+  .dagboks .rad2 i { width:10px; height:10px; border-radius:3px; flex:none; }
+  .dagboks .rad2 .folk { margin-left:auto; display:flex; gap:5px; opacity:.75; font-size:12px; }
   .navn { display:flex; flex-wrap:wrap; gap:8px; padding:12px 2px 0; }
   .navn span { display:inline-flex; align-items:center; gap:6px; font-size:12px; opacity:.8; }
   .navn i { width:10px; height:10px; border-radius:3px; }
@@ -219,7 +229,8 @@ class KiHytteCard extends HTMLElement {
       const idag = dag.getTime() === nå.getTime();
       const fremtid = dag > nå && folk.length;
       ruter.push(`<div class="dag ${utenfor ? "utenfor" : ""} ${idag ? "idag" : ""} ${fremtid ? "fremtid" : ""}
-        ${folk.length ? "harbesok" : ""}" title="${kiHyEsc(folk.join(", "))}">
+        ${folk.length ? "harbesok" : ""} ${this._dagValgt === iso ? "valgtdag" : ""}"
+        ${folk.length ? `data-dagvalg="${iso}"` : ""} title="${kiHyEsc(folk.join(", "))}">
         ${folk.length ? `<span class="strimler">${folk.map((n) =>
           `<i style="background:${kiHyEsc(this._farge(n, d))}"></i>`).join("")}</span>` : ""}
         <span class="nr">${dag.getDate()}</span></div>`);
@@ -237,7 +248,33 @@ class KiHytteCard extends HTMLElement {
         `<span><i style="background:${kiHyEsc(p.farge)}"></i>${kiHyEsc(p.navn)}</span>`).join("")}
         <span style="margin-left:auto;opacity:.5">stiplet = planlagt${
           d.sist_lest ? " · lest " + kiHyEsc(String(d.sist_lest).slice(11, 16)) : ""}</span></div>
+      ${this._dagBoks(d)}
     </div>`;
+  }
+
+  /* Hva skjedde den dagen du trykket på? På masterkortet: hvilke steder,
+     med hvem som var der. På et stedskort: hvem som var der. */
+  _dagBoks(d) {
+    const iso = this._dagValgt;
+    if (!iso) return "";
+    const dato = new Date(iso + "T12:00:00");
+    const tittel = dato.toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" });
+    if (d.master) {
+      const alle = this._alleSteder();
+      const rader = alle.map((x) => {
+        const folk = (x.dager || {})[iso] || [];
+        if (!folk.length) return "";
+        return `<div class="rad2"><i style="background:${kiHyEsc(this._stedFarge2(x.sted))}"></i>
+          ${kiHyEsc(x.sted)}<span class="folk">${folk.map((n) => kiHyEsc(n)).join(", ")}</span></div>`;
+      }).filter(Boolean).join("");
+      return `<div class="dagboks"><div class="tit2">${kiHyEsc(tittel)}</div>
+        ${rader || `<div class="rad2" style="opacity:.6">Ingen registrert</div>`}</div>`;
+    }
+    const folk = (d.dager || {})[iso] || [];
+    return `<div class="dagboks"><div class="tit2">${kiHyEsc(tittel)} · ${kiHyEsc(d.sted || "")}</div>
+      ${folk.length ? folk.map((n) => `<div class="rad2">
+          <i style="background:${kiHyEsc(this._farge(n, d))}"></i>${kiHyEsc(n)}</div>`).join("")
+        : `<div class="rad2" style="opacity:.6">Ingen her</div>`}</div>`;
   }
 
   /* ---------------------------------------------------------- oppholdene */
@@ -450,7 +487,7 @@ class KiHytteCard extends HTMLElement {
     if (!boks || !spor) return;
     const gaTil = (i) => {
       this._side = Math.max(0, Math.min(antall - 1, i));
-      this._sted = null;
+      this._sted = null; this._dagValgt = null;
       this._forrige = null;
       this._tegn();
     };
@@ -462,16 +499,18 @@ class KiHytteCard extends HTMLElement {
       const dy = e.clientY - y0;
       if (retning === null) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        retning = Math.abs(dx) > Math.abs(dy) * 1.3 ? "vannrett" : "loddrett";
-        if (retning === "vannrett") spor.classList.add("drar");
+        retning = Math.abs(dx) > Math.abs(dy) * 1.6 ? "vannrett" : "loddrett";
+        if (retning === "vannrett") { spor.classList.add("drar"); if (boks.setPointerCapture) boks.setPointerCapture(e.pointerId); }
       }
       if (retning !== "vannrett") return;
+      boks.style.touchAction = "none";          /* stopp rullingen mens man drar */
       if (e.cancelable) e.preventDefault();
       spor.style.transform = `translateX(calc(-${this._side * 100}% + ${dx * 0.7}px))`;
     });
     const slipp = () => {
       if (x0 === null) return;
       spor.classList.remove("drar");
+      boks.style.touchAction = "";
       const bytt = retning === "vannrett" && Math.abs(dx) > 55;
       spor.style.transform = `translateX(-${this._side * 100}%)`;
       if (bytt) { this._sveipet = true; gaTil(this._side + (dx < 0 ? 1 : -1)); }
@@ -571,6 +610,10 @@ class KiHytteCard extends HTMLElement {
       else this._h.callService("ki_hyttebesok", "les_kalender", {});
     });
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
+    r.querySelectorAll("[data-dagvalg]").forEach((el) => el.addEventListener("click", () => {
+      this._dagValgt = this._dagValgt === el.dataset.dagvalg ? null : el.dataset.dagvalg;
+      this._forrige = null; this._tegn();
+    }));
     r.querySelectorAll("[data-sted]").forEach((b) => b.addEventListener("click", () => {
       this._sted = b.dataset.sted || null; this._forrige = null; this._tegn();
     }));
