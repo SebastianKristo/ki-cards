@@ -151,6 +151,7 @@ const KI_MEDIA_STIL = `
   .vknapp2.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .vknapp2 i { width:6px; height:6px; border-radius:50%; background:var(--green,#7ee081); display:none; }
   .vknapp2.spiller i { display:block; }
+  .vknapp2.mangler { opacity:.4; text-decoration:line-through; }
   .volum { display:grid; grid-template-columns:auto auto 1fr auto 56px; gap:10px; align-items:center;
     background:var(--gray200); border-radius:18px; padding:10px 14px; }
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
@@ -451,7 +452,8 @@ class KiMediaCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
         ${velgere.length > 1 ? `<div class="velger"><div class="vskinne" role="tablist">${velgere.map((v, i) =>
-          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""}" data-velg="${kiMediaEsc(v.entity)}">
+          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""} ${this._h.states[v.entity] ? "" : "mangler"}" data-velg="${kiMediaEsc(v.entity)}"
+            title="${this._h.states[v.entity] ? "" : "Finner ikke " + kiMediaEsc(v.entity)}">
             ${v.ikon ? `<ha-icon icon="${kiMediaEsc(v.ikon)}"></ha-icon>` : ""}<i></i>${kiMediaEsc(v.navn)}</button>`).join("")}</div></div>` : ""}
         ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>

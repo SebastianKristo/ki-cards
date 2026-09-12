@@ -1,4 +1,4 @@
-/* ki-cards v2.82.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
+/* ki-cards v2.83.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-12 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "2.82.0";
+  KI.VERSION = "2.83.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1518,6 +1518,7 @@ const KI_MEDIA_STIL = `
   .vknapp2.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .vknapp2 i { width:6px; height:6px; border-radius:50%; background:var(--green,#7ee081); display:none; }
   .vknapp2.spiller i { display:block; }
+  .vknapp2.mangler { opacity:.4; text-decoration:line-through; }
   .volum { display:grid; grid-template-columns:auto auto 1fr auto 56px; gap:10px; align-items:center;
     background:var(--gray200); border-radius:18px; padding:10px 14px; }
   .vknapp { border:0; background:var(--gray100); color:var(--gray1000); width:34px; height:34px; border-radius:50%;
@@ -1818,7 +1819,8 @@ class KiMediaCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>${KI_MEDIA_STIL}</style>
       <div class="rot">
         ${velgere.length > 1 ? `<div class="velger"><div class="vskinne" role="tablist">${velgere.map((v, i) =>
-          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""}" data-velg="${kiMediaEsc(v.entity)}">
+          `<button class="vknapp2 ${v.entity === this._id() ? "valgt" : ""} ${this._h.states[v.entity] ? "" : "mangler"}" data-velg="${kiMediaEsc(v.entity)}"
+            title="${this._h.states[v.entity] ? "" : "Finner ikke " + kiMediaEsc(v.entity)}">
             ${v.ikon ? `<ha-icon icon="${kiMediaEsc(v.ikon)}"></ha-icon>` : ""}<i></i>${kiMediaEsc(v.navn)}</button>`).join("")}</div></div>` : ""}
         ${kontroll ? "" : `<div class="naa" role="button" tabindex="0">
           <div class="bakgrunn"></div>
@@ -10249,7 +10251,7 @@ try {
  * faner: [kalender, opphold, statistikk]
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "1.0.0";
+const KI_HYTTE_VERSJON = "1.1.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10272,6 +10274,12 @@ const KI_HYTTE_STIL = `
   .hero .tall { display:flex; gap:18px; margin-top:2px; }
   .hero .tall div { font-size:12px; opacity:.75; }
   .hero .tall b { display:block; font-size:20px; font-weight:400; opacity:1; font-variant-numeric:tabular-nums; }
+  .synk { position:absolute; right:14px; top:14px; z-index:2; border:0; background:rgba(255,255,255,.12);
+    color:inherit; width:32px; height:32px; border-radius:50%; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; --mdc-icon-size:18px; }
+  .synk:active { transform:scale(.92); }
+  .synk.gaar ha-icon { animation:hy-snurr 1s linear infinite; }
+  @keyframes hy-snurr { to { transform:rotate(360deg); } }
   .hytte { position:absolute; right:14px; bottom:-6px; width:104px; height:84px; opacity:.5; z-index:-1; }
   .hero.her .hytte { opacity:.75; }
   .royk { opacity:0; }
@@ -10414,7 +10422,8 @@ class KiHytteCard extends HTMLElement {
       <div class="rutenett">${ruter.join("")}</div>
       <div class="navn">${(d.personer || []).map((p) =>
         `<span><i style="background:${kiHyEsc(p.farge)}"></i>${kiHyEsc(p.navn)}</span>`).join("")}
-        <span style="margin-left:auto;opacity:.5">stiplet = planlagt</span></div>
+        <span style="margin-left:auto;opacity:.5">stiplet = planlagt${
+          d.sist_lest ? " · lest " + kiHyEsc(String(d.sist_lest).slice(11, 16)) : ""}</span></div>
     </div>`;
   }
 
@@ -10479,6 +10488,7 @@ class KiHytteCard extends HTMLElement {
         <g fill="#eaf6ff"><circle class="royk" cx="79" cy="20" r="4"/>
           <circle class="royk r2" cx="79" cy="20" r="3"/><circle class="royk r3" cx="79" cy="20" r="5"/></g>
       </svg>
+      <button class="synk" data-synk="1" title="Les kalenderen på nytt"><ha-icon icon="mdi:calendar-sync"></ha-icon></button>
       <div class="tit"><span>${kiHyEsc(d.sted || "Hytta")}</span>
         <span class="ansikter">${her.map((p) =>
           `<span class="prikk" style="background:${kiHyEsc(p.farge)}">${kiHyEsc(p.navn.slice(0, 1))}</span>`).join("")}</span></div>
@@ -10509,6 +10519,19 @@ class KiHytteCard extends HTMLElement {
     const r = this.shadowRoot;
     const hero = r.querySelector(".hero");
     if (hero) hero.addEventListener("click", () => this._mer());
+    const synk = r.querySelector("[data-synk]");
+    if (synk) synk.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (navigator.vibrate) navigator.vibrate(10);
+      synk.classList.add("gaar");
+      setTimeout(() => synk.classList.remove("gaar"), 2500);
+      /* knappen fra integrasjonen om den finnes, ellers tjenesten */
+      const knapp = Object.keys(this._h.states).find((x) => x.startsWith("button.")
+        && (this._h.states[x].attributes || {}).integrasjon === "ki_hyttebesok"
+        && (this._h.states[x].attributes || {}).ki_type === "synk");
+      if (knapp) this._h.callService("button", "press", { entity_id: knapp });
+      else this._h.callService("ki_hyttebesok", "les_kalender", {});
+    });
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
     r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
       this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();
@@ -10560,13 +10583,19 @@ try {
  * dager: 21                  # hvor langt fram vi ser
  * maks: 25                   # hvor mange hendelser som vises
  * tittel: Framover
- * ekstra:                    # egne rader, for eksempel bursdager eller søppel
- *   - entity: sensor.dagens_bursdager
+ * ekstra:                    # egne rader ved siden av kalenderne
+ *   - entity: sensor.nar_kommer_posten_posten_sensor_next   # datoen ligger i state
+ *     navn: Post
+ *     tekst: Post leveres
+ *     under: sensor.nar_kommer_posten_posten_sensor_next_relative
+ *     ikon: mdi:mailbox
+ *   - entity: sensor.bursdager                 # flere rader fra en attributt-liste
+ *     liste: bursdager                         # [{navn, dato}] eller [{summary, start}]
  *     navn: Bursdag
  *     ikon: mdi:cake-variant
  *     farge: var(--yellow)
  */
-const KI_FREM_VERSJON = "1.0.0";
+const KI_FREM_VERSJON = "1.1.0";
 
 const KI_FREM_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10646,7 +10675,7 @@ class KiFremoverCard extends HTMLElement {
   disconnectedCallback() { clearInterval(this._i); }
 
   _ekstraEndret(h) {
-    const ids = (this._c.ekstra || []).map((x) => x.entity).filter(Boolean);
+    const ids = (this._c.ekstra || []).flatMap((x) => [x.entity, x.under]).filter(Boolean);
     const nøkkel = ids.map((id) => (h.states[id] || {}).state).join("|");
     if (nøkkel === this._ekstraNokkel) return false;
     this._ekstraNokkel = nøkkel; return true;
@@ -10681,17 +10710,39 @@ class KiFremoverCard extends HTMLElement {
     this._tegn();
   }
 
+  /* Egne rader: én per sensor, eller flere fra en attributt-liste (bursdager) */
   _ekstraRader() {
-    const h = this._h;
-    return (this._c.ekstra || []).map((x, i) => {
+    const h = this._h, ut = [];
+    const dato = (v) => { const d = new Date(v); return isNaN(d) ? null : d; };
+    (this._c.ekstra || []).forEach((x, i) => {
       const st = x.entity && h.states[x.entity];
-      if (!st || ["unknown", "unavailable", "0", "", "off"].includes(String(st.state))) return null;
-      const d = x.dato && st.attributes[x.dato] ? new Date(st.attributes[x.dato]) : new Date();
-      return {
-        kalender: x.entity, navn: x.navn || "", farge: x.farge || KI_FR_FARGER[(i + 3) % KI_FR_FARGER.length],
-        ikon: x.ikon, tittel: x.tekst || st.state, sted: "", start: d, slutt: null, heldags: true, ekstra: true,
-      };
-    }).filter(Boolean);
+      if (!st || ["unknown", "unavailable", "", "off", "none"].includes(String(st.state).toLowerCase())) return;
+      const farge = x.farge || KI_FR_FARGER[(i + 3) % KI_FR_FARGER.length];
+      const under = x.under && h.states[x.under] ? h.states[x.under].state : "";
+
+      if (x.liste) {
+        /* attributt med flere oppføringer – bursdager, tømmedager og lignende */
+        const rader = st.attributes[x.liste] || [];
+        (Array.isArray(rader) ? rader : []).forEach((r) => {
+          const d = dato(r.dato || r.start || r.date || r.neste);
+          if (!d) return;
+          ut.push({
+            kalender: x.entity, navn: x.navn || "", farge, ikon: x.ikon,
+            tittel: (x.tekst ? x.tekst + " " : "") + (r.navn || r.summary || r.name || ""),
+            sted: r.alder !== undefined ? `blir ${r.alder}` : (r.sted || ""),
+            start: d, slutt: null, heldags: true, ekstra: true,
+          });
+        });
+        return;
+      }
+
+      const d = dato(x.dato && st.attributes[x.dato] ? st.attributes[x.dato] : st.state) || new Date();
+      ut.push({
+        kalender: x.entity, navn: x.navn || "", farge, ikon: x.ikon,
+        tittel: x.tekst || st.state, sted: under, start: d, slutt: null, heldags: true, ekstra: true,
+      });
+    });
+    return ut;
   }
 
   _dagnavn(d) {

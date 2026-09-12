@@ -7,7 +7,7 @@
  * faner: [kalender, opphold, statistikk]
  * maaneder: 1                     # antall måneder i kalenderen
  */
-const KI_HYTTE_VERSJON = "1.0.0";
+const KI_HYTTE_VERSJON = "1.1.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -30,6 +30,12 @@ const KI_HYTTE_STIL = `
   .hero .tall { display:flex; gap:18px; margin-top:2px; }
   .hero .tall div { font-size:12px; opacity:.75; }
   .hero .tall b { display:block; font-size:20px; font-weight:400; opacity:1; font-variant-numeric:tabular-nums; }
+  .synk { position:absolute; right:14px; top:14px; z-index:2; border:0; background:rgba(255,255,255,.12);
+    color:inherit; width:32px; height:32px; border-radius:50%; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; --mdc-icon-size:18px; }
+  .synk:active { transform:scale(.92); }
+  .synk.gaar ha-icon { animation:hy-snurr 1s linear infinite; }
+  @keyframes hy-snurr { to { transform:rotate(360deg); } }
   .hytte { position:absolute; right:14px; bottom:-6px; width:104px; height:84px; opacity:.5; z-index:-1; }
   .hero.her .hytte { opacity:.75; }
   .royk { opacity:0; }
@@ -172,7 +178,8 @@ class KiHytteCard extends HTMLElement {
       <div class="rutenett">${ruter.join("")}</div>
       <div class="navn">${(d.personer || []).map((p) =>
         `<span><i style="background:${kiHyEsc(p.farge)}"></i>${kiHyEsc(p.navn)}</span>`).join("")}
-        <span style="margin-left:auto;opacity:.5">stiplet = planlagt</span></div>
+        <span style="margin-left:auto;opacity:.5">stiplet = planlagt${
+          d.sist_lest ? " · lest " + kiHyEsc(String(d.sist_lest).slice(11, 16)) : ""}</span></div>
     </div>`;
   }
 
@@ -237,6 +244,7 @@ class KiHytteCard extends HTMLElement {
         <g fill="#eaf6ff"><circle class="royk" cx="79" cy="20" r="4"/>
           <circle class="royk r2" cx="79" cy="20" r="3"/><circle class="royk r3" cx="79" cy="20" r="5"/></g>
       </svg>
+      <button class="synk" data-synk="1" title="Les kalenderen på nytt"><ha-icon icon="mdi:calendar-sync"></ha-icon></button>
       <div class="tit"><span>${kiHyEsc(d.sted || "Hytta")}</span>
         <span class="ansikter">${her.map((p) =>
           `<span class="prikk" style="background:${kiHyEsc(p.farge)}">${kiHyEsc(p.navn.slice(0, 1))}</span>`).join("")}</span></div>
@@ -267,6 +275,19 @@ class KiHytteCard extends HTMLElement {
     const r = this.shadowRoot;
     const hero = r.querySelector(".hero");
     if (hero) hero.addEventListener("click", () => this._mer());
+    const synk = r.querySelector("[data-synk]");
+    if (synk) synk.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (navigator.vibrate) navigator.vibrate(10);
+      synk.classList.add("gaar");
+      setTimeout(() => synk.classList.remove("gaar"), 2500);
+      /* knappen fra integrasjonen om den finnes, ellers tjenesten */
+      const knapp = Object.keys(this._h.states).find((x) => x.startsWith("button.")
+        && (this._h.states[x].attributes || {}).integrasjon === "ki_hyttebesok"
+        && (this._h.states[x].attributes || {}).ki_type === "synk");
+      if (knapp) this._h.callService("button", "press", { entity_id: knapp });
+      else this._h.callService("ki_hyttebesok", "les_kalender", {});
+    });
     r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._forrige = null; this._tegn(); }));
     r.querySelectorAll("[data-mnd]").forEach((b) => b.addEventListener("click", () => {
       this._mnd += Number(b.dataset.mnd); this._forrige = null; this._tegn();

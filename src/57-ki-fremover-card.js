@@ -13,13 +13,19 @@
  * dager: 21                  # hvor langt fram vi ser
  * maks: 25                   # hvor mange hendelser som vises
  * tittel: Framover
- * ekstra:                    # egne rader, for eksempel bursdager eller søppel
- *   - entity: sensor.dagens_bursdager
+ * ekstra:                    # egne rader ved siden av kalenderne
+ *   - entity: sensor.nar_kommer_posten_posten_sensor_next   # datoen ligger i state
+ *     navn: Post
+ *     tekst: Post leveres
+ *     under: sensor.nar_kommer_posten_posten_sensor_next_relative
+ *     ikon: mdi:mailbox
+ *   - entity: sensor.bursdager                 # flere rader fra en attributt-liste
+ *     liste: bursdager                         # [{navn, dato}] eller [{summary, start}]
  *     navn: Bursdag
  *     ikon: mdi:cake-variant
  *     farge: var(--yellow)
  */
-const KI_FREM_VERSJON = "1.0.0";
+const KI_FREM_VERSJON = "1.1.0";
 
 const KI_FREM_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -99,7 +105,7 @@ class KiFremoverCard extends HTMLElement {
   disconnectedCallback() { clearInterval(this._i); }
 
   _ekstraEndret(h) {
-    const ids = (this._c.ekstra || []).map((x) => x.entity).filter(Boolean);
+    const ids = (this._c.ekstra || []).flatMap((x) => [x.entity, x.under]).filter(Boolean);
     const nøkkel = ids.map((id) => (h.states[id] || {}).state).join("|");
     if (nøkkel === this._ekstraNokkel) return false;
     this._ekstraNokkel = nøkkel; return true;
@@ -134,17 +140,39 @@ class KiFremoverCard extends HTMLElement {
     this._tegn();
   }
 
+  /* Egne rader: én per sensor, eller flere fra en attributt-liste (bursdager) */
   _ekstraRader() {
-    const h = this._h;
-    return (this._c.ekstra || []).map((x, i) => {
+    const h = this._h, ut = [];
+    const dato = (v) => { const d = new Date(v); return isNaN(d) ? null : d; };
+    (this._c.ekstra || []).forEach((x, i) => {
       const st = x.entity && h.states[x.entity];
-      if (!st || ["unknown", "unavailable", "0", "", "off"].includes(String(st.state))) return null;
-      const d = x.dato && st.attributes[x.dato] ? new Date(st.attributes[x.dato]) : new Date();
-      return {
-        kalender: x.entity, navn: x.navn || "", farge: x.farge || KI_FR_FARGER[(i + 3) % KI_FR_FARGER.length],
-        ikon: x.ikon, tittel: x.tekst || st.state, sted: "", start: d, slutt: null, heldags: true, ekstra: true,
-      };
-    }).filter(Boolean);
+      if (!st || ["unknown", "unavailable", "", "off", "none"].includes(String(st.state).toLowerCase())) return;
+      const farge = x.farge || KI_FR_FARGER[(i + 3) % KI_FR_FARGER.length];
+      const under = x.under && h.states[x.under] ? h.states[x.under].state : "";
+
+      if (x.liste) {
+        /* attributt med flere oppføringer – bursdager, tømmedager og lignende */
+        const rader = st.attributes[x.liste] || [];
+        (Array.isArray(rader) ? rader : []).forEach((r) => {
+          const d = dato(r.dato || r.start || r.date || r.neste);
+          if (!d) return;
+          ut.push({
+            kalender: x.entity, navn: x.navn || "", farge, ikon: x.ikon,
+            tittel: (x.tekst ? x.tekst + " " : "") + (r.navn || r.summary || r.name || ""),
+            sted: r.alder !== undefined ? `blir ${r.alder}` : (r.sted || ""),
+            start: d, slutt: null, heldags: true, ekstra: true,
+          });
+        });
+        return;
+      }
+
+      const d = dato(x.dato && st.attributes[x.dato] ? st.attributes[x.dato] : st.state) || new Date();
+      ut.push({
+        kalender: x.entity, navn: x.navn || "", farge, ikon: x.ikon,
+        tittel: x.tekst || st.state, sted: under, start: d, slutt: null, heldags: true, ekstra: true,
+      });
+    });
+    return ut;
   }
 
   _dagnavn(d) {

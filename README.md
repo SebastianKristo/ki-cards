@@ -337,7 +337,15 @@ kalendere:
   - {entity: calendar.familien, navn: Familien, farge: var(--green)}
   - {entity: calendar.helge_hus, navn: Hytta, farge: var(--blue), ikon: mdi:home-heart}
 ekstra:                      # egne rader ved siden av kalenderne
-  - {entity: sensor.dagens_bursdager, navn: Bursdag, ikon: mdi:cake-variant, farge: var(--yellow)}
+  - entity: sensor.nar_kommer_posten_posten_sensor_next   # datoen leses fra state
+    navn: Post
+    tekst: Post leveres
+    under: sensor.nar_kommer_posten_posten_sensor_next_relative
+    ikon: mdi:mailbox
+  - entity: sensor.bursdager      # flere rader fra en attributt-liste
+    liste: bursdager              # [{navn, dato, alder}] eller [{summary, start}]
+    navn: Bursdag
+    ikon: mdi:cake-variant
 ```
 Henter hendelsene rett fra kalender-API-et – samme kilde som kalendervisningen i Home Assistant – og grupperer
 dem per dag med «I dag», «I morgen» og ukedag som overskrift. Hver hendelse har fargestrek fra kalenderen den
