@@ -833,3 +833,6 @@ oppdater `src/cards/ki-klima-pro-card.js` herfra når ki-strom får ny kortversj
 ## v2.47.0
 - `ki-basseng-card` 1.2.0: ingen faner - en flyt med utvidbare seksjoner, knappefliser i button-card-stil, `<select>` for tallvalg, grafer fra HA-historikken.
 - `ki-rom-card` 1.7.0: flere klimaenheter i rommet vises som en side per enhet i en swipe under Klima (`klima_layout: liste` for gammel visning).
+
+## v2.50.0
+- `ki-strompris-card` 2.0.0: spotpris time for time med Norgespris som stiplet linje, billigste vindu, spart i dag/i aar og forbruk naa.
