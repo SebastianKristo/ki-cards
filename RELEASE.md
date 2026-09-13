@@ -1,25 +1,29 @@
-# ki-cards 3.27.1
+# ki-cards 3.28.0
 
-## Rullingen i `ki-sikkerhet-card` gikk ikke langt nok
+## `ki-ruter-card` 4.0.0 – redesignet i samme språk som resten
 
-To feil, én i hver retning.
+Kortet er flyttet fra `src/cards/` til `src/69-ki-ruter-card.js`, så det ligger sammen med
+de andre KI-kortene og bare defineres én gang i bundelen.
 
-**Ned:** tastaturet ble rullet inn med `scrollIntoView({ block: "nearest" })`, som gjør
-minst mulig — den flytter så vidt nærmeste kant innenfor synsfeltet og stopper der.
-Nederste tastrad ble liggende under kanten.
+Formspråket er lagt om til det samme som `ki-sikkerhet-card`, `ki-sensor-liste-card` og
+button-card-malene:
 
-**Opp:** `block: "start"` på kortet lander der kortet begynner, men inne i en
-bubble-card-popup ligger det en overskrift over, og kortet havnet delvis under den.
+* **Toppen** har 48 px rundt ikonfelt med `rgba(250,251,252,.10)` bak, tittel i 19 px
+  halvfet, klokkeslett til høyre.
+* **Holdeplassvelgeren** er den samme pillerada som fanene ellers – tynn ramme rundt,
+  valgt pille i `--active-big` med mørk tekst og skygge.
+* **Neste avgang** er en hel flate i linjens farge med linjemerket i et mørkt rundfelt,
+  destinasjon i 17 px halvfet og nedtellingen i 40 px til høyre.
+* **Avgangsradene** har samme pilleform som sensorlistene: 70 px høye, 22 px hjørner,
+  `--gray100` bakgrunn, rundt linjemerke på 50 px til venstre, destinasjon i 16 px og
+  nedtellingen i 24 px til høyre. Går den om under to minutter, tones raden i linjefargen.
+* **Avvik og linjeknapper** er runde flater og piller i samme palett, med rødt fyll i
+  stedet for gjennomsiktig rødt når noe er meldt.
+* Bakgrunnsgløden har fått eget lag, som i sikkerhetskortet, så kortet slipper å klippe
+  innholdet sitt.
 
-Begge deler regnes nå ut mot boksen som faktisk ruller. Den finnes ved å gå oppover fra
-kortet, via `host` når `parentElement` tar slutt, til vi treffer et element med egen
-`overflow-y` og mer innhold enn høyde — inne i en popup er det ikke vinduet.
+Funksjonen er uendret: gangetid per holdeplass, sanntidsprikk, forsinkelse med
+overstreket planlagt tid, spor, avviksliste og nedtelling hvert tiende sekund. All
+konfigurasjon virker som før.
 
-* Ned: ruller nøyaktig så langt at hele tastaturet er synlig, med 16 px luft under.
-* Opp: ruller til toppen av kortet med 16 px luft over, klemt til 0 om vi alt er nær toppen.
-
-Ventetiden før målingen er økt fra 80 til 180 ms, så høyden har satt seg før vi regner —
-måler vi mens boksen fortsatt vokser, blir avstanden for kort.
-
-Finner vi ingen rulleboks, faller det tilbake på `scrollIntoView` med `end` og `start`
-i stedet for `nearest`.
+Smalere enn 420 px krymper nedtellingen og linjemerkene så radene ikke brekker.
