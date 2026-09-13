@@ -1,4 +1,4 @@
-/* ki-cards v3.22.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.23.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.22.0";
+  KI.VERSION = "3.23.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15840,11 +15840,11 @@ const KI_SIK_STIL = `
 
   /* røyk: bare når alt er rolig, og med litt drift */
   .roykgruppe { opacity:0; transition:opacity .8s var(--myk); }
-  .kort.trygg .roykgruppe { opacity:1; }
+  .modus-av .roykgruppe, .modus-pa .roykgruppe { opacity:1; }
   .roykpust { fill:none; stroke:var(--gray1000); stroke-opacity:.30; stroke-width:2.5; stroke-linecap:round;
     stroke-dasharray:40; stroke-dashoffset:40; }
-  .kort.trygg .roykpust { animation:kiSikRoyk 6s ease-in-out infinite; }
-  .kort.trygg .roykpust.r2 { animation-delay:3s; }
+  .modus-av .roykpust, .modus-pa .roykpust { animation:kiSikRoyk 6s ease-in-out infinite; }
+  .modus-av .roykpust.r2, .modus-pa .roykpust.r2 { animation-delay:3s; }
   @keyframes kiSikRoyk {
     0%   { stroke-dashoffset:40; opacity:0; transform:translateY(6px) scale(.85) }
     25%  { opacity:.6 }
@@ -15872,6 +15872,50 @@ const KI_SIK_STIL = `
   .dorgruppe.apen .dorapning { opacity:.85; animation:kiSikGlo 2.4s ease-in-out infinite; }
   @keyframes kiSikGlo { 0%,100% { opacity:.75 } 50% { opacity:1 } }
 
+  /* ---- tilstandene i huset ---- */
+
+  /* Utløst alarm: to varsellys på mønet som blinker i vekselvis rytme, og en rød
+     vask over hele fasaden på samme takt. */
+  .blinklys { opacity:0; transition:opacity .3s var(--myk); }
+  .blinkfot { fill:var(--tak-mork); }
+  .blink { fill:var(--red,#e0524a); opacity:.25; }
+  .modus-alarm .blinklys { opacity:1; }
+  .modus-alarm .blink.v { animation:kiSikBlink2 .9s steps(1,end) infinite; }
+  .modus-alarm .blink.h { animation:kiSikBlink2 .9s steps(1,end) .45s infinite; }
+  @keyframes kiSikBlink2 {
+    0%, 45%  { opacity:1; filter:drop-shadow(0 0 8px var(--red,#e0524a)) }
+    46%,100% { opacity:.22; filter:none }
+  }
+  .rodvask { fill:var(--red,#e0524a); opacity:0; pointer-events:none; }
+  .modus-alarm .rodvask { animation:kiSikVask .9s steps(1,end) infinite; }
+  @keyframes kiSikVask { 0%,45% { opacity:.16 } 46%,100% { opacity:0 } }
+
+  /* Armert: en tynn strek sveiper nedover fasaden, og et lite skjold puster på veggen.
+     Vinduene kjøles ned – huset «sover». */
+  .skann rect { fill:var(--tone,#5ad18b); opacity:0; }
+  .modus-pa .skann rect { animation:kiSikSkann 4.5s var(--myk) infinite; }
+  @keyframes kiSikSkann {
+    0%   { opacity:0; transform:translateY(0) }
+    10%  { opacity:.55 }
+    55%  { opacity:.35; transform:translateY(52px) }
+    70%,100% { opacity:0; transform:translateY(52px) }
+  }
+  .veggskjold { fill:var(--tone,#5ad18b); opacity:0; transition:opacity .5s var(--myk); }
+  .modus-pa .veggskjold { opacity:.5; animation:kiSikSkjoldpust 3.2s ease-in-out infinite; }
+  @keyframes kiSikSkjoldpust { 0%,100% { opacity:.35 } 50% { opacity:.7 } }
+  .modus-pa .rute { fill:var(--blue,#6ec6ff); opacity:.14; }
+
+  /* Avslått: varmt lys innenfra, huset er i bruk. */
+  .modus-av .rute { fill:var(--orange,#f0a952); opacity:.26; }
+  .modus-av .vindu:not(.apen) .rute { animation:kiSikLunt 7s ease-in-out infinite; }
+  .modus-av .vindu:nth-of-type(2) .rute { animation-delay:2.3s; }
+  .modus-av .vindu:nth-of-type(3) .rute { animation-delay:4.6s; }
+  @keyframes kiSikLunt { 0%,100% { opacity:.22 } 50% { opacity:.34 } }
+
+  /* Kobler på: hele huset dempes gradvis mens ringen teller ned. */
+  .modus-venter .vegg, .modus-venter .tak { animation:kiSikVent 1.8s ease-in-out infinite; }
+  @keyframes kiSikVent { 0%,100% { opacity:1 } 50% { opacity:.78 } }
+
   /* radar for bevegelse */
   .radar { transform-origin:var(--rx,50%) var(--ry,50%); animation:kiSikSveip 3.6s linear infinite; }
   @keyframes kiSikSveip { to { transform:rotate(360deg) } }
@@ -15882,15 +15926,15 @@ const KI_SIK_STIL = `
 
   /* nedtelling ved på-/avkobling */
   .tellering { fill:none; stroke:var(--yellow,#f5c542); stroke-width:3; stroke-linecap:round;
-    stroke-dasharray:5 10; animation:kiSikRull 1.8s linear infinite; }
+    stroke-dasharray:5 10; opacity:0; transition:opacity .4s var(--myk); }
+  .modus-venter .tellering { opacity:1; animation:kiSikRull 1.8s linear infinite; }
   @keyframes kiSikRull { to { stroke-dashoffset:-30 } }
 
   /* sirenebuer */
   .sirene { fill:none; stroke:var(--red,#e0524a); stroke-width:3; stroke-linecap:round; opacity:0;
     transform-origin:160px 84px; }
-  .kort.alarm .sirene { animation:kiSikSirene 1.3s ease-out infinite; }
-  .kort.alarm .sirene:nth-child(2), .kort.alarm .sirene:nth-child(5) { animation-delay:.18s; }
-  .kort.alarm .sirene:nth-child(3), .kort.alarm .sirene:nth-child(6) { animation-delay:.36s; }
+  .modus-alarm .sirene { animation:kiSikSirene 1.3s ease-out infinite; }
+  .modus-alarm .sirene:nth-child(2), .modus-alarm .sirene:nth-child(4) { animation-delay:.2s; }
   @keyframes kiSikSirene { 0% { opacity:0; transform:scale(.55) } 45% { opacity:.85 } 100% { opacity:0; transform:scale(1.2) } }
 
   .rutenett { display:grid; gap:8px; }
@@ -15981,7 +16025,11 @@ const KI_SIK_STIL = `
   @media (prefers-reduced-motion: reduce) {
     .glo::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
     .dorgruppe.apen .dorapning, .radar, .radarring.puls,
-    .sirene, .tellering, .roykpust, .liste { animation:none !important; }
+    .sirene, .modus-venter .tellering, .roykpust, .liste,
+    .blink, .rodvask, .skann rect, .veggskjold,
+    .modus-av .vindu .rute, .modus-venter .vegg, .modus-venter .tak { animation:none !important; }
+    .modus-alarm .rodvask { opacity:.14; }
+    .modus-alarm .blink { opacity:1; }
     .dorblad { transition:none; }
   }
 `;
@@ -16207,6 +16255,10 @@ class KiSikkerhetCard extends HTMLElement {
           <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
         </div>`);
       this._sett(".scene", this._hus({ paa, venter, alarm, apne, rorer, ulast }));
+      // Modusklassen settes på containeren, ikke inne i SVG-strengen. Ellers ville
+      // hele huset blitt skrevet om ved hver armering, og animasjonene startet forfra.
+      const scene = this.shadowRoot.querySelector(".scene");
+      if (scene) scene.className = "scene " + (alarm ? "modus-alarm" : venter ? "modus-venter" : paa ? "modus-pa" : "modus-av");
       this._sett(".bunn", `
         <div class="brikker">${brikker}</div>
         ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`);
@@ -16485,15 +16537,27 @@ class KiSikkerhetCard extends HTMLElement {
           </g>
           <circle class="radarring puls" cx="160" cy="110" r="66"></circle>` : ""}
 
-        ${venter ? `<circle class="tellering" cx="160" cy="84" r="76"></circle>` : ""}
+        <circle class="tellering" cx="160" cy="84" r="76"></circle>
 
-        ${alarm ? `
-          <g class="sirener">
-            <path class="sirene" d="M272 64 a26 26 0 0 1 0 38"></path>
-            <path class="sirene" d="M284 52 a42 42 0 0 1 0 62"></path>
-            <path class="sirene" d="M48 64 a26 26 0 0 0 0 38"></path>
-            <path class="sirene" d="M36 52 a42 42 0 0 0 0 62"></path>
-          </g>` : ""}
+        <g class="blinklys">
+          <circle class="blink v" cx="132" cy="30" r="7"></circle>
+          <circle class="blink h" cx="188" cy="30" r="7"></circle>
+          <rect class="blinkfot" x="126" y="30" width="68" height="5" rx="2.5"></rect>
+        </g>
+        <rect class="rodvask" x="60" y="20" width="200" height="126" rx="14"></rect>
+
+        <!-- armert: en tynn skannestrek som sveiper nedover fasaden -->
+        <g class="skann"><rect x="80" y="82" width="160" height="3" rx="1.5"></rect></g>
+
+        <!-- armert: et lite skjold på veggen som puster -->
+        <path class="veggskjold" d="M160 118 l-9 -4 v-7 l9 -4 l9 4 v7 z"></path>
+
+        <g class="sirener">
+          <path class="sirene" d="M272 64 a26 26 0 0 1 0 38"></path>
+          <path class="sirene" d="M284 52 a42 42 0 0 1 0 62"></path>
+          <path class="sirene" d="M48 64 a26 26 0 0 0 0 38"></path>
+          <path class="sirene" d="M36 52 a42 42 0 0 0 0 62"></path>
+        </g>
       </svg>`;
   }
 }

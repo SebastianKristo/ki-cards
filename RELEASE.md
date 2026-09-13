@@ -1,15 +1,36 @@
-# ki-cards 3.22.0
+# ki-cards 3.23.0
 
-## Kortene finner lysene etter at ki_lys ble slått inn i ki_rom
+## Huset viser tilstanden i `ki-sikkerhet-card`
 
-`ki-jul-card` og `ki-rom-card` fant entitetene ved å se etter attributtet
-`integrasjon: ki_lys`. Etter sammenslåingen setter integrasjonen `ki_rom` på jul-delen, og
-julekortet sto tomt med «Fant ingen julelys fra KI Lys».
+Fire tydelig forskjellige tilstander, så du ser hva alarmen gjør uten å lese teksten.
 
-Begge kortene godtar nå både `ki_lys` og `ki_rom`, så de virker uansett hvilken versjon av
-integrasjonen som står installert, og uansett rekkefølge du oppgraderer i. Teksten i det
-tomme julekortet peker nå til KI Rom → Innstillinger → Julelys.
+**Utløst alarm.** To varsellys på mønet blinker i vekselvis rytme, et halvt sekund
+forskjøvet, med et rødt glødekast rundt seg. Samtidig legger en rød vask seg over hele
+fasaden på samme takt, og sirenebuene går som før. Huset blinker altså på ordentlig, ikke
+bare i bakgrunnen.
 
-Selve integrasjonen er også rettet i KI Rom 2.1.1, der jul-entitetene beholder
-`ki_lys`-markøren som resten av lysdelen. Du trenger bare én av delene for at det skal
-virke, men ta gjerne begge.
+**Armert.** En tynn strek i tonefargen sveiper nedover fasaden hvert femte sekund, som et
+skann. Et lite skjold på veggen puster rolig. Vinduene kjøles ned til blått — huset sover,
+lyset er ikke på innenfra.
+
+**Avslått.** Vinduene lyser varmt oransje og pulserer svakt i forskjøvet takt, som lys i
+et hus som er i bruk. Røyken stiger fra pipa.
+
+**Kobler på.** Vegg og tak dempes i takt mens nedtellingsringen ruller rundt taket.
+
+Røyken stiger nå både når alarmen er av og når den er armert — før var den bundet til at
+ingenting var åpent, som ga et ganske tilfeldig signal.
+
+## Huset tegnes ikke lenger om ved armering
+
+Tidligere lå tilstanden inne i selve SVG-strengen — nedtellingsringen og sirenene ble lagt
+til og fjernet, og modusklassen sto på `<svg>`. Ved armering endret strengen seg tre ganger
+på under ett sekund, og huset ble bygget på nytt midt i animasjonene.
+
+Alle lagene ligger nå permanent i tegningen og styres av en modusklasse på containeren.
+SVG-en er dermed identisk gjennom hele `disarmed → arming → armed_away → triggered`, og
+skrives bare om når geometrien faktisk endrer seg: et vindu åpnes, en dør låses opp, eller
+en bevegelsessensor slår ut. Det er verifisert med en test.
+
+Alle de nye animasjonene stopper under `prefers-reduced-motion`; da står varsellysene
+tent og den røde vasken ligger svakt på, uten å blinke.
