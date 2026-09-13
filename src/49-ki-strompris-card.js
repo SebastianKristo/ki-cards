@@ -36,7 +36,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.2.0";
+const KI_SP_VERSJON = "3.2.1";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -281,7 +281,8 @@ class KiStromprisCard extends HTMLElement {
     // ble alt inni skalert horisontalt på brede skjermer – også teksten og strekene.
     const c = this._c, B = 14;
     const V = Math.max(280, Math.round(this._bredde || 320));
-    const H = Math.round(Math.min(c.hoyde * 1.9, Math.max(c.hoyde, V / (c.graf_forhold || 2.6)))); x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
+    const H = Math.round(Math.min(c.hoyde * 1.9, Math.max(c.hoyde, V / (c.graf_forhold || 2.6))));
+    const x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
     const npVerdier = pkt.map((p) => this._npTime(p.t)).filter((v) => v !== null);
     const harNpKurve = npVerdier.length === pkt.length && !this._kunNp;
     const verdier = pkt.map((p) => p.v);
@@ -475,7 +476,19 @@ class KiStromprisCard extends HTMLElement {
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
-    const html = `<div class="ramme">${this._innhold()}</div>`;
+    let html;
+    try {
+      html = `<div class="ramme">${this._innhold()}</div>`;
+    } catch (e) {
+      // Et blankt kort sier ingenting om hva som er galt. Vis feilen i stedet.
+      console.error("ki-strompris-card:", e);
+      this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>
+        <div class="ramme"><div class="kort"><div class="venter">
+          Kortet feilet: ${kiSpEsc(e && e.message ? e.message : String(e))}
+        </div></div></div>`;
+      this._bygget = false; this._forrige = null;
+      return;
+    }
     if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; }
     else if (html !== this._forrige) {
       this.shadowRoot.querySelector(".ramme").outerHTML = html;

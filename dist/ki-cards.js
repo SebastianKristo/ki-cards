@@ -1,4 +1,4 @@
-/* ki-cards v3.41.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.42.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.41.0";
+  KI.VERSION = "3.42.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -6871,7 +6871,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.2.0";
+const KI_SP_VERSJON = "3.2.1";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -7116,7 +7116,8 @@ class KiStromprisCard extends HTMLElement {
     // ble alt inni skalert horisontalt på brede skjermer – også teksten og strekene.
     const c = this._c, B = 14;
     const V = Math.max(280, Math.round(this._bredde || 320));
-    const H = Math.round(Math.min(c.hoyde * 1.9, Math.max(c.hoyde, V / (c.graf_forhold || 2.6)))); x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
+    const H = Math.round(Math.min(c.hoyde * 1.9, Math.max(c.hoyde, V / (c.graf_forhold || 2.6))));
+    const x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
     const npVerdier = pkt.map((p) => this._npTime(p.t)).filter((v) => v !== null);
     const harNpKurve = npVerdier.length === pkt.length && !this._kunNp;
     const verdier = pkt.map((p) => p.v);
@@ -7310,7 +7311,19 @@ class KiStromprisCard extends HTMLElement {
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
-    const html = `<div class="ramme">${this._innhold()}</div>`;
+    let html;
+    try {
+      html = `<div class="ramme">${this._innhold()}</div>`;
+    } catch (e) {
+      // Et blankt kort sier ingenting om hva som er galt. Vis feilen i stedet.
+      console.error("ki-strompris-card:", e);
+      this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>
+        <div class="ramme"><div class="kort"><div class="venter">
+          Kortet feilet: ${kiSpEsc(e && e.message ? e.message : String(e))}
+        </div></div></div>`;
+      this._bygget = false; this._forrige = null;
+      return;
+    }
     if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; }
     else if (html !== this._forrige) {
       this.shadowRoot.querySelector(".ramme").outerHTML = html;
@@ -17878,7 +17891,7 @@ try {
  * tittel: Elbil mot diesel
  * bakgrunn: none             # standard: ingen egen bakgrunn (popupen har sin)
  */
-const KI_SPAR_VERSJON = "2.0.0";
+const KI_SPAR_VERSJON = "2.1.0";
 
 const KI_SPAR_PERIODER = {
   i_dag: { nokkel: "i_dag", navn: "I dag" },
@@ -17891,20 +17904,22 @@ const KI_SPAR_PERIODER = {
 const KI_SPAR_STIL = `
   :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
-  .kort { display:grid; gap:12px; color:var(--gray1000); }
+  .kort { display:grid; gap:8px; color:var(--gray1000); }
   button { font:inherit; font-family:inherit; border:0; background:none; color:inherit; cursor:pointer; }
 
-  /* ---- periodevelger, samme pilleform som simple-tabs i popupen ---- */
-  .valg { display:flex; gap:4px; padding:2px; border-radius:999px; width:fit-content;
-    margin:0 auto; border:1px solid rgba(255,255,255,.3); }
-  .valg button { padding:9px 22px; border-radius:999px; font-size:14px; font-weight:500;
-    color:rgba(255,255,255,.72); transition:background .2s, color .2s; white-space:nowrap; }
-  .valg button:hover { color:rgba(255,255,255,.95); }
+  /* ---- periodevelger: samme pilleform som simple-tabs, men liten og venstrestilt
+         under beløpet i stedet for som en egen rad over kortet ---- */
+  .valg { display:flex; gap:3px; padding:2px; border-radius:999px; width:fit-content;
+    border:1px solid rgba(255,255,255,.3); margin-top:10px; max-width:100%;
+    overflow-x:auto; scrollbar-width:none; }
+  .valg::-webkit-scrollbar { display:none; }
+  .valg button { padding:5px 13px; border-radius:999px; font-size:12.5px; font-weight:500;
+    color:rgba(255,255,255,.72); transition:background .2s, color .2s; white-space:nowrap; flex:none; }
   .valg button.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
-    font-weight:500; box-shadow:0 1px 6px rgba(0,0,0,.35); }
+    box-shadow:0 1px 6px rgba(0,0,0,.35); }
 
   /* ---- flisene: samme form som universal_sensor_ny ---- */
-  .rutenett { display:grid; grid-template-columns:repeat(var(--kol,2),minmax(0,1fr)); gap:12px; }
+  .rutenett { display:grid; grid-template-columns:repeat(var(--kol,2),minmax(0,1fr)); gap:8px; }
   .flis { background:var(--gray200); border-radius:24px; padding:0; overflow:hidden;
     display:grid; grid-template-areas:"i n" "i v"; grid-template-columns:76px 1fr;
     grid-template-rows:1fr 1fr; align-items:center; min-height:88px; text-align:left; width:100%; }
@@ -17921,8 +17936,9 @@ const KI_SPAR_STIL = `
   /* framhevet flis, som varslene øverst i popupen */
   .flis.stor { grid-template-rows:auto auto auto; min-height:0; padding-bottom:12px; }
   .flis.stor .v { font-size:38px; font-weight:500; }
-  .flis.stor .under { grid-area:auto / 2 / auto / 3; font-size:12.5px; opacity:.55;
-    padding-right:14px; line-height:1.4; margin-top:2px; }
+  .flis.stor .under { grid-column:2; font-size:12.5px; opacity:.55;
+    padding-right:14px; line-height:1.4; margin-top:3px; }
+  .flis.stor .valg { grid-column:2; margin-right:14px; }
 
   /* stolpe nederst i flisa, slik show_bar gjør det */
   .bar { grid-column:1 / -1; height:6px; margin:8px 12px 0; border-radius:99px;
@@ -18060,10 +18076,6 @@ class KiSparingCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>${KI_SPAR_STIL}</style>
       <div class="kort">
-        ${perioder.length > 1 ? `<div class="valg">${perioder.map((x) =>
-          `<button class="${x === this._p ? "aktiv" : ""}" data-p="${x}">${
-            kiSpaEsc(KI_SPAR_PERIODER[x].navn)}</button>`).join("")}</div>` : ""}
-
         <div class="rutenett">
           <div class="flis stor hel">
             <span class="ik"><ha-icon icon="mdi:piggy-bank"></ha-icon></span>
@@ -18071,6 +18083,9 @@ class KiSparingCard extends HTMLElement {
             <div class="v">${kiSpaNf(spart, 0)}<span>kr</span></div>
             ${dieselKr !== null ? `<div class="under">Diesel ville kostet ${kiSpaNf(dieselKr, 0)} kr,
               strømmen kostet ${kiSpaNf(elKr, 0)} kr</div>` : ""}
+            ${perioder.length > 1 ? `<div class="valg">${perioder.map((x) =>
+              `<button class="${x === this._p ? "aktiv" : ""}" data-p="${x}">${
+                kiSpaEsc(KI_SPAR_PERIODER[x].navn)}</button>`).join("")}</div>` : ""}
             ${spartAndel !== null ? `<div class="bar"><i style="--b:${spartAndel}%"></i></div>` : ""}
           </div>
 
