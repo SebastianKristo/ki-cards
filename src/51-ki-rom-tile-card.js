@@ -70,7 +70,7 @@
 
   // termostat-stepper (btn1). Rekkefølge: KI Energis romtall, så input_number-teller,
   // ellers climate.set_temperature direkte.
-  function stepper(hass, clim, teller, romTall) {
+  function stepper(hass, clim, teller, romTall, alleKlima) {
     const has = teller && hass.states[teller];
     const kiId = romTall && hass.states[romTall] ? romTall : null;
     const steg = kiId ? (Number(hass.states[kiId].attributes.step) || 0.5) : 1;
@@ -79,7 +79,10 @@
           data: { value: "{{ (states('" + kiId + "') | float(21)) " + (dir > 0 ? '+' : '-') + ' ' + steg + ' }}' } }
       : has
       ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'), target: { entity_id: [teller] }, data: { amount: 1 } }
-      : { action: 'call-service', service: 'climate.set_temperature', data: { entity_id: clim, temperature: "{{ (state_attr('" + clim + "','temperature') | float(20)) " + (dir > 0 ? '+' : '-') + ' 1 }}' } };
+      // Uten KI Energi: skriv til alle varmekildene i rommet, ikke bare den første
+      : { action: 'call-service', service: 'climate.set_temperature',
+          data: { entity_id: (alleKlima && alleKlima.length ? alleKlima : clim),
+                  temperature: "{{ (state_attr('" + clim + "','temperature') | float(20)) " + (dir > 0 ? '+' : '-') + ' 1 }}' } };
     const name = kiId ? "{{ states('" + kiId + "') | round(0) }}°"
       : has ? "{{ states('" + teller + "') | round(0) }}°"
       : "{{ state_attr('" + clim + "', 'temperature') | round(0) }}°";
@@ -138,7 +141,8 @@
     const big = size === 'big' || size === 'big_plain';
     const withClim = size === 'big' && clim;
     const custom = { error: T('return "!"'), temp: temp ? tempTpl(temp, hum) : '' };
-    if (withClim) custom.btn1 = stepper(hass, clim, teller, romTall);
+    const alleKlima = (a.klima || []).map((k) => k && k.entity).filter(Boolean);
+    if (withClim) custom.btn1 = stepper(hass, clim, teller, romTall, alleKlima);
     const card = {
       type: 'custom:button-card', icon, name: T('return ' + JSON.stringify(name)),
       entity: cfg.entity || ov.entity_id,

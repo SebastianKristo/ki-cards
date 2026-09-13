@@ -1,30 +1,19 @@
-# ki-cards 3.44.0
+# ki-cards 3.45.0
 
-## `ki-strompris-card`: bunnen av grafen var klippet
+## Termostatknappene setter og leser tilbake det samme
 
-`.grafboks` fikk fast `height: <hoyde>px` fra konfigurasjonen, mens selve tegningen siden
-3.40 kan bli opptil 1,9 ganger så høy på en bred skjerm. Med `overflow: hidden` på boksen
-ble den nederste delen av kurven skåret bort.
+**Klimakortet i rom-popupen** (`ki-rom-card`, inne i expander-kortet) bruker nå
+`number.ki_rom_<rom>_temp` fra KI Energi når den finnes, på samme måte som romflisa fikk i
+3.43. Trykk opp eller ned skriver til romtallet, og tallet i midten leses tilbake fra
+nøyaktig samme entitet — ikke fra en teller ved siden av som kan komme ut av takt.
 
-Boksen bruker nå `min-height` og lar tegningen bestemme den faktiske høyden, og
-`overflow: hidden` er borte. `hoyde` er dermed et gulv, ikke et tak.
+Rekkefølgen er den samme begge steder: KI Energis romtall, så `input_number`-telleren, og
+til slutt `climate.set_temperature` rett på enheten. Steget hentes fra entiteten, så
+halvgradersendringer virker.
 
-## Kompakt editor for `ki-hjem-card`
+**Uten KI Energi skrev romflisa bare til den første varmekilden.** Et rom med både
+panelovn og oljefyr fikk dermed bare den ene justert, mens visningen viste den enes
+settpunkt som om det gjaldt rommet. Fallback-en sender nå til alle klimaenhetene i rommet.
 
-Editoren var ett eneste `ha-form` med alt: faner, etasjer og hvert rom med åtte felt hver.
-Med tjue rom ble det over hundre felt i én lang rulle.
-
-Nå er skjemaet delt i sammenfoldbare seksjoner:
-
-* Én per overskrift — Hjem, Aktuelt, Batterier, Etasjer.
-* Én per etasje, med etasjens egne felt.
-* Én per rom, rykket inn under sin etasje.
-
-Alt er lukket bortsett fra «Generelt», så du åpner det du skal endre. Hvert rom viser et
-sammendrag i overskriften — «skjult · stor · venstre» — så du ser hvilke som er justert
-uten å åpne dem.
-
-Hver seksjon har sitt eget `ha-form` med bare sine felt, men lagringen går gjennom samme
-`_toConfig` som før: delen som endres slås sammen med resten av verdiene, så
-konfigurasjonen blir den samme. Rom eller etasjer som forsvinner fra Home Assistant, får
-seksjonen sin fjernet ved neste tegning.
+`rom_tall: false` slår av oppslaget, og en streng peker på en annen entitet — begge
+kortene forstår det.

@@ -23,6 +23,7 @@
  *  temperatur: sensor.x           # overstyr (ellers første temp-sensor i rommet, ellers sensor.hus_temperature)
  *  reserve_temperatur / reserve_fuktighet: sensor.x   # annen reserve enn hus-sensorene
  *  fuktighet: sensor.x
+ *  rom_tall: auto                 # KI Energis number.ki_rom_<rom>_temp brukes hvis den finnes
  *  teller_suffix: _teller         # input_number.<klima>_teller brukes hvis den finnes
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
  *
@@ -415,18 +416,43 @@
     );
   }
 
-  function climateCard(hass, e, powerSensor, hum, name, tellerSuffix) {
+  /* «Kjøkken» -> «kjokken». Samme regel som KI Energi bruker for entitetsnavnet. */
+  function romSlug(navn) {
+    return String(navn || '').toLowerCase()
+      .replace(/ø|ö/g, 'o').replace(/æ|ä|å/g, 'a')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  /* KI Energi lager number.ki_rom_<rom>_temp per rom. Den setter alle varmekildene i
+     rommet på én gang og leser tilbake det som faktisk er satt. */
+  function kiRomTall(hass, ...navn) {
+    for (const n of navn) {
+      const id = 'number.ki_rom_' + romSlug(n) + '_temp';
+      if (n && hass.states[id]) return id;
+    }
+    return null;
+  }
+
+  function climateCard(hass, e, powerSensor, hum, name, tellerSuffix, romTall) {
     const teller = 'input_number.' + objId(e) + tellerSuffix;
-    const hasTeller = !!hass.states[teller];
+    const kiId = romTall && hass.states[romTall] ? romTall : null;
+    const hasTeller = !kiId && !!hass.states[teller];
+    const kiSteg = kiId ? (Number(hass.states[kiId].attributes.step) || 0.5) : 1;
     const active = powerSensor
       ? 'parseFloat(states["' + powerSensor + '"].state) > 10'
       : '(entity.attributes.hvac_action === "heating")';
     const colorTpl = T('return ' + active + ' ? "black" : "var(--gray1000)";');
     const bgTpl = T('return ' + active + ' ? "rgba(var(--highlight))" : "var(--gray100)";');
-    const stepAction = (dir) => hasTeller
+    const stepAction = (dir) => kiId
+      ? { action: 'call-service', service: 'number.set_value', target: { entity_id: [kiId] },
+          data: { value: "{{ (states('" + kiId + "') | float(21)) " + (dir > 0 ? '+' : '-') + ' ' + kiSteg + ' }}' } }
+      : hasTeller
       ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'), data: { entity_id: teller, amount: 1 } }
       : { action: 'call-service', service: 'climate.set_temperature', data: { entity_id: e, temperature: "{{ (state_attr('" + e + "','temperature') | float(20)) " + (dir > 0 ? '+' : '-') + ' 1 }}' } };
-    const valueTpl = hasTeller
+    // Leses alltid tilbake fra kilden vi skriver til, så tallet viser det som er satt
+    const valueTpl = kiId
+      ? T('const v = states["' + kiId + '"]; return v && !isNaN(parseFloat(v.state)) ? Math.round(parseFloat(v.state)) + "°" : "–";')
+      : hasTeller
       ? T('return Math.round(states["' + teller + '"].state) + "°";')
       : T('return Math.round(entity.attributes.temperature) + "°";');
     const btn = (icon, radius, height, border, action, nameTpl) => {
@@ -488,7 +514,9 @@
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
     const wIds = unike(enheter.map((d) => d.effekt));
     const cards = enheter.map((d) => (d.entity.startsWith('climate.')
-      ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix)
+      ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix,
+          cfg.rom_tall === false ? null
+            : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, roomName, cfg.rom)))
       : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
