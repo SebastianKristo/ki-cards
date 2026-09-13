@@ -1,4 +1,4 @@
-/* ki-cards v3.26.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.27.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.26.0";
+  KI.VERSION = "3.27.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9478,8 +9478,9 @@ try {
  * hero: stor                       # stor (hagescene, 190 px) | smal (den gamle linja)
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
+ * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.4.0";
+const KI_VANN_VERSJON = "3.5.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -9978,6 +9979,23 @@ class KiVanningCard extends HTMLElement {
   /* Soner: S01 … S16 med navn og metode hentet fra friendly_name */
   /* Styrer KI Vanning ventilene selv, kommer sonene og programmene derfra. */
   _ventilmodus() { const ki = this._ki(); return !!ki && ki.modus === "ventiler"; }
+
+  /* Har anlegget en vannmåler – felles eller på en sone? Uten en er alle literne
+     estimater, og da skjuler vi forbruksdelen i stedet for å vise tall som ser målte
+     ut. `har_flyt` kom i KI Vanning 3.1; er attributtet der ikke, ser vi etter
+     sone-målere selv, og faller til slutt tilbake på OpenSprinklers egen flow-sensor. */
+  _harFlyt() {
+    if (this._c.flyt === false) return false;
+    if (this._c.flyt === true) return true;
+    const ki = this._ki();
+    if (ki) {
+      if (ki.har_flyt !== undefined) return !!ki.har_flyt;
+      if (Array.isArray(ki.soner) && ki.soner.some((z) => z.flow)) return true;
+    }
+    const os = this._styring().flyt;
+    const st = os ? this._st(os) : null;
+    return !!(st && !["unknown", "unavailable"].includes(st.state));
+  }
   _soner() {
     const ki = this._ki();
     if (ki && ki.modus === "ventiler") {
@@ -10098,7 +10116,9 @@ class KiVanningCard extends HTMLElement {
   _bygg() {
     const c = this._c;
     /* «Mer» ligger nå bak tannhjulet i hjørnet, ikke som egen fane */
-    const faner = (c.faner || []).filter((f) => f !== "innstillinger");
+    const faner = (c.faner || [])
+      .filter((f) => f !== "innstillinger")
+      .filter((f) => f !== "forbruk" || this._harFlyt());
     const harMer = (c.faner || []).includes("innstillinger");
     const kiNa = this._ki();
     const anleggId = this._ventilmodus() ? this._kiEnt("anlegg") : null;
@@ -10258,7 +10278,7 @@ class KiVanningCard extends HTMLElement {
         <div class="ic"><ha-icon icon="mdi:weather-pouring"></ha-icon></div>
         <div class="n">Regnpause aktiv</div>
         <div class="l">${this._st(s.regn_til) ? "Til " + kiVaEsc(this._st(s.regn_til).state) : ""}</div></div>` : ""}
-      ${(() => { const ki = this._ki(); if (!ki) return "";
+      ${(() => { const ki = this._ki(); if (!ki || !this._harFlyt()) return "";
         const n = ki.neste || {};
         return `<div class="maal">
           <div class="rad"><div><div class="stor">${this._litertekst(ki.i_dag)}</div>
@@ -10665,7 +10685,7 @@ class KiVanningCard extends HTMLElement {
     if (c.faner.includes("naa")) sett("naa", this._panelNaa());
     if (c.faner.includes("soner")) sett("soner", this._panelSoner());
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
-    if (c.faner.includes("forbruk")) sett("forbruk", this._panelForbruk());
+    if (c.faner.includes("forbruk") && this._harFlyt()) sett("forbruk", this._panelForbruk());
     /* innstillingene ligger i overlegget – hold det oppdatert hvis det er åpent */
     const lag = r.querySelector(".innlag .innhold");
     if (lag) { lag.innerHTML = this._panelInnstillinger(); this._koblInnstillinger(lag); }
