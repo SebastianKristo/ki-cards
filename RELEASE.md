@@ -1,20 +1,21 @@
-# ki-cards 3.31.1
+# ki-cards 3.32.0
 
-## `ki-sikkerhet-card` forsvant helt fra popupen
+## `ki-ruter-card` 4.1.1: mobilfeil
 
-Min regresjon, innført i 3.27.1. Da jeg skrev om rullingen, byttet jeg ut alt mellom
-`_rull(...)` og `connectedCallback()`. Metoden `_ventendeFane()` lå akkurat der, og ble
-slettet sammen med den gamle rullekoden.
+**Kortet stakk ut av skjermen.** Holdeplassvelgeren hadde `width:fit-content`. Den regelen
+står etter `.kort > * { width:100% }` med samme spesifisitet, så den vant — og med seks
+holdeplasser ble rada bredere enn skjermen i stedet for å rulle. Velgeren er nå
+`width:auto; max-width:100%; min-width:0` og ruller sidelengs som den skulle. `:host` har
+fått `overflow-x:clip` som sikring.
 
-`connectedCallback()` kaller den fortsatt som første linje. Den fantes ikke, så kortet
-kastet `TypeError` idet det ble koblet til DOM-en, og rendret aldri. Huset, brikkene,
-tastaturet og fanene — alt var borte. Det har vært slik i 3.27.1, 3.28.0, 3.29.0, 3.30.0
-og 3.31.0.
+**Animasjonen var kuttet i to.** Scenen var én SVG med `viewBox="0 0 320 96"` og
+`preserveAspectRatio="slice"`. Radene lå på y=18, 44 og 70, og banen under tredje rad
+havnet på y=102 — utenfor høyden. På smale skjermer skalerte den i tillegg opp for å dekke
+bredden, så enda mer forsvant.
 
-Metoden er lagt inn igjen. Samtidig tåler kortet nå at `connectedCallback()` kommer før
-`setConfig()`, som det gjør i noen oppsett: både `_ventendeFane()` og `_faner()` sjekker
-at konfigurasjonen finnes før de leser den.
+Scenen er bygget om: hver bane er en vanlig div på faste 34 px, og kjøretøyene er SVG-er i
+fast pikselstørrelse som flyttes med `left` fra `-90px` til `100%`. Ingenting skaleres,
+ingenting ligger utenfor. Buss får stiplet vei, skinnegående får sviller.
 
-Byggeskriptet pakker hvert kort i sin egen `try`, så feilen tok bare dette kortet med seg
-— resten av bundelen har virket hele tiden. Det er også grunnen til at den ikke ga noe
-synlig utslag utover at kortet uteble.
+Avgangsradene er samtidig strammet inn under 420 px: mindre linjemerker, kortere
+nedtelling og litt mindre luft, så en lang destinasjon ikke skyver nedtellingen ut.

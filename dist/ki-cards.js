@@ -1,4 +1,4 @@
-/* ki-cards v3.31.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.32.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.31.1";
+  KI.VERSION = "3.32.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17089,7 +17089,7 @@ try {
  *
  * Nedtellingen går hvert tiende sekund uten å vente på Home Assistant.
  */
-const KI_RUTER_VERSJON = "4.1.0";
+const KI_RUTER_VERSJON = "4.1.1";
 
 const KI_R_MODUS = {
   bus: { ikon: "mdi:bus", farge: "#e2483d", navn: "Buss" },
@@ -17103,7 +17103,7 @@ const KI_R_MODUS = {
 };
 
 const KI_R_STIL = `
-  :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); --fjaer:cubic-bezier(.3,1.35,.5,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .ramme { max-width:100%; color:var(--gray1000, var(--primary-text-color)); }
   /* Ingen egen bakgrunn som standard – kortet ligger som oftest i en popup som alt
@@ -17116,23 +17116,30 @@ const KI_R_STIL = `
   .glo::before { content:""; position:absolute; inset:-45% -20% auto -20%; height:150%;
     background:radial-gradient(ellipse at 50% 0%, var(--tone,#2b7fd1) 0%, transparent 62%);
     opacity:calc(.22 * var(--glod, 1)); }
-  .kort > * { max-width:var(--maks, 620px); margin-inline:auto; width:100%; }
+  .kort > * { max-width:var(--maks, 620px); margin-inline:auto; width:100%; min-width:0; }
   button { font:inherit; border:0; background:none; color:inherit; font-family:inherit; }
   [data-a] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
   [tabindex]:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; border-radius:14px; }
 
-  /* ---- animert topp ---- */
-  .scene { position:relative; height:96px; border-radius:22px; overflow:hidden;
-    background:linear-gradient(180deg, color-mix(in srgb, var(--tone,#2b7fd1) 26%, transparent), transparent 78%); }
-  .scene svg { position:absolute; inset:0; width:100%; height:100%; }
-  .scene .vei { stroke:var(--gray1000); stroke-opacity:.16; stroke-width:2; stroke-dasharray:10 9; }
-  .scene .skinne { stroke:var(--gray1000); stroke-opacity:.13; stroke-width:2; }
-  .scene .sville { stroke:var(--gray1000); stroke-opacity:.10; stroke-width:3; }
-  .kjt { animation:kiRKjor var(--fart,13s) linear infinite; animation-delay:var(--d,0s); }
-  @keyframes kiRKjor { from { transform:translateX(-70px) } to { transform:translateX(360px) } }
-  .kjt.mot { animation-name:kiRKjorMot; }
-  @keyframes kiRKjorMot { from { transform:translateX(360px) scaleX(-1) } to { transform:translateX(-70px) scaleX(-1) } }
-  .kjt rect, .kjt circle { shape-rendering:geometricPrecision; }
+  /* ---- animert topp ----
+     Banene er vanlige divs med faste pikselhøyder, og kjøretøyene er SVG-er i fast
+     størrelse som flyttes med left. Tidligere var alt én skalert viewBox, og på smale
+     skjermer ble nederste rad klippet bort fordi den lå utenfor høyden. */
+  .scene { position:relative; border-radius:22px; overflow:hidden; display:grid; gap:0;
+    padding:6px 0; background:linear-gradient(180deg,
+      color-mix(in srgb, var(--tone,#2b7fd1) 26%, transparent), transparent 82%); }
+  .bane { position:relative; height:34px; }
+  .bane::after { content:""; position:absolute; left:0; right:0; bottom:1px; height:0;
+    border-top:2px solid color-mix(in srgb, var(--gray1000) 15%, transparent); }
+  .bane.vei::after { border-top-style:dashed; }
+  .bane.spor::before { content:""; position:absolute; left:0; right:0; bottom:0; height:7px;
+    background:repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--gray1000) 12%, transparent) 0 3px, transparent 3px 20px); }
+  .kjt { position:absolute; bottom:0; left:-90px; animation:kiRKjor var(--fart,13s) linear infinite;
+    animation-delay:var(--d,0s); }
+  @keyframes kiRKjor { from { left:-90px } to { left:100% } }
+  .kjt.mot { transform:scaleX(-1); animation-name:kiRKjorMot; }
+  @keyframes kiRKjorMot { from { left:100% } to { left:-90px } }
   .hjul { fill:var(--gray1000); opacity:.5; }
   .rute { fill:rgba(255,255,255,.75); }
   .lykt { fill:#ffd98a; opacity:.9; }
@@ -17145,8 +17152,11 @@ const KI_R_STIL = `
   .topp .klokke { font-size:12px; opacity:.5; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
   /* ---- holdeplassvelger: samme pillerad som fanene ellers ---- */
-  .valg { display:flex; gap:4px; padding:3px; border-radius:999px; width:fit-content; max-width:100%;
-    margin-inline:auto; overflow-x:auto; scrollbar-width:none;
+  /* width:fit-content gjorde rada bredere enn skjermen i stedet for å rulle, fordi
+     regelen slår .kort > * som står tidligere med samme spesifisitet. */
+  .valg { display:flex; gap:4px; padding:3px; border-radius:999px;
+    width:auto; max-width:100%; min-width:0; overflow-x:auto; overscroll-behavior-x:contain;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
     border:1px solid color-mix(in srgb, var(--gray1000) 22%, transparent); }
   .valg::-webkit-scrollbar { display:none; }
   .valg .v { display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border-radius:999px;
@@ -17237,9 +17247,15 @@ const KI_R_STIL = `
   .tom code { font-size:12.5px; opacity:.85; }
 
   @media (max-width:420px) {
-    .neste .stor { font-size:34px; }
-    .linje { width:46px; height:46px; font-size:16px; }
-    .avg { min-height:64px; gap:12px; }
+    .neste { gap:10px; padding:14px; }
+    .neste .stor { font-size:32px; }
+    .neste .mot { font-size:16px; }
+    .linje { width:44px; height:44px; font-size:16px; }
+    .avg { min-height:62px; gap:10px; padding:8px 12px 8px 8px; }
+    .mot2 { font-size:15px; }
+    .ned b { font-size:21px; }
+    .under { gap:6px; font-size:12px; }
+    .tavlehode .navn { font-size:16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important;
@@ -17415,50 +17431,45 @@ class KiRuterCard extends HTMLElement {
           st.gange ? ` · gå om ${Math.max(0, a.min - st.gange)} min` : ""}</div></div>
       <div class="stor">${kiRNed(a.min)}<small>${a.min <= 0 ? "" : a.min < 60 ? "min" : "timer"}</small></div></div>`;
   }
-  /* Kjøretøyene i toppen følger hvilke transportmidler holdeplassene faktisk bruker. */
+  /* Kjøretøyene i toppen følger hvilke transportmidler holdeplassene faktisk bruker.
+     Hver bane er 34 px høy uansett skjermbredde – ingen skalering, ingenting som klippes. */
   _sceneHtml(tavler) {
     if (this._c.animasjon === false) return "";
     const moduser = [...new Set(tavler.map((t) => t.modus && t.modus.navn).filter(Boolean))];
-    const alle = moduser.length ? moduser : ["Buss"];
+    const alle = (moduser.length ? moduser : ["Buss"]).slice(0, 3);
     const kjt = {
-      Buss: (f) => `<rect x="0" y="6" width="52" height="20" rx="5" fill="${f}"/>
-        <rect x="5" y="10" width="12" height="8" rx="2" class="rute"/><rect x="21" y="10" width="12" height="8" rx="2" class="rute"/>
-        <rect x="37" y="10" width="9" height="8" rx="2" class="rute"/><circle cx="50" cy="14" r="2" class="lykt"/>
-        <circle cx="12" cy="28" r="4" class="hjul"/><circle cx="42" cy="28" r="4" class="hjul"/>`,
-      Trikk: (f) => `<rect x="0" y="4" width="60" height="22" rx="6" fill="${f}"/>
-        <rect x="5" y="9" width="14" height="9" rx="2" class="rute"/><rect x="23" y="9" width="14" height="9" rx="2" class="rute"/>
-        <rect x="41" y="9" width="12" height="9" rx="2" class="rute"/><circle cx="57" cy="14" r="2" class="lykt"/>
-        <path d="M30 4 L34 -4" stroke="${f}" stroke-width="2"/>
-        <circle cx="12" cy="28" r="3.5" class="hjul"/><circle cx="48" cy="28" r="3.5" class="hjul"/>`,
-      "T-bane": (f) => `<rect x="0" y="4" width="64" height="22" rx="8" fill="${f}"/>
-        <rect x="6" y="9" width="15" height="9" rx="2" class="rute"/><rect x="25" y="9" width="15" height="9" rx="2" class="rute"/>
-        <rect x="44" y="9" width="13" height="9" rx="2" class="rute"/><circle cx="61" cy="14" r="2" class="lykt"/>
-        <circle cx="14" cy="28" r="3.5" class="hjul"/><circle cx="50" cy="28" r="3.5" class="hjul"/>`,
-      Tog: (f) => `<rect x="0" y="3" width="70" height="23" rx="7" fill="${f}"/>
-        <rect x="6" y="8" width="16" height="10" rx="2" class="rute"/><rect x="26" y="8" width="16" height="10" rx="2" class="rute"/>
-        <rect x="46" y="8" width="14" height="10" rx="2" class="rute"/><circle cx="66" cy="14" r="2.5" class="lykt"/>
-        <circle cx="14" cy="28" r="4" class="hjul"/><circle cx="56" cy="28" r="4" class="hjul"/>`,
-      Båt: (f) => `<path d="M0 20 h56 l-8 10 h-40 z" fill="${f}"/><rect x="16" y="6" width="22" height="14" rx="3" fill="${f}"/>
-        <rect x="20" y="9" width="6" height="7" rx="1.5" class="rute"/><rect x="29" y="9" width="6" height="7" rx="1.5" class="rute"/>`,
-      Fly: (f) => `<path d="M0 18 l44 -6 l14 4 l-14 4 z" fill="${f}"/><path d="M24 12 l6 -10 l6 10 z" fill="${f}"/>`,
+      Buss: (f) => [58, `<rect x="1" y="8" width="52" height="19" rx="5" fill="${f}"/>
+        <rect x="6" y="12" width="11" height="8" rx="2" class="rute"/><rect x="21" y="12" width="11" height="8" rx="2" class="rute"/>
+        <rect x="36" y="12" width="9" height="8" rx="2" class="rute"/><circle cx="51" cy="16" r="2" class="lykt"/>
+        <circle cx="13" cy="29" r="4" class="hjul"/><circle cx="42" cy="29" r="4" class="hjul"/>`],
+      Trikk: (f) => [66, `<rect x="1" y="6" width="60" height="21" rx="6" fill="${f}"/>
+        <rect x="6" y="11" width="13" height="9" rx="2" class="rute"/><rect x="23" y="11" width="13" height="9" rx="2" class="rute"/>
+        <rect x="40" y="11" width="12" height="9" rx="2" class="rute"/><circle cx="58" cy="16" r="2" class="lykt"/>
+        <path d="M30 6 L34 0" stroke="${f}" stroke-width="2"/>
+        <circle cx="13" cy="29" r="3.5" class="hjul"/><circle cx="49" cy="29" r="3.5" class="hjul"/>`],
+      "T-bane": (f) => [70, `<rect x="1" y="6" width="64" height="21" rx="8" fill="${f}"/>
+        <rect x="7" y="11" width="14" height="9" rx="2" class="rute"/><rect x="25" y="11" width="14" height="9" rx="2" class="rute"/>
+        <rect x="43" y="11" width="13" height="9" rx="2" class="rute"/><circle cx="62" cy="16" r="2" class="lykt"/>
+        <circle cx="15" cy="29" r="3.5" class="hjul"/><circle cx="51" cy="29" r="3.5" class="hjul"/>`],
+      Tog: (f) => [76, `<rect x="1" y="5" width="70" height="22" rx="7" fill="${f}"/>
+        <rect x="7" y="10" width="15" height="10" rx="2" class="rute"/><rect x="26" y="10" width="15" height="10" rx="2" class="rute"/>
+        <rect x="45" y="10" width="14" height="10" rx="2" class="rute"/><circle cx="67" cy="16" r="2.5" class="lykt"/>
+        <circle cx="15" cy="29" r="4" class="hjul"/><circle cx="57" cy="29" r="4" class="hjul"/>`],
+      Båt: (f) => [60, `<path d="M2 21 h54 l-8 9 h-38 z" fill="${f}"/><rect x="17" y="8" width="21" height="13" rx="3" fill="${f}"/>
+        <rect x="21" y="11" width="6" height="7" rx="1.5" class="rute"/><rect x="29" y="11" width="6" height="7" rx="1.5" class="rute"/>`],
+      Fly: (f) => [62, `<path d="M2 20 l44 -6 l14 4 l-14 4 z" fill="${f}"/><path d="M26 14 l6 -9 l6 9 z" fill="${f}"/>`],
     };
     const farge = (navn) => (Object.values(KI_R_MODUS).find((m) => m.navn === navn) || {}).farge || "#888";
-    const rader = alle.slice(0, 3).map((navn, i) => {
-      const tegn = kjt[navn] || kjt.Buss;
-      const y = 18 + i * 26;
+    const spor = { Trikk: 1, "T-bane": 1, Tog: 1 };
+    return `<div class="scene">${alle.map((navn, i) => {
+      const [bredde, tegn] = (kjt[navn] || kjt.Buss)(farge(navn));
       const mot = i % 2 === 1;
-      return `<g class="kjt ${mot ? "mot" : ""}" style="--fart:${11 + i * 4}s;--d:-${i * 3.5}s"
-                 transform="translate(0 ${y})">${tegn(farge(navn))}</g>`;
-    }).join("");
-    const baner = alle.slice(0, 3).map((navn, i) => {
-      const y = 18 + i * 26 + 32;
-      return navn === "Buss"
-        ? `<line class="vei" x1="0" y1="${y}" x2="320" y2="${y}"/>`
-        : `<line class="skinne" x1="0" y1="${y}" x2="320" y2="${y}"/>` +
-          Array.from({ length: 16 }, (_, j) => `<line class="sville" x1="${j * 20 + 4}" y1="${y - 3}" x2="${j * 20 + 4}" y2="${y + 3}"/>`).join("");
-    }).join("");
-    return `<div class="scene"><svg viewBox="0 0 320 96" preserveAspectRatio="xMidYMid slice">
-      ${baner}${rader}</svg></div>`;
+      const type = navn === "Buss" ? "vei" : spor[navn] ? "spor" : "";
+      return `<div class="bane ${type}">
+        <svg class="kjt ${mot ? "mot" : ""}" style="--fart:${12 + i * 4}s;--d:-${i * 3.5}s"
+             width="${bredde}" height="34" viewBox="0 0 ${bredde} 34" aria-hidden="true">${tegn}</svg>
+      </div>`;
+    }).join("")}</div>`;
   }
 
   _innhold() {
