@@ -76,7 +76,9 @@ const KI_SP_STIL = `
     background:color-mix(in srgb, var(--green) 26%, transparent); }
   .spar.tap { background:color-mix(in srgb, var(--red) 26%, transparent); }
   .spar ha-icon { --mdc-icon-size:15px; }
-  .grafboks { position:relative; margin:10px 0 0; max-width:100%; overflow:hidden; touch-action:pan-y; }
+  /* Høyden kommer fra selve tegningen. En fast height her klippet bunnen av grafen
+     saa snart den ble hoyere enn hoyde-valget paa en bred skjerm. */
+  .grafboks { position:relative; margin:10px 0 0; max-width:100%; touch-action:pan-y; }
   .grafboks svg { display:block; width:100%; overflow:hidden; }
   .strek { stroke-linecap:round; stroke-linejoin:round; }
   .naalinje { stroke:var(--gray1000, var(--primary-text-color)); stroke-width:1; opacity:.35; stroke-dasharray:3 4; }
@@ -427,7 +429,7 @@ class KiStromprisCard extends HTMLElement {
     return `${toppRad}
       <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
-      <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
+      <div class="grafboks" style="min-height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
       ${kunNp ? `<div class="varsel-np">Spotprisen for i morgen kommer rundt kl. 13. Grafen viser Norgespris time for time (nettleia faller om natta og i helga).</div>` : ""}
       ${c.vis_forklaring !== false && !kunNp && np === null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span>

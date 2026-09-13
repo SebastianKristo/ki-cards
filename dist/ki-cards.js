@@ -1,4 +1,4 @@
-/* ki-cards v3.43.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.44.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.43.0";
+  KI.VERSION = "3.44.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -6911,7 +6911,9 @@ const KI_SP_STIL = `
     background:color-mix(in srgb, var(--green) 26%, transparent); }
   .spar.tap { background:color-mix(in srgb, var(--red) 26%, transparent); }
   .spar ha-icon { --mdc-icon-size:15px; }
-  .grafboks { position:relative; margin:10px 0 0; max-width:100%; overflow:hidden; touch-action:pan-y; }
+  /* Høyden kommer fra selve tegningen. En fast height her klippet bunnen av grafen
+     saa snart den ble hoyere enn hoyde-valget paa en bred skjerm. */
+  .grafboks { position:relative; margin:10px 0 0; max-width:100%; touch-action:pan-y; }
   .grafboks svg { display:block; width:100%; overflow:hidden; }
   .strek { stroke-linecap:round; stroke-linejoin:round; }
   .naalinje { stroke:var(--gray1000, var(--primary-text-color)); stroke-width:1; opacity:.35; stroke-dasharray:3 4; }
@@ -7262,7 +7264,7 @@ class KiStromprisCard extends HTMLElement {
     return `${toppRad}
       <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
-      <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
+      <div class="grafboks" style="min-height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
       ${kunNp ? `<div class="varsel-np">Spotprisen for i morgen kommer rundt kl. 13. Grafen viser Norgespris time for time (nettleia faller om natta og i helga).</div>` : ""}
       ${c.vis_forklaring !== false && !kunNp && np === null ? `<div class="forkl"><span><i style="background:linear-gradient(90deg,#3ddc97,#ffd24a,#ff6b5c)"></i>Spotpris</span>
@@ -9519,39 +9521,133 @@ try {
       this._render();
     }
 
+    _etikett(sc) {
+      const n = sc.name;
+      const m = {
+        hjem_vis: 'Vis Hjem-fanen', hjem_las: 'Dørlås', hjem_garasje: 'Garasjeport',
+        hjem_alarm: 'Alarm (entitet)', hjem_alarm_script: 'Alarm av/på-skript',
+        hjem_kalender: 'Kalender-sensor', hjem_rom: 'Rom i venstre swipe', hjem_rom_hoyre: 'Rom i høyre swipe',
+        etasjer_vis: 'Vis etasje-faner',
+        aktuelt_tv: 'TV', aktuelt_stovsuger: 'Støvsuger (vises når den vasker)',
+        aktuelt_vaskemaskin: 'Vaskemaskin (tid igjen-sensor)', aktuelt_oppvaskmaskin: 'Oppvaskmaskin (tid igjen-sensor)',
+        batterier_vis: 'Vis Batterier-fanen ved lavt batteri', batterier_terskel: 'Terskel',
+      };
+      if (m[n]) return m[n];
+      if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
+      if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse',
+        kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash',
+        varselvis: 'Vis «!»-merke på flisen', varsel: '«!»-merke når denne er på' }[n.split('_').pop()] || n;
+      return sc.label || n;
+    }
+
+    /* Deler det store skjemaet i biter: én for hver overskrift, én per etasje og én per
+       rom. Alt annet enn den du har åpen er foldet sammen, så editoren er til å finne
+       fram i selv med tjue rom. */
+    _deler() {
+      const ut = [];
+      let gjeldende = null;
+      const nytt = (id, tittel, niva) => { gjeldende = { id, tittel, niva, felt: [] }; ut.push(gjeldende); };
+      nytt('start', 'Generelt', 0);
+      for (const sc of this._schema()) {
+        if (sc.type === 'constant') {
+          const n = sc.name;
+          nytt(n, String(sc.label || n).replace(/^—\s*|\s*—$/g, ''),
+            n.startsWith('f_') ? 1 : n.startsWith('r_') ? 2 : 0);
+          continue;
+        }
+        if (!gjeldende) nytt('start', 'Generelt', 0);
+        gjeldende.felt.push(sc);
+      }
+      return ut.filter((d) => d.felt.length);
+    }
+
+    _sammendrag(del, data) {
+      if (del.niva !== 2) return '';
+      const r = del.id.slice(2);
+      const av = data['rom_' + r + '_vis'] === false;
+      const størrelse = data['rom_' + r + '_size'];
+      const kol = data['rom_' + r + '_kolonne'];
+      const biter = [av ? 'skjult' : '', størrelse && størrelse !== 'auto' ? størrelse : '',
+        kol && kol !== 'auto' ? kol : ''].filter(Boolean);
+      return biter.join(' · ');
+    }
+
     _render() {
       if (!this._hass || !this._config) return;
       this._renderLayout();
-      if (!this._form) {
-        this._form = document.createElement('ha-form');
-        this._form.computeLabel = (sc) => {
-          const n = sc.name;
-          const m = {
-            hjem_vis: 'Vis Hjem-fanen', hjem_las: 'Dørlås', hjem_garasje: 'Garasjeport', hjem_alarm: 'Alarm (entitet)', hjem_alarm_script: 'Alarm av/på-skript',
-            hjem_kalender: 'Kalender-sensor', hjem_rom: 'Rom i venstre swipe', hjem_rom_hoyre: 'Rom i høyre swipe', etasjer_vis: 'Vis etasje-faner',
-            aktuelt_tv: 'TV', aktuelt_stovsuger: 'Støvsuger (vises når den vasker)', aktuelt_vaskemaskin: 'Vaskemaskin (tid igjen-sensor)', aktuelt_oppvaskmaskin: 'Oppvaskmaskin (tid igjen-sensor)',
-            batterier_vis: 'Vis Batterier-fanen ved lavt batteri', batterier_terskel: 'Terskel',
-          };
-          if (m[n]) return m[n];
-          if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
-          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash',
-            varselvis: 'Vis «!»-merke på flisen', varsel: '«!»-merke når denne er på (standard: første dør/vindu i rommet)' }[n.split('_').pop()] || n;
-          return sc.label || n;
-        };
-        this._form.addEventListener('value-changed', (ev) => {
-          ev.stopPropagation();
-          const out = this._toConfig(ev.detail.value || {});
-          this._config = out;
-          this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
-          this._render();
-        });
-        this.appendChild(this._form);
-      }
-      this._form.hass = this._hass;
-      const schema = this._schema();
-      if (JSON.stringify(schema) !== this._lastSchema) { this._lastSchema = JSON.stringify(schema); this._form.schema = schema; }
       const data = this._data();
-      if (JSON.stringify(data) !== this._lastData) { this._lastData = JSON.stringify(data); this._form.data = data; }
+      const deler = this._deler();
+
+      if (!this._skall) {
+        this._skall = document.createElement('div');
+        const st = document.createElement('style');
+        st.textContent = `
+          .del { border-radius:12px; background:var(--secondary-background-color, rgba(128,128,128,.08));
+            margin-bottom:6px; overflow:hidden; }
+          .del[data-niva="1"] { margin-left:0; }
+          .del[data-niva="2"] { margin:4px 0 4px 12px; background:rgba(128,128,128,.06); }
+          summary { cursor:pointer; padding:10px 14px; font-size:14px; font-weight:600;
+            list-style:none; display:flex; align-items:center; gap:8px; }
+          summary::-webkit-details-marker { display:none; }
+          summary::after { content:"›"; margin-left:auto; opacity:.5; transition:transform .2s;
+            font-size:18px; line-height:1; }
+          details[open] > summary::after { transform:rotate(90deg); }
+          .del[data-niva="2"] summary { font-weight:500; font-size:13.5px; padding:8px 12px; }
+          .sum { margin-left:auto; margin-right:6px; font-size:12px; opacity:.55; font-weight:400; }
+          .innhold { padding:0 12px 12px; }
+        `;
+        this._skall.appendChild(st);
+        this.appendChild(this._skall);
+        this._former = {};
+      }
+
+      const brukt = new Set();
+      for (const del of deler) {
+        brukt.add(del.id);
+        let boks = this._former[del.id];
+        if (!boks) {
+          const d = document.createElement('details');
+          d.className = 'del';
+          d.dataset.niva = String(del.niva);
+          if (del.niva === 0 && del.id === 'start') d.open = true;
+          const sum = document.createElement('summary');
+          const tit = document.createElement('span');
+          const meta = document.createElement('span');
+          meta.className = 'sum';
+          sum.appendChild(tit); sum.appendChild(meta);
+          const innhold = document.createElement('div');
+          innhold.className = 'innhold';
+          const f = document.createElement('ha-form');
+          f.computeLabel = (sc) => this._etikett(sc);
+          f.addEventListener('value-changed', (ev) => {
+            ev.stopPropagation();
+            // Hver delform sender bare sine egne felt – slå dem sammen med resten
+            const out = this._toConfig({ ...this._data(), ...(ev.detail.value || {}) });
+            this._config = out;
+            this.dispatchEvent(new CustomEvent('config-changed',
+              { detail: { config: out }, bubbles: true, composed: true }));
+            this._render();
+          });
+          innhold.appendChild(f);
+          d.appendChild(sum); d.appendChild(innhold);
+          this._skall.appendChild(d);
+          boks = this._former[del.id] = { d, tit, meta, f, sist: '' };
+        }
+        boks.tit.textContent = del.tittel;
+        boks.meta.textContent = this._sammendrag(del, data);
+        const n = JSON.stringify(del.felt);
+        if (n !== boks.sist) { boks.sist = n; boks.f.schema = del.felt; }
+        boks.f.hass = this._hass;
+        const egne = {};
+        for (const sc of del.felt) egne[sc.name] = data[sc.name];
+        boks.f.data = egne;
+      }
+      // rom eller etasjer som er fjernet i mellomtiden
+      for (const id of Object.keys(this._former)) {
+        if (brukt.has(id)) continue;
+        this._former[id].d.remove();
+        delete this._former[id];
+      }
     }
   }
 
