@@ -1,4 +1,4 @@
-/* ki-cards v3.35.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.35.0";
+  KI.VERSION = "3.36.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -6837,6 +6837,7 @@ try {
  * Legg filen i /config/www/ og legg til ressursen /local/ki-strompris-card.js (JavaScript-modul).
  *
  * type: custom:ki-strompris-card
+ * vis_tittel: false       # tittelrad over kortet (av som standard – dagvelgeren står i kortet)
  * norgespris: sensor.norgespris_total_strompris_norgespris   # det du faktisk betaler, i kr/kWh
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
@@ -6858,8 +6859,9 @@ try {
  * vis_stat: false    # skjul snitt/lavest/høyest    vis_vindu: false   # skjul «billigste timer»
  * vis_spart: false   # skjul spart i dag / i år     vis_forklaring: false
  *
- * nettleie_dag: 0.45      # kr/kWh kl. 06–22 på hverdager
+ * nettleie_dag: 0.45      # kr/kWh kl. 06–22 på hverdager (tall eller entitet)
  * nettleie_natt: 0.35     # kr/kWh natt, lørdag og søndag
+ * nettleie_auto: true     # finn energiledd-sensorene selv når satsene ikke er satt
  * norgespris_energi: 0.50 # fast energipris; utelates den, regnes den ut fra Norgespris-sensoren nå
  * dagtimer_fra: 6   dagtimer_til: 22
  * Med nettleiesatsene tegnes Norgespris som trapp, og «I morgen» viser prisen selv før spot er klar.
@@ -6868,7 +6870,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "2.9.0";
+const KI_SP_VERSJON = "3.0.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -6895,7 +6897,8 @@ const KI_SP_STIL = `
   .valg .v:hover { color:rgba(255,255,255,.95); }
   .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
   .valg .v.tom { opacity:.45; }
-  .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:12px 0 2px; flex-wrap:wrap; }
+  /* Ingen luft over: heroen er det første i kortet. */
+  .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 0 6px; flex-wrap:wrap; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
   @media (min-width:620px) { .stor { font-size:2.2em; } }
   .stor small { font-size:.34em; font-weight:400; opacity:.6; margin-left:6px; letter-spacing:0; }
@@ -7043,9 +7046,31 @@ class KiStromprisCard extends HTMLElement {
 
   /* Norgespris = fast energipris + nettleie. Nettleia er lavere om natta og i helga,
      så med dag-/nattsats kan morgendagens pris regnes ut selv før spotprisen kommer. */
+  /* Satsene kan settes som tall, som entiteter, eller finnes automatisk blant
+     energiledd-sensorene (Elvia-integrasjonen lager dem). Uten satser blir
+     Norgespris tegnet som én flat strek, siden nettleia er det eneste som varierer
+     gjennom døgnet når energiprisen er fast. */
+  _sats(fast, entitet, moenster) {
+    if (fast !== undefined && fast !== null && fast !== "") {
+      const n = Number(fast);
+      if (!isNaN(n)) return n;
+      const v = this._num(String(fast));       // kan være en entitets-id
+      if (v !== null) return v;
+    }
+    if (entitet) { const v = this._num(entitet); if (v !== null) return v; }
+    if (this._c.nettleie_auto === false || !this._h) return null;
+    const nokkel = "auto_" + moenster;
+    if (this[nokkel] === undefined) {
+      this[nokkel] = Object.keys(this._h.states).find((x) =>
+        x.startsWith("sensor.") && new RegExp(moenster).test(x)) || null;
+    }
+    return this[nokkel] ? this._num(this[nokkel]) : null;
+  }
+
   _nettleie(t) {
     const c = this._c;
-    const dag = c.nettleie_dag, natt = c.nettleie_natt;
+    const dag = this._sats(c.nettleie_dag, c.nettleie_dag_entitet, "energiledd_dag");
+    const natt = this._sats(c.nettleie_natt, c.nettleie_natt_entitet, "energiledd_natt");
     if (dag === undefined || dag === null) return null;
     const d = new Date(t), time = d.getHours(), ukedag = d.getDay();
     const helg = ukedag === 0 || ukedag === 6;
@@ -7194,17 +7219,18 @@ class KiStromprisCard extends HTMLElement {
     const hero = `<div class="hero">
       <div><div class="merke">${kiSpEsc(merke)}</div><div class="stor">${kiSpNf(stort, 2)}<small>${kiSpEsc(enhet)}</small></div></div>
       <div class="hoyre">
+        ${c.vis_tittel === true ? "" : valg}
         ${np !== null && spotNaa !== null && spotNaa !== undefined ? `<div style="opacity:.65">Spot: ${kiSpNf(spotNaa, 2)} kr</div>` : ""}
         ${sparTime !== null ? `<div style="margin-top:4px"><span class="spar ${sparTime < 0 ? "tap" : ""}"><ha-icon icon="mdi:${sparTime < 0 ? "trending-down" : "piggy-bank-outline"}"></ha-icon>${sparTime < 0 ? "−" : "+"}${kiSpNf(Math.abs(sparTime), 2)} ${kiSpEsc(enhet)}</span></div>` : ""}
         ${effekt !== null ? `<div class="effektnaa" style="opacity:.65;margin-top:4px">${kiSpNf(effekt, 0)} W nå</div>` : ""}</div></div>`;
 
-    if (!spotSt) return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span></div>${hero}
+    if (!spotSt) return `${c.vis_tittel === true ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span></div>` : ""}${hero}
       <div class="venter">Fant ingen spotprissensor. Sett <b>spot:</b> i kortet.</div>`;
     let kunNp = false, pkt2 = pkt;
     if (pkt === null || !pkt.length) {
       const npp = this._npPunkter(this._dag);
       if (npp) { pkt2 = npp; kunNp = true; }
-      else return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
+      else return `${c.vis_tittel === true ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>` : ""}
       <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
     }
@@ -7223,7 +7249,9 @@ class KiStromprisCard extends HTMLElement {
     const steg = Math.max(1, Math.ceil(pkt.length / (antall - 1)));
     const timer = pkt.filter((_, i) => i % steg === 0).map((p) => kiSpKl(p.t));
 
-    return `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>
+    const toppRad = c.vis_tittel === true
+      ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>` : "";
+    return `${toppRad}
       <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
@@ -9514,7 +9542,7 @@ try {
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.5.0";
+const KI_VANN_VERSJON = "3.5.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -9711,7 +9739,8 @@ const KI_VANN_STIL = `
   .kaldag { display:grid; grid-template-columns:70px 1fr; gap:10px; padding:10px 0;
     border-top:1px solid rgba(255,255,255,.07); }
   .kaldag:first-child { border-top:0; }
-  .kaldag .dag { font-size:12px; font-weight:600; opacity:.65; padding-top:3px; }
+  .kaldag .dag { background:none; padding:3px 0 0; font-size:12.5px; font-weight:600;
+    line-height:1.35; opacity:.72; text-transform:capitalize; }
   .kaldag .dag.idag { opacity:1; color:var(--blue,#6ec6ff); }
   .kalrad { display:grid; grid-template-columns:46px 1fr min-content; gap:10px; align-items:baseline;
     font-size:13px; padding:3px 0; }
@@ -9753,9 +9782,12 @@ const KI_VANN_STIL = `
     color:var(--gray1000); font:inherit; font-size:14px; padding:10px 12px; appearance:none; -webkit-appearance:none; }
   .skjema input::-webkit-calendar-picker-indicator { filter:invert(1); opacity:.5; }
   .dager { display:flex; gap:5px; flex-wrap:wrap; }
-  .dag { border:0; background:var(--gray100); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
+  /* Ukedagsknappene i programredigeringen. Regelen må være skopet til .dager:
+     uten det traff den også dagetiketten i «Kommende vanninger», som fikk en
+     grå knappebakgrunn bak teksten. */
+  .dager .dag { border:0; background:var(--gray100); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
     border-radius:999px; padding:8px 0; cursor:pointer; flex:1 1 36px; min-width:36px; }
-  .dag.valgt { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .dager .dag.valgt { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   .bryterrad { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; }
   .velg { display:inline-flex; padding:2px; gap:3px; border-radius:999px; background:var(--gray100); }
   .velg button { border:0; background:none; color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;

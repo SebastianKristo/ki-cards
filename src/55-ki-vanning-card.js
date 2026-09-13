@@ -14,7 +14,7 @@
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.5.0";
+const KI_VANN_VERSJON = "3.5.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -211,7 +211,8 @@ const KI_VANN_STIL = `
   .kaldag { display:grid; grid-template-columns:70px 1fr; gap:10px; padding:10px 0;
     border-top:1px solid rgba(255,255,255,.07); }
   .kaldag:first-child { border-top:0; }
-  .kaldag .dag { font-size:12px; font-weight:600; opacity:.65; padding-top:3px; }
+  .kaldag .dag { background:none; padding:3px 0 0; font-size:12.5px; font-weight:600;
+    line-height:1.35; opacity:.72; text-transform:capitalize; }
   .kaldag .dag.idag { opacity:1; color:var(--blue,#6ec6ff); }
   .kalrad { display:grid; grid-template-columns:46px 1fr min-content; gap:10px; align-items:baseline;
     font-size:13px; padding:3px 0; }
@@ -253,9 +254,12 @@ const KI_VANN_STIL = `
     color:var(--gray1000); font:inherit; font-size:14px; padding:10px 12px; appearance:none; -webkit-appearance:none; }
   .skjema input::-webkit-calendar-picker-indicator { filter:invert(1); opacity:.5; }
   .dager { display:flex; gap:5px; flex-wrap:wrap; }
-  .dag { border:0; background:var(--gray100); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
+  /* Ukedagsknappene i programredigeringen. Regelen må være skopet til .dager:
+     uten det traff den også dagetiketten i «Kommende vanninger», som fikk en
+     grå knappebakgrunn bak teksten. */
+  .dager .dag { border:0; background:var(--gray100); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
     border-radius:999px; padding:8px 0; cursor:pointer; flex:1 1 36px; min-width:36px; }
-  .dag.valgt { background:var(--active-big,#ee95ff); color:var(--black,#000); }
+  .dager .dag.valgt { background:var(--active-big,#ee95ff); color:var(--black,#000); }
   .bryterrad { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; }
   .velg { display:inline-flex; padding:2px; gap:3px; border-radius:999px; background:var(--gray100); }
   .velg button { border:0; background:none; color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
