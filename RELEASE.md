@@ -1,51 +1,32 @@
-# ki-cards 3.21.0
+# ki-cards 3.21.1
 
-## Faner i `ki-sikkerhet-card`
+## Loggen viste ikke ansiktsgjenkjenning
 
-Kortet har fått tre faner: **Sikkerhet** (huset og alarmen), **Dørlåser** og **Logg**.
-Fanerada vises bare når det er mer enn én.
+Spørringen brukte `minimal_response`, som utelater attributter. Sensoren
+`sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av` står på samme navn flere
+opplåsninger på rad — det er `bekreftet_tid` som flytter seg — og uten attributter fantes
+de opplåsningene rett og slett ikke i svaret. Låser Rune opp tre ganger, så historikken
+bare én tilstandsendring.
 
-```yaml
-faner: [sikkerhet, laser, logg]   # false gir bare sikkerhetsfanen
-```
+Ansiktssensoren hentes nå i en egen spørring **med** attributter, og hendelsene grupperes
+på `bekreftet_tid` i stedet for på tilstandsendring. `kilde` vises som undertekst, så
+raden blir «Rune låste opp / Ansiktsgjenkjenning · Lokal webhook». Er sensoren nylig lagt
+til og historikken tom, vises i det minste siste opplåsning fra gjeldende tilstand.
 
-**Dørlåser** har «Lås alle» og «Lås opp alle» med teller — «Lås 2 stk», eller «Alle dører
-er låst nå» når det ikke er noe å gjøre — og en pille per lås med tilstand, batteri og
-hvor lenge siden den sist endret seg. Låsene hentes fra `laser.entities`, eller
-automatisk fra sonene med `kind: lock` hvis du ikke setter noe.
+## Døra sto utenfor huset
 
-```yaml
-laser:
-  entities: [lock.dorlas, lock.stue_dorlas, lock.vaskerom_dorlas, lock.garasjedor]
-  navn: { lock.dorlas: Inngang }
-  batteri: { lock.dorlas: sensor.dorlas_batteri }
-```
+Veggen går fra x=80 til x=240, men døra var tegnet på 228–254 — altså halvveis ut i lufta
+til høyre. Døra ligger nå på 206–232, og vinduene er flyttet til 96, 134 og 172 så
+avstanden blir jevn.
 
-**Logg** slår sammen alarmtilstand, låsing og opplåsing, og ansiktsgjenkjenning til én
-tidslinje, nyeste først. Hentes fra historikk-API-et, ikke fra tilstandene, så den
-overlever omstart. Oppdateres maks hvert 30. sekund så den ikke spør ved hver tick.
+## Sensorpillene ligner button-card-malene
 
-```yaml
-logg:
-  ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
-  dager: 7
-  maks: 40
-```
+`ki-sensor-liste-card` følger nå formen til `universal_sensor`-flisene: to i bredden som
+standard, 64 px høye med 20 px hjørner, rundt ikonfelt til venstre med `rgba(250,251,252,.10)`
+bak, navn i 15 px halvfet og tilstanden i 13 px under.
 
-Ansiktssensoren gir rader som «Rune låste opp». Låsene gir «Inngang låst opp», alarmen
-«På – borte» og «Alarm utløst».
+Aktiv flis farges og tekstfargen snur til `--gray100`, med `rgba(40,40,42,.10)` bak ikonet
+— samme som malene dine. Standardfargen kommer nå fra typen når sonen ikke setter
+`color:` selv: `--purple` for bevegelse, `--orange` for åpninger, `--red` for låser.
 
-## Dyplenking til en fane
-
-`KI.navigate` forstår nå en fane-del i stien, skilt med `::`:
-
-```yaml
-hjem:
-  las: lock.dorlas
-  las_path: '#alarm::laser'
-```
-
-Fane-delen fjernes før navigeringen, så bubble-card ser bare `#alarm` og åpner popupen
-som vanlig; deretter melder `KI.navigate` fra om fanen, og sikkerhetskortet bytter til
-den. Virker på alle stier som går gjennom `KI.navigate` — `'#alarm::logg'` åpner loggen.
-Kort som ikke kjenner fanen, ignorerer meldingen.
+`kolonner: 1` gir de brede pillene tilbake.

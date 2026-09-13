@@ -7,7 +7,7 @@
  * tittel: Dører                  # valgfri overskrift over lista
  * hode: true                     # sonehode med ikon, teller og sammenfolding
  * apnet: true                    # sonene starter utfoldet
- * kolonner: 1                    # 1 = brede piller, 2 = to i bredden
+ * kolonner: 2                    # 2 = som universal_sensor-flisene, 1 = brede piller
  * batteri: true                  # vis batteriprosent under navnet
  * bare_aktive: false             # vis bare det som er åpent/ulåst/i bevegelse
  * zones: …                       # samme liste som i alarmkortet
@@ -46,30 +46,31 @@ const KI_SLIST_STIL = `
   .kropp { display:grid; gap:8px; overflow:hidden; }
   .sone.lukket .kropp { display:none; }
 
-  .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,1), minmax(0,1fr)); }
+  .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,2), minmax(0,1fr)); }
 
-  .pille { display:flex; align-items:center; gap:14px; min-height:70px; padding:12px 18px 12px 12px;
-    border-radius:26px; background:var(--gray100); color:var(--gray1000);
+  /* Samme form som universal_sensor-flisene: kompakt, rundt ikonfelt til venstre,
+     farget bakgrunn når aktiv og tekstfargen som snur. */
+  .pille { display:flex; align-items:center; gap:12px; min-height:64px; padding:8px 14px 8px 8px;
+    border-radius:20px; background:var(--gray100); color:var(--gray1000);
     border:0; font-family:inherit; text-align:left; width:100%; cursor:pointer;
     transition:background .35s var(--myk), color .35s var(--myk), transform .08s ease; }
   .pille:active { transform:scale(.985); }
   .pille:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-  .merke { width:46px; height:46px; border-radius:50%; flex:none;
+  .merke { width:48px; height:48px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
-    background:color-mix(in srgb, var(--gray1000) 10%, transparent);
-    transition:background .35s var(--myk); }
-  .merke ha-icon { --mdc-icon-size:23px; }
+    background:rgba(250,251,252,.10); transition:background .35s var(--myk); }
+  .merke ha-icon { --mdc-icon-size:24px; }
 
   .tekst { display:grid; gap:2px; min-width:0; }
-  .navn { font-size:17px; font-weight:700; line-height:1.25; letter-spacing:-.01em;
+  .navn { font-size:15px; font-weight:600; line-height:1.25;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .under { font-size:15px; font-weight:500; opacity:.62; line-height:1.3; }
+  .under { font-size:13px; font-weight:500; opacity:.62; line-height:1.3; }
 
   /* aktiv: åpen, ulåst eller bevegelse – fargen kommer fra sonen */
-  .pille.aktiv { background:var(--tone,#8fd6a8); color:var(--pa-tekst,#1d2b21); }
-  .pille.aktiv .under { opacity:.75; }
-  .pille.aktiv .merke { background:color-mix(in srgb, #fff 22%, transparent); }
+  .pille.aktiv { background:var(--tone,var(--purple,#a98fe0)); color:var(--gray100,#fff); }
+  .pille.aktiv .under { opacity:.8; }
+  .pille.aktiv .merke { background:rgba(40,40,42,.10); }
   .pille.aktiv .merke ha-icon { animation:kiSLPust 2.6s ease-in-out infinite; }
   @keyframes kiSLPust { 0%,100% { transform:scale(1) } 50% { transform:scale(1.12) } }
 
@@ -90,6 +91,9 @@ const KI_SLIST_IKON = {
   lock: ["mdi:lock-open-variant", "mdi:lock"],
 };
 
+/* Standardfarger når sonen ikke setter `color:` – samme palett som button-card-malene */
+const KI_SLIST_FARGE = { opening: "var(--orange)", lock: "var(--red)", motion: "var(--purple)" };
+
 const KI_SLIST_ESC = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 class KiSensorListeCard extends HTMLElement {
@@ -99,7 +103,7 @@ class KiSensorListeCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || (!c.zones && !c.items)) throw new Error("Sett enten zones: eller items:");
-    this._c = { kolonner: 1, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
+    this._c = { kolonner: 2, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
     this._lukket = this._lukket || {};
   }
 
@@ -184,7 +188,7 @@ class KiSensorListeCard extends HTMLElement {
 
     return `
       <button class="pille ${aktiv ? "aktiv" : ""} ${borte ? "borte" : ""}"
-              style="${sone.color ? `--tone:${sone.color}` : ""}" data-mer="${KI_SLIST_ESC(i.entity)}">
+              style="--tone:${sone.color || KI_SLIST_FARGE[kind] || "var(--purple)"}" data-mer="${KI_SLIST_ESC(i.entity)}">
         <span class="merke"><ha-icon icon="${KI_SLIST_ESC(ikon)}"></ha-icon></span>
         <span class="tekst">
           <span class="navn">${KI_SLIST_ESC(navn)}</span>
@@ -218,7 +222,7 @@ class KiSensorListeCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${KI_SLIST_STIL}</style>
-      <div class="rot" style="--kol:${c.kolonner === 2 ? 2 : 1}">
+      <div class="rot" style="--kol:${c.kolonner === 1 ? 1 : 2}">
         ${blokker || `<div class="tom">${c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise."}</div>`}
       </div>`;
 

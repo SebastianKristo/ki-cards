@@ -516,37 +516,70 @@ class KiSikkerhetCard extends HTMLElement {
     const lg = this._c.logg || {};
     const dager = lg.dager || 7;
     const laser = this._laser();
-    const ids = [this._c.entity, ...laser.map((x) => x.id), lg.ansikt].filter(Boolean);
     const fra = new Date(Date.now() - dager * 864e5).toISOString();
-    const sti = `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response&significant_changes_only`;
-    const svar = await this._h.callApi("GET", sti);
-
     const navn = {};
     for (const x of laser) navn[x.id] = x.navn;
 
     const ut = [];
-    for (const serie of svar || []) {
-      for (const p of serie) {
-        const id = p.entity_id || (serie[0] && serie[0].entity_id);
-        const tid = p.last_changed || p.last_updated;
-        if (!id || !tid) continue;
-        const v = p.state;
-        if (["unavailable", "unknown", ""].includes(v)) continue;
 
-        if (id === this._c.entity) {
-          ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
-            stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
-            tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
-        } else if (id === lg.ansikt) {
-          ut.push({ tid, ikon: "mdi:face-recognition", stil: "av",
-            tittel: `${v} låste opp`, under: "Ansiktsgjenkjenning" });
-        } else if (id.startsWith("lock.")) {
-          const l = v === "locked";
-          ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
-            tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
+    // Alarm og låser: minimal_response holder, vi trenger bare tilstanden
+    const ids = [this._c.entity, ...laser.map((x) => x.id)].filter(Boolean);
+    if (ids.length) {
+      const svar = await this._h.callApi("GET",
+        `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response`);
+      for (const serie of svar || []) {
+        const eid = serie[0] && serie[0].entity_id;
+        for (const punkt of serie) {
+          const id = punkt.entity_id || eid;
+          const tid = punkt.last_changed || punkt.last_updated;
+          const v = punkt.state;
+          if (!id || !tid || ["unavailable", "unknown", ""].includes(v)) continue;
+          if (id === this._c.entity) {
+            ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
+              stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
+              tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
+          } else if (id.startsWith("lock.")) {
+            const l = v === "locked";
+            ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
+              tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
+          }
         }
       }
     }
+
+    // Ansiktsgjenkjenning må hentes med attributter. Sensoren står ofte på samme
+    // navn flere opplåsninger på rad – det er `bekreftet_tid` som flytter seg, og
+    // den forsvinner med minimal_response. Derfor en egen spørring, og vi grupperer
+    // på bekreftet_tid i stedet for på tilstandsendring.
+    if (lg.ansikt) {
+      try {
+        const svar = await this._h.callApi("GET",
+          `history/period/${fra}?filter_entity_id=${lg.ansikt}`);
+        const sett = new Set();
+        for (const serie of svar || []) for (const punkt of serie) {
+          const a = punkt.attributes || {};
+          const hvem = punkt.state;
+          if (!hvem || ["unavailable", "unknown", ""].includes(hvem)) continue;
+          const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
+          if (!tid || sett.has(tid)) continue;
+          sett.add(tid);
+          ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av",
+            tittel: `${hvem} låste opp`,
+            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
+        }
+        // Ingen historikk (nylig lagt til sensor)? Vis i det minste siste opplåsning.
+        const naa = this._h.states[lg.ansikt];
+        if (!sett.size && naa && naa.state && !["unavailable", "unknown"].includes(naa.state)) {
+          const a = naa.attributes || {};
+          ut.push({ tid: a.bekreftet_tid || naa.last_changed, ikon: a.icon || "mdi:face-recognition",
+            stil: "av", tittel: `${naa.state} låste opp`,
+            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
+        }
+      } catch (e) {
+        console.warn("ki-sikkerhet-card: fikk ikke historikk for ansiktssensoren", e);
+      }
+    }
+
     ut.sort((a, b) => new Date(b.tid) - new Date(a.tid));
     return ut.slice(0, lg.maks || 40);
   }
@@ -633,7 +666,7 @@ class KiSikkerhetCard extends HTMLElement {
     const dorApen = ulast.length > 0 || apne.some((r) => /dør|door|inngang|veranda/i.test(r.navn));
     const id = this._uid || (this._uid = "s" + Math.random().toString(36).slice(2, 8));
 
-    const V = [[100, 88], [143, 88], [186, 88]];
+    const V = [[96, 88], [134, 88], [172, 88]];   // veggen går fra x=80 til x=240
     const vindu = ([x, y], i) => {
       const lyser = i < antApne;
       return `
@@ -678,10 +711,10 @@ class KiSikkerhetCard extends HTMLElement {
         ${V.map(vindu).join("")}
 
         <g class="dorgruppe ${dorApen ? "apen" : ""}">
-          <rect class="dorapning" x="228" y="96" width="26" height="42" rx="5"></rect>
+          <rect class="dorapning" x="206" y="96" width="26" height="42" rx="5"></rect>
           <g class="dorblad">
-            <rect class="dor" x="228" y="96" width="26" height="42" rx="5"></rect>
-            <circle class="handtak" cx="248" cy="118" r="2"></circle>
+            <rect class="dor" x="206" y="96" width="26" height="42" rx="5"></rect>
+            <circle class="handtak" cx="226" cy="118" r="2"></circle>
           </g>
         </g>
 

@@ -1,4 +1,4 @@
-/* ki-cards v3.21.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.21.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.21.0";
+  KI.VERSION = "3.21.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -16270,37 +16270,70 @@ class KiSikkerhetCard extends HTMLElement {
     const lg = this._c.logg || {};
     const dager = lg.dager || 7;
     const laser = this._laser();
-    const ids = [this._c.entity, ...laser.map((x) => x.id), lg.ansikt].filter(Boolean);
     const fra = new Date(Date.now() - dager * 864e5).toISOString();
-    const sti = `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response&significant_changes_only`;
-    const svar = await this._h.callApi("GET", sti);
-
     const navn = {};
     for (const x of laser) navn[x.id] = x.navn;
 
     const ut = [];
-    for (const serie of svar || []) {
-      for (const p of serie) {
-        const id = p.entity_id || (serie[0] && serie[0].entity_id);
-        const tid = p.last_changed || p.last_updated;
-        if (!id || !tid) continue;
-        const v = p.state;
-        if (["unavailable", "unknown", ""].includes(v)) continue;
 
-        if (id === this._c.entity) {
-          ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
-            stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
-            tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
-        } else if (id === lg.ansikt) {
-          ut.push({ tid, ikon: "mdi:face-recognition", stil: "av",
-            tittel: `${v} låste opp`, under: "Ansiktsgjenkjenning" });
-        } else if (id.startsWith("lock.")) {
-          const l = v === "locked";
-          ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
-            tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
+    // Alarm og låser: minimal_response holder, vi trenger bare tilstanden
+    const ids = [this._c.entity, ...laser.map((x) => x.id)].filter(Boolean);
+    if (ids.length) {
+      const svar = await this._h.callApi("GET",
+        `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response`);
+      for (const serie of svar || []) {
+        const eid = serie[0] && serie[0].entity_id;
+        for (const punkt of serie) {
+          const id = punkt.entity_id || eid;
+          const tid = punkt.last_changed || punkt.last_updated;
+          const v = punkt.state;
+          if (!id || !tid || ["unavailable", "unknown", ""].includes(v)) continue;
+          if (id === this._c.entity) {
+            ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
+              stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
+              tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
+          } else if (id.startsWith("lock.")) {
+            const l = v === "locked";
+            ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
+              tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
+          }
         }
       }
     }
+
+    // Ansiktsgjenkjenning må hentes med attributter. Sensoren står ofte på samme
+    // navn flere opplåsninger på rad – det er `bekreftet_tid` som flytter seg, og
+    // den forsvinner med minimal_response. Derfor en egen spørring, og vi grupperer
+    // på bekreftet_tid i stedet for på tilstandsendring.
+    if (lg.ansikt) {
+      try {
+        const svar = await this._h.callApi("GET",
+          `history/period/${fra}?filter_entity_id=${lg.ansikt}`);
+        const sett = new Set();
+        for (const serie of svar || []) for (const punkt of serie) {
+          const a = punkt.attributes || {};
+          const hvem = punkt.state;
+          if (!hvem || ["unavailable", "unknown", ""].includes(hvem)) continue;
+          const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
+          if (!tid || sett.has(tid)) continue;
+          sett.add(tid);
+          ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av",
+            tittel: `${hvem} låste opp`,
+            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
+        }
+        // Ingen historikk (nylig lagt til sensor)? Vis i det minste siste opplåsning.
+        const naa = this._h.states[lg.ansikt];
+        if (!sett.size && naa && naa.state && !["unavailable", "unknown"].includes(naa.state)) {
+          const a = naa.attributes || {};
+          ut.push({ tid: a.bekreftet_tid || naa.last_changed, ikon: a.icon || "mdi:face-recognition",
+            stil: "av", tittel: `${naa.state} låste opp`,
+            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
+        }
+      } catch (e) {
+        console.warn("ki-sikkerhet-card: fikk ikke historikk for ansiktssensoren", e);
+      }
+    }
+
     ut.sort((a, b) => new Date(b.tid) - new Date(a.tid));
     return ut.slice(0, lg.maks || 40);
   }
@@ -16387,7 +16420,7 @@ class KiSikkerhetCard extends HTMLElement {
     const dorApen = ulast.length > 0 || apne.some((r) => /dør|door|inngang|veranda/i.test(r.navn));
     const id = this._uid || (this._uid = "s" + Math.random().toString(36).slice(2, 8));
 
-    const V = [[100, 88], [143, 88], [186, 88]];
+    const V = [[96, 88], [134, 88], [172, 88]];   // veggen går fra x=80 til x=240
     const vindu = ([x, y], i) => {
       const lyser = i < antApne;
       return `
@@ -16432,10 +16465,10 @@ class KiSikkerhetCard extends HTMLElement {
         ${V.map(vindu).join("")}
 
         <g class="dorgruppe ${dorApen ? "apen" : ""}">
-          <rect class="dorapning" x="228" y="96" width="26" height="42" rx="5"></rect>
+          <rect class="dorapning" x="206" y="96" width="26" height="42" rx="5"></rect>
           <g class="dorblad">
-            <rect class="dor" x="228" y="96" width="26" height="42" rx="5"></rect>
-            <circle class="handtak" cx="248" cy="118" r="2"></circle>
+            <rect class="dor" x="206" y="96" width="26" height="42" rx="5"></rect>
+            <circle class="handtak" cx="226" cy="118" r="2"></circle>
           </g>
         </g>
 
@@ -16490,7 +16523,7 @@ try {
  * tittel: Dører                  # valgfri overskrift over lista
  * hode: true                     # sonehode med ikon, teller og sammenfolding
  * apnet: true                    # sonene starter utfoldet
- * kolonner: 1                    # 1 = brede piller, 2 = to i bredden
+ * kolonner: 2                    # 2 = som universal_sensor-flisene, 1 = brede piller
  * batteri: true                  # vis batteriprosent under navnet
  * bare_aktive: false             # vis bare det som er åpent/ulåst/i bevegelse
  * zones: …                       # samme liste som i alarmkortet
@@ -16529,30 +16562,31 @@ const KI_SLIST_STIL = `
   .kropp { display:grid; gap:8px; overflow:hidden; }
   .sone.lukket .kropp { display:none; }
 
-  .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,1), minmax(0,1fr)); }
+  .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,2), minmax(0,1fr)); }
 
-  .pille { display:flex; align-items:center; gap:14px; min-height:70px; padding:12px 18px 12px 12px;
-    border-radius:26px; background:var(--gray100); color:var(--gray1000);
+  /* Samme form som universal_sensor-flisene: kompakt, rundt ikonfelt til venstre,
+     farget bakgrunn når aktiv og tekstfargen som snur. */
+  .pille { display:flex; align-items:center; gap:12px; min-height:64px; padding:8px 14px 8px 8px;
+    border-radius:20px; background:var(--gray100); color:var(--gray1000);
     border:0; font-family:inherit; text-align:left; width:100%; cursor:pointer;
     transition:background .35s var(--myk), color .35s var(--myk), transform .08s ease; }
   .pille:active { transform:scale(.985); }
   .pille:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-  .merke { width:46px; height:46px; border-radius:50%; flex:none;
+  .merke { width:48px; height:48px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
-    background:color-mix(in srgb, var(--gray1000) 10%, transparent);
-    transition:background .35s var(--myk); }
-  .merke ha-icon { --mdc-icon-size:23px; }
+    background:rgba(250,251,252,.10); transition:background .35s var(--myk); }
+  .merke ha-icon { --mdc-icon-size:24px; }
 
   .tekst { display:grid; gap:2px; min-width:0; }
-  .navn { font-size:17px; font-weight:700; line-height:1.25; letter-spacing:-.01em;
+  .navn { font-size:15px; font-weight:600; line-height:1.25;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .under { font-size:15px; font-weight:500; opacity:.62; line-height:1.3; }
+  .under { font-size:13px; font-weight:500; opacity:.62; line-height:1.3; }
 
   /* aktiv: åpen, ulåst eller bevegelse – fargen kommer fra sonen */
-  .pille.aktiv { background:var(--tone,#8fd6a8); color:var(--pa-tekst,#1d2b21); }
-  .pille.aktiv .under { opacity:.75; }
-  .pille.aktiv .merke { background:color-mix(in srgb, #fff 22%, transparent); }
+  .pille.aktiv { background:var(--tone,var(--purple,#a98fe0)); color:var(--gray100,#fff); }
+  .pille.aktiv .under { opacity:.8; }
+  .pille.aktiv .merke { background:rgba(40,40,42,.10); }
   .pille.aktiv .merke ha-icon { animation:kiSLPust 2.6s ease-in-out infinite; }
   @keyframes kiSLPust { 0%,100% { transform:scale(1) } 50% { transform:scale(1.12) } }
 
@@ -16573,6 +16607,9 @@ const KI_SLIST_IKON = {
   lock: ["mdi:lock-open-variant", "mdi:lock"],
 };
 
+/* Standardfarger når sonen ikke setter `color:` – samme palett som button-card-malene */
+const KI_SLIST_FARGE = { opening: "var(--orange)", lock: "var(--red)", motion: "var(--purple)" };
+
 const KI_SLIST_ESC = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 class KiSensorListeCard extends HTMLElement {
@@ -16582,7 +16619,7 @@ class KiSensorListeCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || (!c.zones && !c.items)) throw new Error("Sett enten zones: eller items:");
-    this._c = { kolonner: 1, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
+    this._c = { kolonner: 2, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
     this._lukket = this._lukket || {};
   }
 
@@ -16667,7 +16704,7 @@ class KiSensorListeCard extends HTMLElement {
 
     return `
       <button class="pille ${aktiv ? "aktiv" : ""} ${borte ? "borte" : ""}"
-              style="${sone.color ? `--tone:${sone.color}` : ""}" data-mer="${KI_SLIST_ESC(i.entity)}">
+              style="--tone:${sone.color || KI_SLIST_FARGE[kind] || "var(--purple)"}" data-mer="${KI_SLIST_ESC(i.entity)}">
         <span class="merke"><ha-icon icon="${KI_SLIST_ESC(ikon)}"></ha-icon></span>
         <span class="tekst">
           <span class="navn">${KI_SLIST_ESC(navn)}</span>
@@ -16701,7 +16738,7 @@ class KiSensorListeCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${KI_SLIST_STIL}</style>
-      <div class="rot" style="--kol:${c.kolonner === 2 ? 2 : 1}">
+      <div class="rot" style="--kol:${c.kolonner === 1 ? 1 : 2}">
         ${blokker || `<div class="tom">${c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise."}</div>`}
       </div>`;
 
