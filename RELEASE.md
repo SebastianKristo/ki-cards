@@ -1,29 +1,25 @@
-# ki-cards 3.28.0
+# ki-cards 3.29.0
 
-## `ki-ruter-card` 4.0.0 – redesignet i samme språk som resten
+## `ki-sovn-pro-card`: Enkel/Avansert flyttet opp på fanelinja
 
-Kortet er flyttet fra `src/cards/` til `src/69-ki-ruter-card.js`, så det ligger sammen med
-de andre KI-kortene og bare defineres én gang i bundelen.
+Kortet hadde to brede brytere rett over hverandre — Søvn/Vekking, og så Enkel/Avansert
+på egen rad. Det tok mye plass og gjorde det uklart hvilken som var hovedvalget.
 
-Formspråket er lagt om til det samme som `ki-sikkerhet-card`, `ki-sensor-liste-card` og
-button-card-malene:
+S�vn/Vekking står nå alene på linja og får all bredden. Enkel/Avansert er blitt en
+kompakt knapp til høyre på samme rad, med et skyvekontroll-ikon og teksten «Avansert».
+Den lyser opp når avansert visning er på, og trykk veksler. Under 420 px faller teksten
+bort og bare ikonet står igjen.
 
-* **Toppen** har 48 px rundt ikonfelt med `rgba(250,251,252,.10)` bak, tittel i 19 px
-  halvfet, klokkeslett til høyre.
-* **Holdeplassvelgeren** er den samme pillerada som fanene ellers – tynn ramme rundt,
-  valgt pille i `--active-big` med mørk tekst og skygge.
-* **Neste avgang** er en hel flate i linjens farge med linjemerket i et mørkt rundfelt,
-  destinasjon i 17 px halvfet og nedtellingen i 40 px til høyre.
-* **Avgangsradene** har samme pilleform som sensorlistene: 70 px høye, 22 px hjørner,
-  `--gray100` bakgrunn, rundt linjemerke på 50 px til venstre, destinasjon i 16 px og
-  nedtellingen i 24 px til høyre. Går den om under to minutter, tones raden i linjefargen.
-* **Avvik og linjeknapper** er runde flater og piller i samme palett, med rødt fyll i
-  stedet for gjennomsiktig rødt når noe er meldt.
-* Bakgrunnsgløden har fått eget lag, som i sikkerhetskortet, så kortet slipper å klippe
-  innholdet sitt.
+Har du ingen vekkealarmer, er det ingen faner å vise, og knappen står alene til høyre.
 
-Funksjonen er uendret: gangetid per holdeplass, sanntidsprikk, forsinkelse med
-overstreket planlagt tid, spor, avviksliste og nedtelling hvert tiende sekund. All
-konfigurasjon virker som før.
+`avansert_knapp: false` gir den gamle brede bryteren på egen rad tilbake.
 
-Smalere enn 420 px krymper nedtellingen og linjemerkene så radene ikke brekker.
+## Klikk på Søvn eller Vekking nullstilte visningen
+
+`KI.wirePro` la klikklytteren på alle `.switch-valg`, også fanepillene. De har `data-tab`,
+ikke `data-view`, så `el.dataset.view` var `undefined` — og et trykk på Søvn satte
+`_view` til `undefined`. Da var verken Enkel eller Avansert markert som valgt, og alt som
+sjekket `_view === "avansert"` slo av.
+
+Lytteren henger nå på `[data-view]` i stedet. Det gjelder alle kortene som bruker
+`KI.wirePro` med faner, ikke bare søvnkortet.

@@ -4,6 +4,7 @@
     "vindu_åpent": "vindu åpent", puls_lav: "lav puls", "puls_høy": "høy puls", i_senga: "i senga" };
 
   class KiSovnProCard extends KI.Card {
+    /* avansert_knapp: false gir den gamle brede Enkel/Avansert-bryteren på egen rad */
     static getStubConfig() { return { title: "Søvn og vekking" }; }
     setConfig(c) { this._view = c.view || "enkel"; this._tab = c.tab || "sovn"; this._apen = null; super.setConfig(c); }
 
@@ -61,6 +62,7 @@
       const vks = this._vekking().map(p => KI.vekkingInfo(this, p));
       const harVk = vks.some(v => v.n), tabs = harVk && c.tabs !== false;
       const visSovn = !tabs || this._tab === "sovn", visVk = harVk && (!tabs || this._tab === "vekking");
+      const avansert = this._view === "avansert";
       const vkTxt = vks.filter(v => v.n).map(v => v.running ? `${v.name}: ${v.navn.toLowerCase()}` : v.masterOn && v.tid ? `Vekking ${v.navn.replace(/^I dag/, "i dag").replace(/^([A-ZÆØÅ])/, m => m.toLowerCase())}${v.igjen ? " (om " + v.igjen + ")" : ""}` : "Vekking av").join(" · ");
       this.shadowRoot.innerHTML = `<style>${KI.pro}
         .himmel { position:relative; width:88px; height:88px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -83,8 +85,17 @@
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
         <div class="hero natt-hero">${c.mane === false ? `<div class="${sov ? "pust" : ""}">${KI.ringHtml(n ? (sov / n) * 100 : 0, `${sov}<span>/${n}</span>`, ringCls, persons[0] && persons[0].entity)}</div>` : this._moonHtml(n ? sov / n : 0, sov, n, !!pend)}
           <div><div class="hero-navn">${KI.esc(navn)}</div><div class="hero-forklaring">${KI.esc(forkl)}${vkTxt ? `<br>${KI.esc(vkTxt)}` : ""}</div></div></div>
-        ${harVk && c.tabs !== false ? `<div class="switch" role="tablist"><div class="switch-valg ${this._tab === "sovn" ? "aktiv" : ""}" data-tab="sovn">Søvn</div><div class="switch-valg ${this._tab === "vekking" ? "aktiv" : ""}" data-tab="vekking">Vekking</div></div>` : ""}
-        <div class="switch" role="tablist"><div class="switch-valg ${this._view === "enkel" ? "aktiv" : ""}" data-view="enkel">Enkel</div><div class="switch-valg ${this._view === "avansert" ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>
+        ${c.avansert_knapp === false
+          ? `${harVk && c.tabs !== false ? `<div class="switch" role="tablist"><div class="switch-valg ${this._tab === "sovn" ? "aktiv" : ""}" data-tab="sovn">Søvn</div><div class="switch-valg ${this._tab === "vekking" ? "aktiv" : ""}" data-tab="vekking">Vekking</div></div>` : ""}
+             <div class="switch" role="tablist"><div class="switch-valg ${avansert ? "" : "aktiv"}" data-view="enkel">Enkel</div><div class="switch-valg ${avansert ? "aktiv" : ""}" data-view="avansert">Avansert</div></div>`
+          : `<div class="fanelinje">
+              ${harVk && c.tabs !== false ? `<div class="switch" role="tablist">
+                <div class="switch-valg ${this._tab === "sovn" ? "aktiv" : ""}" data-tab="sovn">Søvn</div>
+                <div class="switch-valg ${this._tab === "vekking" ? "aktiv" : ""}" data-tab="vekking">Vekking</div></div>` : `<div style="flex:1"></div>`}
+              <button class="knapp-avansert ${avansert ? "aktiv" : ""}" data-view="${avansert ? "enkel" : "avansert"}"
+                      aria-pressed="${avansert}" title="${avansert ? "Vis enkel visning" : "Vis avanserte innstillinger"}">
+                <ha-icon icon="mdi:tune-variant"></ha-icon><span>Avansert</span></button>
+            </div>`}
         ${visSovn ? `<div class="blokk"><div class="blokk-hode"><span>Personer</span><span class="blokk-sub">${n ? "trykk for detaljer" : ""}</span></div>
           ${n ? persons.map((p, i) => this._person(p, infos[i])).join("") : `<div class="tom">Fant ingen personer fra <b>KI Søvn &amp; Vekking</b>. Legg til «Person – søvndeteksjon» i integrasjonen.</div>`}
         </div>

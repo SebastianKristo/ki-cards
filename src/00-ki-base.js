@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.28.0";
+  KI.VERSION = "3.29.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -82,6 +82,17 @@ window.KI = window.KI || {};
     .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px; background:var(--gray200); }
     .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500; cursor:pointer; opacity:.6; transition:background .18s ease, opacity .18s ease; }
     .switch-valg.aktiv { background:var(--active-small, var(--active-big)); color:var(--gray100,#fafbfc); opacity:1; }
+    /* Faner og «Avansert» på samme linje, så det ikke blir to brede brytere over hverandre */
+    .fanelinje { display:flex; align-items:center; gap:8px; }
+    .fanelinje .switch { flex:1; min-width:0; }
+    .knapp-avansert { display:inline-flex; align-items:center; gap:7px; height:46px; padding:0 16px;
+      border-radius:75px; background:var(--gray200); color:var(--gray1000); border:0; font-family:inherit;
+      font-size:14px; font-weight:500; cursor:pointer; opacity:.6; flex:none;
+      transition:background .18s ease, opacity .18s ease, color .18s ease; }
+    .knapp-avansert ha-icon { --mdc-icon-size:20px; }
+    .knapp-avansert.aktiv { background:var(--active-small, var(--active-big)); color:var(--gray100,#fafbfc); opacity:1; }
+    .knapp-avansert:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
+    @media (max-width:420px) { .knapp-avansert span { display:none; } .knapp-avansert { padding:0 14px; } }
     .blokk { background:var(--gray200); border-radius:24px; padding:8px 14px 14px; }
     .blokk-hode { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:13px; font-weight:600; opacity:.55; padding:8px 4px; }
     .blokk-sub { font-weight:500; text-align:right; }
@@ -267,7 +278,10 @@ window.KI = window.KI || {};
     root.querySelectorAll("input[data-time]").forEach(inp => { inp.addEventListener("click", e => e.stopPropagation());
       inp.addEventListener("change", () => { if (inp.value) h.callService(inp.dataset.time.split(".")[0], "set_value", { entity_id: inp.dataset.time, time: inp.value + ":00" }); }); });
     root.querySelectorAll(".last-hode[data-open]").forEach(el => el.addEventListener("click", () => { const k = el.dataset.open; card._apen = card._apen === k ? null : k; card._lastKey = null; card._maybeRender(); }));
-    root.querySelectorAll(".switch-valg").forEach(el => el.addEventListener("click", () => { card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
+    // Bare pillene som faktisk har data-view skal endre visningen. Fanepillene
+    // (data-tab) traff også denne lytteren og satte _view til undefined.
+    root.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => {
+      card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
     KI.wireSteppers(card, root);
   };
 
