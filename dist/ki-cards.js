@@ -1,4 +1,4 @@
-/* ki-cards v3.45.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.45.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.45.0";
+  KI.VERSION = "3.45.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -7812,12 +7812,29 @@ try {
 
   /* KI Energi lager number.ki_rom_<rom>_temp per rom. Den setter alle varmekildene i
      rommet på én gang og leser tilbake det som faktisk er satt. */
+  /* Fant vi ikke rommet, si fra én gang hvilke som faktisk finnes – da ser du med én
+     gang om det er navnet på rommet som ikke stemmer, eller om KI Energi mangler. */
+  function kiRomBom(hass, prøvd) {
+    if (kiRomBom._sagt) return null;
+    kiRomBom._sagt = 1;
+    const finnes = Object.keys(hass.states)
+      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
+    if (finnes.length) {
+      console.info('ki-cards: fant ingen romtemperatur for', prøvd.filter(Boolean),
+        '— disse finnes:', finnes);
+    } else {
+      console.info('ki-cards: ingen number.ki_rom_*_temp i det hele tatt. '
+        + 'Krever KI Energi 2.16 eller nyere, og at sonene har et rom-felt.');
+    }
+    return null;
+  }
+
   function kiRomTall(hass, ...navn) {
     for (const n of navn) {
       const id = 'number.ki_rom_' + romSlug(n) + '_temp';
       if (n && hass.states[id]) return id;
     }
-    return null;
+    return kiRomBom(hass, navn);
   }
 
   function climateCard(hass, e, powerSensor, hum, name, tellerSuffix, romTall) {
@@ -7834,7 +7851,11 @@ try {
       ? { action: 'call-service', service: 'number.set_value', target: { entity_id: [kiId] },
           data: { value: "{{ (states('" + kiId + "') | float(21)) " + (dir > 0 ? '+' : '-') + ' ' + kiSteg + ' }}' } }
       : hasTeller
-      ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'), data: { entity_id: teller, amount: 1 } }
+      // entity_id må ligge i target. I data ble den ignorert, og kallet feilet med
+      // «must contain at least one of entity_id, device_id, area_id…».
+      // increment/decrement tar heller ingen `amount`.
+      ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'),
+          target: { entity_id: [teller] } }
       : { action: 'call-service', service: 'climate.set_temperature', data: { entity_id: e, temperature: "{{ (state_attr('" + e + "','temperature') | float(20)) " + (dir > 0 ? '+' : '-') + ' 1 }}' } };
     // Leses alltid tilbake fra kilden vi skriver til, så tallet viser det som er satt
     const valueTpl = kiId
@@ -8601,12 +8622,29 @@ try {
   /* KI Energi lager ett temperaturpunkt per rom: number.ki_rom_<rom>_temp. Det setter
      alle varmekildene i rommet – stua har panelovn og oljefyr, kjøkkenet panelovn og
      gulvvarme – så kortet slipper en egen input_number. */
+  /* Fant vi ikke rommet, si fra én gang hvilke som faktisk finnes – da ser du med én
+     gang om det er navnet på rommet som ikke stemmer, eller om KI Energi mangler. */
+  function kiRomBom(hass, prøvd) {
+    if (kiRomBom._sagt) return null;
+    kiRomBom._sagt = 1;
+    const finnes = Object.keys(hass.states)
+      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
+    if (finnes.length) {
+      console.info('ki-cards: fant ingen romtemperatur for', prøvd.filter(Boolean),
+        '— disse finnes:', finnes);
+    } else {
+      console.info('ki-cards: ingen number.ki_rom_*_temp i det hele tatt. '
+        + 'Krever KI Energi 2.16 eller nyere, og at sonene har et rom-felt.');
+    }
+    return null;
+  }
+
   function kiRomTall(hass, romnavn, areaId) {
     for (const n of [romnavn, areaId]) {
       const id = 'number.ki_rom_' + romSlug(n) + '_temp';
       if (n && hass.states[id]) return id;
     }
-    return null;
+    return kiRomBom(hass, [romnavn, areaId]);
   }
 
   // termostat-stepper (btn1). Rekkefølge: KI Energis romtall, så input_number-teller,
@@ -8619,7 +8657,9 @@ try {
       ? { action: 'call-service', service: 'number.set_value', target: { entity_id: [kiId] },
           data: { value: "{{ (states('" + kiId + "') | float(21)) " + (dir > 0 ? '+' : '-') + ' ' + steg + ' }}' } }
       : has
-      ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'), target: { entity_id: [teller] }, data: { amount: 1 } }
+      // increment/decrement tar ingen `amount` – steget ligger på input_number-hjelperen
+      ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'),
+          target: { entity_id: [teller] } }
       // Uten KI Energi: skriv til alle varmekildene i rommet, ikke bare den første
       : { action: 'call-service', service: 'climate.set_temperature',
           data: { entity_id: (alleKlima && alleKlima.length ? alleKlima : clim),

@@ -1,19 +1,26 @@
-# ki-cards 3.45.0
+# ki-cards 3.45.1
 
-## Termostatknappene setter og leser tilbake det samme
+## «Kunne ikke utføre handlingen input_number/increment»
 
-**Klimakortet i rom-popupen** (`ki-rom-card`, inne i expander-kortet) bruker nå
-`number.ki_rom_<rom>_temp` fra KI Energi når den finnes, på samme måte som romflisa fikk i
-3.43. Trykk opp eller ned skriver til romtallet, og tallet i midten leses tilbake fra
-nøyaktig samme entitet — ikke fra en teller ved siden av som kan komme ut av takt.
+Klimakortet i rom-popupen bygget kallet feil:
 
-Rekkefølgen er den samme begge steder: KI Energis romtall, så `input_number`-telleren, og
-til slutt `climate.set_temperature` rett på enheten. Steget hentes fra entiteten, så
-halvgradersendringer virker.
+```js
+{ service: 'input_number.increment', data: { entity_id: teller, amount: 1 } }
+```
 
-**Uten KI Energi skrev romflisa bare til den første varmekilden.** Et rom med både
-panelovn og oljefyr fikk dermed bare den ene justert, mens visningen viste den enes
-settpunkt som om det gjaldt rommet. Fallback-en sender nå til alle klimaenhetene i rommet.
+`entity_id` må ligge i `target`, ikke i `data` — derfor klagde Home Assistant på at kallet
+«must contain at least one of entity_id, device_id, area_id…». Og `increment` tar ingen
+`amount`; steget ligger på selve `input_number`-hjelperen. Begge deler er rettet, også i
+romflisa, som sendte en `amount` den ikke skulle.
 
-`rom_tall: false` slår av oppslaget, og en streng peker på en annen entitet — begge
-kortene forstår det.
+## Hvorfor den ikke brukte KI Energi
+
+Kortene ser etter `number.ki_rom_<rom>_temp`. Finnes den ikke, faller de tilbake på
+`input_number`-telleren — og det var det som skjedde her.
+
+Finner de ingen match, skrives det nå én linje i nettleserkonsollen med hvilke
+romtemperaturer som faktisk finnes, eller at det ikke finnes noen i det hele tatt. Da ser
+du med én gang om det er romnavnet som ikke stemmer, eller om KI Energi mangler.
+
+Romtallet krever KI Energi 2.16 eller nyere, og at sonen har et `rom`-felt. For et rom som
+heter «Soverom» blir entiteten `number.ki_rom_soverom_temp`.
