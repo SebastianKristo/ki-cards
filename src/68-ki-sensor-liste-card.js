@@ -5,6 +5,8 @@
  *
  * type: custom:ki-sensor-liste-card
  * tittel: Dører                  # valgfri overskrift over lista
+ * hode: true                     # sonehode med ikon, teller og sammenfolding
+ * apnet: true                    # sonene starter utfoldet
  * kolonner: 1                    # 1 = brede piller, 2 = to i bredden
  * batteri: true                  # vis batteriprosent under navnet
  * bare_aktive: false             # vis bare det som er åpent/ulåst/i bevegelse
@@ -22,33 +24,52 @@ const KI_SLIST_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
 
-  .rot { display:grid; gap:8px; }
+  .rot { display:grid; gap:14px; }
+  .sone { display:grid; gap:8px; }
   .tit { font-size:15px; font-weight:600; opacity:.75; padding:2px 4px; }
+
+  /* sonehode: ikonmerke, tittel, teller og pil */
+  .hode { display:flex; align-items:center; gap:12px; padding:2px 6px 2px 0;
+    background:none; border:0; font-family:inherit; width:100%; cursor:pointer; color:inherit; }
+  .hode:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:4px; border-radius:14px; }
+  .hodemerke { width:40px; height:40px; border-radius:50%; flex:none;
+    display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
+  .hodemerke ha-icon { --mdc-icon-size:21px; color:var(--gray1000); opacity:.75; }
+  .hodemerke.aktiv ha-icon { color:var(--tone,#e0524a); opacity:1; }
+  .hodenavn { font-size:19px; font-weight:700; flex:1; text-align:left; letter-spacing:-.01em; }
+  .teller { font-size:14px; font-weight:600; opacity:.55; white-space:nowrap; }
+  .teller.aktiv { opacity:1; color:var(--tone,#f0a952); }
+  .pil { --mdc-icon-size:22px; opacity:.5; transition:transform .3s var(--myk); }
+  .sone.lukket .pil { transform:rotate(-90deg); }
+
+  .kropp { display:grid; gap:8px; overflow:hidden; }
+  .sone.lukket .kropp { display:none; }
 
   .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,1), minmax(0,1fr)); }
 
-  .pille { display:flex; align-items:center; gap:12px; min-height:62px; padding:10px 16px 10px 10px;
-    border-radius:999px; background:var(--gray100); color:var(--gray1000);
+  .pille { display:flex; align-items:center; gap:14px; min-height:70px; padding:12px 18px 12px 12px;
+    border-radius:26px; background:var(--gray100); color:var(--gray1000);
     border:0; font-family:inherit; text-align:left; width:100%; cursor:pointer;
     transition:background .35s var(--myk), color .35s var(--myk), transform .08s ease; }
   .pille:active { transform:scale(.985); }
   .pille:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-  .merke { width:42px; height:42px; border-radius:50%; flex:none;
+  .merke { width:46px; height:46px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
     background:color-mix(in srgb, var(--gray1000) 10%, transparent);
     transition:background .35s var(--myk); }
-  .merke ha-icon { --mdc-icon-size:22px; }
+  .merke ha-icon { --mdc-icon-size:23px; }
 
   .tekst { display:grid; gap:2px; min-width:0; }
-  .navn { font-size:15px; font-weight:600; line-height:1.25;
+  .navn { font-size:17px; font-weight:700; line-height:1.25; letter-spacing:-.01em;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .under { font-size:13px; font-weight:500; opacity:.68; line-height:1.25; }
+  .under { font-size:15px; font-weight:500; opacity:.62; line-height:1.3; }
 
   /* aktiv: åpen, ulåst eller bevegelse – fargen kommer fra sonen */
   .pille.aktiv { background:var(--tone,#8fd6a8); color:var(--pa-tekst,#1d2b21); }
   .pille.aktiv .under { opacity:.75; }
-  .pille.aktiv .merke { background:color-mix(in srgb, #000 12%, transparent); }
+  .pille.aktiv .merke { background:color-mix(in srgb, #fff 22%, transparent); }
   .pille.aktiv .merke ha-icon { animation:kiSLPust 2.6s ease-in-out infinite; }
   @keyframes kiSLPust { 0%,100% { transform:scale(1) } 50% { transform:scale(1.12) } }
 
@@ -78,7 +99,8 @@ class KiSensorListeCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || (!c.zones && !c.items)) throw new Error("Sett enten zones: eller items:");
-    this._c = { kolonner: 1, batteri: true, bare_aktive: false, ...c };
+    this._c = { kolonner: 1, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
+    this._lukket = this._lukket || {};
   }
 
   _antall() {
@@ -108,6 +130,34 @@ class KiSensorListeCard extends HTMLElement {
     const g = this._h; this._h = h;
     if (!this._c) return;
     if (!g || this._ids().some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+
+  _aktiv(sone, i) {
+    const st = this._h.states[i.entity];
+    if (!st || ["unavailable", "unknown"].includes(st.state)) return false;
+    return (sone.kind || "opening") === "lock"
+      ? st.state !== "locked" : ["on", "open", "detected"].includes(st.state);
+  }
+
+  /* «1 åpen», «2 åpne», «1 ulåst», «3 i bevegelse».
+   * Norsk bøyning lar seg ikke gjette fra endelsen – «åpent» skal bli «åpne»,
+   * ikke «åpente» – så vi bruker en tabell, og `teller_tekst` i sonen overstyrer. */
+  _tellenavn(sone, n) {
+    if (sone.teller_tekst) {
+      const d = [].concat(sone.teller_tekst);
+      return n === 1 ? d[0] : (d[1] || d[0]);
+    }
+    const kind = sone.kind || "opening";
+    if (kind === "lock") return n === 1 ? "ulåst" : "ulåste";
+    if (kind === "motion") return "i bevegelse";
+    return n === 1 ? "åpen" : "åpne";
+  }
+
+  _roligtekst(sone) {
+    const kind = sone.kind || "opening";
+    if (kind === "lock") return "Alt låst";
+    if (kind === "motion") return "Alt stille";
+    return "Alt lukket";
   }
 
   _rad(sone, i) {
@@ -145,19 +195,39 @@ class KiSensorListeCard extends HTMLElement {
 
   _tegn() {
     const c = this._c;
-    const blokker = this._soner().map((z) => {
+    const blokker = this._soner().map((z, zi) => {
       const rader = (z.items || []).map((i) => this._rad(z, i)).filter(Boolean).join("");
       if (!rader) return "";
-      return `${z.title && !c.items ? `<div class="tit">${KI_SLIST_ESC(z.title)}</div>` : ""}
-              <div class="rutenett">${rader}</div>`;
+      const lukket = this._lukket[zi] ?? !c.apnet;
+      const kropp = `<div class="kropp"><div class="rutenett">${rader}</div></div>`;
+      if (!c.hode || (!z.title && !c.items)) return `<div class="sone">${kropp}</div>`;
+
+      const n = (z.items || []).filter((i) => this._aktiv(z, i)).length;
+      const tell = n ? `${n} ${this._tellenavn(z, n)}` : (z.tom_text || this._roligtekst(z));
+      return `
+        <div class="sone ${lukket ? "lukket" : ""}" style="${z.color ? `--tone:${z.color}` : ""}">
+          <button class="hode" data-sone="${zi}" aria-expanded="${!lukket}">
+            <span class="hodemerke ${n ? "aktiv" : ""}"><ha-icon icon="${KI_SLIST_ESC(z.icon || "mdi:shape-outline")}"></ha-icon></span>
+            <span class="hodenavn">${KI_SLIST_ESC(z.title || c.tittel || "")}</span>
+            <span class="teller ${n ? "aktiv" : ""}">${KI_SLIST_ESC(tell)}</span>
+            <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+          </button>
+          ${kropp}
+        </div>`;
     }).join("");
 
     this.shadowRoot.innerHTML = `
       <style>${KI_SLIST_STIL}</style>
       <div class="rot" style="--kol:${c.kolonner === 2 ? 2 : 1}">
-        ${c.tittel && c.items ? `<div class="tit">${KI_SLIST_ESC(c.tittel)}</div>` : ""}
         ${blokker || `<div class="tom">${c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise."}</div>`}
       </div>`;
+
+    for (const el of this.shadowRoot.querySelectorAll("[data-sone]"))
+      el.addEventListener("click", () => {
+        const i = +el.dataset.sone;
+        this._lukket[i] = !(this._lukket[i] ?? !c.apnet);
+        this._tegn();
+      });
 
     for (const el of this.shadowRoot.querySelectorAll("[data-mer]"))
       el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",

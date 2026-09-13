@@ -1,23 +1,51 @@
-# ki-cards 3.19.1
+# ki-cards 3.21.0
 
-## `ki-sikkerhet-card` ved armering og avkobling
+## Faner i `ki-sikkerhet-card`
 
-Tre feil som alle slo ut nettopp når panelet går `disarmed → arming → armed_away`.
+Kortet har fått tre faner: **Sikkerhet** (huset og alarmen), **Dørlåser** og **Logg**.
+Fanerada vises bare når det er mer enn én.
 
-**Hele heroen ble bygget på nytt ved hver tilstandsendring.** Ved armering skjer det tre
-ganger på under et sekund, og huset ble tegnet om midt i animasjonene — røyk, radar og
-døråpning startet forfra hver gang. Heroen er nå delt i tre deler (topp, hus, brikker) som
-oppdateres hver for seg, og bare når innholdet faktisk er nytt. Ved armering endrer bare
-toppen seg; huset står stille, med unntak av nedtellingsringen som legges til og fjernes
-som den skal.
+```yaml
+faner: [sikkerhet, laser, logg]   # false gir bare sikkerhetsfanen
+```
 
-**Kortet klippet innholdet.** `.kort` hadde `overflow:hidden` fordi bakgrunnsgløden lå på
-elementet selv. Når tastaturet foldet seg ut, ble bunnen kappet. Gløden har fått sitt eget
-lag som klipper seg selv, og kortet kan vokse fritt.
+**Dørlåser** har «Lås alle» og «Lås opp alle» med teller — «Lås 2 stk», eller «Alle dører
+er låst nå» når det ikke er noe å gjøre — og en pille per lås med tilstand, batteri og
+hvor lenge siden den sist endret seg. Låsene hentes fra `laser.entities`, eller
+automatisk fra sonene med `kind: lock` hvis du ikke setter noe.
 
-**Det innebygde alarmkortet fikk ikke fersk `hass`** på ticks der ingen av
-sikkerhetskortets egne entiteter endret seg, siden `set hass` returnerte tidlig. Tastaturet
-kunne dermed stå igjen med gammel tilstand. `hass` sendes nå alltid videre.
+```yaml
+laser:
+  entities: [lock.dorlas, lock.stue_dorlas, lock.vaskerom_dorlas, lock.garasjedor]
+  navn: { lock.dorlas: Inngang }
+  batteri: { lock.dorlas: sensor.dorlas_batteri }
+```
 
-Minimumshøyden med `soner: false` er hevet fra 9 til 11 rader, så det er plass til
-tastaturet uten at det reserveres plass til soner som ikke tegnes.
+**Logg** slår sammen alarmtilstand, låsing og opplåsing, og ansiktsgjenkjenning til én
+tidslinje, nyeste først. Hentes fra historikk-API-et, ikke fra tilstandene, så den
+overlever omstart. Oppdateres maks hvert 30. sekund så den ikke spør ved hver tick.
+
+```yaml
+logg:
+  ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+  dager: 7
+  maks: 40
+```
+
+Ansiktssensoren gir rader som «Rune låste opp». Låsene gir «Inngang låst opp», alarmen
+«På – borte» og «Alarm utløst».
+
+## Dyplenking til en fane
+
+`KI.navigate` forstår nå en fane-del i stien, skilt med `::`:
+
+```yaml
+hjem:
+  las: lock.dorlas
+  las_path: '#alarm::laser'
+```
+
+Fane-delen fjernes før navigeringen, så bubble-card ser bare `#alarm` og åpner popupen
+som vanlig; deretter melder `KI.navigate` fra om fanen, og sikkerhetskortet bytter til
+den. Virker på alle stier som går gjennom `KI.navigate` — `'#alarm::logg'` åpner loggen.
+Kort som ikke kjenner fanen, ignorerer meldingen.

@@ -1,4 +1,4 @@
-/* ki-cards v3.19.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.21.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.19.1";
+  KI.VERSION = "3.21.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -356,8 +356,18 @@ window.KI = window.KI || {};
   /* Navigerer uten å laste dashbordet på nytt: bygger mål-URL-en, bytter den med
      history og varsler både HA-ruteren og popup-kort som lytter på hashchange.
      `window.location.hash = …` unngås – i companion-appen gir det full innlasting. */
+  /* «#alarm::laser» åpner popupen #alarm og ber kortet inni om å vise fanen
+     «laser». Fane-delen fjernes før navigeringen, så bubble-card ser bare hashen
+     sin. Alle kort som allerede navigerer via KI.navigate får dette gratis. */
   KI.navigate = (sti) => {
     if (!sti || sti === "#") return;
+    let fane = null;
+    if (String(sti).includes("::")) {
+      const [f, ...rest] = String(sti).split("::").reverse();
+      fane = f; sti = rest.reverse().join("::");
+    }
+    if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+      { detail: { hash: String(sti), fane } })), 0);
     const gammel = window.location.hash;
     let url = null;
     try { url = new URL(sti, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
@@ -15755,6 +15765,14 @@ try {
  * zones: …                     # samme liste som ki-alarm-card
  * batteri_grense: 20           # varsler under denne prosenten (0 = av)
  * kompakt: false               # lavere hus, for smale popuper
+ * faner: [sikkerhet, laser, logg]   # false gir bare sikkerhetsfanen
+ * laser:                       # låsene i egen fane
+ *   entities: [lock.dorlas, lock.stue_dorlas, lock.vaskerom_dorlas, lock.garasjedor]
+ *   navn: { lock.dorlas: Inngang }
+ *   batteri: { lock.dorlas: sensor.dorlas_batteri }
+ * logg:
+ *   ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+ *   dager: 7
  * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
  * tastatur:                    # ki-alarm-card bakes inn under huset
  *   code_length: 6             # false slår det av og gir bare huset
@@ -15804,19 +15822,14 @@ const KI_SIK_STIL = `
     --vegg-lys:color-mix(in srgb, var(--gray1000) 12%, transparent);
     --vegg-mork:color-mix(in srgb, var(--gray1000) 22%, transparent);
     --tak-lys:color-mix(in srgb, var(--gray1000) 78%, transparent);
-    --tak-mork:color-mix(in srgb, var(--gray1000) 55%, transparent);
-    --dor-lys:color-mix(in srgb, var(--tone,#5ad18b) 55%, var(--gray1000));
-    --dor-mork:color-mix(in srgb, var(--tone,#5ad18b) 25%, var(--gray1000)); }
+    --tak-mork:color-mix(in srgb, var(--gray1000) 55%, transparent); }
   .kompakt .scene { height:132px; }
   .scene svg { width:100%; height:100%; display:block; overflow:visible; }
   .scene { overflow:visible; }
 
   .bakke { fill:var(--gray1000); opacity:.10; }
-  .vegg { stroke:var(--gray1000); stroke-opacity:.10; stroke-width:1; }
-  .panel { stroke:var(--gray1000); stroke-opacity:.07; stroke-width:1.5; fill:none; }
-  .takskygge { fill:var(--gray1000); opacity:.10; }
-  .mone { stroke:var(--gray000,#fff); stroke-opacity:.18; stroke-width:2; stroke-linecap:round; }
-  .pipe, .pipehatt { fill:var(--gray1000); opacity:.62; }
+  .vegg { stroke:var(--gray1000); stroke-opacity:.08; stroke-width:1; }
+  .pipe { fill:var(--tak-mork); }
 
   /* røyk: bare når alt er rolig, og med litt drift */
   .roykgruppe { opacity:0; transition:opacity .8s var(--myk); }
@@ -15834,26 +15847,17 @@ const KI_SIK_STIL = `
 
   /* vinduer */
   .rute { fill:var(--gray1000); opacity:.30; transition:fill .5s var(--myk), opacity .5s var(--myk); }
-  .karm { fill:none; stroke:var(--gray000,#fff); stroke-opacity:.16; stroke-width:1.5; }
-  .sprosse { stroke:var(--gray000,#fff); stroke-opacity:.14; stroke-width:1.2; fill:none; }
-  .sale { fill:var(--gray000,#fff); opacity:.10; }
-  .skinn { fill:var(--orange,#f0a952); opacity:.18; filter:blur(1px); }
+  .sprosse { stroke:var(--gray000,#fff); stroke-opacity:.20; stroke-width:1.5; fill:none; }
+  .skinn { fill:var(--orange,#f0a952); opacity:.18; filter:blur(2px); }
   .vindu.apen .rute { fill:var(--orange,#f0a952); opacity:.95; }
   .vindu.apen { animation:kiSikTenn .5s var(--fjaer) both; animation-delay:var(--d,0s); }
   .vindu.apen .skinn { animation:kiSikFlimmer 3.4s ease-in-out infinite; animation-delay:var(--d,0s); }
   @keyframes kiSikTenn { from { opacity:.2; transform:scale(.94) } to { opacity:1; transform:none } }
   @keyframes kiSikFlimmer { 0%,100% { opacity:.14 } 50% { opacity:.30 } }
 
-  /* lampe over døra */
-  .lampearm, .lampeskjerm { stroke:var(--gray1000); stroke-opacity:.55; stroke-width:1.5; fill:none; }
-  .lampeglo { opacity:0; transition:opacity .6s var(--myk); }
-  .lampe.tent .lampeglo { opacity:1; animation:kiSikFlimmer 4.2s ease-in-out infinite; }
-  .lampe.tent .lampeskjerm { fill:var(--orange,#f0a952); fill-opacity:.5; }
-
   /* dør */
-  .dorkarm { fill:var(--gray000,#fff); opacity:.10; }
-  .dorfyll { fill:var(--gray000,#fff); opacity:.10; }
-  .handtak { fill:var(--gray000,#fff); opacity:.5; }
+  .dor { fill:var(--gray000,#fff); opacity:.22; }
+  .handtak { fill:var(--gray000,#fff); opacity:.55; }
   .dorblad { transform-box:fill-box; transform-origin:left center;
     transition:transform .6s var(--fjaer); }
   .dorgruppe.apen .dorblad { transform:scaleX(.42); }
@@ -15866,7 +15870,7 @@ const KI_SIK_STIL = `
   @keyframes kiSikSveip { to { transform:rotate(360deg) } }
   .radarvifte { fill:var(--blue,#6ec6ff); opacity:.22; }
   .radarring { fill:none; stroke:var(--blue,#6ec6ff); stroke-opacity:.30; stroke-width:1.5; }
-  .radarring.puls { transform-origin:160px 108px; animation:kiSikRing 3.6s ease-out infinite; }
+  .radarring.puls { transform-origin:160px 110px; animation:kiSikRing 3.6s ease-out infinite; }
   @keyframes kiSikRing { 0% { transform:scale(.4); stroke-opacity:.5 } 100% { transform:scale(1.06); stroke-opacity:0 } }
 
   /* nedtelling ved på-/avkobling */
@@ -15881,6 +15885,60 @@ const KI_SIK_STIL = `
   .kort.alarm .sirene:nth-child(2), .kort.alarm .sirene:nth-child(5) { animation-delay:.18s; }
   .kort.alarm .sirene:nth-child(3), .kort.alarm .sirene:nth-child(6) { animation-delay:.36s; }
   @keyframes kiSikSirene { 0% { opacity:0; transform:scale(.55) } 45% { opacity:.85 } 100% { opacity:0; transform:scale(1.2) } }
+
+  .rutenett { display:grid; gap:8px; }
+  .pille { display:flex; align-items:center; gap:14px; min-height:66px; padding:10px 18px 10px 10px;
+    border-radius:24px; background:var(--gray100); color:var(--gray1000); border:0; font-family:inherit;
+    text-align:left; width:100%; cursor:pointer; transition:background .3s var(--myk), color .3s var(--myk); }
+  .pille .merke { width:44px; height:44px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
+  .pille .merke ha-icon { --mdc-icon-size:22px; }
+  .pille .tekst { display:grid; gap:2px; min-width:0; }
+  .pille .navn { font-size:16px; font-weight:700; }
+  .pille .under { font-size:14px; opacity:.62; }
+  .pille.aktiv { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
+  .pille.aktiv .merke { background:rgba(255,255,255,.22); }
+  .pille.borte { opacity:.5; }
+  .laserfane, .loggfane { display:grid; gap:12px; }
+
+  /* ---- faner ---- */
+  .fanerad { display:flex; gap:4px; padding:3px; border-radius:999px; width:fit-content; margin:0 auto;
+    border:1px solid color-mix(in srgb, var(--gray1000) 22%, transparent); }
+  .fane { border:0; background:none; font-family:inherit; font-size:14px; font-weight:500;
+    color:color-mix(in srgb, var(--gray1000) 72%, transparent);
+    padding:8px 20px; border-radius:999px; cursor:pointer; transition:background .2s, color .2s; }
+  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); font-weight:600;
+    box-shadow:0 1px 6px rgba(0,0,0,.35); }
+
+  /* ---- låsefanen ---- */
+  .lasknapper { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stor { display:flex; align-items:center; gap:12px; padding:10px; border-radius:22px; border:0;
+    font-family:inherit; text-align:left; cursor:pointer; color:var(--black,#1b1b1b);
+    transition:transform .08s ease, filter .2s; }
+  .stor:active { transform:scale(.98); }
+  .stor.las { background:var(--blue,#6ec6ff); }
+  .stor.opp { background:var(--orange,#f0a952); }
+  .stor .rund { width:56px; height:56px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; background:rgba(0,0,0,.10); }
+  .stor .rund ha-icon { --mdc-icon-size:28px; }
+  .stor .t1 { font-size:15px; font-weight:600; line-height:1.2; }
+  .stor .t2 { font-size:12px; opacity:.85; line-height:1.3; margin-top:2px; }
+
+  /* ---- loggen ---- */
+  .logg { display:grid; gap:2px; }
+  .hendelse { display:flex; align-items:flex-start; gap:12px; padding:10px 6px; border-radius:14px; }
+  .hendelse + .hendelse { border-top:1px solid color-mix(in srgb, var(--gray1000) 10%, transparent); }
+  .hikon { width:36px; height:36px; border-radius:50%; flex:none; display:flex; align-items:center;
+    justify-content:center; background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
+  .hikon ha-icon { --mdc-icon-size:19px; }
+  .hikon.pa { background:var(--tone,#5ad18b); color:rgba(20,32,26,.92); }
+  .hikon.av { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
+  .hikon.fare { background:var(--red,#e0524a); color:#fff; }
+  .htekst { flex:1; min-width:0; }
+  .htekst b { font-size:14px; font-weight:600; display:block; }
+  .htekst span { font-size:13px; opacity:.62; }
+  .htid { font-size:12px; opacity:.55; white-space:nowrap; padding-top:2px; font-variant-numeric:tabular-nums; }
+  .laster { font-size:13px; opacity:.6; padding:14px 6px; }
 
   /* ---- brikker ---- */
   .hero { display:grid; gap:14px; }
@@ -15915,7 +15973,7 @@ const KI_SIK_STIL = `
 
   @media (prefers-reduced-motion: reduce) {
     .glo::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
-    .lampe.tent .lampeglo, .dorgruppe.apen .dorapning, .radar, .radarring.puls,
+    .dorgruppe.apen .dorapning, .radar, .radarring.puls,
     .sirene, .tellering, .roykpust, .liste { animation:none !important; }
     .dorblad { transition:none; }
   }
@@ -15945,8 +16003,30 @@ class KiSikkerhetCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || !c.entity) throw new Error("Sett entity: til alarmpanelet");
-    this._c = { navn: "Sikkerhet", batteri_grense: 20, kompakt: false, tastatur: true, zones: [], ...c };
+    this._c = { navn: "Sikkerhet", batteri_grense: 20, kompakt: false, tastatur: true,
+                faner: ["sikkerhet", "laser", "logg"], zones: [], ...c };
     this._bygget = false;
+    this._fane = this._fane || this._faner()[0];
+  }
+
+  _faner() {
+    const f = this._c.faner;
+    if (f === false) return ["sikkerhet"];
+    const mulige = ["sikkerhet", "laser", "logg"];
+    return (Array.isArray(f) ? f : mulige).filter((x) => mulige.includes(x));
+  }
+
+  connectedCallback() {
+    if (this._faneAv) return;
+    // «#alarm::laser» fra et annet kort velger fanen når popupen åpnes
+    this._faneAv = (e) => {
+      const f = e && e.detail && e.detail.fane;
+      if (f && this._faner().includes(f) && this._fane !== f) { this._fane = f; this._tegn(); }
+    };
+    window.addEventListener("ki-fane", this._faneAv);
+  }
+  disconnectedCallback() {
+    if (this._faneAv) { window.removeEventListener("ki-fane", this._faneAv); this._faneAv = null; }
   }
 
   set hass(h) {
@@ -16001,6 +16081,36 @@ class KiSikkerhetCard extends HTMLElement {
       }
     }
     return g;
+  }
+
+  _laser() {
+    const l = this._c.laser || {};
+    let ids = l.entities;
+    if (!ids) {
+      // ingen egen liste: bruk låsene fra sonene
+      ids = [];
+      for (const z of this._c.zones || []) if ((z.kind || "") === "lock")
+        for (const i of z.items || []) if (i.entity) ids.push(i.entity);
+    }
+    return ids.map((id) => {
+      const st = this._h.states[id];
+      const b = (l.batteri || {})[id];
+      const bs = b ? this._h.states[b] : null;
+      return {
+        id, st,
+        navn: (l.navn || {})[id] || this._sonenavn(id) || (st && st.attributes.friendly_name) || id,
+        last: st && st.state === "locked",
+        ukjent: !st || ["unavailable", "unknown"].includes(st.state),
+        batteri: bs && !isNaN(Number(bs.state)) ? Math.round(Number(bs.state)) : null,
+        endret: st && st.last_changed,
+      };
+    });
+  }
+
+  _sonenavn(id) {
+    for (const z of this._c.zones || []) for (const i of z.items || [])
+      if (i.entity === id && i.name) return i.name;
+    return null;
   }
 
   _mer(id) {
@@ -16065,25 +16175,134 @@ class KiSikkerhetCard extends HTMLElement {
     kort.className = klasse;   // .glo og .hero ligger som barn og overlever
     kort.style.setProperty("--tone", tone);
 
-    // Heroen er delt i tre. Ved armering endrer bare toppen seg, og da skal ikke
-    // huset tegnes om – det ville nullstilt røyk, radar og døranimasjon midt i.
-    this._sett(".topp", `
-      <div class="fyll">
-        <div class="tit">${KI_SIK_ESC(c.navn)}</div>
-        <div class="und">${KI_SIK_ESC(und)}</div>
+    const faner = this._faner();
+    if (!faner.includes(this._fane)) this._fane = faner[0];
+    this._sett(".fanerad", faner.length < 2 ? "" : faner.map((f) => `
+      <button class="fane ${f === this._fane ? "valgt" : ""}" data-fane="${f}">${
+        { sikkerhet: "Sikkerhet", laser: "Dørlåser", logg: "Logg" }[f]}</button>`).join(""));
+
+    const vis = (v, p) => { const el = this.shadowRoot.querySelector(v); if (el) el.style.display = p ? "" : "none"; };
+    vis(".hero", this._fane === "sikkerhet");
+    vis(".tastatur", this._fane === "sikkerhet");
+    vis(".laserfane", this._fane === "laser");
+    vis(".loggfane", this._fane === "logg");
+
+    if (this._fane === "sikkerhet") {
+      // Heroen er delt i tre. Ved armering endrer bare toppen seg, og da skal ikke
+      // huset tegnes om – det ville nullstilt røyk, radar og døranimasjon midt i.
+      this._sett(".topp", `
+        <div class="fyll">
+          <div class="tit">${KI_SIK_ESC(c.navn)}</div>
+          <div class="und">${KI_SIK_ESC(und)}</div>
+        </div>
+        <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
+             role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
+          <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
+        </div>`);
+      this._sett(".scene", this._hus({ paa, venter, alarm, apne, rorer, ulast }));
+      this._sett(".bunn", `
+        <div class="brikker">${brikker}</div>
+        ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`);
+      this._tastatur();
+    } else if (this._fane === "laser") {
+      this._sett(".laserfane", this._laserHtml());
+    } else {
+      this._loggFane();
+    }
+  }
+
+  /* ------------------------------------------------------------ dørlåser */
+  _laserHtml() {
+    const l = this._laser();
+    if (!l.length) return `<div class="tom">Ingen låser satt opp. Legg dem i en sone med <code>kind: lock</code>, eller i <code>laser.entities</code>.</div>`;
+    const ulast = l.filter((x) => !x.last && !x.ukjent);
+    const last = l.filter((x) => x.last);
+    const alle = l.map((x) => x.id);
+
+    return `
+      <div class="lasknapper">
+        <button class="stor las" data-tjeneste="lock" data-ids="${alle.join(",")}">
+          <span class="rund"><ha-icon icon="mdi:lock"></ha-icon></span>
+          <span><span class="t1">Lås alle</span>
+            <span class="t2">${ulast.length ? `Lås ${ulast.length} stk` : "Alle dører er låst nå"}</span></span>
+        </button>
+        <button class="stor opp" data-tjeneste="unlock" data-ids="${alle.join(",")}">
+          <span class="rund"><ha-icon icon="mdi:lock-open-variant-outline"></ha-icon></span>
+          <span><span class="t1">Lås opp alle</span>
+            <span class="t2">${last.length ? `Åpne ${last.length} stk` : "Alle dører er ulåst nå"}</span></span>
+        </button>
       </div>
-      <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
-           role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
-        <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
-      </div>`);
+      <div class="rutenett">${l.map((x) => `
+        <button class="pille ${x.last ? "" : "aktiv"} ${x.ukjent ? "borte" : ""}" data-mer="${x.id}">
+          <span class="merke"><ha-icon icon="${x.last ? "mdi:lock" : "mdi:lock-open-variant"}"></ha-icon></span>
+          <span class="tekst">
+            <span class="navn">${KI_SIK_ESC(x.navn)}</span>
+            <span class="under">${x.ukjent ? "Uten svar" : x.last ? "Låst" : "Ulåst"}${
+              x.batteri !== null ? ` · ${x.batteri} %` : ""}${
+              x.endret ? ` · ${KI_SIK_SIDEN(x.endret)}` : ""}</span>
+          </span>
+        </button>`).join("")}</div>`;
+  }
 
-    this._sett(".scene", this._hus({ paa, venter, alarm, apne, rorer, ulast }));
+  /* ----------------------------------------------------------------- logg */
+  _loggFane() {
+    const boks = this.shadowRoot.querySelector(".loggfane");
+    if (!boks) return;
+    if (!boks.innerHTML) boks.innerHTML = `<div class="laster">Henter historikk …</div>`;
+    const naa = Date.now();
+    if (this._loggTid && naa - this._loggTid < 30000) return;   // ikke hent ved hver tick
+    this._loggTid = naa;
+    this._hentLogg().then((rader) => {
+      boks.innerHTML = rader.length
+        ? `<div class="logg">${rader.map((r) => `
+            <div class="hendelse">
+              <span class="hikon ${r.stil}"><ha-icon icon="${r.ikon}"></ha-icon></span>
+              <span class="htekst"><b>${KI_SIK_ESC(r.tittel)}</b><span>${KI_SIK_ESC(r.under)}</span></span>
+              <span class="htid">${KI_SIK_ESC(KI_SIK_SIDEN(r.tid))}</span>
+            </div>`).join("")}</div>`
+        : `<div class="tom">Ingen hendelser i perioden.</div>`;
+    }).catch((e) => {
+      boks.innerHTML = `<div class="tom">Fikk ikke hentet historikk: ${KI_SIK_ESC(e.message || e)}</div>`;
+    });
+  }
 
-    this._sett(".bunn", `
-      <div class="brikker">${brikker}</div>
-      ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`);
+  async _hentLogg() {
+    const lg = this._c.logg || {};
+    const dager = lg.dager || 7;
+    const laser = this._laser();
+    const ids = [this._c.entity, ...laser.map((x) => x.id), lg.ansikt].filter(Boolean);
+    const fra = new Date(Date.now() - dager * 864e5).toISOString();
+    const sti = `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response&significant_changes_only`;
+    const svar = await this._h.callApi("GET", sti);
 
-    this._tastatur();
+    const navn = {};
+    for (const x of laser) navn[x.id] = x.navn;
+
+    const ut = [];
+    for (const serie of svar || []) {
+      for (const p of serie) {
+        const id = p.entity_id || (serie[0] && serie[0].entity_id);
+        const tid = p.last_changed || p.last_updated;
+        if (!id || !tid) continue;
+        const v = p.state;
+        if (["unavailable", "unknown", ""].includes(v)) continue;
+
+        if (id === this._c.entity) {
+          ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
+            stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
+            tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
+        } else if (id === lg.ansikt) {
+          ut.push({ tid, ikon: "mdi:face-recognition", stil: "av",
+            tittel: `${v} låste opp`, under: "Ansiktsgjenkjenning" });
+        } else if (id.startsWith("lock.")) {
+          const l = v === "locked";
+          ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
+            tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
+        }
+      }
+    }
+    ut.sort((a, b) => new Date(b.tid) - new Date(a.tid));
+    return ut.slice(0, lg.maks || 40);
   }
 
   /* Skriver bare når innholdet faktisk er nytt, og kobler opp igjen etterpå. */
@@ -16094,6 +16313,11 @@ class KiSikkerhetCard extends HTMLElement {
     el._sist = html;
     for (const b of el.querySelectorAll("[data-mer]"))
       b.addEventListener("click", () => this._mer(b.dataset.mer));
+    for (const b of el.querySelectorAll("[data-fane]"))
+      b.addEventListener("click", () => { this._fane = b.dataset.fane; this._tegn(); });
+    for (const b of el.querySelectorAll("[data-tjeneste]"))
+      b.addEventListener("click", () => this._h.callService("lock", b.dataset.tjeneste,
+        { entity_id: b.dataset.ids.split(",") }));
     for (const b of el.querySelectorAll("[data-liste]"))
       b.addEventListener("click", () => {
         this._apen = this._apen === b.dataset.liste ? null : b.dataset.liste;
@@ -16110,12 +16334,15 @@ class KiSikkerhetCard extends HTMLElement {
       <ha-card>
         <div class="kort">
           <div class="glo"></div>
+          <div class="fanerad"></div>
           <div class="hero">
             <div class="topp"></div>
             <div class="scene"></div>
             <div class="bunn"></div>
           </div>
           <div class="tastatur"></div>
+          <div class="laserfane"></div>
+          <div class="loggfane"></div>
         </div>
       </ha-card>`;
     this._bygget = true;
@@ -16153,24 +16380,21 @@ class KiSikkerhetCard extends HTMLElement {
       </div>`).join("");
   }
 
-  /* Huset. Tegnet med gradienter og lag, ikke flate rektangler.
-   * Vinduene tennes ett for ett av de faktisk åpne; resten står mørke. */
+  /* Huset. Færre, større former – tre vinduer og en dør, ingen panelskjøter,
+   * ingen lampe. Silhuetten skal leses på et halvt sekund. */
   _hus({ paa, venter, alarm, apne, rorer, ulast }) {
     const antApne = apne.length;
     const dorApen = ulast.length > 0 || apne.some((r) => /dør|door|inngang|veranda/i.test(r.navn));
     const id = this._uid || (this._uid = "s" + Math.random().toString(36).slice(2, 8));
 
-    /* fire vinduer: to til venstre for døra, to til høyre */
-    const V = [[104, 86], [138, 86], [196, 86], [230, 86]];
+    const V = [[100, 88], [143, 88], [186, 88]];
     const vindu = ([x, y], i) => {
       const lyser = i < antApne;
       return `
-        <g class="vindu ${lyser ? "apen" : ""}" style="--d:${i * 0.22}s">
-          ${lyser ? `<rect class="skinn" x="${x - 7}" y="${y - 7}" width="40" height="36" rx="14"></rect>` : ""}
-          <rect class="rute" x="${x}" y="${y}" width="26" height="22" rx="3"></rect>
-          <path class="sprosse" d="M${x + 13} ${y} V${y + 22} M${x} ${y + 11} H${x + 26}"></path>
-          <rect class="karm" x="${x}" y="${y}" width="26" height="22" rx="3"></rect>
-          <rect class="sale" x="${x - 2}" y="${y + 22}" width="30" height="3" rx="1.5"></rect>
+        <g class="vindu ${lyser ? "apen" : ""}" style="--d:${i * 0.2}s">
+          ${lyser ? `<rect class="skinn" x="${x - 10}" y="${y - 10}" width="52" height="46" rx="18"></rect>` : ""}
+          <rect class="rute" x="${x}" y="${y}" width="32" height="26" rx="4"></rect>
+          <path class="sprosse" d="M${x + 16} ${y} V${y + 26}"></path>
         </g>`;
     };
 
@@ -16186,75 +16410,65 @@ class KiSikkerhetCard extends HTMLElement {
             <stop offset="100%" stop-color="var(--tak-mork)"></stop>
           </linearGradient>
           <radialGradient id="${id}lys">
-            <stop offset="0%" stop-color="var(--orange,#f0a952)" stop-opacity=".55"></stop>
+            <stop offset="0%" stop-color="var(--orange,#f0a952)" stop-opacity=".5"></stop>
             <stop offset="100%" stop-color="var(--orange,#f0a952)" stop-opacity="0"></stop>
           </radialGradient>
-          <linearGradient id="${id}dor" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--dor-lys)"></stop>
-            <stop offset="100%" stop-color="var(--dor-mork)"></stop>
-          </linearGradient>
         </defs>
 
-        <ellipse class="bakke" cx="160" cy="140" rx="118" ry="8"></ellipse>
+        <ellipse class="bakke" cx="160" cy="146" rx="104" ry="7"></ellipse>
 
-        <!-- pipe -->
-        <path class="pipe" d="M200 44 h15 a2 2 0 0 1 2 2 v26 h-19 v-26 a2 2 0 0 1 2 -2 z"></path>
-        <rect class="pipehatt" x="197" y="40" width="23" height="5" rx="2.5"></rect>
         <g class="roykgruppe">
-          <path class="roykpust" d="M208 36 q7 -7 0 -14 q-7 -7 0 -14"></path>
-          <path class="roykpust r2" d="M208 36 q-7 -7 0 -14 q7 -7 0 -14"></path>
+          <path class="roykpust" d="M214 40 q8 -8 0 -16 q-8 -8 0 -16"></path>
+          <path class="roykpust r2" d="M214 40 q-8 -8 0 -16 q8 -8 0 -16"></path>
         </g>
+        <rect class="pipe" x="206" y="42" width="16" height="26" rx="4"></rect>
 
-        <!-- tak med utstikk -->
-        <path class="takskygge" d="M160 24 L258 78 L62 78 Z"></path>
-        <path class="tak" fill="url(#${id}tak)" d="M160 20 L256 74 a4 4 0 0 1 -2 7 L66 81 a4 4 0 0 1 -2 -7 Z"></path>
-        <path class="mone" d="M160 20 L160 30"></path>
+        <path class="tak" fill="url(#${id}tak)"
+              d="M160 24 a7 7 0 0 1 5 2 L254 76 a5 5 0 0 1 -3 9 H69 a5 5 0 0 1 -3 -9 L155 26 a7 7 0 0 1 5 -2 z"></path>
 
-        <!-- vegg -->
-        <path class="vegg" fill="url(#${id}vegg)" d="M84 78 h152 a6 6 0 0 1 6 6 v50 a4 4 0 0 1 -4 4 H82 a4 4 0 0 1 -4 -4 V84 a6 6 0 0 1 6 -6 z"></path>
-        <path class="panel" d="M78 98 H242 M78 116 H242"></path>
+        <path class="vegg" fill="url(#${id}vegg)"
+              d="M88 82 h144 a8 8 0 0 1 8 8 v46 a6 6 0 0 1 -6 6 H86 a6 6 0 0 1 -6 -6 V90 a8 8 0 0 1 8 -8 z"></path>
 
         ${V.map(vindu).join("")}
 
-        <!-- lampe over døra -->
-        <g class="lampe ${paa || dorApen ? "tent" : ""}">
-          <circle class="lampeglo" cx="160" cy="92" r="16" fill="url(#${id}lys)"></circle>
-          <path class="lampearm" d="M160 84 v5"></path>
-          <path class="lampeskjerm" d="M153 95 l7 -7 l7 7 z"></path>
-        </g>
-
-        <!-- dør -->
         <g class="dorgruppe ${dorApen ? "apen" : ""}">
-          <rect class="dorkarm" x="146" y="96" width="28" height="42" rx="4"></rect>
-          <rect class="dorapning" x="148" y="98" width="24" height="40" rx="3"></rect>
+          <rect class="dorapning" x="228" y="96" width="26" height="42" rx="5"></rect>
           <g class="dorblad">
-            <rect class="dor" fill="url(#${id}dor)" x="148" y="98" width="24" height="40" rx="3"></rect>
-            <rect class="dorfyll" x="152" y="103" width="16" height="14" rx="2"></rect>
-            <circle class="handtak" cx="167" cy="118" r="1.8"></circle>
+            <rect class="dor" x="228" y="96" width="26" height="42" rx="5"></rect>
+            <circle class="handtak" cx="248" cy="118" r="2"></circle>
           </g>
         </g>
 
         ${rorer.length ? `
-          <g class="radar" style="--rx:160px; --ry:108px">
-            <path class="radarvifte" d="M160 108 L160 44 A64 64 0 0 1 205 63 Z"></path>
+          <g class="radar" style="--rx:160px; --ry:110px">
+            <path class="radarvifte" d="M160 110 L160 44 A66 66 0 0 1 207 63 Z"></path>
           </g>
-          <circle class="radarring" cx="160" cy="108" r="64"></circle>
-          <circle class="radarring puls" cx="160" cy="108" r="64"></circle>` : ""}
+          <circle class="radarring puls" cx="160" cy="110" r="66"></circle>` : ""}
 
-        ${venter ? `<circle class="tellering" cx="160" cy="80" r="74"></circle>` : ""}
+        ${venter ? `<circle class="tellering" cx="160" cy="84" r="76"></circle>` : ""}
 
         ${alarm ? `
           <g class="sirener">
-            <path class="sirene" d="M264 66 a24 24 0 0 1 0 34"></path>
-            <path class="sirene" d="M274 56 a38 38 0 0 1 0 54"></path>
-            <path class="sirene" d="M284 46 a52 52 0 0 1 0 74"></path>
-            <path class="sirene" d="M56 66 a24 24 0 0 0 0 34"></path>
-            <path class="sirene" d="M46 56 a38 38 0 0 0 0 54"></path>
-            <path class="sirene" d="M36 46 a52 52 0 0 0 0 74"></path>
+            <path class="sirene" d="M272 64 a26 26 0 0 1 0 38"></path>
+            <path class="sirene" d="M284 52 a42 42 0 0 1 0 62"></path>
+            <path class="sirene" d="M48 64 a26 26 0 0 0 0 38"></path>
+            <path class="sirene" d="M36 52 a42 42 0 0 0 0 62"></path>
           </g>` : ""}
       </svg>`;
   }
 }
+
+const KI_SIK_SIDEN = (iso) => {
+  const d = new Date(iso); if (isNaN(d)) return "";
+  const m = Math.floor((Date.now() - d) / 60000);
+  if (m < 1) return "nå";
+  if (m < 60) return `${m} min siden`;
+  const t = Math.floor(m / 60);
+  if (t < 24) return `${t} ${t === 1 ? "time" : "timer"} siden`;
+  const dg = Math.floor(t / 24);
+  if (dg < 7) return `${dg} ${dg === 1 ? "dag" : "dager"} siden`;
+  return d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+};
 
 const KI_SIK_ESC = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
@@ -16274,6 +16488,8 @@ try {
  *
  * type: custom:ki-sensor-liste-card
  * tittel: Dører                  # valgfri overskrift over lista
+ * hode: true                     # sonehode med ikon, teller og sammenfolding
+ * apnet: true                    # sonene starter utfoldet
  * kolonner: 1                    # 1 = brede piller, 2 = to i bredden
  * batteri: true                  # vis batteriprosent under navnet
  * bare_aktive: false             # vis bare det som er åpent/ulåst/i bevegelse
@@ -16291,33 +16507,52 @@ const KI_SLIST_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
 
-  .rot { display:grid; gap:8px; }
+  .rot { display:grid; gap:14px; }
+  .sone { display:grid; gap:8px; }
   .tit { font-size:15px; font-weight:600; opacity:.75; padding:2px 4px; }
+
+  /* sonehode: ikonmerke, tittel, teller og pil */
+  .hode { display:flex; align-items:center; gap:12px; padding:2px 6px 2px 0;
+    background:none; border:0; font-family:inherit; width:100%; cursor:pointer; color:inherit; }
+  .hode:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:4px; border-radius:14px; }
+  .hodemerke { width:40px; height:40px; border-radius:50%; flex:none;
+    display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
+  .hodemerke ha-icon { --mdc-icon-size:21px; color:var(--gray1000); opacity:.75; }
+  .hodemerke.aktiv ha-icon { color:var(--tone,#e0524a); opacity:1; }
+  .hodenavn { font-size:19px; font-weight:700; flex:1; text-align:left; letter-spacing:-.01em; }
+  .teller { font-size:14px; font-weight:600; opacity:.55; white-space:nowrap; }
+  .teller.aktiv { opacity:1; color:var(--tone,#f0a952); }
+  .pil { --mdc-icon-size:22px; opacity:.5; transition:transform .3s var(--myk); }
+  .sone.lukket .pil { transform:rotate(-90deg); }
+
+  .kropp { display:grid; gap:8px; overflow:hidden; }
+  .sone.lukket .kropp { display:none; }
 
   .rutenett { display:grid; gap:8px; grid-template-columns:repeat(var(--kol,1), minmax(0,1fr)); }
 
-  .pille { display:flex; align-items:center; gap:12px; min-height:62px; padding:10px 16px 10px 10px;
-    border-radius:999px; background:var(--gray100); color:var(--gray1000);
+  .pille { display:flex; align-items:center; gap:14px; min-height:70px; padding:12px 18px 12px 12px;
+    border-radius:26px; background:var(--gray100); color:var(--gray1000);
     border:0; font-family:inherit; text-align:left; width:100%; cursor:pointer;
     transition:background .35s var(--myk), color .35s var(--myk), transform .08s ease; }
   .pille:active { transform:scale(.985); }
   .pille:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-  .merke { width:42px; height:42px; border-radius:50%; flex:none;
+  .merke { width:46px; height:46px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
     background:color-mix(in srgb, var(--gray1000) 10%, transparent);
     transition:background .35s var(--myk); }
-  .merke ha-icon { --mdc-icon-size:22px; }
+  .merke ha-icon { --mdc-icon-size:23px; }
 
   .tekst { display:grid; gap:2px; min-width:0; }
-  .navn { font-size:15px; font-weight:600; line-height:1.25;
+  .navn { font-size:17px; font-weight:700; line-height:1.25; letter-spacing:-.01em;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .under { font-size:13px; font-weight:500; opacity:.68; line-height:1.25; }
+  .under { font-size:15px; font-weight:500; opacity:.62; line-height:1.3; }
 
   /* aktiv: åpen, ulåst eller bevegelse – fargen kommer fra sonen */
   .pille.aktiv { background:var(--tone,#8fd6a8); color:var(--pa-tekst,#1d2b21); }
   .pille.aktiv .under { opacity:.75; }
-  .pille.aktiv .merke { background:color-mix(in srgb, #000 12%, transparent); }
+  .pille.aktiv .merke { background:color-mix(in srgb, #fff 22%, transparent); }
   .pille.aktiv .merke ha-icon { animation:kiSLPust 2.6s ease-in-out infinite; }
   @keyframes kiSLPust { 0%,100% { transform:scale(1) } 50% { transform:scale(1.12) } }
 
@@ -16347,7 +16582,8 @@ class KiSensorListeCard extends HTMLElement {
 
   setConfig(c) {
     if (!c || (!c.zones && !c.items)) throw new Error("Sett enten zones: eller items:");
-    this._c = { kolonner: 1, batteri: true, bare_aktive: false, ...c };
+    this._c = { kolonner: 1, batteri: true, bare_aktive: false, hode: true, apnet: true, ...c };
+    this._lukket = this._lukket || {};
   }
 
   _antall() {
@@ -16377,6 +16613,34 @@ class KiSensorListeCard extends HTMLElement {
     const g = this._h; this._h = h;
     if (!this._c) return;
     if (!g || this._ids().some((id) => g.states[id] !== h.states[id])) this._tegn();
+  }
+
+  _aktiv(sone, i) {
+    const st = this._h.states[i.entity];
+    if (!st || ["unavailable", "unknown"].includes(st.state)) return false;
+    return (sone.kind || "opening") === "lock"
+      ? st.state !== "locked" : ["on", "open", "detected"].includes(st.state);
+  }
+
+  /* «1 åpen», «2 åpne», «1 ulåst», «3 i bevegelse».
+   * Norsk bøyning lar seg ikke gjette fra endelsen – «åpent» skal bli «åpne»,
+   * ikke «åpente» – så vi bruker en tabell, og `teller_tekst` i sonen overstyrer. */
+  _tellenavn(sone, n) {
+    if (sone.teller_tekst) {
+      const d = [].concat(sone.teller_tekst);
+      return n === 1 ? d[0] : (d[1] || d[0]);
+    }
+    const kind = sone.kind || "opening";
+    if (kind === "lock") return n === 1 ? "ulåst" : "ulåste";
+    if (kind === "motion") return "i bevegelse";
+    return n === 1 ? "åpen" : "åpne";
+  }
+
+  _roligtekst(sone) {
+    const kind = sone.kind || "opening";
+    if (kind === "lock") return "Alt låst";
+    if (kind === "motion") return "Alt stille";
+    return "Alt lukket";
   }
 
   _rad(sone, i) {
@@ -16414,19 +16678,39 @@ class KiSensorListeCard extends HTMLElement {
 
   _tegn() {
     const c = this._c;
-    const blokker = this._soner().map((z) => {
+    const blokker = this._soner().map((z, zi) => {
       const rader = (z.items || []).map((i) => this._rad(z, i)).filter(Boolean).join("");
       if (!rader) return "";
-      return `${z.title && !c.items ? `<div class="tit">${KI_SLIST_ESC(z.title)}</div>` : ""}
-              <div class="rutenett">${rader}</div>`;
+      const lukket = this._lukket[zi] ?? !c.apnet;
+      const kropp = `<div class="kropp"><div class="rutenett">${rader}</div></div>`;
+      if (!c.hode || (!z.title && !c.items)) return `<div class="sone">${kropp}</div>`;
+
+      const n = (z.items || []).filter((i) => this._aktiv(z, i)).length;
+      const tell = n ? `${n} ${this._tellenavn(z, n)}` : (z.tom_text || this._roligtekst(z));
+      return `
+        <div class="sone ${lukket ? "lukket" : ""}" style="${z.color ? `--tone:${z.color}` : ""}">
+          <button class="hode" data-sone="${zi}" aria-expanded="${!lukket}">
+            <span class="hodemerke ${n ? "aktiv" : ""}"><ha-icon icon="${KI_SLIST_ESC(z.icon || "mdi:shape-outline")}"></ha-icon></span>
+            <span class="hodenavn">${KI_SLIST_ESC(z.title || c.tittel || "")}</span>
+            <span class="teller ${n ? "aktiv" : ""}">${KI_SLIST_ESC(tell)}</span>
+            <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+          </button>
+          ${kropp}
+        </div>`;
     }).join("");
 
     this.shadowRoot.innerHTML = `
       <style>${KI_SLIST_STIL}</style>
       <div class="rot" style="--kol:${c.kolonner === 2 ? 2 : 1}">
-        ${c.tittel && c.items ? `<div class="tit">${KI_SLIST_ESC(c.tittel)}</div>` : ""}
         ${blokker || `<div class="tom">${c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise."}</div>`}
       </div>`;
+
+    for (const el of this.shadowRoot.querySelectorAll("[data-sone]"))
+      el.addEventListener("click", () => {
+        const i = +el.dataset.sone;
+        this._lukket[i] = !(this._lukket[i] ?? !c.apnet);
+        this._tegn();
+      });
 
     for (const el of this.shadowRoot.querySelectorAll("[data-mer]"))
       el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",

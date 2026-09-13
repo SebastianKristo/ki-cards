@@ -1,10 +1,14 @@
-# Sikkerhetspopup – ki-cards 3.19.0
+# Sikkerhetspopup – ki-cards 3.21.0
 #
 # Kortet på toppen slutter etter modusknappene (soner: false). Sonelistene ligger
-# under, i hvert sitt expander-kort, som brede piller.
+# under, i hvert sitt expander-kort, som frittstående piller uten panel bak.
 #
-# Sonene defineres én gang på sikkerhetskortet med et anker (&soner), og hver
-# sensorliste plukker ut sin egen del. Ankre virker bare innenfor samme fil.
+# Sensorlisten folder seg selv, med samme hode som alarmkortet hadde: ikonmerke,
+# tittel, teller til høyre og en pil. Expander-card trengs ikke lenger, og
+# dermed heller ingen bakgrunn å fjerne.
+#
+# Sonene defineres én gang på sikkerhetskortet med ankre, og hver sensorliste
+# plukker ut sin egen del. Ankre virker bare innenfor samme fil.
 type: custom:bubble-card
 card_type: pop-up
 name: Sikkerhet
@@ -21,7 +25,7 @@ margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 styles: |
-  .bubble-pop-up-container { --vertical-stack-card-gap: 12px !important; }
+  .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
   #header-container > div > div { background: var(--gray000) !important; }
   #header-container > button { background: none; }
   .icon-container { background-color: var(--gray1000) !important; }
@@ -44,6 +48,26 @@ cards:
     navn: Hjemme
     batteri_grense: 20
     soner: false
+    faner: [sikkerhet, laser, logg]
+    laser:
+      entities:
+        - lock.dorlas
+        - lock.stue_dorlas
+        - lock.vaskerom_dorlas
+        - lock.garasjedor
+      navn:
+        lock.dorlas: Inngang
+        lock.stue_dorlas: Stue
+        lock.vaskerom_dorlas: Vaskerom
+        lock.garasjedor: Garasje
+      batteri:
+        lock.dorlas: sensor.dorlas_batteri
+        lock.vaskerom_dorlas: sensor.vaskerom_dorlas_batteri
+        lock.garasjedor: sensor.garasjedor_battery
+    logg:
+      ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+      dager: 7
+      maks: 40
     tastatur:
       code_length: 6
       arm_requires_code: true
@@ -122,30 +146,21 @@ cards:
           - entity: lock.boddor
             name: Boddør
 
-  - type: custom:expander-card
-    title: Dører og vinduer
-    icon: mdi:door
-    expanded: false
-    cards:
-      - type: custom:ki-sensor-liste-card
-        zones:
-          - *doerer
-          - *vinduer
+  # Sonene med eget hode og sammenfolding – ett kort, ingen expander.
+  - type: custom:ki-sensor-liste-card
+    apnet: true
+    zones:
+      - *doerer
+      - *vinduer
+      - *bevegelse
+      - *laaser
 
-  - type: custom:expander-card
-    title: Bevegelse
-    icon: mdi:motion-sensor
-    expanded: false
-    cards:
-      - type: custom:ki-sensor-liste-card
-        zones:
-          - *bevegelse
-
-  - type: custom:expander-card
-    title: Dørlåser
-    icon: mdi:lock
-    expanded: false
-    cards:
-      - type: custom:ki-sensor-liste-card
-        zones:
-          - *laaser
+# I ki-hjem-card peker dørlåsflisen hit, rett på Dørlåser-fanen:
+#
+#   hjem:
+#     las: lock.dorlas
+#     las_path: '#alarm::laser'
+#
+# «::laser» fjernes før navigeringen, så bubble-card ser bare `#alarm` og åpner
+# popupen som vanlig – deretter velger sikkerhetskortet fanen. Samme triks virker
+# på alle stier som går gjennom KI.navigate: '#alarm::logg' åpner loggen.

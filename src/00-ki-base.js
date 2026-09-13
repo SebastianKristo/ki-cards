@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.19.1";
+  KI.VERSION = "3.21.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -326,8 +326,18 @@ window.KI = window.KI || {};
   /* Navigerer uten å laste dashbordet på nytt: bygger mål-URL-en, bytter den med
      history og varsler både HA-ruteren og popup-kort som lytter på hashchange.
      `window.location.hash = …` unngås – i companion-appen gir det full innlasting. */
+  /* «#alarm::laser» åpner popupen #alarm og ber kortet inni om å vise fanen
+     «laser». Fane-delen fjernes før navigeringen, så bubble-card ser bare hashen
+     sin. Alle kort som allerede navigerer via KI.navigate får dette gratis. */
   KI.navigate = (sti) => {
     if (!sti || sti === "#") return;
+    let fane = null;
+    if (String(sti).includes("::")) {
+      const [f, ...rest] = String(sti).split("::").reverse();
+      fane = f; sti = rest.reverse().join("::");
+    }
+    if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+      { detail: { hash: String(sti), fane } })), 0);
     const gammel = window.location.hash;
     let url = null;
     try { url = new URL(sti, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
