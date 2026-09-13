@@ -1,16 +1,24 @@
-# ki-cards 3.42.0
+# ki-cards 3.42.1
 
-## `ki-sparing-card` 2.1.0
+## `ki-sparing-card`: flisene fløt utenfor kortet
 
-**Periodevelgeren er flyttet inn i spart-flisa**, rett under beløpet og venstrestilt, i
-stedet for å ligge som en egen midtstilt rad over kortet. Pillene er mindre — 5 × 13 px
-padding og 12,5 px tekst mot 9 × 22 og 14 før — så de leser som et valg inni flisa og ikke
-som en fanerad i konkurranse med `simple-tabs` over.
+Verdiene i flisene hadde ikke overflow-vern. «18,89 kr/mil» i 26 px er bredere enn halve
+kortet på en mobil, og siden `.flis` selv er et rutenett uten `min-width:0`, presset
+innholdet flisa bredere enn kolonnen. Rutenettet vokste forbi kortbredden, og hele kortet
+ble dyttet ut mot venstre — derfor lå ikonene halvveis utenfor kanten og kolonnene så
+ujevne ut.
 
-Rekkefølgen i flisa er nå: etikett, beløp, forklaringslinje, pillene, og stolpen nederst.
+* `min-width:0` på flisa og alle barna, og `minmax(0,1fr)` på tekstkolonnen.
+* Verdien klippes med ellipse i stedet for å presse på.
+* Verditeksten er ned fra 26 til 23 px, ikonfeltet fra 58 til 50 px og kolonnen fra 76 til
+  64 px, så «Audi A6 Avant 2011» og «18,89 kr/mil» får plass ved siden av hverandre.
+* Under 380 px krymper det et hakk til.
 
-**Flisene ligger tettere.** Avstanden er ned fra 12 til 8 px, både mellom spart-flisa og
-rutenettet under og mellom flisene innbyrdes.
+## «Diesel ville kostet 0 kr»
 
-Blir det mange perioder på en smal skjerm, ruller pillerada sidelengs i stedet for å bryte
-til to linjer.
+Rett etter oppsettet står alt på null: integrasjonen har satt nullpunktet sitt, men bilen
+har ikke kjørt noe ennå. Linja under beløpet sa da «Diesel ville kostet 0 kr, strømmen
+kostet 0 kr», som ser ut som en feil.
+
+Nå står det «Venter på de første kilometerne» til det finnes noe å regne på. Har bilen
+kjørt, men prisen mangler, sier den det i stedet.

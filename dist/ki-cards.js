@@ -1,4 +1,4 @@
-/* ki-cards v3.42.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.42.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.42.0";
+  KI.VERSION = "3.42.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17891,7 +17891,7 @@ try {
  * tittel: Elbil mot diesel
  * bakgrunn: none             # standard: ingen egen bakgrunn (popupen har sin)
  */
-const KI_SPAR_VERSJON = "2.1.0";
+const KI_SPAR_VERSJON = "2.2.0";
 
 const KI_SPAR_PERIODER = {
   i_dag: { nokkel: "i_dag", navn: "I dag" },
@@ -17920,17 +17920,23 @@ const KI_SPAR_STIL = `
 
   /* ---- flisene: samme form som universal_sensor_ny ---- */
   .rutenett { display:grid; grid-template-columns:repeat(var(--kol,2),minmax(0,1fr)); gap:8px; }
+  /* min-width:0 hele veien ned. Uten det presser en lang verdi som «18,89 kr/mil»
+     flisa bredere enn kolonnen, rutenettet vokser forbi kortet, og alt skyves ut
+     mot venstre. */
   .flis { background:var(--gray200); border-radius:24px; padding:0; overflow:hidden;
-    display:grid; grid-template-areas:"i n" "i v"; grid-template-columns:76px 1fr;
-    grid-template-rows:1fr 1fr; align-items:center; min-height:88px; text-align:left; width:100%; }
+    display:grid; grid-template-areas:"i n" "i v"; grid-template-columns:64px minmax(0,1fr);
+    grid-template-rows:1fr 1fr; align-items:center; min-height:84px; text-align:left;
+    width:100%; min-width:0; }
+  .flis > * { min-width:0; }
   .flis.hel { grid-column:1 / -1; }
-  .flis .ik { grid-area:i; justify-self:start; align-self:center; margin:4px;
-    width:58px; height:58px; border-radius:50%; background:rgba(250,251,252,.10);
-    display:flex; align-items:center; justify-content:center; --mdc-icon-size:28px; }
-  .flis .n { grid-area:n; align-self:end; font-size:13px; font-weight:400; opacity:.62;
+  .flis .ik { grid-area:i; justify-self:center; align-self:center; flex:none;
+    width:50px; height:50px; border-radius:50%; background:rgba(250,251,252,.10);
+    display:flex; align-items:center; justify-content:center; --mdc-icon-size:25px; }
+  .flis .n { grid-area:n; align-self:end; font-size:12.5px; font-weight:400; opacity:.62;
     line-height:1.25; padding-right:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .flis .v { grid-area:v; align-self:start; font-size:26px; font-weight:500; line-height:1.15;
-    letter-spacing:-.02em; font-variant-numeric:tabular-nums; padding-right:14px; }
+  .flis .v { grid-area:v; align-self:start; font-size:23px; font-weight:500; line-height:1.2;
+    letter-spacing:-.02em; font-variant-numeric:tabular-nums; padding-right:14px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .flis .v span { font-size:14px; line-height:1.5em; margin-left:4px; font-weight:300; opacity:.75; }
 
   /* framhevet flis, som varslene øverst i popupen */
@@ -17952,9 +17958,10 @@ const KI_SPAR_STIL = `
     background:var(--gray200); border-radius:24px; }
   .tom code { font-size:12.5px; }
 
-  @media (max-width:400px) {
-    .flis .ik { width:50px; height:50px; --mdc-icon-size:24px; }
-    .flis { grid-template-columns:64px 1fr; }
+  @media (max-width:380px) {
+    .flis .ik { width:44px; height:44px; --mdc-icon-size:22px; }
+    .flis { grid-template-columns:56px minmax(0,1fr); }
+    .flis .v { font-size:21px; }
     .flis.stor .v { font-size:32px; }
   }
   @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
@@ -18026,6 +18033,14 @@ class KiSparingCard extends HTMLElement {
     return ut.sort((a, b) => (b.el ? 1 : 0) - (a.el ? 1 : 0));
   }
 
+  /* Rett etter oppsettet står alt på null: integrasjonen har satt nullpunktet sitt,
+     men bilen har ikke kjørt noe ennå. Da er «Diesel ville kostet 0 kr» bare støy. */
+  _venter(a) {
+    const km = Number(a && a.kjort_km);
+    if (!isNaN(km) && km > 0) return `${kiSpaNf(km, 0)} km kjørt, men ingen pris å regne med ennå`;
+    return "Venter på de første kilometerne";
+  }
+
   _tegn() {
     const c = this._c;
     const bg = c.bakgrunn === undefined || c.bakgrunn === false || c.bakgrunn === "none"
@@ -18081,8 +18096,9 @@ class KiSparingCard extends HTMLElement {
             <span class="ik"><ha-icon icon="mdi:piggy-bank"></ha-icon></span>
             <div class="n">Spart ${kiSpaEsc(p.navn.toLowerCase())}</div>
             <div class="v">${kiSpaNf(spart, 0)}<span>kr</span></div>
-            ${dieselKr !== null ? `<div class="under">Diesel ville kostet ${kiSpaNf(dieselKr, 0)} kr,
-              strømmen kostet ${kiSpaNf(elKr, 0)} kr</div>` : ""}
+            ${dieselKr ? `<div class="under">Diesel ville kostet ${kiSpaNf(dieselKr, 0)} kr,
+              strømmen kostet ${kiSpaNf(elKr, 0)} kr</div>`
+              : `<div class="under">${kiSpaEsc(this._venter(a))}</div>`}
             ${perioder.length > 1 ? `<div class="valg">${perioder.map((x) =>
               `<button class="${x === this._p ? "aktiv" : ""}" data-p="${x}">${
                 kiSpaEsc(KI_SPAR_PERIODER[x].navn)}</button>`).join("")}</div>` : ""}
