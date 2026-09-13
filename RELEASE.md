@@ -1,21 +1,28 @@
-# ki-cards 3.38.0
+# ki-cards 3.39.0
 
-## `ki-strompris-card` på brede skjermer
+## `ki-sparing-card` 1.1.0 – roligere oppsett
 
-**Innholdet fylte ikke kortet.** `maks_bredde` sto på 620 px som standard, og innholdet ble
-sentrert innenfor den grensen. På et vanlig mobilkort merkes det ikke, men på en utbrettet
-Pixel Fold — eller et bredt dashbord — ble kortet liggende med tomme marger på begge sider.
+Første utgave stablet for mye ved siden av hverandre: to stolper, en brikkerad, en fotnote,
+og i fanen dessuten to prisfliser og en graf som gjentok det samme. Nå er det én ting per
+nivå.
 
-Standarden er nå 100 %, altså full bredde av kortet. Vil du fortsatt holde innholdet samlet
-på veldig brede flater, sett `maks_bredde: 620px` selv.
+**Én delt stolpe** i stedet for to. Den grønne delen er det strømmen faktisk kostet,
+resten er det dere slapp å betale. Med 243 kroner strøm mot 2 834 i diesel blir den grønne
+biten en tynn stripe — og det er hele poenget, lest på et blikk, uten å sammenligne to
+stolper med hverandre.
 
-**Grafen ble strukket.** SVG-en hadde fast høyde i piksler mens bredden vokste fritt, med
-`preserveAspectRatio="none"`. Jo bredere skjerm, jo flatere kurve — prisforskjellene ble
-visuelt borte nettopp der det er mest plass til å vise dem.
+**Tre tall på rad** i stedet for brikker som flyter: kilometer kjørt i perioden, liter
+diesel som ikke er fylt i år, og CO₂ spart. Under 400 px legger den siste seg på egen rad.
 
-Høyden følger nå bredden gjennom `aspect-ratio`, med `hoyde` som minimum og 1,9 ganger
-det som tak. Forholdet styres med `graf_forhold: 2.6` (bredde delt på høyde) — lavere tall
-gir høyere graf.
+**Kostnad per mil** er blitt én rolig linje — elbil til venstre, diesel til høyre, «mot» i
+midten — i stedet for to stolperader til.
 
-Begge deler er rene standardendringer: har du satt `maks_bredde` eller `hoyde` selv,
-gjelder dine verdier som før.
+**Underteksten** under beløpet sier rett ut hva sammenligningen er: «Diesel ville kostet
+2 834 kr. Strømmen kostet 243 kr.»
+
+Feiler hentingen av pumpeprisen, bytter fotnoten farge og sier hvorfor, i stedet for at det
+kommer en egen brikke.
+
+`examples/tesla-sparing-fane.yaml` er strippet til kortet alene, pluss en knapp som bare
+dukker opp hvis pumpeprisen mangler. Prisflisene og grafen er tatt bort — de gjentok det
+kortet allerede viser.
