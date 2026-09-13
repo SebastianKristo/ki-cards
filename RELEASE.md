@@ -1,28 +1,20 @@
-# ki-cards 3.39.0
+# ki-cards 3.40.0
 
-## `ki-sparing-card` 1.1.0 – roligere oppsett
+## `ki-strompris-card`: teksten i grafen var strukket
 
-Første utgave stablet for mye ved siden av hverandre: to stolper, en brikkerad, en fotnote,
-og i fanen dessuten to prisfliser og en graf som gjentok det samme. Nå er det én ting per
-nivå.
+Grafen ble tegnet i en viewBox på fast 320 enheter bredde, skalert ut til full bredde med
+`preserveAspectRatio="none"`. Da skaleres **alt** inni SVG-en horisontalt — ikke bare
+kurven, men også klokkeslettene, prisene og strektykkelsene. På en utbrettet skjerm var
+faktoren over det dobbelte, og bokstavene ble merkbart brede.
 
-**Én delt stolpe** i stedet for to. Den grønne delen er det strømmen faktisk kostet,
-resten er det dere slapp å betale. Med 243 kroner strøm mot 2 834 i diesel blir den grønne
-biten en tynn stripe — og det er hele poenget, lest på et blikk, uten å sammenligne to
-stolper med hverandre.
+Forrige versjon la på `aspect-ratio` i CSS. Det gjorde grafen høyere, men rørte ikke selve
+strekkingen — derfor så tallene fortsatt gale ut.
 
-**Tre tall på rad** i stedet for brikker som flyter: kilometer kjørt i perioden, liter
-diesel som ikke er fylt i år, og CO₂ spart. Under 400 px legger den siste seg på egen rad.
+Nå måles den faktiske bredden med en `ResizeObserver`, og viewBox settes til den bredden i
+piksler. Skaleringen blir 1:1 uansett skjerm, og tekst og streker tegnes i sin egen
+størrelse. Høyden regnes ut fra bredden med `graf_forhold` (standard 2,6), med `hoyde` som
+gulv og 1,9 ganger det som tak.
 
-**Kostnad per mil** er blitt én rolig linje — elbil til venstre, diesel til høyre, «mot» i
-midten — i stedet for to stolperader til.
-
-**Underteksten** under beløpet sier rett ut hva sammenligningen er: «Diesel ville kostet
-2 834 kr. Strømmen kostet 243 kr.»
-
-Feiler hentingen av pumpeprisen, bytter fotnoten farge og sier hvorfor, i stedet for at det
-kommer en egen brikke.
-
-`examples/tesla-sparing-fane.yaml` er strippet til kortet alene, pluss en knapp som bare
-dukker opp hvis pumpeprisen mangler. Prisflisene og grafen er tatt bort — de gjentok det
-kortet allerede viser.
+Observeren kobles på nytt etter hver full omtegning — kortet bytter ut hele `.ramme`, så
+elementet den så på forsvinner — og ryddes når kortet fjernes. Endringer under 8 px
+utløser ingen ny tegning, så den ikke går i loop mot sin egen høyde.

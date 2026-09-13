@@ -36,7 +36,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.1.0";
+const KI_SP_VERSJON = "3.2.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -76,12 +76,8 @@ const KI_SP_STIL = `
     background:color-mix(in srgb, var(--green) 26%, transparent); }
   .spar.tap { background:color-mix(in srgb, var(--red) 26%, transparent); }
   .spar ha-icon { --mdc-icon-size:15px; }
-  /* Høyden følger bredden innenfor grensene, så kurven ikke flates ut på en bred
-     skjerm. Hoyde-valget er minimum, og aspect-ratio lofter den paa store flater. */
   .grafboks { position:relative; margin:10px 0 0; max-width:100%; overflow:hidden; touch-action:pan-y; }
-  .grafboks svg { display:block; width:100%; height:100%; overflow:hidden;
-    min-height:var(--gh, 150px); max-height:calc(var(--gh, 150px) * 1.9);
-    aspect-ratio:var(--gforhold, 2.6); }
+  .grafboks svg { display:block; width:100%; overflow:hidden; }
   .strek { stroke-linecap:round; stroke-linejoin:round; }
   .naalinje { stroke:var(--gray1000, var(--primary-text-color)); stroke-width:1; opacity:.35; stroke-dasharray:3 4; }
   .nplinje { stroke:#7ab8ff; stroke-width:1.6; stroke-dasharray:5 5; opacity:.9; }
@@ -281,7 +277,11 @@ class KiStromprisCard extends HTMLElement {
   }
 
   _graf(pkt, np) {
-    const c = this._c, B = 14, H = c.hoyde, V = 320, x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
+    // Tegn i faktiske piksler. Med en fast viewBox på 320 og preserveAspectRatio="none"
+    // ble alt inni skalert horisontalt på brede skjermer – også teksten og strekene.
+    const c = this._c, B = 14;
+    const V = Math.max(280, Math.round(this._bredde || 320));
+    const H = Math.round(Math.min(c.hoyde * 1.9, Math.max(c.hoyde, V / (c.graf_forhold || 2.6)))); x0 = pkt[0].t, x1 = pkt[pkt.length - 1].slutt;
     const npVerdier = pkt.map((p) => this._npTime(p.t)).filter((v) => v !== null);
     const harNpKurve = npVerdier.length === pkt.length && !this._kunNp;
     const verdier = pkt.map((p) => p.v);
@@ -311,7 +311,7 @@ class KiStromprisCard extends HTMLElement {
       <text x="${kiSpKlamp(X((p.t + p.slutt) / 2), 18, V - 18).toFixed(1)}" y="${(Y(p.v) - 9).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="${farge}" font-weight="600">${tekst}</text></g>`;
 
     const valgt = this._valgt !== null && pkt[this._valgt] ? pkt[this._valgt] : null;
-    return `<svg viewBox="0 0 ${V} ${H}" width="100%" preserveAspectRatio="none" style="--gh:${H}px;--gforhold:${c.graf_forhold || 2.6}" role="img" aria-label="Spotpris time for time">
+    return `<svg viewBox="0 0 ${V} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Spotpris time for time">
       <defs><linearGradient id="${this._gid}-l" gradientUnits="userSpaceOnUse" x1="0" y1="${B}" x2="0" y2="${H - B}">${gy}</linearGradient>
         <linearGradient id="${this._gid}-f" gradientUnits="userSpaceOnUse" x1="0" y1="${B}" x2="0" y2="${H}">
           <stop offset="0" stop-color="${kiSpFarge(0.85)}" stop-opacity=".22"/><stop offset="65%" stop-color="${kiSpFarge(0.15)}" stop-opacity=".14"/><stop offset="100%" stop-color="${kiSpFarge(0)}" stop-opacity="0"/></linearGradient>
@@ -446,6 +446,26 @@ class KiStromprisCard extends HTMLElement {
 
   _tone() { return this._np() !== null ? "#8fe3c0" : "#ffd24a"; }
 
+  /* Måler hvor bred grafen faktisk er, og tegner på nytt når det endrer seg nok til
+     å bety noe. Uten dette ville vi ikke visst hvor mange piksler vi tegner i. */
+  _maalevakt() {
+    if (this._ro || typeof ResizeObserver === "undefined") return;
+    const g = this.shadowRoot.querySelector(".grafboks");
+    if (!g) return;
+    this._ro = new ResizeObserver((poster) => {
+      const b = poster[0] && poster[0].contentRect ? poster[0].contentRect.width : 0;
+      if (!b || Math.abs(b - (this._bredde || 0)) < 8) return;
+      this._bredde = b;
+      this._forrige = null;          // tving full omtegning med ny bredde
+      this._tegn();
+    });
+    this._ro.observe(g);
+  }
+
+  disconnectedCallback() {
+    if (this._ro) { this._ro.disconnect(); this._ro = null; }
+  }
+
   _koble() {
     const r = this.shadowRoot;
     const bytt = (e) => { const el = e.composedPath().find((x) => x.dataset && x.dataset.d); if (!el || el.hasAttribute("disabled")) return;
@@ -456,8 +476,14 @@ class KiStromprisCard extends HTMLElement {
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const html = `<div class="ramme">${this._innhold()}</div>`;
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; }
-    else if (html !== this._forrige) { this.shadowRoot.querySelector(".ramme").outerHTML = html; this._forrige = html; }
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; }
+    else if (html !== this._forrige) {
+      this.shadowRoot.querySelector(".ramme").outerHTML = html;
+      this._forrige = html;
+      // .ramme byttes ut i sin helhet, så elementet observeren så på finnes ikke lenger
+      if (this._ro) { this._ro.disconnect(); this._ro = null; }
+      this._maalevakt();
+    }
     this._skrubb();
     // sveipeanimasjonen skal bare kjøre første gang kortet tegnes, ikke ved hver oppdatering
     if (!this._animert) setTimeout(() => { this._animert = true; }, 1200);
