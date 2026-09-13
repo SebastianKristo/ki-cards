@@ -1,4 +1,4 @@
-/* ki-cards v3.33.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.34.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.33.0";
+  KI.VERSION = "3.34.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17089,7 +17089,7 @@ try {
  *
  * Nedtellingen går hvert tiende sekund uten å vente på Home Assistant.
  */
-const KI_RUTER_VERSJON = "4.2.0";
+const KI_RUTER_VERSJON = "4.3.0";
 
 const KI_R_MODUS = {
   bus: { ikon: "mdi:bus", farge: "#e2483d", navn: "Buss" },
@@ -17336,6 +17336,27 @@ class KiRuterCard extends HTMLElement {
     legg(a.route, a.due_at || a.next_due_at, a.delay, a.real_time, a.destination, a.platform || a.quay);
     for (let i = 1; i <= 12; i++) { if (a[`route_${i}`] === undefined && a[`due_at_${i}`] === undefined) continue;
       legg(a[`route_${i}`], a[`due_at_${i}`], a[`delay_${i}`], a[`real_time_${i}`], a[`destination_${i}`], a[`platform_${i}`]); }
+
+    /* Mange Entur-/kollektivsensorer legger avgangene i én attributt som liste i stedet
+       for i nummererte felt. Feltnavnene varierer mellom integrasjonene, så vi godtar
+       de vanligste. `avganger_attributt:` overstyrer hvis din heter noe annet. */
+    const listeNavn = [st.avganger_attributt, this._c.avganger_attributt,
+      "departures", "next_departures", "avganger", "calls", "journeys", "lines"].filter(Boolean);
+    for (const navn of listeNavn) {
+      const liste = a[navn];
+      if (!Array.isArray(liste) || !liste.length) continue;
+      for (const d of liste) {
+        if (!d || typeof d !== "object") continue;
+        const linje = d.line ?? d.linje ?? d.route ?? d.publicCode ?? d.line_name ?? d.number;
+        const mal = d.destination ?? d.mal ?? d.front_text ?? d.headsign ?? d.direction ?? d.destination_name;
+        const tid = d.expected_departure_time ?? d.expected ?? d.due_at ?? d.aimed_departure_time
+          ?? d.aimed ?? d.time ?? d.departure ?? d.expectedDepartureTime;
+        legg(linje !== undefined && mal ? `${linje} ${mal}` : (linje ?? mal ?? d.route),
+          tid, d.delay ?? d.forsinkelse, d.realtime ?? d.real_time ?? d.is_realtime,
+          mal, d.platform ?? d.quay ?? d.spor);
+      }
+      break;   // første lista som finnes, er den vi bruker
+    }
     if (ut.length && !ut[0].tid && s.state && !["unknown", "unavailable"].includes(s.state)) ut[0].tid = s.state;
     const filter = st.linjer ? [].concat(st.linjer).map(String) : null;
     return ut.filter((x) => x.tid).filter((x) => !filter || filter.includes(String(x.linje)))
@@ -17374,7 +17395,10 @@ class KiRuterCard extends HTMLElement {
   /* -------------------------------------------------------------- html */
   _avgHtml(st, a) {
     const mod = this._modus(st, a), rekker = st.gange ? (a.min ?? 99) >= st.gange : true;
-    const planlagt = a.forsinkelse ? new Date(new Date(a.tid).getTime() - a.forsinkelse * 60000) : null;
+    // a.tid kan være «14:53», og new Date("14:53") er Invalid Date. Vi regner via
+    // minutter til avgang i stedet, som allerede tåler begge formater.
+    const planlagt = a.forsinkelse && a.min !== null
+      ? new Date(Date.now() + (a.min - a.forsinkelse) * 60000) : null;
     return `<div class="avg ${a.min !== null && a.min <= 2 ? "snart" : ""} ${rekker ? "" : "rekker-ikke"}" style="--lf:${mod.farge}">
       <span class="linje ${String(a.linje || "").length > 2 ? "lang" : ""}">${
         a.linje ? kiREsc(a.linje) : `<ha-icon icon="${mod.ikon}"></ha-icon>`}</span>
@@ -17593,13 +17617,28 @@ class KiRuterCard extends HTMLElement {
     const bg = c.bakgrunn === undefined || c.bakgrunn === false || c.bakgrunn === "none"
       ? "transparent" : c.bakgrunn;
     const stil = [`--kort-bg:${bg}`, `--kort-pad:${bg === "transparent" ? "0" : "18px"}`,
-      `--maks:${c.maks_bredde || "620px"}`, `--glod:${c.bakgrunn_glod === false ? 0 : 1}`].join(";");
+      `--maks:${c.maks_bredde || "620px"}`, `--glod:${c.bakgrunn_glod === true ? 1 : 0}`].join(";");
     const html = `<div class="ramme"><div class="kort" style="${stil}"><div class="glo"></div>${this._innhold()}</div></div>`;
     // Chromium og Safari nekter å sette outerHTML på et element som ligger rett i en shadow root,
     // så innholdet byttes inne i en fast beholder i stedet.
     if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_R_STIL}</style><div class="rot"></div>`;
       this._rot = this.shadowRoot.querySelector(".rot"); this._koble(); this._bygget = true; this._forrige = null; }
-    if (html !== this._forrige) { this._rot.innerHTML = html; this._forrige = html; }
+    if (html !== this._forrige) {
+      const rull = this._rot.querySelector(".valg");
+      const sto = rull ? rull.scrollLeft : 0;
+      this._rot.innerHTML = html; this._forrige = html;
+      // Etter omtegning står rada på null. Behold posisjonen, og sørg for at den
+      // valgte holdeplassen er synlig – ellers hopper den til første hver gang.
+      const ny = this._rot.querySelector(".valg");
+      if (ny) {
+        ny.scrollLeft = sto;
+        const valgt = ny.querySelector(".v.aktiv");
+        if (valgt && valgt.scrollIntoView) {
+          try { valgt.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" }); }
+          catch (e) { ny.scrollLeft = valgt.offsetLeft - (ny.clientWidth - valgt.offsetWidth) / 2; }
+        }
+      }
+    }
   }
 }
 if (!customElements.get("ki-ruter-card")) window.KI.define("ki-ruter-card", KiRuterCard);
@@ -17607,29 +17646,83 @@ if (!customElements.get("ki-ruter-card")) window.KI.define("ki-ruter-card", KiRu
 class KiRuterCardEditor extends HTMLElement {
   setConfig(c) { this._c = c; this._r(); }
   set hass(h) { this._h = h; this._r(); }
+
+  _send(ny) {
+    this._c = ny;
+    this.dispatchEvent(new CustomEvent("config-changed",
+      { detail: { config: ny }, bubbles: true, composed: true }));
+    this._tegnListe();
+  }
+
+  /* Rekkefølgen på holdeplassene og reisene, med flytting opp og ned.
+     Rekkefølgen i lista er den samme som pillene får i velgeren. */
+  _tegnListe() {
+    if (!this._liste) return;
+    const c = this._c || {};
+    const rad = (nokkel, x, i, n) => {
+      const navn = x.navn || x.name || (x.til ? `${x.fra_navn || x.fra} → ${x.til}` : x.entity || x.fra) || "(uten navn)";
+      return `<div class="rad">
+        <span class="nr">${i + 1}</span><span class="navn">${kiREsc(navn)}</span>
+        <button data-k="${nokkel}" data-i="${i}" data-d="-1" ${i === 0 ? "disabled" : ""} title="Flytt opp">▲</button>
+        <button data-k="${nokkel}" data-i="${i}" data-d="1" ${i === n - 1 ? "disabled" : ""} title="Flytt ned">▼</button>
+      </div>`;
+    };
+    const blokk = (nokkel, tittel) => {
+      const l = c[nokkel] || [];
+      if (!l.length) return "";
+      return `<div class="tit">${tittel}</div>${l.map((x, i) => rad(nokkel, x, i, l.length)).join("")}`;
+    };
+    const html = blokk("reiser", "Reiser") + blokk("stops", "Holdeplasser");
+    this._liste.innerHTML = html
+      ? `<style>
+          .tit { font-size:12px; font-weight:600; opacity:.6; padding:10px 4px 4px; }
+          .rad { display:flex; align-items:center; gap:8px; padding:6px 4px; }
+          .rad .nr { width:20px; text-align:right; opacity:.5; font-variant-numeric:tabular-nums; }
+          .rad .navn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+          .rad button { width:32px; height:32px; border-radius:8px; border:0; cursor:pointer;
+            background:var(--secondary-background-color, rgba(128,128,128,.2)); color:inherit; font-size:12px; }
+          .rad button[disabled] { opacity:.3; cursor:default; }
+          .hjelp { font-size:12.5px; opacity:.7; padding:10px 4px 4px; }
+        </style>${html}
+        <div class="hjelp">Hvilke holdeplasser og avvikssensorer som er med, settes i YAML-redigeringen.</div>`
+      : `<div style="padding:10px 4px;font-size:12.5px;opacity:.7">Legg til holdeplasser under <code>stops:</code> i YAML-redigeringen, så kan du sortere dem her.</div>`;
+
+    for (const b of this._liste.querySelectorAll("button[data-k]")) {
+      b.addEventListener("click", () => {
+        const k = b.dataset.k, i = +b.dataset.i, j = i + +b.dataset.d;
+        const l = [...(this._c[k] || [])];
+        if (j < 0 || j >= l.length) return;
+        [l[i], l[j]] = [l[j], l[i]];
+        this._send({ ...this._c, [k]: l });
+      });
+    }
+  }
+
   _r() {
     if (!this._h || !this._c) return;
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { tittel: "Tittel", ikon: "Ikon", visning: "Visning", maks: "Avganger per holdeplass", gange: "Gangtid (min)",
-        bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet",
+        bakgrunn: "Bakgrunnsfarge (tom = ingen, popupen har sin egen)", maks_bredde: "Maks bredde på innholdet",
+        animasjon: "Animert topp", bakgrunn_glod: "Farget skjær øverst",
         vis_neste: "Vis neste avgang øverst", vis_avvik: "Vis avviksbanner", vis_linjer: "Vis linjebrikker", vis_sanntid: "Vis sanntid / rutetid" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
-      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this._c, ...e.detail.value } }, bubbles: true, composed: true })));
+      this._f.addEventListener("value-changed", (e) => this._send({ ...this._c, ...e.detail.value }));
       this.appendChild(this._f);
-      const p = document.createElement("div");
-      p.style.cssText = "padding:8px 4px;font-size:12.5px;opacity:.7";
-      p.textContent = "Holdeplasser (stops:) og avvik (disruptions:) settes i YAML-redigeringen.";
-      this.appendChild(p);
+      this._liste = document.createElement("div");
+      this.appendChild(this._liste);
     }
     this._f.hass = this._h;
-    this._f.data = { vis_neste: true, vis_avvik: true, vis_linjer: true, vis_sanntid: true, ...this._c };
+    this._f.data = { vis_neste: true, vis_avvik: true, vis_linjer: true, vis_sanntid: true,
+      animasjon: true, bakgrunn_glod: false, maks: 8, ...this._c };
     this._f.schema = [{ name: "tittel", selector: { text: {} } }, { name: "ikon", selector: { icon: {} } },
       { name: "visning", selector: { select: { options: [{ value: "valgt", label: "Én holdeplass om gangen" }, { value: "alle", label: "Alle under hverandre" }] } } },
       { name: "maks", selector: { number: { min: 1, max: 12, mode: "box" } } }, { name: "gange", selector: { number: { min: 0, max: 30, mode: "box" } } },
       { name: "bakgrunn", selector: { text: {} } }, { name: "maks_bredde", selector: { text: {} } },
+      { name: "animasjon", selector: { boolean: {} } }, { name: "bakgrunn_glod", selector: { boolean: {} } },
       { name: "vis_neste", selector: { boolean: {} } }, { name: "vis_avvik", selector: { boolean: {} } },
       { name: "vis_linjer", selector: { boolean: {} } }, { name: "vis_sanntid", selector: { boolean: {} } }];
+    this._tegnListe();
   }
 }
 if (!customElements.get("ki-ruter-card-editor")) window.KI.define("ki-ruter-card-editor", KiRuterCardEditor);

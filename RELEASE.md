@@ -1,23 +1,31 @@
-# ki-cards 3.33.0
+# ki-cards 3.34.0
 
-## `ki-ruter-card` 4.2.0
+## `ki-ruter-card` 4.3.0
 
-**Gløden øverst er tydeligere.** Den var nesten borte etter at kortet mistet sin egen
-bakgrunn — opaciteten er hevet fra .22 til .38, og gradienten er strammet inn til en
-ellipse så fargen samler seg i toppen i stedet for å smøre seg utover hele kortet.
+**Gløden er av.** Jeg leste «gjern gløden øverst» som «gjerne» og gjorde den sterkere —
+det skulle vært «fjern». Den er nå av som standard. `bakgrunn_glod: true` slår den på.
 
-**Kjøretøyene er tegnet om.** Karosseriet har gradient fra linjefargen ned til en mørkere
-variant, med et skyggebelte langs bunnen. Rutene er lyse med avrundede hjørner og en egen
-rute i front. Hjulene er mørke med en eike som roterer mens kjøretøyet kjører. Foran ligger
-en lykt med en pustende lyskjegle, og under står en myk skygge på bakken. Hele karosseriet
-humper svakt, så det ser ut til å kjøre og ikke gli.
+**Bare én avgang ble vist.** Kortet leste avganger fra `route` / `due_at` og de nummererte
+`route_1` til `route_12`. Mange Entur- og kollektivsensorer legger i stedet hele lista i én
+attributt — `departures`, `next_departures`, `calls` — og da så kortet bare den første
+avgangen, uansett hvor høyt `maks` sto.
 
-Trikken har fått strømavtaker, toget en skrå front, og båt og fly egne former.
+Slike lister leses nå også, med feltnavnene som er vanlige på tvers av integrasjonene
+(`line`/`route`, `destination`/`front_text`, `expected_departure_time`/`due_at`, `delay`,
+`realtime`, `platform`). Heter attributten noe annet hos deg:
+`avganger_attributt: mitt_feltnavn`, enten på kortet eller per holdeplass.
 
-Gradienten regnes ut i JavaScript i stedet for med `color-mix()` i `stop-color` — det er
-ikke trygt i alle SVG-motorer, og faller det ut blir stoppen svart i stedet for mørk.
+**«Invalid Date».** Den overstrekede planlagte tiden ble regnet som
+`new Date(new Date("14:53"))`, og et klokkeslett uten dato gir Invalid Date. Den regnes nå
+fra minutter til avgang, som allerede tåler begge formater.
 
-**Scenen er høyere.** Banene er 46 px i stedet for 34, med en bydis øverst og en lav
-silhuett av bygninger bak, tonet ut mot toppen.
+**Velgeren hoppet til start.** Ved hvert bytte ble hele innholdet tegnet om, og
+rullestillingen i pillerada nullstilt — med mange holdeplasser forsvant den valgte ut av
+syne. Posisjonen beholdes nå, og den valgte pilla rulles til midten.
 
-**Flere avganger.** Standard `maks` er hevet fra 5 til 8 per holdeplass.
+**Rekkefølge i editoren.** Under skjemaet ligger nå en liste over reisene og
+holdeplassene med opp- og nedknapper. Rekkefølgen der er den samme som pillene får.
+Hvilke holdeplasser som er med, settes fortsatt i YAML.
+
+Editoren har også fått brytere for animert topp og farget skjær, og standardverdien for
+avganger er rettet til 8 så den stemmer med kortet.
