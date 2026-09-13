@@ -1,4 +1,4 @@
-/* ki-cards v3.34.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.35.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.34.0";
+  KI.VERSION = "3.35.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17065,6 +17065,8 @@ try {
  * Del av ki-cards-bundelen; kan også legges i /config/www/ og lastes som JavaScript-modul alene.
  *
  * type: custom:ki-ruter-card
+ * vis_topp: false                  # toppraden med ikon, tittel og klokke (av som standard)
+ * plattformer: true                # slå sammen «..._platform_x»-sensorene til én holdeplass
  * tittel: Ruter                    ikon: mdi:bus-clock
  * visning: valgt | alle            # valgt = én tavle med holdeplassvelger, alle = alle under hverandre
  * maks: 8                          # avganger per holdeplass
@@ -17089,7 +17091,7 @@ try {
  *
  * Nedtellingen går hvert tiende sekund uten å vente på Home Assistant.
  */
-const KI_RUTER_VERSJON = "4.3.0";
+const KI_RUTER_VERSJON = "4.4.0";
 
 const KI_R_MODUS = {
   bus: { ikon: "mdi:bus", farge: "#e2483d", navn: "Buss" },
@@ -17326,43 +17328,105 @@ class KiRuterCard extends HTMLElement {
     return [...(c.stops || []).map((s) => s.entity), d.summary, ...(d.lines || []).map((l) => l.entity)].filter(Boolean); }
 
   /* ---------------------------------------------------------- avganger */
-  _avganger(st) {
-    const s = this._h.states[st.entity]; if (!s) return [];
-    const a = s.attributes, ut = [];
-    const legg = (rute, tid, forsinkelse, sanntid, mal, plattform) => {
-      if (!rute && !tid) return; const d = kiRDel(rute);
-      ut.push({ linje: d.linje, mal: mal || d.mal, rute, tid, forsinkelse: kiRForsink(forsinkelse), sanntid: sanntid !== false && sanntid !== "false", plattform });
+  /* Entur-sensorene fra HA gir to avganger hver: «route/due_at» og
+     «next_route/next_due_at». Noen andre integrasjoner bruker nummererte felt eller
+     en liste. Vi leser alle tre formene, og kan slå sammen flere entiteter til én
+     holdeplass – det er slik man får mer enn to avganger fra Entur. */
+  _fraEn(eid, st, ut) {
+    const s = this._h.states[eid];
+    if (!s) return;
+    const a = s.attributes;
+    const legg = (rute, tid, forsinkelse, sanntid, mal, plattform, min) => {
+      if (!rute && !tid) return;
+      const d = kiRDel(rute);
+      ut.push({ linje: d.linje, mal: mal || d.mal, rute, tid, min,
+        forsinkelse: kiRForsink(forsinkelse),
+        sanntid: sanntid !== false && sanntid !== "false",
+        plattform: plattform || this._plattform(eid, a) });
     };
-    legg(a.route, a.due_at || a.next_due_at, a.delay, a.real_time, a.destination, a.platform || a.quay);
-    for (let i = 1; i <= 12; i++) { if (a[`route_${i}`] === undefined && a[`due_at_${i}`] === undefined) continue;
-      legg(a[`route_${i}`], a[`due_at_${i}`], a[`delay_${i}`], a[`real_time_${i}`], a[`destination_${i}`], a[`platform_${i}`]); }
 
-    /* Mange Entur-/kollektivsensorer legger avgangene i én attributt som liste i stedet
-       for i nummererte felt. Feltnavnene varierer mellom integrasjonene, så vi godtar
-       de vanligste. `avganger_attributt:` overstyrer hvis din heter noe annet. */
+    // 1) første avgang – minuttene står i selve tilstanden
+    const naa = parseInt(s.state);
+    legg(a.route, a.due_at || a.next_due_at, a.delay, a.real_time, a.destination,
+      a.platform || a.quay, isNaN(naa) ? undefined : naa);
+
+    // 2) neste avgang
+    if (a.next_route || a.next_due_at) {
+      const m = parseInt(a.next_due_in);
+      legg(a.next_route, a.next_due_at, a.next_delay, a.next_real_time,
+        a.next_destination, a.platform || a.quay, isNaN(m) ? undefined : m);
+    }
+
+    // 3) nummererte felt
+    for (let i = 1; i <= 12; i++) {
+      if (a[`route_${i}`] === undefined && a[`due_at_${i}`] === undefined) continue;
+      legg(a[`route_${i}`], a[`due_at_${i}`], a[`delay_${i}`], a[`real_time_${i}`],
+        a[`destination_${i}`], a[`platform_${i}`]);
+    }
+
+    // 4) hele lista i én attributt
     const listeNavn = [st.avganger_attributt, this._c.avganger_attributt,
-      "departures", "next_departures", "avganger", "calls", "journeys", "lines"].filter(Boolean);
+      "departures", "next_departures", "avganger", "calls", "journeys"].filter(Boolean);
     for (const navn of listeNavn) {
       const liste = a[navn];
       if (!Array.isArray(liste) || !liste.length) continue;
       for (const d of liste) {
         if (!d || typeof d !== "object") continue;
-        const linje = d.line ?? d.linje ?? d.route ?? d.publicCode ?? d.line_name ?? d.number;
-        const mal = d.destination ?? d.mal ?? d.front_text ?? d.headsign ?? d.direction ?? d.destination_name;
-        const tid = d.expected_departure_time ?? d.expected ?? d.due_at ?? d.aimed_departure_time
-          ?? d.aimed ?? d.time ?? d.departure ?? d.expectedDepartureTime;
+        const linje = d.line ?? d.linje ?? d.route ?? d.publicCode ?? d.number;
+        const mal = d.destination ?? d.mal ?? d.front_text ?? d.headsign ?? d.direction;
+        const tid = d.expected_departure_time ?? d.expected ?? d.due_at
+          ?? d.aimed_departure_time ?? d.aimed ?? d.time ?? d.departure;
         legg(linje !== undefined && mal ? `${linje} ${mal}` : (linje ?? mal ?? d.route),
-          tid, d.delay ?? d.forsinkelse, d.realtime ?? d.real_time ?? d.is_realtime,
-          mal, d.platform ?? d.quay ?? d.spor);
+          tid, d.delay ?? d.forsinkelse, d.realtime ?? d.real_time, mal,
+          d.platform ?? d.quay ?? d.spor);
       }
-      break;   // første lista som finnes, er den vi bruker
+      break;
     }
-    if (ut.length && !ut[0].tid && s.state && !["unknown", "unavailable"].includes(s.state)) ut[0].tid = s.state;
-    const filter = st.linjer ? [].concat(st.linjer).map(String) : null;
-    return ut.filter((x) => x.tid).filter((x) => !filter || filter.includes(String(x.linje)))
-      .map((x, i) => ({ ...x, min: i === 0 && a.next_due_in !== undefined && !isNaN(parseInt(a.next_due_in)) ? parseInt(a.next_due_in) : kiRMin(x.tid) }))
-      .filter((x) => x.min === null || x.min >= -1).sort((x, y) => (x.min ?? 999) - (y.min ?? 999)).slice(0, this._c.maks);
   }
+
+  /* «sensor.transport_majorstuen_platform_e» → «E» */
+  _plattform(eid, a) {
+    if (a && (a.platform || a.quay)) return a.platform || a.quay;
+    const m = String(eid).match(/_platform_([a-z0-9]+)(?:_\d+)?$/i);
+    if (!m) return undefined;
+    const v = m[1];
+    return v.length <= 2 ? v.toUpperCase() : v;
+  }
+
+  /* Alle entitetene en holdeplass består av. `plattformer: true` (standard) tar med
+     søskensensorene «..._platform_x», som er der de øvrige avgangene ligger. */
+  _entiteter(st) {
+    const ut = [];
+    const legg = (x) => { if (x && !ut.includes(x)) ut.push(x); };
+    legg(st.entity);
+    [].concat(st.entities || []).forEach(legg);
+    if (st.plattformer !== false && this._c.plattformer !== false && st.entity) {
+      const pre = `${st.entity}_platform_`;
+      Object.keys(this._h.states).filter((x) => x.startsWith(pre)).sort().forEach(legg);
+    }
+    return ut;
+  }
+
+  _avganger(st) {
+    const ut = [];
+    for (const eid of this._entiteter(st)) this._fraEn(eid, st, ut);
+
+    const filter = st.linjer ? [].concat(st.linjer).map(String) : null;
+    const sett = new Set();
+    return ut
+      .filter((x) => x.tid)
+      .filter((x) => !filter || filter.includes(String(x.linje)))
+      .map((x) => ({ ...x, min: x.min !== undefined ? x.min : kiRMin(x.tid) }))
+      .filter((x) => x.min === null || x.min >= -1)
+      .filter((x) => {          // samme linje, mål og minutt fra to plattformer: én rad
+        const n = `${x.linje}|${x.mal}|${x.min}`;
+        if (sett.has(n)) return false;
+        sett.add(n); return true;
+      })
+      .sort((x, y) => (x.min ?? 999) - (y.min ?? 999))
+      .slice(0, this._c.maks);
+  }
+
   _modus(st, avg) {
     const s = this._h.states[st.entity], m = String((s && (s.attributes.transport_mode || s.attributes.mode)) || st.mode || "").toLowerCase();
     if (KI_R_MODUS[m]) return KI_R_MODUS[m];
@@ -17589,9 +17653,12 @@ class KiRuterCard extends HTMLElement {
 
   _innhold() {
     const c = this._c, stopp = [...this._reiser(), ...this._stopp()];
-    const topp = `<div class="topp"><span class="ikon"><ha-icon icon="${kiREsc(c.ikon)}"></ha-icon></span>
-      ${c.tittel ? `<span class="tittel">${kiREsc(c.tittel)}</span>` : ""}
-      <span class="klokke">oppdatert ${new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span></div>`;
+    // Toppraden er av som standard – popupen har alt sin egen overskrift.
+    const topp = c.vis_topp === true
+      ? `<div class="topp"><span class="ikon"><ha-icon icon="${kiREsc(c.ikon)}"></ha-icon></span>
+        ${c.tittel ? `<span class="tittel">${kiREsc(c.tittel)}</span>` : ""}
+        <span class="klokke">oppdatert ${new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span></div>`
+      : "";
     if (!stopp.length) return `${topp}<div class="tom">Legg til holdeplasser under <code>stops:</code>.</div>`;
     const valgt = Math.min(this._valgt, stopp.length - 1);
     const enTavle = c.visning !== "alle" && stopp.length > 1;

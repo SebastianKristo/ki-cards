@@ -1,31 +1,31 @@
-# ki-cards 3.34.0
+# ki-cards 3.35.0
 
-## `ki-ruter-card` 4.3.0
+## `ki-ruter-card` 4.4.0: nå kommer alle avgangene
 
-**Gløden er av.** Jeg leste «gjern gløden øverst» som «gjerne» og gjorde den sterkere —
-det skulle vært «fjern». Den er nå av som standard. `bakgrunn_glod: true` slår den på.
+Entur-integrasjonen i Home Assistant legger **to** avganger på hver sensor:
 
-**Bare én avgang ble vist.** Kortet leste avganger fra `route` / `due_at` og de nummererte
-`route_1` til `route_12`. Mange Entur- og kollektivsensorer legger i stedet hele lista i én
-attributt — `departures`, `next_departures`, `calls` — og da så kortet bare den første
-avgangen, uansett hvor høyt `maks` sto.
+```
+route: 5 Ringen via Storo   due_at: 15:15   real_time: true   delay: 0
+next_route: 25 Haugerud     next_due_at: 15:18   next_due_in: 2 min
+```
 
-Slike lister leses nå også, med feltnavnene som er vanlige på tvers av integrasjonene
-(`line`/`route`, `destination`/`front_text`, `expected_departure_time`/`due_at`, `delay`,
-`realtime`, `platform`). Heter attributten noe annet hos deg:
-`avganger_attributt: mitt_feltnavn`, enten på kortet eller per holdeplass.
+Kortet leste bare den første, og lette ellers etter `route_1` til `route_12` og en
+`departures`-liste — ingen av delene finnes i disse sensorene. Derfor sto det én avgang
+uansett hvor høyt `maks` var satt, og derfor hjalp ikke listestøtten i forrige versjon.
 
-**«Invalid Date».** Den overstrekede planlagte tiden ble regnet som
-`new Date(new Date("14:53"))`, og et klokkeslett uten dato gir Invalid Date. Den regnes nå
-fra minutter til avgang, som allerede tåler begge formater.
+`next_route`-paret leses nå. Minuttene tas fra sensorens egen tilstand for den første og
+fra `next_due_in` for den andre, i stedet for å regnes ut fra et klokkeslett uten dato.
 
-**Velgeren hoppet til start.** Ved hvert bytte ble hele innholdet tegnet om, og
-rullestillingen i pillerada nullstilt — med mange holdeplasser forsvant den valgte ut av
-syne. Posisjonen beholdes nå, og den valgte pilla rulles til midten.
+**Plattform-sensorene slås sammen.** To avganger per sensor er fortsatt lite, men
+Entur lager også en sensor per plattform — `..._platform_a`, `..._platform_b` og så
+videre. De plukkes nå opp automatisk og slås sammen til én holdeplass, sortert etter
+avgangstid, med plattformbokstaven på hver rad. Majorstuen går dermed fra én avgang til
+et par dusin å velge blant.
 
-**Rekkefølge i editoren.** Under skjemaet ligger nå en liste over reisene og
-holdeplassene med opp- og nedknapper. Rekkefølgen der er den samme som pillene får.
-Hvilke holdeplasser som er med, settes fortsatt i YAML.
+Dubletter lukes bort: samme linje, mål og minutt fra to sensorer blir én rad.
 
-Editoren har også fått brytere for animert topp og farget skjær, og standardverdien for
-avganger er rettet til 8 så den stemmer med kortet.
+Slås av med `plattformer: false`, enten på kortet eller per holdeplass. Vil du styre det
+selv i stedet, list entitetene: `entities: [sensor.a, sensor.b]`.
+
+**Toppraden er borte.** Ikonet, tittelen og «oppdatert 15:14» er av som standard —
+popupen har sin egen overskrift. `vis_topp: true` gir den tilbake.
