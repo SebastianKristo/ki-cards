@@ -1,26 +1,20 @@
-# ki-cards 3.45.1
+# ki-cards 3.46.0
 
-## «Kunne ikke utføre handlingen input_number/increment»
+## Romtemperaturen finnes på varmekilden, ikke på navnet
 
-Klimakortet i rom-popupen bygget kallet feil:
+Kortene lette etter `number.ki_rom_<romnavn>_temp` ved å gjøre romnavnet om til et
+entitetsnavn. Det krever at navnet på flisa er nøyaktig det samme som `rom`-feltet på
+sonen i KI Energi — og det er det sjelden. Heter flisa «Soverom» mens sonen har
+«Soverom barn», bommer oppslaget, og kortet faller tilbake på den gamle
+`input_number`-telleren.
 
-```js
-{ service: 'input_number.increment', data: { entity_id: teller, amount: 1 } }
-```
+Romtallet lister varmekildene sine i attributtet `kilder`, med klimaentiteten på hver.
+Kortene matcher nå på den i stedet: finn romtallet som inneholder klimaentiteten rommet
+bruker. Navnet er bare reserve.
 
-`entity_id` må ligge i `target`, ikke i `data` — derfor klagde Home Assistant på at kallet
-«must contain at least one of entity_id, device_id, area_id…». Og `increment` tar ingen
-`amount`; steget ligger på selve `input_number`-hjelperen. Begge deler er rettet, også i
-romflisa, som sendte en `amount` den ikke skulle.
+Det virker også begge veier for et rom med flere kilder — stua treffes enten kortet kjenner
+panelovnen eller oljefyren.
 
-## Hvorfor den ikke brukte KI Energi
-
-Kortene ser etter `number.ki_rom_<rom>_temp`. Finnes den ikke, faller de tilbake på
-`input_number`-telleren — og det var det som skjedde her.
-
-Finner de ingen match, skrives det nå én linje i nettleserkonsollen med hvilke
-romtemperaturer som faktisk finnes, eller at det ikke finnes noen i det hele tatt. Da ser
-du med én gang om det er romnavnet som ikke stemmer, eller om KI Energi mangler.
-
-Romtallet krever KI Energi 2.16 eller nyere, og at sonen har et `rom`-felt. For et rom som
-heter «Soverom» blir entiteten `number.ki_rom_soverom_temp`.
+Finner den fortsatt ingenting, skriver den én linje i konsollen med hvilke romtemperaturer
+som finnes og hva den prøvde, så du ser om det er KI Energi som mangler eller sonen som
+ikke har rommet satt.

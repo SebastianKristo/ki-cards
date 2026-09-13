@@ -425,16 +425,15 @@
 
   /* KI Energi lager number.ki_rom_<rom>_temp per rom. Den setter alle varmekildene i
      rommet på én gang og leser tilbake det som faktisk er satt. */
-  /* Fant vi ikke rommet, si fra én gang hvilke som faktisk finnes – da ser du med én
-     gang om det er navnet på rommet som ikke stemmer, eller om KI Energi mangler. */
-  function kiRomBom(hass, prøvd) {
+  /* Fant vi ikke rommet, si fra én gang – da ser du om det er navnet som ikke stemmer,
+     eller om KI Energi mangler. */
+  function kiRomBom(hass, prøvd, alle) {
     if (kiRomBom._sagt) return null;
     kiRomBom._sagt = 1;
-    const finnes = Object.keys(hass.states)
-      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
-    if (finnes.length) {
-      console.info('ki-cards: fant ingen romtemperatur for', prøvd.filter(Boolean),
-        '— disse finnes:', finnes);
+    if (alle && alle.length) {
+      console.info('ki-cards: fant ingen romtemperatur for', (prøvd || []).filter(Boolean),
+        '— disse finnes:', alle,
+        '(match skjer på klimaentiteten i attributtet «kilder», ellers på romnavnet)');
     } else {
       console.info('ki-cards: ingen number.ki_rom_*_temp i det hele tatt. '
         + 'Krever KI Energi 2.16 eller nyere, og at sonene har et rom-felt.');
@@ -442,12 +441,29 @@
     return null;
   }
 
-  function kiRomTall(hass, ...navn) {
+  /* Finn KI Energis romtall. Navnematching er skjør — «Soverom» på flisa kan hete
+     «Soverom barn» i sonen — så vi matcher først på selve klimaenheten, som romtallet
+     lister i attributtet `kilder`. Navnet brukes bare som reserve. */
+  function kiRomTall(hass, klimaListe, ...navn) {
+    const alle = Object.keys(hass.states)
+      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
+    const ønsket = [].concat(klimaListe || []).filter(Boolean);
+
+    for (const id of alle) {
+      const kilder = (hass.states[id].attributes || {}).kilder || [];
+      const mine = [];
+      for (const k of kilder) {
+        const c = k && k.klima;
+        for (const e of (typeof c === 'string' ? [c] : (c || []))) if (e) mine.push(e);
+      }
+      if (ønsket.some((e) => mine.includes(e))) return id;
+    }
+
     for (const n of navn) {
       const id = 'number.ki_rom_' + romSlug(n) + '_temp';
       if (n && hass.states[id]) return id;
     }
-    return kiRomBom(hass, navn);
+    return kiRomBom(hass, navn, alle);
   }
 
   function climateCard(hass, e, powerSensor, hum, name, tellerSuffix, romTall) {
@@ -537,7 +553,7 @@
     const cards = enheter.map((d) => (d.entity.startsWith('climate.')
       ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix,
           cfg.rom_tall === false ? null
-            : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, roomName, cfg.rom)))
+            : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, [d.entity], roomName, cfg.rom)))
       : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {

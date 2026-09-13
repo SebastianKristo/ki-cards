@@ -60,16 +60,15 @@
   /* KI Energi lager ett temperaturpunkt per rom: number.ki_rom_<rom>_temp. Det setter
      alle varmekildene i rommet – stua har panelovn og oljefyr, kjøkkenet panelovn og
      gulvvarme – så kortet slipper en egen input_number. */
-  /* Fant vi ikke rommet, si fra én gang hvilke som faktisk finnes – da ser du med én
-     gang om det er navnet på rommet som ikke stemmer, eller om KI Energi mangler. */
-  function kiRomBom(hass, prøvd) {
+  /* Fant vi ikke rommet, si fra én gang – da ser du om det er navnet som ikke stemmer,
+     eller om KI Energi mangler. */
+  function kiRomBom(hass, prøvd, alle) {
     if (kiRomBom._sagt) return null;
     kiRomBom._sagt = 1;
-    const finnes = Object.keys(hass.states)
-      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
-    if (finnes.length) {
-      console.info('ki-cards: fant ingen romtemperatur for', prøvd.filter(Boolean),
-        '— disse finnes:', finnes);
+    if (alle && alle.length) {
+      console.info('ki-cards: fant ingen romtemperatur for', (prøvd || []).filter(Boolean),
+        '— disse finnes:', alle,
+        '(match skjer på klimaentiteten i attributtet «kilder», ellers på romnavnet)');
     } else {
       console.info('ki-cards: ingen number.ki_rom_*_temp i det hele tatt. '
         + 'Krever KI Energi 2.16 eller nyere, og at sonene har et rom-felt.');
@@ -77,12 +76,29 @@
     return null;
   }
 
-  function kiRomTall(hass, romnavn, areaId) {
-    for (const n of [romnavn, areaId]) {
+  /* Finn KI Energis romtall. Navnematching er skjør — «Soverom» på flisa kan hete
+     «Soverom barn» i sonen — så vi matcher først på selve klimaenheten, som romtallet
+     lister i attributtet `kilder`. Navnet brukes bare som reserve. */
+  function kiRomTall(hass, klimaListe, ...navn) {
+    const alle = Object.keys(hass.states)
+      .filter((x) => x.startsWith('number.ki_rom_') && x.endsWith('_temp'));
+    const ønsket = [].concat(klimaListe || []).filter(Boolean);
+
+    for (const id of alle) {
+      const kilder = (hass.states[id].attributes || {}).kilder || [];
+      const mine = [];
+      for (const k of kilder) {
+        const c = k && k.klima;
+        for (const e of (typeof c === 'string' ? [c] : (c || []))) if (e) mine.push(e);
+      }
+      if (ønsket.some((e) => mine.includes(e))) return id;
+    }
+
+    for (const n of navn) {
       const id = 'number.ki_rom_' + romSlug(n) + '_temp';
       if (n && hass.states[id]) return id;
     }
-    return kiRomBom(hass, [romnavn, areaId]);
+    return kiRomBom(hass, navn, alle);
   }
 
   // termostat-stepper (btn1). Rekkefølge: KI Energis romtall, så input_number-teller,
@@ -132,7 +148,8 @@
     const name = cfg.navn || a.rom || cap(cfg.rom);
     // cfg.rom_tall: false slår av automatikken, en streng peker på en annen entitet
     const romTall = cfg.rom_tall === false ? null
-      : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, name, cfg.rom));
+      : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall
+         : kiRomTall(hass, (a.klima || []).map((k) => k && k.entity), name, cfg.rom));
     const icon = cfg.ikon || a.ikon || 'mdi:home-outline';
     const path = cfg.path || ('#' + a.area_id);
     const color = cfg.farge || 'var(--green)';
