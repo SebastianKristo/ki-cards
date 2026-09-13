@@ -1,959 +1,276 @@
-/**
- * ki-ruter-card.js  —  v1.0.0
+/* ki-ruter-card – kollektivavganger fra Entur + avvik fra Ruter. Frittstående (ingen avhengigheter).
+ * Legg filen i /config/www/ og legg til ressursen /local/ki-ruter-card.js (JavaScript-modul).
  *
- * Kollektivavganger fra Entur-sensorer, med avviksvarsler fra Ruter.
+ * type: custom:ki-ruter-card
+ * tittel: Ruter
+ * visning: valgt | alle          # valgt = holdeplass-velger, alle = alle tavlene under hverandre
+ * maks: 5                        # avganger per holdeplass
+ * gange: 4                       # minutter å gå til holdeplassen – avganger du ikke rekker tones ned
+ * stops:
+ *   - entity: sensor.transport_majorstuen
+ *     name: Majorstuen           ikon: mdi:subway-variant      gange: 7
+ * disruptions:
+ *   summary: sensor.ruter_disruption_summary
+ *   lines: [ { entity: sensor.ruter_disruption_rut_line_1, name: '1' } ]
  *
- *   • Avgangstavle per holdeplass: linjenummer, destinasjon, klokkeslett
- *     og nedtelling. Forsinkelser vises i oransje.
- *   • Nedtellingen oppdateres hvert tiende sekund uten å vente på HA
- *   • Avviksbanner øverst når det er meldinger, med linjer som chips
- *   • Full GUI-editor med automatisk oppdaging av transport-sensorer
- *
- * Legges i /config/www/ki-ruter-card.js og registreres som
- * JavaScript Module: /local/ki-ruter-card.js
+ * Nedtellingen går hvert tiende sekund uten å vente på Home Assistant.
  */
+const KI_RUTER_VERSJON = "2.0.0";
 
-const KI_RUTER_VERSION = "1.0.0";
-
-console.info(
-  `%c KI-RUTER-CARD %c ${KI_RUTER_VERSION} `,
-  "background:#2b2b2e;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px",
-  "background:#e11d48;color:#fff;border-radius:0 3px 3px 0;padding:2px 4px"
-);
-
-/* ────────────────────────────────────────────────────────────── verktøy ── */
-
-const esc = (s) =>
-  String(s === undefined || s === null ? "" : s).replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
-  );
-
-/** «12:34» fra ISO-tid, klokkeslett eller Date. */
-const klokke = (v) => {
-  if (!v) return "";
-  if (typeof v === "string" && /^\d{1,2}:\d{2}/.test(v)) return v.slice(0, 5);
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return String(v);
-  return d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+const KI_R_MODUS = {
+  bus: { ikon: "mdi:bus", farge: "#e2483d", navn: "Buss" },
+  tram: { ikon: "mdi:tram", farge: "#2b7fd1", navn: "Trikk" },
+  metro: { ikon: "mdi:subway-variant", farge: "#ec700c", navn: "T-bane" },
+  rail: { ikon: "mdi:train", farge: "#3ca66e", navn: "Tog" },
+  train: { ikon: "mdi:train", farge: "#3ca66e", navn: "Tog" },
+  water: { ikon: "mdi:ferry", farge: "#00a2b6", navn: "Båt" },
+  ferry: { ikon: "mdi:ferry", farge: "#00a2b6", navn: "Båt" },
+  air: { ikon: "mdi:airplane", farge: "#8a6fd1", navn: "Fly" },
 };
 
-/** Minutter til avgang, regnet ut fra tidspunktet hvis mulig. */
-const minutterTil = (v) => {
-  if (!v) return null;
-  let d;
-  if (typeof v === "string" && /^\d{1,2}:\d{2}/.test(v)) {
-    const [t, m] = v.split(":").map(Number);
-    d = new Date();
-    d.setHours(t, m, 0, 0);
-    // Passert med mer enn seks timer betyr sannsynligvis i morgen
-    if (d.getTime() - Date.now() < -6 * 3600000) d.setDate(d.getDate() + 1);
-  } else {
-    d = new Date(v);
-  }
-  if (isNaN(d.getTime())) return null;
-  return Math.round((d.getTime() - Date.now()) / 60000);
-};
+const KI_R_STIL = `
+  :host { display:block; --myk:cubic-bezier(.2,.8,.2,1); }
+  * { box-sizing:border-box; }
+  .kort { border-radius:var(--ha-card-border-radius,24px); background:var(--gray200, var(--card-background-color));
+    color:var(--gray1000, var(--primary-text-color)); padding:14px 14px 12px; }
+  [data-a] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  [tabindex]:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
-const nedtelling = (min) => {
-  if (min === null) return "";
-  if (min <= 0) return "nå";
-  if (min < 60) return `${min} min`;
-  const t = Math.floor(min / 60);
-  const r = min % 60;
-  return r ? `${t} t ${r} min` : `${t} t`;
-};
+  .hode { display:flex; align-items:center; gap:10px; padding:2px 4px 12px; }
+  .hode h2 { margin:0; font-size:17px; font-weight:500; flex:1; }
+  .hode .ik { width:36px; height:36px; border-radius:50%; background:rgba(128,128,128,.16); display:flex; align-items:center; justify-content:center; --mdc-icon-size:20px; }
+  .hode .klokke { font-size:12.5px; opacity:.55; font-variant-numeric:tabular-nums; }
 
-/** Skiller «21 Helsfyr» i linjenummer og destinasjon. */
-const delRute = (rute) => {
-  const s = String(rute || "").trim();
-  const m = s.match(/^([0-9]+[A-Za-z]?)\s+(.*)$/);
-  if (m) return { linje: m[1], mal: m[2] };
-  return { linje: "", mal: s };
-};
+  /* neste avgang */
+  .neste { position:relative; border-radius:20px; padding:14px 16px; margin-bottom:10px; overflow:hidden; isolation:isolate;
+    background:linear-gradient(100deg, color-mix(in srgb, var(--lf,#2b7fd1) 30%, transparent), transparent 72%); }
+  .neste::after { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--lf,#2b7fd1); }
+  .neste .rad { display:flex; align-items:center; gap:12px; }
+  .neste .tall { font-size:2.5em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+  .neste .tall small { font-size:.32em; font-weight:400; opacity:.6; margin-left:5px; letter-spacing:0; }
+  .neste .hvor { font-size:13px; opacity:.7; margin-top:3px; }
+  .neste .mot { font-size:15px; font-weight:500; }
 
-/**
- * Leser avgangene ut av en Entur-sensor. Integrasjonen legger den første
- * avgangen i umerkede attributter og resten som route_1, due_at_1 osv.
- */
-const forsinkMin = (v, enhet) => {
-  if (v === undefined || v === null || v === "") return null;
-  const n = parseFloat(v);
-  if (isNaN(n)) return null;
-  if (enhet === "min") return n;
-  if (enhet === "s") return n / 60;
-  // auto: Entur oppgir sekunder, men noen oppsett bruker minutter.
-  // Verdier på 60 og over tolkes som sekunder.
-  return Math.abs(n) >= 60 ? n / 60 : n;
-};
+  /* holdeplassvelger */
+  .velger { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -14px 10px; padding:2px 14px; scroll-snap-type:x proximity; }
+  .velger::-webkit-scrollbar { display:none; }
+  .hp { flex:none; scroll-snap-align:start; display:flex; align-items:center; gap:7px; padding:8px 13px; border-radius:999px; font-size:13px; font-weight:500;
+    background:rgba(128,128,128,.16); white-space:nowrap; transition:background .3s, color .3s, transform .15s; --mdc-icon-size:17px; }
+  .hp:active { transform:scale(.95); }
+  .hp.valgt { background:var(--gray1000, var(--primary-text-color)); color:var(--gray200, var(--card-background-color)); }
+  .hp b { font-variant-numeric:tabular-nums; opacity:.75; font-weight:600; }
+  .hp .varsel { width:7px; height:7px; border-radius:50%; background:var(--red,#e2483d); }
 
-const lesAvganger = (s, maks, forsinkEnhet) => {
-  if (!s || !s.attributes) return [];
-  const a = s.attributes;
-  const ut = [];
+  /* tavle */
+  .tavle + .tavle { margin-top:14px; }
+  .tavlehode { display:flex; align-items:center; justify-content:space-between; padding:2px 6px 8px; }
+  .tavlehode .navn { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; --mdc-icon-size:18px; }
+  .tavlehode .meta { font-size:12px; opacity:.55; }
+  .avg { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:9px 12px 9px 8px; border-radius:18px;
+    background:rgba(128,128,128,.10); transition:background .3s, opacity .3s; }
+  .avg + .avg { margin-top:5px; }
+  .avg.snart { background:linear-gradient(100deg, color-mix(in srgb, var(--lf) 22%, transparent), rgba(128,128,128,.10) 60%); }
+  .avg.rekker-ikke { opacity:.45; }
+  .linje { min-width:42px; height:34px; padding:0 9px; border-radius:10px; background:var(--lf,#666); color:#fff; display:flex; align-items:center; justify-content:center;
+    gap:4px; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; --mdc-icon-size:17px; }
+  .linje.ikon-bare { min-width:34px; padding:0; }
+  .mot2 { font-size:14.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .under { display:flex; align-items:center; gap:7px; font-size:12px; opacity:.65; margin-top:2px; flex-wrap:wrap; }
+  .under .strek { text-decoration:line-through; }
+  .forsink { color:var(--orange,#f0a020); font-weight:600; opacity:1; }
+  .tidlig { color:var(--green,#3ddc97); font-weight:600; opacity:1; }
+  .sanntid { display:inline-flex; align-items:center; gap:4px; opacity:1; }
+  .sanntid i { width:6px; height:6px; border-radius:50%; background:var(--green,#3ddc97); animation:r-puls 2s ease-in-out infinite; }
+  @keyframes r-puls { 0%,100% { opacity:.35; transform:scale(.8); } 50% { opacity:1; transform:scale(1.15); } }
+  .ned { text-align:right; font-variant-numeric:tabular-nums; }
+  .ned b { font-size:19px; font-weight:600; display:block; line-height:1.15; }
+  .ned b.naa { color:var(--green,#3ddc97); animation:r-blink 1.4s ease-in-out infinite; }
+  @keyframes r-blink { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+  .ned span { font-size:11.5px; opacity:.55; }
 
-  const legg = (rute, tid, forsinkelse, sanntid) => {
-    if (!rute && !tid) return;
-    ut.push({
-      ...delRute(rute),
-      rute,
-      tid,
-      forsinkelse: forsinkMin(forsinkelse, forsinkEnhet),
-      sanntid: sanntid !== false,
-    });
-  };
+  /* avvik */
+  .avvik { border-radius:18px; padding:11px 14px; margin-bottom:10px; display:flex; align-items:center; gap:10px; font-size:13.5px; --mdc-icon-size:20px; }
+  .avvik.ok { background:color-mix(in srgb, var(--green,#3ddc97) 16%, transparent); color:var(--green,#3ddc97); }
+  .avvik.varsel { background:color-mix(in srgb, var(--red,#e2483d) 20%, transparent); flex-direction:column; align-items:stretch; gap:0; padding:0; }
+  .avvik-hode { display:flex; align-items:center; gap:10px; padding:11px 14px; font-weight:500; }
+  .avvik-hode .pil { margin-left:auto; transition:transform .3s; --mdc-icon-size:20px; opacity:.7; }
+  .avvik-hode .pil.ap { transform:rotate(180deg); }
+  .avvik-tekst { padding:0 14px 12px; font-size:13px; line-height:1.5; opacity:.85; white-space:pre-line; max-height:260px; overflow-y:auto; animation:r-inn .35s var(--myk) both; }
+  .avvik-tekst h4 { margin:10px 0 3px; font-size:13px; }
+  @keyframes r-inn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  .linjer { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .lj { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:999px; font-size:12.5px; font-weight:700;
+    background:rgba(128,128,128,.16); font-variant-numeric:tabular-nums; }
+  .lj.varsel { background:color-mix(in srgb, var(--red,#e2483d) 26%, transparent); }
+  .lj em { font-style:normal; font-size:11px; font-weight:700; background:var(--red,#e2483d); color:#fff; border-radius:999px; padding:1px 6px; }
+  .tom { padding:18px 10px; text-align:center; font-size:13.5px; opacity:.6; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
+`;
 
-  legg(a.route, a.due_at || a.next_due_at, a.delay, a.real_time);
-  for (let i = 1; i <= 12; i++) {
-    if (a[`route_${i}`] === undefined && a[`due_at_${i}`] === undefined) continue;
-    legg(a[`route_${i}`], a[`due_at_${i}`], a[`delay_${i}`], a[`real_time_${i}`]);
-  }
-
-  // Første avgang kan mangle tid; da står den i selve tilstanden
-  if (ut.length && !ut[0].tid && s.state && s.state !== "unknown") ut[0].tid = s.state;
-
-  return ut
-    .filter((x) => x.tid)
-    .map((x) => ({ ...x, min: a.next_due_in !== undefined && ut.indexOf(x) === 0
-        ? parseInt(a.next_due_in)
-        : minutterTil(x.tid) }))
-    .filter((x) => x.min === null || x.min >= -2)
-    .slice(0, maks || 4);
-};
-
-const IKON_MODUS = {
-  bus: "mdi:bus",
-  tram: "mdi:tram",
-  metro: "mdi:subway-variant",
-  rail: "mdi:train",
-  train: "mdi:train",
-  water: "mdi:ferry",
-  ferry: "mdi:ferry",
-  air: "mdi:airplane",
-};
-
-const STANDARD_KONFIG = () => ({
-  type: "custom:ki-ruter-card",
-  title: "Kollektiv",
-  title_icon: "mdi:bus-clock",
-  max_departures: 4,
-  delay_unit: "auto",
-  stops: [
-    { entity: "sensor.transport_majorstuen", name: "Majorstuen", icon: "mdi:subway-variant" },
-    { entity: "sensor.transport_smestad", name: "Smestad", icon: "mdi:subway-variant" },
-    { entity: "sensor.transport_bislett", name: "Bislett", icon: "mdi:tram" },
-    { entity: "sensor.transport_homansbyen", name: "Homansbyen", icon: "mdi:tram" },
-    { entity: "sensor.transport_hovseter", name: "Hovseter", icon: "mdi:subway-variant" },
-  ],
-  disruptions: {
-    summary: "sensor.ruter_disruption_summary",
-    lines: [
-      { entity: "sensor.ruter_disruption_rut_line_1", name: "1" },
-      { entity: "sensor.ruter_disruption_rut_line_2", name: "2" },
-      { entity: "sensor.ruter_disruption_rut_line_12", name: "12" },
-      { entity: "sensor.ruter_disruption_rut_line_13", name: "13" },
-      { entity: "sensor.ruter_disruption_rut_line_15", name: "15" },
-      { entity: "sensor.ruter_disruption_rut_line_19", name: "19" },
-      { entity: "sensor.ruter_disruption_rut_line_45", name: "45" },
-      { entity: "sensor.ruter_disruption_rut_line_46", name: "46" },
-    ],
-  },
-});
-
-/* ─────────────────────────────────────────────────────────────── kortet ── */
+const kiREsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const kiRKl = (v) => { if (!v) return ""; if (typeof v === "string" && /^\d{1,2}:\d{2}/.test(v)) return v.slice(0, 5);
+  const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }); };
+const kiRMin = (v) => { if (!v) return null; let d;
+  if (typeof v === "string" && /^\d{1,2}:\d{2}/.test(v)) { const [t, m] = v.split(":").map(Number); d = new Date(); d.setHours(t, m, 0, 0); if (d - Date.now() < -6 * 3600000) d.setDate(d.getDate() + 1); }
+  else d = new Date(v);
+  return isNaN(d) ? null : Math.round((d - Date.now()) / 60000); };
+const kiRNed = (m) => m === null ? "" : m <= 0 ? "nå" : m < 60 ? `${m}` : `${Math.floor(m / 60)}t ${m % 60}`;
+const kiRForsink = (v) => { if (v === undefined || v === null || v === "") return null; const n = parseFloat(v); if (isNaN(n)) return null; return Math.abs(n) >= 60 ? Math.round(n / 60) : Math.round(n); };
+const kiRDel = (rute) => { const s = String(rute || "").trim(); const m = s.match(/^([0-9]+[A-Za-z]?)\s+(.*)$/); return m ? { linje: m[1], mal: m[2] } : { linje: "", mal: s }; };
 
 class KiRuterCard extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" });
-    this._apneStopp = new Set();
-    this._visAvvik = false;
-    this._signatur = "";
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._valgt = 0; this._visAvvik = false; }
+  static getStubConfig() { return { tittel: "Ruter", stops: [] }; }
+  static getConfigElement() { return document.createElement("ki-ruter-card-editor"); }
+  getCardSize() { return 8; }
+  getGridOptions() { return { columns: 12, min_rows: 6 }; }
+
+  setConfig(c) {
+    const k = JSON.parse(JSON.stringify(c || {}));
+    this._c = { tittel: k.tittel ?? k.title ?? "Ruter", ikon: k.ikon || k.title_icon || "mdi:bus-clock", visning: k.visning || "valgt",
+      maks: k.maks || k.max_departures || 5, gange: k.gange ?? 0, stops: k.stops || [], disruptions: k.disruptions || {} };
+    this._bygget = false; this._tegn();
   }
+  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => { this._forrige = null; this._tegn(); }, 10000); this._tegn(); }
+  disconnectedCallback() { clearInterval(this._i); }
+  set hass(h) { const g = this._h; this._h = h; if (!this._c) return;
+    if (!g || !this._bygget || this._ider().some((id) => g.states[id] !== h.states[id])) this._tegn(); }
+  _ider() { const c = this._c, d = c.disruptions;
+    return [...c.stops.map((s) => s.entity), d.summary, ...(d.lines || []).map((l) => l.entity)].filter(Boolean); }
 
-  static getConfigElement() {
-    return document.createElement("ki-ruter-card-editor");
+  /* ---------------------------------------------------------- avganger */
+  _avganger(st) {
+    const s = this._h.states[st.entity]; if (!s) return [];
+    const a = s.attributes, ut = [];
+    const legg = (rute, tid, forsinkelse, sanntid, mal, plattform) => {
+      if (!rute && !tid) return; const d = kiRDel(rute);
+      ut.push({ linje: d.linje, mal: mal || d.mal, rute, tid, forsinkelse: kiRForsink(forsinkelse), sanntid: sanntid !== false && sanntid !== "false", plattform });
+    };
+    legg(a.route, a.due_at || a.next_due_at, a.delay, a.real_time, a.destination, a.platform || a.quay || a.stop_id);
+    for (let i = 1; i <= 12; i++) { if (a[`route_${i}`] === undefined && a[`due_at_${i}`] === undefined) continue;
+      legg(a[`route_${i}`], a[`due_at_${i}`], a[`delay_${i}`], a[`real_time_${i}`], a[`destination_${i}`], a[`platform_${i}`]); }
+    if (ut.length && !ut[0].tid && s.state && !["unknown", "unavailable"].includes(s.state)) ut[0].tid = s.state;
+    return ut.filter((x) => x.tid).map((x, i) => ({ ...x, min: i === 0 && a.next_due_in !== undefined && !isNaN(parseInt(a.next_due_in)) ? parseInt(a.next_due_in) : kiRMin(x.tid) }))
+      .filter((x) => x.min === null || x.min >= -1).sort((x, y) => (x.min ?? 999) - (y.min ?? 999)).slice(0, this._c.maks);
   }
-
-  static getStubConfig() {
-    return STANDARD_KONFIG();
+  _modus(st, avg) {
+    const s = this._h.states[st.entity], m = String((s && (s.attributes.transport_mode || s.attributes.mode)) || st.mode || "").toLowerCase();
+    if (KI_R_MODUS[m]) return KI_R_MODUS[m];
+    const ik = st.icon || "";
+    const treff = Object.values(KI_R_MODUS).find((x) => x.ikon === ik); if (treff) return treff;
+    const n = avg && avg.linje ? parseInt(avg.linje) : NaN;
+    if (n >= 1 && n <= 6) return KI_R_MODUS.metro; if (n >= 11 && n <= 19) return KI_R_MODUS.tram;
+    return KI_R_MODUS.bus;
   }
+  _stopp() { return this._c.stops.filter((st) => st.entity).map((st) => { const s = this._h.states[st.entity], avg = this._avganger(st);
+    return { ...st, navn: st.name || st.navn || (s ? s.attributes.friendly_name : st.entity), gange: st.gange ?? this._c.gange, avg, modus: this._modus(st, avg[0]), mangler: !s }; }); }
 
-  setConfig(config) {
-    this._config = JSON.parse(JSON.stringify(config));
-    if (!this._config.stops) this._config.stops = [];
-    if (!this._config.disruptions) this._config.disruptions = {};
-    this._signatur = "";
-    this._bygget = false;
+  /* -------------------------------------------------------------- html */
+  _avgHtml(st, a) {
+    const mod = this._modus(st, a), rekker = st.gange ? (a.min ?? 99) >= st.gange : true;
+    const planlagt = a.forsinkelse ? new Date(new Date(a.tid).getTime() - a.forsinkelse * 60000) : null;
+    return `<div class="avg ${a.min !== null && a.min <= 2 ? "snart" : ""} ${rekker ? "" : "rekker-ikke"}" style="--lf:${mod.farge}">
+      <span class="linje ${a.linje ? "" : "ikon-bare"}">${a.linje ? kiREsc(a.linje) : `<ha-icon icon="${mod.ikon}"></ha-icon>`}</span>
+      <div style="min-width:0"><div class="mot2">${kiREsc(a.mal || a.rute || "Avgang")}</div>
+        <div class="under">
+          ${a.forsinkelse > 0 ? `<span class="strek">${kiRKl(planlagt)}</span><span class="forsink">${kiRKl(a.tid)} · ${a.forsinkelse} min forsinket</span>`
+            : a.forsinkelse < 0 ? `<span class="tidlig">${kiRKl(a.tid)} · ${Math.abs(a.forsinkelse)} min før</span>` : `<span>${kiRKl(a.tid)}</span>`}
+          ${a.sanntid ? `<span class="sanntid"><i></i>sanntid</span>` : `<span>rutetid</span>`}
+          ${a.plattform && String(a.plattform).length <= 4 ? `<span>spor ${kiREsc(a.plattform)}</span>` : ""}
+          ${!rekker ? `<span>rekker du ikke</span>` : ""}
+        </div></div>
+      <div class="ned"><b class="${a.min !== null && a.min <= 0 ? "naa" : ""}">${kiRNed(a.min)}</b><span>${a.min === null ? "" : a.min <= 0 ? "" : a.min < 60 ? "min" : "t"}</span></div></div>`;
   }
-
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._config) return;
-    if (!this._bygget) this._bygg();
-    this._tegn();
+  _tavle(st) {
+    const linjer = [...new Set(st.avg.map((a) => a.linje).filter(Boolean))].slice(0, 6);
+    return `<div class="tavle"><div class="tavlehode">
+        <span class="navn"><ha-icon icon="${kiREsc(st.icon || st.modus.ikon)}" style="color:${st.modus.farge}"></ha-icon>${kiREsc(st.navn)}</span>
+        <span class="meta" data-a="mer" data-e="${kiREsc(st.entity)}" tabindex="0">${st.mangler ? "mangler" : [linjer.length ? `linje ${linjer.sort((a, b) => a.localeCompare(b, "nb", { numeric: true })).join(", ")}` : "", st.gange ? `${st.gange} min å gå` : ""].filter(Boolean).join(" · ")}</span></div>
+      ${st.avg.length ? st.avg.map((a) => this._avgHtml(st, a)).join("") : `<div class="tom">${st.mangler ? `Fant ikke ${kiREsc(st.entity)}` : "Ingen avganger de neste timene"}</div>`}</div>`;
   }
-
-  getCardSize() {
-    return 4 + (this._config.stops || []).length * 2;
+  _avvikHtml() {
+    const d = this._c.disruptions, sum = d.summary && this._h.states[d.summary]; if (!sum) return "";
+    const ant = parseInt(sum.state) || 0;
+    if (ant <= 0) return `<div class="avvik ok" data-a="mer" data-e="${kiREsc(d.summary)}" tabindex="0"><ha-icon icon="mdi:check-circle-outline"></ha-icon><span>Ingen meldte avvik</span></div>`;
+    const tekst = [sum.attributes.markdown_active, sum.attributes.markdown_planned].filter(Boolean).join("\n")
+      .replace(/^#+\s*(.*)$/gm, "$1").replace(/\*\*(.*?)\*\*/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+    return `<div class="avvik varsel"><div class="avvik-hode" data-a="avvik" tabindex="0" role="button" aria-expanded="${this._visAvvik}">
+        <ha-icon icon="mdi:alert-outline"></ha-icon><span>${ant} ${ant === 1 ? "avvik" : "avvik"} i kollektivtrafikken</span>
+        <ha-icon class="pil ${this._visAvvik ? "ap" : ""}" icon="mdi:chevron-down"></ha-icon></div>
+      ${this._visAvvik && tekst ? `<div class="avvik-tekst">${kiREsc(tekst)}</div>` : ""}</div>`;
   }
-
-  connectedCallback() {
-    // Nedtellingen må gå selv om HA ikke sender nye tilstander
-    this._timer = setInterval(() => {
-      this._signatur = "";
-      if (this._hass && this._bygget) this._tegn();
-    }, 10000);
-  }
-
-  disconnectedCallback() {
-    if (this._timer) clearInterval(this._timer);
-  }
-
-  _bygg() {
-    this.shadowRoot.innerHTML = `<style>${KiRuterCard.styles}</style>`;
-    this._rot = document.createElement("ha-card");
-    this._rot.className = "rot";
-    this.shadowRoot.appendChild(this._rot);
-    this._rot.addEventListener("click", (e) => {
-      const el = e.target.closest("[data-handling]");
-      if (!el) return;
-      const h = el.dataset.handling;
-      if (h === "avvik") {
-        this._visAvvik = !this._visAvvik;
-        this._signatur = "";
-        this._tegn();
-      } else if (h === "stopp") {
-        const i = el.dataset.stopp;
-        if (this._apneStopp.has(i)) this._apneStopp.delete(i);
-        else this._apneStopp.add(i);
-        this._signatur = "";
-        this._tegn();
-      } else if (h === "mer-info" && el.dataset.entity) {
-        const ev = new Event("hass-more-info", { bubbles: true, composed: true });
-        ev.detail = { entityId: el.dataset.entity };
-        this.dispatchEvent(ev);
-      }
-    });
-    this._bygget = true;
-  }
-
-  /* -------------------------------------------------------------- tegne -- */
-
-  _tegn() {
-    const hass = this._hass;
-    const cfg = this._config;
-    const maks = cfg.max_departures || 4;
-
-    const stopp = (cfg.stops || [])
-      .map((st) => {
-        const s = st.entity ? hass.states[st.entity] : null;
-        return {
-          ...st,
-          navn: st.name || (s ? s.attributes.friendly_name : st.entity),
-          avganger: lesAvganger(s, maks, cfg.delay_unit || "auto"),
-          mangler: !s,
-        };
-      })
-      .filter((st) => !st.mangler || st.entity);
-
-    const d = cfg.disruptions || {};
-    const sum = d.summary ? hass.states[d.summary] : null;
-    const antAvvik = sum ? parseInt(sum.state) || 0 : 0;
-
-    const sign = JSON.stringify([
-      stopp.map((s) => s.avganger.map((a) => [a.rute, a.tid, a.min, a.forsinkelse])),
-      antAvvik,
-      (d.lines || []).map((l) => (hass.states[l.entity] ? hass.states[l.entity].state : null)),
-      this._visAvvik,
-      [...this._apneStopp].sort(),
-    ]);
-    if (sign === this._signatur) return;
-    this._signatur = sign;
-
-    this._rot.innerHTML = `
-      ${this._tittelHtml()}
-      ${this._avvikHtml(sum, antAvvik)}
-      ${this._linjerHtml()}
-      ${stopp.map((st, i) => this._stoppHtml(st, i)).join("")}
-    `;
-  }
-
-  _tittelHtml() {
-    const t = this._config.title;
-    if (!t) return "";
-    return `
-      <div class="tittelrad">
-        <span class="tittel-ikon">
-          <ha-icon icon="${esc(this._config.title_icon || "mdi:bus-clock")}"></ha-icon>
-        </span>
-        <h2>${esc(t)}</h2>
-      </div>`;
-  }
-
-  _avvikHtml(sum, ant) {
-    if (!sum) return "";
-    if (ant <= 0) {
-      return `
-        <div class="avvik ok" data-handling="mer-info" data-entity="${esc(
-          this._config.disruptions.summary
-        )}">
-          <ha-icon icon="mdi:check-circle-outline"></ha-icon>
-          <span>Ingen meldte avvik</span>
-        </div>`;
-    }
-
-    const tekst = [
-      sum.attributes.markdown_active,
-      sum.attributes.markdown_planned,
-    ]
-      .filter(Boolean)
-      .join("\n")
-      .replace(/^#+\s*/gm, "")
-      .replace(/\*\*/g, "")
-      .trim();
-
-    return `
-      <div class="avvik varsel">
-        <button type="button" class="avvik-hode" data-handling="avvik">
-          <ha-icon icon="mdi:alert"></ha-icon>
-          <span>${ant} ${ant === 1 ? "avvik" : "avvik"} i kollektivtrafikken</span>
-          <ha-icon class="avvik-pil ${this._visAvvik ? "ned" : ""}"
-            icon="mdi:chevron-down"></ha-icon>
-        </button>
-        ${
-          this._visAvvik && tekst
-            ? `<div class="avvik-tekst">${esc(tekst)}</div>`
-            : ""
-        }
-      </div>`;
-  }
-
   _linjerHtml() {
-    const hass = this._hass;
-    const linjer = (this._config.disruptions.lines || []).filter(
-      (l) => l.entity && hass.states[l.entity]
-    );
-    if (!linjer.length) return "";
-
-    return `
-      <div class="linjer">
-        ${linjer
-          .map((l) => {
-            const s = hass.states[l.entity];
-            const n = parseInt(s.state) || 0;
-            return `
-            <button type="button" class="linje ${n > 0 ? "varsel" : ""}"
-              data-handling="mer-info" data-entity="${esc(l.entity)}">
-              ${esc(l.name || s.attributes.friendly_name || "")}
-              ${n > 0 ? `<em>${n}</em>` : ""}
-            </button>`;
-          })
-          .join("")}
-      </div>`;
+    const l = (this._c.disruptions.lines || []).filter((x) => x.entity && this._h.states[x.entity]); if (!l.length) return "";
+    return `<div class="linjer">${l.map((x) => { const s = this._h.states[x.entity], n = parseInt(s.state) || 0;
+      return `<span class="lj ${n > 0 ? "varsel" : ""}" data-a="mer" data-e="${kiREsc(x.entity)}" tabindex="0">${kiREsc(x.name || s.attributes.friendly_name || "")}${n > 0 ? `<em>${n}</em>` : ""}</span>`; }).join("")}</div>`;
+  }
+  _nesteHtml(stopp) {
+    const kand = stopp.flatMap((st) => st.avg.map((a) => ({ a, st }))).filter((x) => x.a.min !== null && x.a.min >= (x.st.gange || 0)).sort((x, y) => x.a.min - y.a.min)[0];
+    if (!kand) return "";
+    const { a, st } = kand, mod = this._modus(st, a);
+    return `<div class="neste" style="--lf:${mod.farge}"><div class="rad">
+      <span class="linje ${a.linje ? "" : "ikon-bare"}" style="height:40px;font-size:17px">${a.linje ? kiREsc(a.linje) : `<ha-icon icon="${mod.ikon}"></ha-icon>`}</span>
+      <div style="flex:1;min-width:0"><div class="mot">${kiREsc(a.mal || a.rute)}</div>
+        <div class="hvor">fra ${kiREsc(st.navn)} kl ${kiRKl(a.tid)}${a.forsinkelse > 0 ? ` · ${a.forsinkelse} min forsinket` : ""}${st.gange ? ` · gå om ${Math.max(0, a.min - st.gange)} min` : ""}</div></div>
+      <div style="text-align:right"><div class="tall">${kiRNed(a.min)}<small>${a.min <= 0 ? "" : a.min < 60 ? "min" : ""}</small></div></div></div></div>`;
+  }
+  _innhold() {
+    const c = this._c, stopp = this._stopp();
+    if (!stopp.length) return `<div class="hode"><div class="ik"><ha-icon icon="${kiREsc(c.ikon)}"></ha-icon></div><h2>${kiREsc(c.tittel)}</h2></div>
+      <div class="tom">Legg til holdeplasser under <b>stops:</b>.</div>`;
+    const valgt = Math.min(this._valgt, stopp.length - 1);
+    const velger = c.visning === "alle" || stopp.length < 2 ? "" : `<div class="velger">${stopp.map((st, i) => { const n = st.avg.length ? st.avg[0].min : null;
+      return `<span class="hp ${i === valgt ? "valgt" : ""}" data-a="hp" data-i="${i}" tabindex="0" role="tab" aria-selected="${i === valgt}">
+        <ha-icon icon="${kiREsc(st.icon || st.modus.ikon)}"></ha-icon>${kiREsc(st.navn)}${n !== null ? `<b>${n <= 0 ? "nå" : n + "′"}</b>` : ""}</span>`; }).join("")}</div>`;
+    return `<div class="hode"><div class="ik"><ha-icon icon="${kiREsc(c.ikon)}"></ha-icon></div><h2>${kiREsc(c.tittel)}</h2>
+        <span class="klokke">oppdatert ${new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span></div>
+      ${this._avvikHtml()}${this._linjerHtml()}${this._nesteHtml(stopp)}${velger}
+      ${c.visning === "alle" || stopp.length < 2 ? stopp.map((st) => this._tavle(st)).join("") : this._tavle(stopp[valgt])}`;
   }
 
-  _stoppHtml(st, i) {
-    const skjult = this._apneStopp.has(String(i));
-    const ikon =
-      st.icon ||
-      IKON_MODUS[(st.mode || "").toLowerCase()] ||
-      "mdi:bus";
-
-    const neste = st.avganger[0];
-
-    const rader = st.avganger
-      .map((a) => {
-        const forsinket = a.forsinkelse !== null && a.forsinkelse > 0.5;
-        const naa = a.min !== null && a.min <= 1;
-        return `
-        <div class="avgang ${naa ? "naa" : ""}">
-          <span class="linjenr" style="--linje-farge:${esc(
-            st.color || "var(--active-big)"
-          )}">${esc(a.linje || "–")}</span>
-          <span class="mal">${esc(a.mal || a.rute || "")}</span>
-          <span class="tider">
-            <span class="ned">${esc(nedtelling(a.min))}</span>
-            <span class="klokke">${esc(klokke(a.tid))}${
-          forsinket ? `<em>+${Math.round(a.forsinkelse)}</em>` : ""
-        }</span>
-          </span>
-        </div>`;
-      })
-      .join("");
-
-    return `
-      <section class="stopp">
-        <header class="stopp-hode" data-handling="stopp" data-stopp="${i}">
-          <span class="stopp-ikon"><ha-icon icon="${esc(ikon)}"></ha-icon></span>
-          <span class="stopp-navn">
-            ${esc(st.navn)}
-            ${st.walk ? `<em>${esc(st.walk)} min å gå</em>` : ""}
-          </span>
-          <span class="stopp-neste">${
-            neste ? esc(nedtelling(neste.min)) : st.mangler ? "Mangler" : "Ingen"
-          }</span>
-          <ha-icon class="stopp-pil ${skjult ? "" : "ned"}" icon="mdi:chevron-down"></ha-icon>
-        </header>
-        ${
-          skjult
-            ? ""
-            : `<div class="avganger" data-handling="mer-info"
-                data-entity="${esc(st.entity || "")}">
-                ${rader || `<div class="ingen">Ingen avganger å vise</div>`}
-              </div>`
-        }
-      </section>`;
+  _koble() {
+    const r = this.shadowRoot;
+    const finn = (e) => { for (const el of e.composedPath()) { if (el === r) break; if (el.nodeType === 1 && el.dataset && el.dataset.a) return el; } return null; };
+    const kjor = (el) => { if (el.dataset.a === "hp") { this._valgt = +el.dataset.i; this._forrige = null; this._tegn(); }
+      else if (el.dataset.a === "avvik") { this._visAvvik = !this._visAvvik; this._forrige = null; this._tegn(); }
+      else if (el.dataset.a === "mer" && el.dataset.e) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.e }, bubbles: true, composed: true })); };
+    r.addEventListener("click", (e) => { const el = finn(e); if (el) { e.stopPropagation(); kjor(el); } });
+    r.addEventListener("keydown", (e) => { if (e.key !== "Enter" && e.key !== " ") return; const el = finn(e); if (el) { e.preventDefault(); kjor(el); } });
+  }
+  _tegn() {
+    if (!this._c || !this._h) return;
+    const html = `<div class="kort">${this._innhold()}</div>`;
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_R_STIL}</style><div class="rot"></div>`;
+      this._rot = this.shadowRoot.querySelector(".rot"); this._koble(); this._bygget = true; this._forrige = null; }
+    if (html !== this._forrige) { this._rot.innerHTML = html; this._forrige = html; }
   }
 }
-
-KiRuterCard.styles = `
-  :host { display: block; }
-  .rot { background: transparent; border: none; box-shadow: none; padding: 0; display: block; }
-  .rot * { box-sizing: border-box; min-width: 0; }
-  button { font: inherit; cursor: pointer; border: none; }
-
-  /* ---------- overskrift ---------- */
-  .tittelrad { display: flex; align-items: center; gap: 12px; padding: 0 4px 14px; }
-  .tittel-ikon {
-    width: 38px; height: 38px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--gray200, var(--card-background-color));
-    color: var(--gray1000, var(--primary-text-color));
-    --mdc-icon-size: 21px; flex: 0 0 auto;
-  }
-  .tittelrad h2 {
-    margin: 0; flex: 1; font-size: 22px; font-weight: 600;
-    color: var(--gray1000, var(--primary-text-color));
-  }
-
-  /* ---------- avvik ---------- */
-  .avvik { border-radius: 18px; margin-bottom: 10px; overflow: hidden; }
-  .avvik.ok {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 16px; cursor: pointer;
-    background: var(--gray200, var(--card-background-color));
-    color: var(--gray1000, var(--primary-text-color));
-    font-size: 13px; font-weight: 600;
-    --mdc-icon-size: 19px;
-  }
-  .avvik.ok ha-icon { color: var(--green, #30a46c); }
-  .avvik.varsel { background: var(--red, #e5484d); color: #fff; }
-  .avvik-hode {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 13px 16px; background: none; color: inherit;
-    font-size: 14px; font-weight: 600; text-align: left;
-    --mdc-icon-size: 20px;
-  }
-  .avvik-hode > span { flex: 1; }
-  .avvik-pil { transform: rotate(-90deg); transition: transform .2s ease; }
-  .avvik-pil.ned { transform: rotate(0deg); }
-  .avvik-tekst {
-    padding: 0 16px 16px; font-size: 13px; line-height: 1.55;
-    white-space: pre-wrap; opacity: .95;
-  }
-
-  /* ---------- linjechips ---------- */
-  .linjer { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
-  .linje {
-    display: flex; align-items: center; gap: 5px;
-    min-width: 38px; padding: 7px 11px;
-    border-radius: 11px;
-    background: var(--gray200, var(--card-background-color));
-    color: var(--gray1000, var(--primary-text-color));
-    font-size: 13px; font-weight: 700;
-    opacity: .55;
-  }
-  .linje.varsel {
-    background: var(--orange, #f5a623); color: var(--black, #1c1c1e); opacity: 1;
-  }
-  .linje em {
-    font-style: normal; font-size: 10px; font-weight: 700;
-    background: rgba(0, 0, 0, .22); padding: 1px 5px; border-radius: 6px;
-  }
-
-  /* ---------- holdeplass ---------- */
-  .stopp + .stopp { margin-top: 14px; }
-  .stopp-hode {
-    display: flex; align-items: center; gap: 11px;
-    padding: 0 6px 9px; cursor: pointer;
-  }
-  .stopp-ikon {
-    width: 32px; height: 32px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--gray200, var(--card-background-color));
-    color: var(--gray1000, var(--primary-text-color));
-    --mdc-icon-size: 18px; flex: 0 0 auto;
-  }
-  .stopp-navn {
-    flex: 1; display: flex; flex-direction: column; gap: 1px;
-    font-size: 15px; font-weight: 700;
-    color: var(--gray1000, var(--primary-text-color));
-    overflow: hidden;
-  }
-  .stopp-navn em {
-    font-style: normal; font-size: 11px; font-weight: 500; opacity: .5;
-  }
-  .stopp-neste {
-    font-size: 13px; font-weight: 700; opacity: .6;
-    color: var(--gray1000, var(--primary-text-color));
-    white-space: nowrap;
-  }
-  .stopp-pil {
-    --mdc-icon-size: 18px; opacity: .4;
-    color: var(--gray1000, var(--primary-text-color));
-    transform: rotate(-90deg); transition: transform .2s ease;
-  }
-  .stopp-pil.ned { transform: rotate(0deg); }
-
-  .avganger {
-    background: var(--gray200, var(--card-background-color));
-    border-radius: 18px; padding: 4px 14px; cursor: pointer;
-  }
-  .avgang {
-    display: grid; grid-template-columns: 42px minmax(0, 1fr) auto;
-    align-items: center; gap: 12px;
-    padding: 11px 0;
-    color: var(--gray1000, var(--primary-text-color));
-  }
-  .avgang + .avgang { border-top: 1px solid rgba(128, 128, 128, .16); }
-  .linjenr {
-    display: flex; align-items: center; justify-content: center;
-    height: 30px; border-radius: 9px;
-    background: var(--linje-farge, var(--active-big));
-    color: var(--gray100, #fff);
-    font-size: 14px; font-weight: 700;
-  }
-  .mal {
-    font-size: 15px; font-weight: 500;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .tider { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-  .ned {
-    font-size: 15px; font-weight: 700;
-    font-variant-numeric: tabular-nums; white-space: nowrap;
-  }
-  .avgang.naa .ned { color: var(--green, #30a46c); }
-  .klokke {
-    font-size: 12px; font-weight: 500; opacity: .55;
-    font-variant-numeric: tabular-nums; white-space: nowrap;
-  }
-  .klokke em {
-    font-style: normal; font-weight: 700;
-    color: var(--orange, #f5a623); margin-left: 4px; opacity: 1;
-  }
-  .ingen { padding: 16px 0; font-size: 13px; opacity: .55; text-align: center;
-    color: var(--gray1000, var(--primary-text-color)); }
-
-  @media (max-width: 400px) {
-    .avgang { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 10px; }
-    .mal { font-size: 14px; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .stopp-pil, .avvik-pil { transition: none; }
-  }
-`;
-
-/* ─────────────────────────────────────────────────────────────── editor ── */
+if (!customElements.get("ki-ruter-card")) customElements.define("ki-ruter-card", KiRuterCard);
 
 class KiRuterCardEditor extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" });
-    this._pickere = false;
-    this._lastPickere();
-  }
-
-  async _lastPickere() {
-    if (customElements.get("ha-entity-picker")) {
-      this._pickere = true;
-      return;
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = { tittel: "Tittel", ikon: "Ikon", visning: "Visning", maks: "Avganger per holdeplass", gange: "Gangtid (min)" };
+      this._f.computeLabel = (s) => n[s.name] || s.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this._c, ...e.detail.value } }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+      const p = document.createElement("div");
+      p.style.cssText = "padding:8px 4px;font-size:12.5px;opacity:.7";
+      p.textContent = "Holdeplasser (stops:) og avvik (disruptions:) settes i YAML-redigeringen.";
+      this.appendChild(p);
     }
-    try {
-      const helpers = await window.loadCardHelpers();
-      const kort = await helpers.createCardElement({ type: "entities", entities: [] });
-      await kort.constructor.getConfigElement();
-      this._pickere = !!customElements.get("ha-entity-picker");
-    } catch (e) {
-      this._pickere = false;
-    }
-    this._tegn();
-  }
-
-  setConfig(config) {
-    this._config = JSON.parse(JSON.stringify(config));
-    if (!this._config.stops) this._config.stops = [];
-    if (!this._config.disruptions) this._config.disruptions = {};
-    this._tegn();
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    if (!this._tegnet) this._tegn();
-    else
-      this.shadowRoot
-        .querySelectorAll("ha-entity-picker, ha-icon-picker")
-        .forEach((el) => (el.hass = hass));
-  }
-
-  _endret() {
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config: this._config },
-        bubbles: true,
-        composed: true,
-      })
-    );
-  }
-
-  _tekstfelt(label, verdi, onChange, type = "text") {
-    const wrap = document.createElement("label");
-    wrap.className = "felt";
-    wrap.innerHTML = `<span>${label}</span>`;
-    const inp = document.createElement("input");
-    inp.type = type;
-    inp.value = verdi === undefined || verdi === null ? "" : verdi;
-    inp.addEventListener("change", () => onChange(inp.value.trim()));
-    wrap.appendChild(inp);
-    return wrap;
-  }
-
-  _entitetsfelt(label, verdi, onChange) {
-    if (this._pickere) {
-      const p = document.createElement("ha-entity-picker");
-      p.hass = this._hass;
-      p.value = verdi || "";
-      p.label = label;
-      p.includeDomains = ["sensor"];
-      p.allowCustomEntity = true;
-      p.addEventListener("value-changed", (e) => {
-        e.stopPropagation();
-        onChange(e.detail.value);
-      });
-      const wrap = document.createElement("div");
-      wrap.className = "felt";
-      wrap.appendChild(p);
-      return wrap;
-    }
-    return this._tekstfelt(label, verdi, onChange);
-  }
-
-  _ikonfelt(verdi, onChange) {
-    if (this._pickere && customElements.get("ha-icon-picker")) {
-      const p = document.createElement("ha-icon-picker");
-      p.hass = this._hass;
-      p.value = verdi || "";
-      p.label = "Ikon";
-      p.addEventListener("value-changed", (e) => {
-        e.stopPropagation();
-        onChange(e.detail.value);
-      });
-      const wrap = document.createElement("div");
-      wrap.className = "felt";
-      wrap.appendChild(p);
-      return wrap;
-    }
-    return this._tekstfelt("Ikon", verdi, onChange);
-  }
-
-  _knapp(tekst, klasse, onClick) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = klasse;
-    b.textContent = tekst;
-    b.addEventListener("click", onClick);
-    return b;
-  }
-
-  /** Finner holdeplass-sensorer og avvikslinjer i denne installasjonen. */
-  _oppdag() {
-    if (!this._hass) return;
-    const alle = Object.keys(this._hass.states);
-
-    // Hovedsensorene, ikke plattformene — de har ikke «_platform_» i navnet
-    const stopp = alle
-      .filter((id) => id.startsWith("sensor.transport_") && !id.includes("_platform_"))
-      .sort();
-    const nye = stopp.filter(
-      (id) => !this._config.stops.some((s) => s.entity === id)
-    );
-    nye.forEach((id) => {
-      const s = this._hass.states[id];
-      this._config.stops.push({
-        entity: id,
-        name: (s.attributes.friendly_name || id)
-          .replace(/^Transport\s+/i, "")
-          .trim(),
-        icon: "mdi:bus",
-      });
-    });
-
-    const linjer = alle
-      .filter((id) => /disruption.*_line_/.test(id))
-      .sort((a, b) => {
-        const n = (x) => parseInt((x.match(/_line_(\d+)/) || [])[1] || 0);
-        return n(a) - n(b);
-      });
-    if (!this._config.disruptions.lines || !this._config.disruptions.lines.length) {
-      this._config.disruptions.lines = linjer.map((id) => ({
-        entity: id,
-        name: (id.match(/_line_(\w+)/) || [])[1] || "",
-      }));
-    }
-    if (!this._config.disruptions.summary) {
-      const s = alle.find((id) => /disruption_summary$/.test(id));
-      if (s) this._config.disruptions.summary = s;
-    }
-
-    this._svar = `La til ${nye.length} holdeplasser (${stopp.length} funnet totalt) og ${linjer.length} linjer.`;
-    this._endret();
-    this._tegn();
-  }
-
-  _tegn() {
-    if (!this._config) return;
-    this._tegnet = true;
-    this.shadowRoot.innerHTML = `<style>${KiRuterCardEditor.styles}</style>`;
-    const rot = document.createElement("div");
-    rot.className = "editor";
-    this.shadowRoot.appendChild(rot);
-
-    const gen = document.createElement("div");
-    gen.className = "boks";
-    gen.innerHTML = "<h4>Generelt</h4>";
-    const tr = document.createElement("div");
-    tr.className = "tokol";
-    tr.appendChild(
-      this._tekstfelt("Overskrift (tom = skjul)", this._config.title, (v) => {
-        this._config.title = v;
-        this._endret();
-      })
-    );
-    tr.appendChild(
-      this._ikonfelt(this._config.title_icon, (v) => {
-        this._config.title_icon = v;
-        this._endret();
-      })
-    );
-    gen.appendChild(tr);
-    gen.appendChild(
-      this._tekstfelt(
-        "Avganger per holdeplass",
-        this._config.max_departures || 4,
-        (v) => {
-          this._config.max_departures = parseInt(v) || 4;
-          this._endret();
-        },
-        "number"
-      )
-    );
-    const fv = document.createElement("label");
-    fv.className = "felt";
-    fv.innerHTML = "<span>Enhet på forsinkelse</span>";
-    const sel = document.createElement("select");
-    [["auto", "Gjett automatisk"], ["s", "Sekunder"], ["min", "Minutter"]].forEach(
-      ([v, t]) => {
-        const o = document.createElement("option");
-        o.value = v;
-        o.textContent = t;
-        sel.appendChild(o);
-      }
-    );
-    sel.value = this._config.delay_unit || "auto";
-    sel.addEventListener("change", () => {
-      this._config.delay_unit = sel.value;
-      this._endret();
-    });
-    fv.appendChild(sel);
-    gen.appendChild(fv);
-
-    gen.appendChild(
-      this._knapp("Finn holdeplasser automatisk", "hovedknapp", () => this._oppdag())
-    );
-    const h = document.createElement("p");
-    h.className = "hjelp";
-    h.textContent =
-      "Legger til alle sensor.transport_* som ikke er plattformsensorer, og alle avvikslinjer.";
-    gen.appendChild(h);
-    if (this._svar) {
-      const sv = document.createElement("p");
-      sv.className = "hjelp svar";
-      sv.textContent = this._svar;
-      gen.appendChild(sv);
-    }
-    rot.appendChild(gen);
-
-    /* Holdeplasser */
-    const sb = document.createElement("div");
-    sb.className = "boks";
-    sb.innerHTML = "<h4>Holdeplasser</h4>";
-    this._config.stops.forEach((st, si) => {
-      const rad = document.createElement("div");
-      rad.className = "stopprad";
-      rad.appendChild(
-        this._entitetsfelt("Sensor", st.entity, (v) => {
-          st.entity = v;
-          this._endret();
-        })
-      );
-      const r2 = document.createElement("div");
-      r2.className = "trekol";
-      r2.appendChild(
-        this._tekstfelt("Navn", st.name, (v) => {
-          st.name = v;
-          this._endret();
-        })
-      );
-      r2.appendChild(this._ikonfelt(st.icon, (v) => {
-        st.icon = v;
-        this._endret();
-      }));
-      r2.appendChild(
-        this._tekstfelt("Gangtid (min)", st.walk, (v) => {
-          if (v) st.walk = parseInt(v);
-          else delete st.walk;
-          this._endret();
-        }, "number")
-      );
-      rad.appendChild(r2);
-      const verktoy = document.createElement("div");
-      verktoy.className = "verktoy";
-      if (si > 0)
-        verktoy.appendChild(
-          this._knapp("↑", "mini", () => {
-            const [x] = this._config.stops.splice(si, 1);
-            this._config.stops.splice(si - 1, 0, x);
-            this._endret();
-            this._tegn();
-          })
-        );
-      if (si < this._config.stops.length - 1)
-        verktoy.appendChild(
-          this._knapp("↓", "mini", () => {
-            const [x] = this._config.stops.splice(si, 1);
-            this._config.stops.splice(si + 1, 0, x);
-            this._endret();
-            this._tegn();
-          })
-        );
-      verktoy.appendChild(
-        this._knapp("Slett", "mini fare", () => {
-          this._config.stops.splice(si, 1);
-          this._endret();
-          this._tegn();
-        })
-      );
-      rad.appendChild(verktoy);
-      sb.appendChild(rad);
-    });
-    sb.appendChild(
-      this._knapp("+ Legg til holdeplass", "hovedknapp liten", () => {
-        this._config.stops.push({ entity: "", name: "", icon: "mdi:bus" });
-        this._endret();
-        this._tegn();
-      })
-    );
-    rot.appendChild(sb);
-
-    /* Avvik */
-    const ab = document.createElement("div");
-    ab.className = "boks";
-    ab.innerHTML = "<h4>Avvik</h4>";
-    ab.appendChild(
-      this._entitetsfelt("Sammendrag", this._config.disruptions.summary, (v) => {
-        this._config.disruptions.summary = v;
-        this._endret();
-      })
-    );
-    const lb = document.createElement("div");
-    lb.className = "underboks";
-    lb.innerHTML = "<div class='undertittel'>Linjer</div>";
-    (this._config.disruptions.lines || []).forEach((l, li) => {
-      const rad = document.createElement("div");
-      rad.className = "entrad";
-      rad.appendChild(
-        this._entitetsfelt("Sensor", l.entity, (v) => {
-          l.entity = v;
-          this._endret();
-        })
-      );
-      rad.appendChild(
-        this._tekstfelt("Vises som", l.name, (v) => {
-          l.name = v;
-          this._endret();
-        })
-      );
-      rad.appendChild(
-        this._knapp("×", "mini fare", () => {
-          this._config.disruptions.lines.splice(li, 1);
-          this._endret();
-          this._tegn();
-        })
-      );
-      lb.appendChild(rad);
-    });
-    lb.appendChild(
-      this._knapp("+ Legg til linje", "hovedknapp liten", () => {
-        if (!this._config.disruptions.lines) this._config.disruptions.lines = [];
-        this._config.disruptions.lines.push({ entity: "", name: "" });
-        this._endret();
-        this._tegn();
-      })
-    );
-    ab.appendChild(lb);
-    rot.appendChild(ab);
+    this._f.hass = this._h; this._f.data = this._c;
+    this._f.schema = [{ name: "tittel", selector: { text: {} } }, { name: "ikon", selector: { icon: {} } },
+      { name: "visning", selector: { select: { options: [{ value: "valgt", label: "Én holdeplass om gangen" }, { value: "alle", label: "Alle under hverandre" }] } } },
+      { name: "maks", selector: { number: { min: 1, max: 12, mode: "box" } } }, { name: "gange", selector: { number: { min: 0, max: 30, mode: "box" } } }];
   }
 }
-
-KiRuterCardEditor.styles = `
-  .editor { display: flex; flex-direction: column; gap: 14px; padding: 4px 0; }
-  .boks {
-    border: 1px solid var(--divider-color);
-    border-radius: 12px; padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  h4 { margin: 0; font-size: 15px; }
-  .hjelp { margin: 0; font-size: 12px; color: var(--secondary-text-color); }
-  .hjelp.svar { color: var(--primary-color); font-weight: 600; }
-  .felt { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--secondary-text-color); flex: 1; }
-  .felt input, .felt select {
-    font: inherit; font-size: 14px;
-    color: var(--primary-text-color);
-    background: var(--card-background-color);
-    border: 1px solid var(--divider-color);
-    border-radius: 8px; padding: 8px 10px; width: 100%; box-sizing: border-box;
-  }
-  .tokol { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .trekol { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-  .stopprad {
-    border: 1px solid var(--divider-color); border-radius: 10px;
-    padding: 10px; display: flex; flex-direction: column; gap: 8px;
-  }
-  .underboks {
-    border: 1px dashed var(--divider-color); border-radius: 10px; padding: 10px;
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  .undertittel { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); }
-  .entrad { display: flex; align-items: flex-end; gap: 8px; }
-  .verktoy { display: flex; gap: 6px; }
-  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--divider-color); }
-  .mini { background: transparent; color: var(--primary-text-color); font-size: 12px; padding: 6px 10px; }
-  .mini.fare { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
-  .hovedknapp {
-    background: var(--primary-color); color: var(--text-primary-color, #fff);
-    border: none; padding: 10px 14px; font-size: 14px; font-weight: 600;
-  }
-  .hovedknapp.liten { padding: 8px 12px; font-size: 13px; align-self: flex-start; }
-  @media (max-width: 500px) { .tokol, .trekol { grid-template-columns: 1fr; } }
-`;
-
-customElements.define("ki-ruter-card", KiRuterCard);
-customElements.define("ki-ruter-card-editor", KiRuterCardEditor);
+if (!customElements.get("ki-ruter-card-editor")) customElements.define("ki-ruter-card-editor", KiRuterCardEditor);
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "ki-ruter-card",
-  name: "KI Ruter",
-  description: "Kollektivavganger fra Entur med avviksvarsler.",
-  preview: true,
-});
+if (!window.customCards.some((k) => k.type === "ki-ruter-card")) window.customCards.push({ type: "ki-ruter-card", name: "KI Ruter", description: "Avgangstavle fra Entur med sanntid, forsinkelser og Ruter-avvik", preview: true });
+console.info(`%c KI-RUTER-CARD %c v${KI_RUTER_VERSJON} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");

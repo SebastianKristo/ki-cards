@@ -1,45 +1,39 @@
-# ki-cards 3.17.0
+# ki-cards 3.18.0
 
-## `ki-sikkerhet-card` er nå hele panelet
+## `ki-ruter-card` 2.0.0
 
-Huset og tastaturet er slått sammen til ett kort. `ki-alarm-card` bakes inn under huset
-med `hero: false`, så det ikke lenger står to overskrifter og to skjold oppå hverandre.
-Sonene defineres ett sted og sendes videre til det innebygde kortet.
+Kortet er skrevet om fra bunnen. 950 linjer er blitt til 276, og oppsettet er enklere.
 
 ```yaml
-type: custom:ki-sikkerhet-card
-entity: alarm_control_panel.alarm
-navn: Hjemme
-tastatur:                 # false gir bare huset
-  code_length: 6
-  arm_requires_code: true
-zones: …
+type: custom:ki-ruter-card
+tittel: Ruter
+visning: valgt            # valgt = holdeplassvelger øverst, alle = alle tavlene under hverandre
+maks: 5                   # avganger per holdeplass
+gange: 4                  # minutter å gå – avganger du ikke rekker tones ned
+stops:
+  - entity: sensor.transport_majorstuen
+    name: Majorstuen
+    icon: mdi:subway-variant
+    gange: 7              # overstyrer gangetiden for denne holdeplassen
+disruptions:
+  summary: sensor.ruter_disruption_summary
+  lines:
+    - entity: sensor.ruter_disruption_rut_line_1
+      name: '1'
 ```
 
-Skallet bygges én gang og bare heroen tegnes på nytt ved tilstandsendringer. Uten det
-ville tastaturet blitt bygget om midt i inntastingen og mistet sifrene.
+* **Gangetid per holdeplass.** Avganger du ikke rekker fram til, tones ned i stedet for å
+  fjernes — du ser fortsatt at de går.
+* **Nedtellingen går hvert tiende sekund** i kortet selv, uten å vente på at Home
+  Assistant sender ny tilstand. Timeren stoppes i `disconnectedCallback`.
+* **Transportmiddel gjettes** fra `transport_mode`, så fra ikonet du har satt, og til
+  slutt fra linjenummeret: 1–6 er T-bane, 11–19 trikk, resten buss. Hver modus har sin
+  farge og sitt ikon.
+* **Avvik fra Ruter** vises som en rad med linjeknapper der antall aktive avvik står som
+  et merke; trykk åpner more-info.
+* Leser både `route`/`due_at` og de nummererte `route_1…12`, og faller tilbake på
+  sensorens egen tilstand og `next_due_in` for den første avgangen.
 
-## Huset er tegnet om
-
-Bort med de flate rektanglene. Veggen har nå gradient og panelskjøter, taket har utstikk
-og egen skygge, pipa har hatt, og vinduene har karm, sprosser og vinduskarm.
-
-Nye og forbedrede animasjoner:
-
-* **Vinduene tennes etter tur** når noe åpnes — 0,22 sekunders forsinkelse per vindu — og
-  får en myk glødeflekk som flimrer svakt, som lys innenfra.
-* **Døra svinger opp** i perspektiv når en lås står ulåst eller en dør er åpen, i stedet
-  for bare å skifte farge.
-* **Lampe over døra** som tennes når alarmen er på eller døra står åpen.
-* **Røyken** stiger med en tegnet strek som drar seg oppover og fader ut, to pust i
-  vekselvis rytme, og bare når alt er lukket og låst.
-* **Radaren** har fått en utoverbølgende ring i tillegg til viften.
-* **Sirenene** kommer i tre buer på hver side, forskjøvet i tid.
-
-Fargene er bygget med `color-mix` mot `--gray1000` og `--tone`, så huset følger temaet
-ditt i stedet for å ha faste farger. Alt stopper under `prefers-reduced-motion`.
-
-## `ki-alarm-card`
-
-Nytt valg `hero: false` som skjuler kortets egen topp. Brukes av kortet over; alt annet
-er uendret, og kortet virker som før alene.
+Den gamle 1.0.0-fila er erstattet. Entitets-ID-er og korttypen er uendret, så
+dashbordene trenger ingen endring — men se over konfigurasjonen din, siden nøklene er
+færre nå.

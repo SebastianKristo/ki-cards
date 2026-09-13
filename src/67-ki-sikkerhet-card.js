@@ -62,6 +62,7 @@ const KI_SIK_STIL = `
     --dor-mork:color-mix(in srgb, var(--tone,#5ad18b) 25%, var(--gray1000)); }
   .kompakt .scene { height:132px; }
   .scene svg { width:100%; height:100%; display:block; overflow:visible; }
+  .scene { overflow:visible; }
 
   .bakke { fill:var(--gray1000); opacity:.10; }
   .vegg { stroke:var(--gray1000); stroke-opacity:.10; stroke-width:1; }
@@ -106,9 +107,11 @@ const KI_SIK_STIL = `
   .dorkarm { fill:var(--gray000,#fff); opacity:.10; }
   .dorfyll { fill:var(--gray000,#fff); opacity:.10; }
   .handtak { fill:var(--gray000,#fff); opacity:.5; }
-  .dorgruppe { transform-origin:148px 118px; transition:transform .6s var(--fjaer); }
-  .dorgruppe.apen { transform:perspective(200px) rotateY(-32deg); }
-  .dorgruppe.apen .dor { animation:kiSikGlo 2.4s ease-in-out infinite; }
+  .dorblad { transform-box:fill-box; transform-origin:left center;
+    transition:transform .6s var(--fjaer); }
+  .dorgruppe.apen .dorblad { transform:scaleX(.42); }
+  .dorapning { fill:var(--orange,#f0a952); opacity:0; transition:opacity .5s var(--myk); }
+  .dorgruppe.apen .dorapning { opacity:.85; animation:kiSikGlo 2.4s ease-in-out infinite; }
   @keyframes kiSikGlo { 0%,100% { opacity:.75 } 50% { opacity:1 } }
 
   /* radar for bevegelse */
@@ -163,9 +166,9 @@ const KI_SIK_STIL = `
 
   @media (prefers-reduced-motion: reduce) {
     .kort::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
-    .lampe.tent .lampeglo, .dorgruppe.apen .dor, .radar, .radarring.puls,
+    .lampe.tent .lampeglo, .dorgruppe.apen .dorapning, .radar, .radarring.puls,
     .sirene, .tellering, .roykpust, .liste { animation:none !important; }
-    .dorgruppe { transition:none; }
+    .dorblad { transition:none; }
   }
 `;
 
@@ -182,7 +185,12 @@ class KiSikkerhetCard extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); this._apen = null; }
   static getStubConfig() { return { entity: "alarm_control_panel.alarm", zones: [] }; }
   getCardSize() { return this._c && this._c.tastatur ? 10 + (this._c.zones || []).length * 2 : 4; }
-  getGridOptions() { return { columns: 12, rows: 5, min_rows: 4 }; }
+  getGridOptions() {
+    // Ingen fast høyde: med tastatur bygger kortet seg langt nedover, og en låst
+    // radhøyde klipper bunnen av.
+    const rader = this._c && this._c.tastatur ? 12 + (this._c.zones || []).length * 2 : 5;
+    return { columns: 12, rows: "auto", min_rows: rader };
+  }
 
   setConfig(c) {
     if (!c || !c.entity) throw new Error("Sett entity: til alarmpanelet");
@@ -398,7 +406,7 @@ class KiSikkerhetCard extends HTMLElement {
     };
 
     return `
-      <svg viewBox="0 0 320 152" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <svg viewBox="0 0 320 186" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <defs>
           <linearGradient id="${id}vegg" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="var(--vegg-lys)"></stop>
@@ -421,11 +429,11 @@ class KiSikkerhetCard extends HTMLElement {
         <ellipse class="bakke" cx="160" cy="140" rx="118" ry="8"></ellipse>
 
         <!-- pipe -->
-        <path class="pipe" d="M210 40 h15 a2 2 0 0 1 2 2 v26 h-19 v-26 a2 2 0 0 1 2 -2 z"></path>
-        <rect class="pipehatt" x="207" y="36" width="23" height="5" rx="2.5"></rect>
+        <path class="pipe" d="M200 44 h15 a2 2 0 0 1 2 2 v26 h-19 v-26 a2 2 0 0 1 2 -2 z"></path>
+        <rect class="pipehatt" x="197" y="40" width="23" height="5" rx="2.5"></rect>
         <g class="roykgruppe">
-          <path class="roykpust" d="M218 32 q7 -7 0 -14 q-7 -7 0 -14"></path>
-          <path class="roykpust r2" d="M218 32 q-7 -7 0 -14 q7 -7 0 -14"></path>
+          <path class="roykpust" d="M208 36 q7 -7 0 -14 q-7 -7 0 -14"></path>
+          <path class="roykpust r2" d="M208 36 q-7 -7 0 -14 q7 -7 0 -14"></path>
         </g>
 
         <!-- tak med utstikk -->
@@ -449,9 +457,12 @@ class KiSikkerhetCard extends HTMLElement {
         <!-- dør -->
         <g class="dorgruppe ${dorApen ? "apen" : ""}">
           <rect class="dorkarm" x="146" y="96" width="28" height="42" rx="4"></rect>
-          <rect class="dor" fill="url(#${id}dor)" x="148" y="98" width="24" height="40" rx="3"></rect>
-          <rect class="dorfyll" x="152" y="103" width="16" height="14" rx="2"></rect>
-          <circle class="handtak" cx="167" cy="118" r="1.8"></circle>
+          <rect class="dorapning" x="148" y="98" width="24" height="40" rx="3"></rect>
+          <g class="dorblad">
+            <rect class="dor" fill="url(#${id}dor)" x="148" y="98" width="24" height="40" rx="3"></rect>
+            <rect class="dorfyll" x="152" y="103" width="16" height="14" rx="2"></rect>
+            <circle class="handtak" cx="167" cy="118" r="1.8"></circle>
+          </g>
         </g>
 
         ${rorer.length ? `
