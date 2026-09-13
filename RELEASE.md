@@ -1,23 +1,21 @@
-# ki-cards 3.36.0
+# ki-cards 3.38.0
 
-## `ki-strompris-card`: Norgespris var en flat strek
+## `ki-strompris-card` på brede skjermer
 
-Med Norgespris er energiprisen fast. Det eneste som varierer gjennom døgnet er nettleia —
-den er lavere om natta, i helgene og på helligdager. Kortet kunne allerede tegne den
-trappa, men bare hvis du hadde skrevet inn `nettleie_dag` og `nettleie_natt` manuelt.
-Uten dem returnerte `_nettleie()` null, og Norgespris ble én vannrett linje.
+**Innholdet fylte ikke kortet.** `maks_bredde` sto på 620 px som standard, og innholdet ble
+sentrert innenfor den grensen. På et vanlig mobilkort merkes det ikke, men på en utbrettet
+Pixel Fold — eller et bredt dashbord — ble kortet liggende med tomme marger på begge sider.
 
-Satsene finnes nå automatisk blant energiledd-sensorene — Elvia-integrasjonen lager
-`sensor.nettleie_elvia_energiledd_dag` og `..._energiledd_natt_helg`, og de plukkes opp
-uten oppsett. Kurven får dermed trinnet ved kl. 06 og 22, og flat sats i helgene.
+Standarden er nå 100 %, altså full bredde av kortet. Vil du fortsatt holde innholdet samlet
+på veldig brede flater, sett `maks_bredde: 620px` selv.
 
-Satsene kan også settes som entitets-id-er i stedet for tall, hvis nettselskapet ditt
-heter noe annet. `nettleie_auto: false` slår av søket.
+**Grafen ble strukket.** SVG-en hadde fast høyde i piksler mens bredden vokste fritt, med
+`preserveAspectRatio="none"`. Jo bredere skjerm, jo flatere kurve — prisforskjellene ble
+visuelt borte nettopp der det er mest plass til å vise dem.
 
-## «Du betaler nå» ligger øverst
+Høyden følger nå bredden gjennom `aspect-ratio`, med `hoyde` som minimum og 1,9 ganger
+det som tak. Forholdet styres med `graf_forhold: 2.6` (bredde delt på høyde) — lavere tall
+gir høyere graf.
 
-Tittelraden over kortet er av som standard, og dagvelgeren (I dag / I morgen) er flyttet
-inn i kortet på samme rad som prisen. Heroen har mistet toppmargen på 12 px, så
-«Du betaler nå» står helt øverst uten luft over.
-
-`vis_tittel: true` gir den gamle raden tilbake.
+Begge deler er rene standardendringer: har du satt `maks_bredde` eller `hoyde` selv,
+gjelder dine verdier som før.

@@ -7,7 +7,8 @@
  *             false                                  # uten Norgespris vises spotprisen i kr i stedet
  * enhet: kr/kWh                                      # teksten bak det store tallet
  * bakgrunn: var(--gray200)                           # bakgrunnsfarge på kortet
- * maks_bredde: 620px                                 # innholdet strekkes ikke bredere enn dette
+ * maks_bredde: 100%                                  # sett f.eks. 620px for å holde innholdet samlet
+ * graf_forhold: 2.6                                  # bredde delt på høyde – lavere gir høyere graf
  * bakgrunn_glod: false                               # slår av det fargede skjæret øverst
  *
  * Timesprisene kan komme fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i
@@ -35,7 +36,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.0.0";
+const KI_SP_VERSJON = "3.1.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -48,10 +49,12 @@ const KI_SP_STIL = `
   .kort::before { content:""; position:absolute; inset:-40% -10% auto -10%; height:70%; z-index:-1; opacity:calc(.2 * var(--glod, 1));
     background:radial-gradient(60% 100% at 30% 0%, var(--tone,#8fe3c0), transparent 70%); }
   .topp { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:0 4px 10px; background:none; max-width:var(--maks, 620px); margin-inline:auto; }
-  /* på brede skjermer holdes innholdet samlet i stedet for å dras ut til kantene */
+    padding:0 4px 10px; background:none; max-width:var(--maks, 100%); margin-inline:auto; }
+  /* Fyller kortet som standard. Sett maks_bredde for å holde innholdet samlet på
+     veldig brede skjermer – før var 620px standard, og da lå kortet med tomme marger
+     på en utbrettet mobil. */
   .kort > .hero, .kort > .grafboks, .kort > .akse, .kort > .stat, .kort > .vindu, .kort > .forkl,
-  .kort > .varsel-np, .kort > .venter { max-width:var(--maks, 620px); margin-inline:auto; }
+  .kort > .varsel-np, .kort > .venter { max-width:var(--maks, 100%); margin-inline:auto; }
   .hero { width:100%; }
   .topp .valg { margin-left:auto; }
   .tittel { font-size:16px; font-weight:500; }
@@ -73,8 +76,12 @@ const KI_SP_STIL = `
     background:color-mix(in srgb, var(--green) 26%, transparent); }
   .spar.tap { background:color-mix(in srgb, var(--red) 26%, transparent); }
   .spar ha-icon { --mdc-icon-size:15px; }
+  /* Høyden følger bredden innenfor grensene, så kurven ikke flates ut på en bred
+     skjerm. Hoyde-valget er minimum, og aspect-ratio lofter den paa store flater. */
   .grafboks { position:relative; margin:10px 0 0; max-width:100%; overflow:hidden; touch-action:pan-y; }
-  .grafboks svg { display:block; width:100%; height:100%; overflow:hidden; }
+  .grafboks svg { display:block; width:100%; height:100%; overflow:hidden;
+    min-height:var(--gh, 150px); max-height:calc(var(--gh, 150px) * 1.9);
+    aspect-ratio:var(--gforhold, 2.6); }
   .strek { stroke-linecap:round; stroke-linejoin:round; }
   .naalinje { stroke:var(--gray1000, var(--primary-text-color)); stroke-width:1; opacity:.35; stroke-dasharray:3 4; }
   .nplinje { stroke:#7ab8ff; stroke-width:1.6; stroke-dasharray:5 5; opacity:.9; }
@@ -304,7 +311,7 @@ class KiStromprisCard extends HTMLElement {
       <text x="${kiSpKlamp(X((p.t + p.slutt) / 2), 18, V - 18).toFixed(1)}" y="${(Y(p.v) - 9).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="${farge}" font-weight="600">${tekst}</text></g>`;
 
     const valgt = this._valgt !== null && pkt[this._valgt] ? pkt[this._valgt] : null;
-    return `<svg viewBox="0 0 ${V} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Spotpris time for time">
+    return `<svg viewBox="0 0 ${V} ${H}" width="100%" preserveAspectRatio="none" style="--gh:${H}px;--gforhold:${c.graf_forhold || 2.6}" role="img" aria-label="Spotpris time for time">
       <defs><linearGradient id="${this._gid}-l" gradientUnits="userSpaceOnUse" x1="0" y1="${B}" x2="0" y2="${H - B}">${gy}</linearGradient>
         <linearGradient id="${this._gid}-f" gradientUnits="userSpaceOnUse" x1="0" y1="${B}" x2="0" y2="${H}">
           <stop offset="0" stop-color="${kiSpFarge(0.85)}" stop-opacity=".22"/><stop offset="65%" stop-color="${kiSpFarge(0.15)}" stop-opacity=".14"/><stop offset="100%" stop-color="${kiSpFarge(0)}" stop-opacity="0"/></linearGradient>
@@ -396,7 +403,7 @@ class KiStromprisCard extends HTMLElement {
       const npp = this._npPunkter(this._dag);
       if (npp) { pkt2 = npp; kunNp = true; }
       else return `${c.vis_tittel === true ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>` : ""}
-      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
+      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">${hero}
       <div class="venter">${this._dag === "i_morgen" ? "Morgendagens priser kommer rundt kl. 13" : "Venter på priser"} <i></i><i></i><i></i></div></div>`;
     }
     this._kunNp = kunNp;
@@ -417,7 +424,7 @@ class KiStromprisCard extends HTMLElement {
     const toppRad = c.vis_tittel === true
       ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>` : "";
     return `${toppRad}
-      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "620px")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
+      <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}
       <div class="grafboks" style="height:${c.hoyde}px">${this._graf(pkt, np)}</div>
       <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
