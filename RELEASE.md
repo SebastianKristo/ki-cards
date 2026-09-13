@@ -1,36 +1,41 @@
-# ki-cards 3.23.0
+# ki-cards 3.24.0
 
-## Huset viser tilstanden i `ki-sikkerhet-card`
+## Dyplenken til en fane virket ikke fra ki-hjem-card
 
-Fire tydelig forskjellige tilstander, så du ser hva alarmen gjør uten å lese teksten.
+`KI.navigate` forsto `#alarm::laser`, men ki-hjem-card bygger flisene som button-card med
+`tap_action: navigate` — den går gjennom Home Assistants egen navigering, ikke gjennom
+`KI.navigate`. Hele strengen havnet derfor i adressefeltet, og bubble-card kjente ikke
+igjen `#alarm::laser` som sin hash. Ingenting åpnet seg.
 
-**Utløst alarm.** To varsellys på mønet blinker i vekselvis rytme, et halvt sekund
-forskjøvet, med et rødt glødekast rundt seg. Samtidig legger en rød vask seg over hele
-fasaden på samme takt, og sirenebuene går som før. Huset blinker altså på ordentlig, ikke
-bare i bakgrunnen.
+Fane-delen fanges nå globalt i bundelen: en vakt på `hashchange` og `location-changed`
+rydder hashen til `#alarm` og melder fra om fanen. Det virker uansett hvilket kort som
+navigerer, og uansett om stien går gjennom `KI.navigate` eller ikke.
 
-**Armert.** En tynn strek i tonefargen sveiper nedover fasaden hvert femte sekund, som et
-skann. Et lite skjold på veggen puster rolig. Vinduene kjøles ned til blått — huset sover,
-lyset er ikke på innenfra.
+```yaml
+hjem:
+  las: lock.dorlas
+  las_path: '#alarm::laser'
+```
 
-**Avslått.** Vinduene lyser varmt oransje og pulserer svakt i forskjøvet takt, som lys i
-et hus som er i bruk. Røyken stiger fra pipa.
+## Tastaturet dro deg nedover i kortet
 
-**Kobler på.** Vegg og tak dempes i takt mens nedtellingsringen ruller rundt taket.
+Når tastaturet foldes ut og igjen, endrer kortets høyde seg kraftig, og du ble stående
+midt nede i kortet etter at koden var tastet ferdig. En `ResizeObserver` på tastaturboksen
+ruller nå kortet til toppen når høyden endrer seg mer enn 40 px. Små justeringer teller
+ikke. Slås av med `rull_topp: false`.
 
-Røyken stiger nå både når alarmen er av og når den er armert — før var den bundet til at
-ingenting var åpent, som ga et ganske tilfeldig signal.
+## Profilbilder i loggen
 
-## Huset tegnes ikke lenger om ved armering
+Låste Rune opp med ansiktsgjenkjenning, vises bildet hans i stedet for ikonet. Personen
+finnes automatisk blant `person.*`-entitetene ved å matche navnet fra sensoren mot
+`friendly_name` eller entitets-ID-en, så Rune, Cybele og Sebastian kommer med uten
+oppsett. Har du navn som ikke matcher, sett dem selv:
 
-Tidligere lå tilstanden inne i selve SVG-strengen — nedtellingsringen og sirenene ble lagt
-til og fjernet, og modusklassen sto på `<svg>`. Ved armering endret strengen seg tre ganger
-på under ett sekund, og huset ble bygget på nytt midt i animasjonene.
+```yaml
+logg:
+  ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+  personer:
+    Rune: person.rune
+```
 
-Alle lagene ligger nå permanent i tegningen og styres av en modusklasse på containeren.
-SVG-en er dermed identisk gjennom hele `disarmed → arming → armed_away → triggered`, og
-skrives bare om når geometrien faktisk endrer seg: et vindu åpnes, en dør låses opp, eller
-en bevegelsessensor slår ut. Det er verifisert med en test.
-
-Alle de nye animasjonene stopper under `prefers-reduced-motion`; da står varsellysene
-tent og den røde vasken ligger svakt på, uten å blinke.
+Finnes ingen person eller mangler bildet, brukes ansiktsikonet som før.

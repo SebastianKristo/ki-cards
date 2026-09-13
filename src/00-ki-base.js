@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.23.0";
+  KI.VERSION = "3.24.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -350,6 +350,26 @@ window.KI = window.KI || {};
     try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL: gammel, newURL: window.location.href })); }
     catch (e) { window.dispatchEvent(new Event("hashchange")); }
   };
+  /* Noen kort navigerer gjennom button-card sin egen `navigate`-handling i stedet for
+     KI.navigate. Da havner hele «#alarm::laser» i adressefeltet, og bubble-card kjenner
+     ikke igjen hashen. Vi fanger det globalt: rydd hashen og meld fra om fanen. */
+  if (!KI._faneVakt) {
+    KI._faneVakt = () => {
+      const h = window.location.hash || "";
+      if (!h.includes("::")) return;
+      const [ren, fane] = [h.slice(0, h.indexOf("::")), h.slice(h.indexOf("::") + 2)];
+      window.history.replaceState(null, "", ren || window.location.pathname);
+      window.dispatchEvent(new Event("location-changed"));
+      try { window.dispatchEvent(new HashChangeEvent("hashchange")); }
+      catch (e) { window.dispatchEvent(new Event("hashchange")); }
+      if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+        { detail: { hash: ren, fane } })), 0);
+    };
+    window.addEventListener("hashchange", KI._faneVakt);
+    window.addEventListener("location-changed", KI._faneVakt);
+    KI._faneVakt();
+  }
+
   KI.go = (c) => { if (c.navigation_path) KI.navigate(c.navigation_path); else if (c.hash) KI.navigate(c.hash); };
   KI.press = (hass, entityId) => hass.callService("button", "press", { entity_id: entityId });
   KI.key = (el, fn) => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });

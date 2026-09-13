@@ -1,4 +1,4 @@
-/* ki-cards v3.23.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.23.0";
+  KI.VERSION = "3.24.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -380,6 +380,26 @@ window.KI = window.KI || {};
     try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL: gammel, newURL: window.location.href })); }
     catch (e) { window.dispatchEvent(new Event("hashchange")); }
   };
+  /* Noen kort navigerer gjennom button-card sin egen `navigate`-handling i stedet for
+     KI.navigate. Da havner hele «#alarm::laser» i adressefeltet, og bubble-card kjenner
+     ikke igjen hashen. Vi fanger det globalt: rydd hashen og meld fra om fanen. */
+  if (!KI._faneVakt) {
+    KI._faneVakt = () => {
+      const h = window.location.hash || "";
+      if (!h.includes("::")) return;
+      const [ren, fane] = [h.slice(0, h.indexOf("::")), h.slice(h.indexOf("::") + 2)];
+      window.history.replaceState(null, "", ren || window.location.pathname);
+      window.dispatchEvent(new Event("location-changed"));
+      try { window.dispatchEvent(new HashChangeEvent("hashchange")); }
+      catch (e) { window.dispatchEvent(new Event("hashchange")); }
+      if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+        { detail: { hash: ren, fane } })), 0);
+    };
+    window.addEventListener("hashchange", KI._faneVakt);
+    window.addEventListener("location-changed", KI._faneVakt);
+    KI._faneVakt();
+  }
+
   KI.go = (c) => { if (c.navigation_path) KI.navigate(c.navigation_path); else if (c.hash) KI.navigate(c.hash); };
   KI.press = (hass, entityId) => hass.callService("button", "press", { entity_id: entityId });
   KI.key = (el, fn) => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
@@ -15779,7 +15799,9 @@ try {
  *   batteri: { lock.dorlas: sensor.dorlas_batteri }
  * logg:
  *   ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+ *   personer: { Rune: person.rune }   # ellers gjettes person.* ut fra navnet
  *   dager: 7
+ * rull_topp: true              # rull til toppen når tastaturet åpnes/lukkes
  * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
  * tastatur:                    # ki-alarm-card bakes inn under huset
  *   code_length: 6             # false slår det av og gir bare huset
@@ -15982,6 +16004,8 @@ const KI_SIK_STIL = `
   .hikon { width:36px; height:36px; border-radius:50%; flex:none; display:flex; align-items:center;
     justify-content:center; background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
   .hikon ha-icon { --mdc-icon-size:19px; }
+  .hikon.foto { background:none; overflow:hidden; }
+  .hikon.foto img { width:100%; height:100%; object-fit:cover; border-radius:50%; display:block; }
   .hikon.pa { background:var(--tone,#5ad18b); color:rgba(20,32,26,.92); }
   .hikon.av { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
   .hikon.fare { background:var(--red,#e0524a); color:#fff; }
@@ -16071,6 +16095,35 @@ class KiSikkerhetCard extends HTMLElement {
     return (Array.isArray(f) ? f : mulige).filter((x) => mulige.includes(x));
   }
 
+  /* Tastaturet folder seg ut og inn under huset, og høyden på kortet endrer seg
+     kraftig. Uten dette blir du stående midt nede i kortet når koden er tastet
+     ferdig. Vi ser på høyden til tastaturboksen og ruller kortet til toppen når
+     den endrer seg. */
+  _rullevakt() {
+    if (this._ro || this._c.rull_topp === false || typeof ResizeObserver === "undefined") return;
+    const boks = this.shadowRoot.querySelector(".tastatur");
+    if (!boks) return;
+    this._ro = new ResizeObserver((poster) => {
+      const h = poster[0] && poster[0].contentRect ? poster[0].contentRect.height : 0;
+      if (this._forrigeH === undefined) { this._forrigeH = h; return; }
+      if (Math.abs(h - this._forrigeH) < 40) return;   // små justeringer teller ikke
+      this._forrigeH = h;
+      this._tilTopp();
+    });
+    this._ro.observe(boks);
+  }
+
+  _tilTopp() {
+    clearTimeout(this._rullTid);
+    this._rullTid = setTimeout(() => {
+      try {
+        this.scrollIntoView({ block: "start", behavior: "smooth" });
+      } catch (e) {
+        this.scrollIntoView(true);
+      }
+    }, 60);
+  }
+
   connectedCallback() {
     if (this._faneAv) return;
     // «#alarm::laser» fra et annet kort velger fanen når popupen åpnes
@@ -16082,6 +16135,8 @@ class KiSikkerhetCard extends HTMLElement {
   }
   disconnectedCallback() {
     if (this._faneAv) { window.removeEventListener("ki-fane", this._faneAv); this._faneAv = null; }
+    if (this._ro) { this._ro.disconnect(); this._ro = null; this._forrigeH = undefined; }
+    clearTimeout(this._rullTid);
   }
 
   set hass(h) {
@@ -16315,7 +16370,9 @@ class KiSikkerhetCard extends HTMLElement {
       boks.innerHTML = rader.length
         ? `<div class="logg">${rader.map((r) => `
             <div class="hendelse">
-              <span class="hikon ${r.stil}"><ha-icon icon="${r.ikon}"></ha-icon></span>
+              <span class="hikon ${r.stil} ${r.bilde ? "foto" : ""}">${r.bilde
+                ? `<img src="${KI_SIK_ESC(r.bilde)}" alt="">`
+                : `<ha-icon icon="${r.ikon}"></ha-icon>`}</span>
               <span class="htekst"><b>${KI_SIK_ESC(r.tittel)}</b><span>${KI_SIK_ESC(r.under)}</span></span>
               <span class="htid">${KI_SIK_ESC(KI_SIK_SIDEN(r.tid))}</span>
             </div>`).join("")}</div>`
@@ -16323,6 +16380,27 @@ class KiSikkerhetCard extends HTMLElement {
     }).catch((e) => {
       boks.innerHTML = `<div class="tom">Fikk ikke hentet historikk: ${KI_SIK_ESC(e.message || e)}</div>`;
     });
+  }
+
+  /* Profilbilde for et navn. Tar person-entiteten fra `logg.personer`, ellers leter
+     vi den opp blant person.*-entitetene på navn. */
+  _bilde(navn) {
+    if (!navn) return null;
+    const lg = this._c.logg || {};
+    const eksplisitt = (lg.personer || {})[navn];
+    const nokkel = String(navn).trim().toLowerCase();
+    let st = eksplisitt ? this._h.states[eksplisitt] : null;
+    if (!st) {
+      const id = Object.keys(this._h.states).find((x) => {
+        if (!x.startsWith("person.")) return false;
+        const a = this._h.states[x].attributes || {};
+        return String(a.friendly_name || "").trim().toLowerCase() === nokkel
+          || x.slice(7).toLowerCase() === nokkel;
+      });
+      st = id ? this._h.states[id] : null;
+    }
+    const b = st && st.attributes && st.attributes.entity_picture;
+    return b || null;
   }
 
   async _hentLogg() {
@@ -16376,7 +16454,7 @@ class KiSikkerhetCard extends HTMLElement {
           const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
           if (!tid || sett.has(tid)) continue;
           sett.add(tid);
-          ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av",
+          ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av", bilde: this._bilde(hvem),
             tittel: `${hvem} låste opp`,
             under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
         }
@@ -16385,7 +16463,7 @@ class KiSikkerhetCard extends HTMLElement {
         if (!sett.size && naa && naa.state && !["unavailable", "unknown"].includes(naa.state)) {
           const a = naa.attributes || {};
           ut.push({ tid: a.bekreftet_tid || naa.last_changed, ikon: a.icon || "mdi:face-recognition",
-            stil: "av", tittel: `${naa.state} låste opp`,
+            stil: "av", bilde: this._bilde(naa.state), tittel: `${naa.state} låste opp`,
             under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
         }
       } catch (e) {
@@ -16459,6 +16537,7 @@ class KiSikkerhetCard extends HTMLElement {
       boks.appendChild(this._alarm);
     }
     this._alarm.hass = this._h;
+    this._rullevakt();
   }
 
   _liste(rader) {
