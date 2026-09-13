@@ -1,4 +1,4 @@
-/* ki-sikkerhet-card – animert hero for sikkerhetspopupen.
+/* ki-sikkerhet-card – hele sikkerhetspanelet i ett kort.
  *
  * Leser samme `zones:`-struktur som ki-alarm-card, så sonene settes opp én gang og
  * brukes i begge kortene. Huset tegnes i SVG og reagerer på tilstanden: skjoldet
@@ -11,6 +11,9 @@
  * zones: …                     # samme liste som ki-alarm-card
  * batteri_grense: 20           # varsler under denne prosenten (0 = av)
  * kompakt: false               # lavere hus, for smale popuper
+ * tastatur:                    # ki-alarm-card bakes inn under huset
+ *   code_length: 6             # false slår det av og gir bare huset
+ *   arm_requires_code: true
  */
 const KI_SIK_VERSJON = "1.0.0";
 
@@ -50,42 +53,89 @@ const KI_SIK_STIL = `
   @keyframes kiSikNikk { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-2px) } }
 
   /* ---- huset ---- */
-  .scene { position:relative; width:100%; height:150px; }
-  .kompakt .scene { height:112px; }
+  .scene { position:relative; width:100%; height:172px;
+    --vegg-lys:color-mix(in srgb, var(--gray1000) 12%, transparent);
+    --vegg-mork:color-mix(in srgb, var(--gray1000) 22%, transparent);
+    --tak-lys:color-mix(in srgb, var(--gray1000) 78%, transparent);
+    --tak-mork:color-mix(in srgb, var(--gray1000) 55%, transparent);
+    --dor-lys:color-mix(in srgb, var(--tone,#5ad18b) 55%, var(--gray1000));
+    --dor-mork:color-mix(in srgb, var(--tone,#5ad18b) 25%, var(--gray1000)); }
+  .kompakt .scene { height:132px; }
   .scene svg { width:100%; height:100%; display:block; overflow:visible; }
 
-  .vegg { fill:var(--gray100); transition:fill .6s var(--myk); }
-  .tak  { fill:var(--gray1000); opacity:.82; }
-  .ramme { fill:none; stroke:var(--gray1000); stroke-opacity:.22; stroke-width:2; }
-  .rute { fill:var(--gray1000); opacity:.10; transition:fill .45s var(--myk), opacity .45s var(--myk); }
-  .rute.apen { fill:var(--orange,#f0a952); opacity:.92; animation:kiSikGlo 1.8s ease-in-out infinite; }
-  .dor.apen  { fill:var(--red,#e0524a); opacity:.9; animation:kiSikGlo 1.8s ease-in-out infinite; }
-  @keyframes kiSikGlo { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+  .bakke { fill:var(--gray1000); opacity:.10; }
+  .vegg { stroke:var(--gray1000); stroke-opacity:.10; stroke-width:1; }
+  .panel { stroke:var(--gray1000); stroke-opacity:.07; stroke-width:1.5; fill:none; }
+  .takskygge { fill:var(--gray1000); opacity:.10; }
+  .mone { stroke:var(--gray000,#fff); stroke-opacity:.18; stroke-width:2; stroke-linecap:round; }
+  .pipe, .pipehatt { fill:var(--gray1000); opacity:.62; }
 
-  .bakke { fill:var(--gray1000); opacity:.13; }
-  .roykpust { fill:none; stroke:var(--gray1000); stroke-opacity:.28; stroke-width:2.5; stroke-linecap:round; }
-  .kort.trygg .roykpust { animation:kiSikRoyk 5s linear infinite; }
-  @keyframes kiSikRoyk { 0% { opacity:0; transform:translateY(4px) } 30% { opacity:.5 } 100% { opacity:0; transform:translateY(-12px) } }
+  /* røyk: bare når alt er rolig, og med litt drift */
+  .roykgruppe { opacity:0; transition:opacity .8s var(--myk); }
+  .kort.trygg .roykgruppe { opacity:1; }
+  .roykpust { fill:none; stroke:var(--gray1000); stroke-opacity:.30; stroke-width:2.5; stroke-linecap:round;
+    stroke-dasharray:40; stroke-dashoffset:40; }
+  .kort.trygg .roykpust { animation:kiSikRoyk 6s ease-in-out infinite; }
+  .kort.trygg .roykpust.r2 { animation-delay:3s; }
+  @keyframes kiSikRoyk {
+    0%   { stroke-dashoffset:40; opacity:0; transform:translateY(6px) scale(.85) }
+    25%  { opacity:.6 }
+    60%  { stroke-dashoffset:0 }
+    100% { stroke-dashoffset:-20; opacity:0; transform:translateY(-16px) scale(1.15) }
+  }
+
+  /* vinduer */
+  .rute { fill:var(--gray1000); opacity:.30; transition:fill .5s var(--myk), opacity .5s var(--myk); }
+  .karm { fill:none; stroke:var(--gray000,#fff); stroke-opacity:.16; stroke-width:1.5; }
+  .sprosse { stroke:var(--gray000,#fff); stroke-opacity:.14; stroke-width:1.2; fill:none; }
+  .sale { fill:var(--gray000,#fff); opacity:.10; }
+  .skinn { fill:var(--orange,#f0a952); opacity:.18; filter:blur(1px); }
+  .vindu.apen .rute { fill:var(--orange,#f0a952); opacity:.95; }
+  .vindu.apen { animation:kiSikTenn .5s var(--fjaer) both; animation-delay:var(--d,0s); }
+  .vindu.apen .skinn { animation:kiSikFlimmer 3.4s ease-in-out infinite; animation-delay:var(--d,0s); }
+  @keyframes kiSikTenn { from { opacity:.2; transform:scale(.94) } to { opacity:1; transform:none } }
+  @keyframes kiSikFlimmer { 0%,100% { opacity:.14 } 50% { opacity:.30 } }
+
+  /* lampe over døra */
+  .lampearm, .lampeskjerm { stroke:var(--gray1000); stroke-opacity:.55; stroke-width:1.5; fill:none; }
+  .lampeglo { opacity:0; transition:opacity .6s var(--myk); }
+  .lampe.tent .lampeglo { opacity:1; animation:kiSikFlimmer 4.2s ease-in-out infinite; }
+  .lampe.tent .lampeskjerm { fill:var(--orange,#f0a952); fill-opacity:.5; }
+
+  /* dør */
+  .dorkarm { fill:var(--gray000,#fff); opacity:.10; }
+  .dorfyll { fill:var(--gray000,#fff); opacity:.10; }
+  .handtak { fill:var(--gray000,#fff); opacity:.5; }
+  .dorgruppe { transform-origin:148px 118px; transition:transform .6s var(--fjaer); }
+  .dorgruppe.apen { transform:perspective(200px) rotateY(-32deg); }
+  .dorgruppe.apen .dor { animation:kiSikGlo 2.4s ease-in-out infinite; }
+  @keyframes kiSikGlo { 0%,100% { opacity:.75 } 50% { opacity:1 } }
 
   /* radar for bevegelse */
-  .radar { transform-origin:var(--rx,50%) var(--ry,50%); animation:kiSikSveip 3.2s linear infinite; }
+  .radar { transform-origin:var(--rx,50%) var(--ry,50%); animation:kiSikSveip 3.6s linear infinite; }
   @keyframes kiSikSveip { to { transform:rotate(360deg) } }
-  .radarvifte { fill:var(--blue,#6ec6ff); opacity:.30; }
-  .radarring { fill:none; stroke:var(--blue,#6ec6ff); stroke-opacity:.35; stroke-width:1.5; }
-
-  /* sirenebuer */
-  .sirene { fill:none; stroke:var(--red,#e0524a); stroke-width:3; stroke-linecap:round; opacity:0; }
-  .kort.alarm .sirene { animation:kiSikSirene 1.2s ease-out infinite; }
-  .kort.alarm .sirene:nth-of-type(2) { animation-delay:.2s; }
-  .kort.alarm .sirene:nth-of-type(3) { animation-delay:.4s; }
-  @keyframes kiSikSirene { 0% { opacity:0; transform:scale(.5) } 40% { opacity:.8 } 100% { opacity:0; transform:scale(1.25) } }
+  .radarvifte { fill:var(--blue,#6ec6ff); opacity:.22; }
+  .radarring { fill:none; stroke:var(--blue,#6ec6ff); stroke-opacity:.30; stroke-width:1.5; }
+  .radarring.puls { transform-origin:160px 108px; animation:kiSikRing 3.6s ease-out infinite; }
+  @keyframes kiSikRing { 0% { transform:scale(.4); stroke-opacity:.5 } 100% { transform:scale(1.06); stroke-opacity:0 } }
 
   /* nedtelling ved på-/avkobling */
   .tellering { fill:none; stroke:var(--yellow,#f5c542); stroke-width:3; stroke-linecap:round;
-    stroke-dasharray:4 8; animation:kiSikRull 1.6s linear infinite; }
-  @keyframes kiSikRull { to { stroke-dashoffset:-24 } }
+    stroke-dasharray:5 10; animation:kiSikRull 1.8s linear infinite; }
+  @keyframes kiSikRull { to { stroke-dashoffset:-30 } }
+
+  /* sirenebuer */
+  .sirene { fill:none; stroke:var(--red,#e0524a); stroke-width:3; stroke-linecap:round; opacity:0;
+    transform-origin:160px 84px; }
+  .kort.alarm .sirene { animation:kiSikSirene 1.3s ease-out infinite; }
+  .kort.alarm .sirene:nth-child(2), .kort.alarm .sirene:nth-child(5) { animation-delay:.18s; }
+  .kort.alarm .sirene:nth-child(3), .kort.alarm .sirene:nth-child(6) { animation-delay:.36s; }
+  @keyframes kiSikSirene { 0% { opacity:0; transform:scale(.55) } 45% { opacity:.85 } 100% { opacity:0; transform:scale(1.2) } }
 
   /* ---- brikker ---- */
+  .hero { display:grid; gap:14px; }
+  .tastatur:not(:empty) { margin-top:2px; padding-top:14px;
+    border-top:1px solid color-mix(in srgb, var(--gray1000) 12%, transparent); }
   .brikker { display:flex; flex-wrap:wrap; gap:8px; }
   .brikke { display:flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:999px;
     background:var(--gray100); color:var(--gray1000); font-size:13px; font-weight:600;
@@ -112,8 +162,10 @@ const KI_SIK_STIL = `
   .tom { font-size:13px; opacity:.6; padding:10px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .kort::before, .skjold::after, .skjold ha-icon, .rute.apen, .dor.apen,
-    .radar, .sirene, .tellering, .roykpust, .liste { animation:none !important; }
+    .kort::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
+    .lampe.tent .lampeglo, .dorgruppe.apen .dor, .radar, .radarring.puls,
+    .sirene, .tellering, .roykpust, .liste { animation:none !important; }
+    .dorgruppe { transition:none; }
   }
 `;
 
@@ -129,12 +181,13 @@ const KI_SIK_NAVN = {
 class KiSikkerhetCard extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); this._apen = null; }
   static getStubConfig() { return { entity: "alarm_control_panel.alarm", zones: [] }; }
-  getCardSize() { return 4; }
+  getCardSize() { return this._c && this._c.tastatur ? 10 + (this._c.zones || []).length * 2 : 4; }
   getGridOptions() { return { columns: 12, rows: 5, min_rows: 4 }; }
 
   setConfig(c) {
     if (!c || !c.entity) throw new Error("Sett entity: til alarmpanelet");
-    this._c = { navn: "Sikkerhet", batteri_grense: 20, kompakt: false, zones: [], ...c };
+    this._c = { navn: "Sikkerhet", batteri_grense: 20, kompakt: false, tastatur: true, zones: [], ...c };
+    this._bygget = false;
   }
 
   set hass(h) {
@@ -243,35 +296,73 @@ class KiSikkerhetCard extends HTMLElement {
     const lister = { apne: apne.length ? apne : g.opening, motion: g.motion, lock: g.lock, lavt: g.lavt, borte: g.borte };
     const valgt = this._apen && lister[this._apen] ? lister[this._apen] : null;
 
-    this.shadowRoot.innerHTML = `
-      <style>${KI_SIK_STIL}</style>
-      <ha-card>
-        <div class="${klasse}" style="--tone:${tone}">
-          <div class="topp">
-            <div class="fyll">
-              <div class="tit">${KI_SIK_ESC(c.navn)}</div>
-              <div class="und">${KI_SIK_ESC(und)}</div>
-            </div>
-            <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
-                 role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
-              <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
-            </div>
-          </div>
+    if (!this._bygget) this._bygg();
 
-          <div class="scene">${this._hus({ paa, venter, alarm, apne, rorer, ulast, g })}</div>
+    const kort = this.shadowRoot.querySelector(".kort");
+    kort.className = klasse;
+    kort.style.setProperty("--tone", tone);
 
-          <div class="brikker">${brikker}</div>
-          ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}
+    this.shadowRoot.querySelector(".hero").innerHTML = `
+      <div class="topp">
+        <div class="fyll">
+          <div class="tit">${KI_SIK_ESC(c.navn)}</div>
+          <div class="und">${KI_SIK_ESC(und)}</div>
         </div>
-      </ha-card>`;
+        <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
+             role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
+          <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
+        </div>
+      </div>
 
-    for (const el of this.shadowRoot.querySelectorAll("[data-mer]"))
+      <div class="scene">${this._hus({ paa, venter, alarm, apne, rorer, ulast })}</div>
+
+      <div class="brikker">${brikker}</div>
+      ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`;
+
+    for (const el of this.shadowRoot.querySelectorAll(".hero [data-mer]"))
       el.addEventListener("click", () => this._mer(el.dataset.mer));
-    for (const el of this.shadowRoot.querySelectorAll("[data-liste]"))
+    for (const el of this.shadowRoot.querySelectorAll(".hero [data-liste]"))
       el.addEventListener("click", () => {
         this._apen = this._apen === el.dataset.liste ? null : el.dataset.liste;
         this._tegn();
       });
+
+    this._tastatur();
+  }
+
+  /* Skallet bygges én gang. Ville vi skrevet hele shadowRoot på nytt ved hver
+   * tilstandsendring, hadde det innebygde tastaturet blitt laget på nytt midt i
+   * inntastingen og mistet sifrene. */
+  _bygg() {
+    this.shadowRoot.innerHTML = `
+      <style>${KI_SIK_STIL}</style>
+      <ha-card>
+        <div class="kort">
+          <div class="hero"></div>
+          <div class="tastatur"></div>
+        </div>
+      </ha-card>`;
+    this._bygget = true;
+  }
+
+  /* ki-alarm-card settes inn under huset, uten sin egen topp (hero: false),
+   * så de to framstår som ett kort. Sonene er de samme. */
+  _tastatur() {
+    const boks = this.shadowRoot.querySelector(".tastatur");
+    if (!this._c.tastatur) { boks.innerHTML = ""; this._alarm = null; return; }
+    if (!this._alarm) {
+      if (!customElements.get("ki-alarm-card")) return;   // ikke lastet – hopp over
+      this._alarm = document.createElement("ki-alarm-card");
+      const ekstra = typeof this._c.tastatur === "object" ? this._c.tastatur : {};
+      this._alarm.setConfig({
+        entity: this._c.entity,
+        zones: this._c.zones,
+        hero: false,
+        ...ekstra,
+      });
+      boks.appendChild(this._alarm);
+    }
+    this._alarm.hass = this._h;
   }
 
   _liste(rader) {
@@ -285,54 +376,102 @@ class KiSikkerhetCard extends HTMLElement {
       </div>`).join("");
   }
 
-  /* Huset. Vinduene fylles opp av de faktisk åpne, resten står mørke. */
-  _hus({ paa, venter, alarm, apne, rorer, ulast, g }) {
-    const ruter = 4;
-    const antApne = Math.min(apne.length, ruter);
-    const vindu = (x, y, i) => `
-      <rect class="rute ${i < antApne ? "apen" : ""}" x="${x}" y="${y}" width="26" height="22" rx="4"></rect>
-      <rect class="ramme" x="${x}" y="${y}" width="26" height="22" rx="4"></rect>
-      <line class="ramme" x1="${x + 13}" y1="${y}" x2="${x + 13}" y2="${y + 22}"></line>`;
-
+  /* Huset. Tegnet med gradienter og lag, ikke flate rektangler.
+   * Vinduene tennes ett for ett av de faktisk åpne; resten står mørke. */
+  _hus({ paa, venter, alarm, apne, rorer, ulast }) {
+    const antApne = apne.length;
     const dorApen = ulast.length > 0 || apne.some((r) => /dør|door|inngang|veranda/i.test(r.navn));
+    const id = this._uid || (this._uid = "s" + Math.random().toString(36).slice(2, 8));
+
+    /* fire vinduer: to til venstre for døra, to til høyre */
+    const V = [[104, 86], [138, 86], [196, 86], [230, 86]];
+    const vindu = ([x, y], i) => {
+      const lyser = i < antApne;
+      return `
+        <g class="vindu ${lyser ? "apen" : ""}" style="--d:${i * 0.22}s">
+          ${lyser ? `<rect class="skinn" x="${x - 7}" y="${y - 7}" width="40" height="36" rx="14"></rect>` : ""}
+          <rect class="rute" x="${x}" y="${y}" width="26" height="22" rx="3"></rect>
+          <path class="sprosse" d="M${x + 13} ${y} V${y + 22} M${x} ${y + 11} H${x + 26}"></path>
+          <rect class="karm" x="${x}" y="${y}" width="26" height="22" rx="3"></rect>
+          <rect class="sale" x="${x - 2}" y="${y + 22}" width="30" height="3" rx="1.5"></rect>
+        </g>`;
+    };
 
     return `
-      <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        <ellipse class="bakke" cx="160" cy="138" rx="120" ry="7"></ellipse>
+      <svg viewBox="0 0 320 152" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          <linearGradient id="${id}vegg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--vegg-lys)"></stop>
+            <stop offset="100%" stop-color="var(--vegg-mork)"></stop>
+          </linearGradient>
+          <linearGradient id="${id}tak" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="var(--tak-lys)"></stop>
+            <stop offset="100%" stop-color="var(--tak-mork)"></stop>
+          </linearGradient>
+          <radialGradient id="${id}lys">
+            <stop offset="0%" stop-color="var(--orange,#f0a952)" stop-opacity=".55"></stop>
+            <stop offset="100%" stop-color="var(--orange,#f0a952)" stop-opacity="0"></stop>
+          </radialGradient>
+          <linearGradient id="${id}dor" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--dor-lys)"></stop>
+            <stop offset="100%" stop-color="var(--dor-mork)"></stop>
+          </linearGradient>
+        </defs>
 
-        <!-- pipe og røyk: bare når alt er rolig -->
-        <rect class="tak" x="206" y="34" width="14" height="24" rx="3"></rect>
-        <path class="roykpust" d="M213 30 q6 -6 0 -12 q-6 -6 0 -12"></path>
+        <ellipse class="bakke" cx="160" cy="140" rx="118" ry="8"></ellipse>
 
-        <!-- tak -->
-        <path class="tak" d="M160 22 L252 74 L68 74 Z"></path>
+        <!-- pipe -->
+        <path class="pipe" d="M210 40 h15 a2 2 0 0 1 2 2 v26 h-19 v-26 a2 2 0 0 1 2 -2 z"></path>
+        <rect class="pipehatt" x="207" y="36" width="23" height="5" rx="2.5"></rect>
+        <g class="roykgruppe">
+          <path class="roykpust" d="M218 32 q7 -7 0 -14 q-7 -7 0 -14"></path>
+          <path class="roykpust r2" d="M218 32 q-7 -7 0 -14 q7 -7 0 -14"></path>
+        </g>
+
+        <!-- tak med utstikk -->
+        <path class="takskygge" d="M160 24 L258 78 L62 78 Z"></path>
+        <path class="tak" fill="url(#${id}tak)" d="M160 20 L256 74 a4 4 0 0 1 -2 7 L66 81 a4 4 0 0 1 -2 -7 Z"></path>
+        <path class="mone" d="M160 20 L160 30"></path>
+
         <!-- vegg -->
-        <rect class="vegg" x="82" y="72" width="156" height="62" rx="6"></rect>
+        <path class="vegg" fill="url(#${id}vegg)" d="M84 78 h152 a6 6 0 0 1 6 6 v50 a4 4 0 0 1 -4 4 H82 a4 4 0 0 1 -4 -4 V84 a6 6 0 0 1 6 -6 z"></path>
+        <path class="panel" d="M78 98 H242 M78 116 H242"></path>
 
-        ${vindu(96, 84, 0)}
-        ${vindu(130, 84, 1)}
-        ${vindu(196, 84, 2)}
-        ${vindu(206, 112, 3)}
+        ${V.map(vindu).join("")}
+
+        <!-- lampe over døra -->
+        <g class="lampe ${paa || dorApen ? "tent" : ""}">
+          <circle class="lampeglo" cx="160" cy="92" r="16" fill="url(#${id}lys)"></circle>
+          <path class="lampearm" d="M160 84 v5"></path>
+          <path class="lampeskjerm" d="M153 95 l7 -7 l7 7 z"></path>
+        </g>
 
         <!-- dør -->
-        <rect class="rute dor ${dorApen ? "apen" : ""}" x="158" y="94" width="26" height="40" rx="4"></rect>
-        <rect class="ramme" x="158" y="94" width="26" height="40" rx="4"></rect>
-        <circle class="ramme" cx="178" cy="115" r="2"></circle>
+        <g class="dorgruppe ${dorApen ? "apen" : ""}">
+          <rect class="dorkarm" x="146" y="96" width="28" height="42" rx="4"></rect>
+          <rect class="dor" fill="url(#${id}dor)" x="148" y="98" width="24" height="40" rx="3"></rect>
+          <rect class="dorfyll" x="152" y="103" width="16" height="14" rx="2"></rect>
+          <circle class="handtak" cx="167" cy="118" r="1.8"></circle>
+        </g>
 
         ${rorer.length ? `
-          <g class="radar" style="--rx:160px; --ry:112px">
-            <path class="radarvifte" d="M160 112 L160 58 A54 54 0 0 1 198 74 Z"></path>
+          <g class="radar" style="--rx:160px; --ry:108px">
+            <path class="radarvifte" d="M160 108 L160 44 A64 64 0 0 1 205 63 Z"></path>
           </g>
-          <circle class="radarring" cx="160" cy="112" r="54"></circle>` : ""}
+          <circle class="radarring" cx="160" cy="108" r="64"></circle>
+          <circle class="radarring puls" cx="160" cy="108" r="64"></circle>` : ""}
 
-        ${venter ? `<circle class="tellering" cx="160" cy="78" r="66"></circle>` : ""}
+        ${venter ? `<circle class="tellering" cx="160" cy="80" r="74"></circle>` : ""}
 
         ${alarm ? `
-          <path class="sirene" d="M262 62 a26 26 0 0 1 0 36"></path>
-          <path class="sirene" d="M272 52 a40 40 0 0 1 0 56"></path>
-          <path class="sirene" d="M282 42 a54 54 0 0 1 0 76"></path>
-          <path class="sirene" d="M58 62 a26 26 0 0 0 0 36"></path>
-          <path class="sirene" d="M48 52 a40 40 0 0 0 0 56"></path>` : ""}
+          <g class="sirener">
+            <path class="sirene" d="M264 66 a24 24 0 0 1 0 34"></path>
+            <path class="sirene" d="M274 56 a38 38 0 0 1 0 54"></path>
+            <path class="sirene" d="M284 46 a52 52 0 0 1 0 74"></path>
+            <path class="sirene" d="M56 66 a24 24 0 0 0 0 34"></path>
+            <path class="sirene" d="M46 56 a38 38 0 0 0 0 54"></path>
+            <path class="sirene" d="M36 46 a52 52 0 0 0 0 74"></path>
+          </g>` : ""}
       </svg>`;
   }
 }

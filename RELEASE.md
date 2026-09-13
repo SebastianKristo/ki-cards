@@ -1,33 +1,45 @@
-# ki-cards 3.16.0
+# ki-cards 3.17.0
 
-## Nytt kort: `ki-sikkerhet-card`
+## `ki-sikkerhet-card` er nå hele panelet
 
-Animert hero for sikkerhetspopupen. Et hus i SVG som reagerer på det som faktisk skjer:
-
-* Skjoldet øverst pulserer når alarmen er på, nikker mens den kobler på, og blir rødt
-  med sirenebuer på begge sider når alarmen har gått.
-* Vinduene i huset lyser oransje – ett lys per åpne dør eller vindu, opptil fire.
-* Døren lyser rødt når en lås står ulåst, eller når noe med «dør», «inngang» eller
-  «veranda» i navnet er åpent.
-* En radarvifte sveiper over huset når en bevegelsessensor slår ut.
-* Pipa ryker bare når alt er lukket og låst.
-* Nedtellingsring rundt taket ved på- og avkobling.
-
-Under huset en rad med brikker: åpne, bevegelse, låser, lavt batteri og «uten svar».
-Trykk på en brikke for å folde ut hvilke sensorer det gjelder; trykk på en rad for
-more-info. Brikkene farges bare når det er noe å si fra om.
-
-Kortet leser **samme `zones:`-struktur som `ki-alarm-card`**, så sonene settes opp én
-gang. I YAML kan du feste lista med et anker (`&soner`) og gjenbruke den i begge
-kortene, slik eksempelet i `examples/` viser.
+Huset og tastaturet er slått sammen til ett kort. `ki-alarm-card` bakes inn under huset
+med `hero: false`, så det ikke lenger står to overskrifter og to skjold oppå hverandre.
+Sonene defineres ett sted og sendes videre til det innebygde kortet.
 
 ```yaml
 type: custom:ki-sikkerhet-card
 entity: alarm_control_panel.alarm
 navn: Hjemme
-batteri_grense: 20      # brikke når noe er under denne prosenten (0 = av)
-kompakt: false          # lavere hus, for smale popuper
-zones: …                # som i ki-alarm-card
+tastatur:                 # false gir bare huset
+  code_length: 6
+  arm_requires_code: true
+zones: …
 ```
 
-Alle animasjoner er slått av under `prefers-reduced-motion`.
+Skallet bygges én gang og bare heroen tegnes på nytt ved tilstandsendringer. Uten det
+ville tastaturet blitt bygget om midt i inntastingen og mistet sifrene.
+
+## Huset er tegnet om
+
+Bort med de flate rektanglene. Veggen har nå gradient og panelskjøter, taket har utstikk
+og egen skygge, pipa har hatt, og vinduene har karm, sprosser og vinduskarm.
+
+Nye og forbedrede animasjoner:
+
+* **Vinduene tennes etter tur** når noe åpnes — 0,22 sekunders forsinkelse per vindu — og
+  får en myk glødeflekk som flimrer svakt, som lys innenfra.
+* **Døra svinger opp** i perspektiv når en lås står ulåst eller en dør er åpen, i stedet
+  for bare å skifte farge.
+* **Lampe over døra** som tennes når alarmen er på eller døra står åpen.
+* **Røyken** stiger med en tegnet strek som drar seg oppover og fader ut, to pust i
+  vekselvis rytme, og bare når alt er lukket og låst.
+* **Radaren** har fått en utoverbølgende ring i tillegg til viften.
+* **Sirenene** kommer i tre buer på hver side, forskjøvet i tid.
+
+Fargene er bygget med `color-mix` mot `--gray1000` og `--tone`, så huset følger temaet
+ditt i stedet for å ha faste farger. Alt stopper under `prefers-reduced-motion`.
+
+## `ki-alarm-card`
+
+Nytt valg `hero: false` som skjuler kortets egen topp. Brukes av kortet over; alt annet
+er uendret, og kortet virker som før alene.

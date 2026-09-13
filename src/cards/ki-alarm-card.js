@@ -195,6 +195,8 @@ class KiAlarmCard extends HTMLElement {
     return STANDARD_KONFIG();
   }
 
+  /* hero: false skjuler kortets egen topp – brukes når ki-sikkerhet-card
+     tegner huset over og bare vil ha soner og tastatur herfra. */
   setConfig(config) {
     if (!config.entity || !config.entity.startsWith("alarm_control_panel.")) {
       throw new Error("ki-alarm-card: 'entity' må være et alarm_control_panel");
@@ -284,7 +286,7 @@ class KiAlarmCard extends HTMLElement {
     const hindringer = this._hindringer(soner);
 
     this._rot.innerHTML = `
-      ${this._heroHtml(p, tilstand, farge, soner, hindringer)}
+      ${this._config.hero === false ? "" : this._heroHtml(p, tilstand, farge, soner, hindringer)}
       ${
         this._tastaturApent
           ? this._tastaturHtml()
