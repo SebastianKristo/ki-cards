@@ -1,4 +1,4 @@
-/* ki-cards v3.40.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.41.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.40.0";
+  KI.VERSION = "3.41.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17878,7 +17878,7 @@ try {
  * tittel: Elbil mot diesel
  * bakgrunn: none             # standard: ingen egen bakgrunn (popupen har sin)
  */
-const KI_SPAR_VERSJON = "1.1.0";
+const KI_SPAR_VERSJON = "2.0.0";
 
 const KI_SPAR_PERIODER = {
   i_dag: { nokkel: "i_dag", navn: "I dag" },
@@ -17891,67 +17891,57 @@ const KI_SPAR_PERIODER = {
 const KI_SPAR_STIL = `
   :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
-  .kort { border-radius:var(--ha-card-border-radius,24px); background:var(--kort-bg,transparent);
-    color:var(--gray1000); padding:var(--kort-pad,0); display:grid; gap:18px; }
+  .kort { display:grid; gap:12px; color:var(--gray1000); }
   button { font:inherit; font-family:inherit; border:0; background:none; color:inherit; cursor:pointer; }
 
-  /* ---- toppen: beløpet og perioden ---- */
-  .hero { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .merke { font-size:13px; opacity:.6; font-weight:500; }
-  .stor { font-size:44px; font-weight:600; line-height:1; letter-spacing:-.035em;
-    font-variant-numeric:tabular-nums; margin-top:6px; }
-  .stor small { font-size:16px; font-weight:500; opacity:.55; margin-left:7px; letter-spacing:0; }
-  .undertekst { font-size:13px; opacity:.55; margin-top:8px; line-height:1.4; }
+  /* ---- periodevelger, samme pilleform som simple-tabs i popupen ---- */
+  .valg { display:flex; gap:4px; padding:2px; border-radius:999px; width:fit-content;
+    margin:0 auto; border:1px solid rgba(255,255,255,.3); }
+  .valg button { padding:9px 22px; border-radius:999px; font-size:14px; font-weight:500;
+    color:rgba(255,255,255,.72); transition:background .2s, color .2s; white-space:nowrap; }
+  .valg button:hover { color:rgba(255,255,255,.95); }
+  .valg button.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
+    font-weight:500; box-shadow:0 1px 6px rgba(0,0,0,.35); }
 
-  .valg { display:flex; gap:3px; padding:3px; border-radius:999px; flex:none;
-    border:1px solid color-mix(in srgb, var(--gray1000) 20%, transparent); }
-  .valg button { padding:6px 13px; border-radius:999px; font-size:13px; font-weight:500;
-    color:color-mix(in srgb, var(--gray1000) 70%, transparent); transition:background .2s, color .2s; }
-  .valg button.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); font-weight:600; }
+  /* ---- flisene: samme form som universal_sensor_ny ---- */
+  .rutenett { display:grid; grid-template-columns:repeat(var(--kol,2),minmax(0,1fr)); gap:12px; }
+  .flis { background:var(--gray200); border-radius:24px; padding:0; overflow:hidden;
+    display:grid; grid-template-areas:"i n" "i v"; grid-template-columns:76px 1fr;
+    grid-template-rows:1fr 1fr; align-items:center; min-height:88px; text-align:left; width:100%; }
+  .flis.hel { grid-column:1 / -1; }
+  .flis .ik { grid-area:i; justify-self:start; align-self:center; margin:4px;
+    width:58px; height:58px; border-radius:50%; background:rgba(250,251,252,.10);
+    display:flex; align-items:center; justify-content:center; --mdc-icon-size:28px; }
+  .flis .n { grid-area:n; align-self:end; font-size:13px; font-weight:400; opacity:.62;
+    line-height:1.25; padding-right:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .flis .v { grid-area:v; align-self:start; font-size:26px; font-weight:500; line-height:1.15;
+    letter-spacing:-.02em; font-variant-numeric:tabular-nums; padding-right:14px; }
+  .flis .v span { font-size:14px; line-height:1.5em; margin-left:4px; font-weight:300; opacity:.75; }
 
-  /* ---- én delt stolpe: det du betalte mot det du slapp å betale ---- */
-  .delt { display:grid; gap:10px; }
-  .spor { display:flex; height:34px; border-radius:12px; overflow:hidden;
-    background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
-  .spor i { display:block; height:100%; transition:width .7s var(--myk);
-    display:flex; align-items:center; justify-content:center;
-    font-size:12px; font-weight:700; color:rgba(20,22,20,.75); white-space:nowrap; }
-  .spor .el { background:var(--green,#5ad18b); width:var(--el,10%); }
-  .spor .sp { background:color-mix(in srgb, var(--orange,#f0a952) 34%, transparent);
-    width:var(--sp,90%); color:var(--gray1000); opacity:.85; }
-  .nokler { display:flex; gap:16px; font-size:12.5px; opacity:.7; flex-wrap:wrap; }
-  .nokler b { font-weight:600; opacity:1; }
-  .prikk { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px;
-    vertical-align:1px; }
-  .prikk.el { background:var(--green,#5ad18b); }
-  .prikk.sp { background:color-mix(in srgb, var(--orange,#f0a952) 60%, transparent); }
+  /* framhevet flis, som varslene øverst i popupen */
+  .flis.stor { grid-template-rows:auto auto auto; min-height:0; padding-bottom:12px; }
+  .flis.stor .v { font-size:38px; font-weight:500; }
+  .flis.stor .under { grid-area:auto / 2 / auto / 3; font-size:12.5px; opacity:.55;
+    padding-right:14px; line-height:1.4; margin-top:2px; }
 
-  /* ---- tre tall på rad ---- */
-  .stat { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-  .rute { background:var(--gray100); border-radius:18px; padding:12px 14px; display:grid; gap:2px; }
-  .rute .v { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
-  .rute .v span { font-size:12px; font-weight:500; opacity:.55; margin-left:3px; }
-  .rute .n { font-size:11.5px; opacity:.55; font-weight:500; line-height:1.3; }
+  /* stolpe nederst i flisa, slik show_bar gjør det */
+  .bar { grid-column:1 / -1; height:6px; margin:8px 12px 0; border-radius:99px;
+    background:rgba(250,251,252,.12); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:99px; width:var(--b,0%);
+    background:var(--barfarge, var(--green,#5ad18b)); transition:width .7s var(--myk); }
 
-  /* ---- per mil, som én rolig linje ---- */
-  .mil { display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:12px 14px; border-radius:18px; background:var(--gray100); font-size:13.5px; }
-  .mil .par { display:flex; align-items:center; gap:8px; min-width:0; }
-  .mil ha-icon { --mdc-icon-size:18px; opacity:.7; flex:none; }
-  .mil .tall { font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .mil .mot { opacity:.4; font-size:12px; flex:none; }
-
-  .fot { font-size:12px; opacity:.45; line-height:1.45; }
+  .fot { font-size:12px; opacity:.45; line-height:1.45; padding:0 6px; }
   .fot.varsel { opacity:1; color:var(--orange,#f0a952); }
-  .tom { font-size:14px; opacity:.65; padding:16px 4px; line-height:1.5; }
+  .tom { font-size:14px; opacity:.65; padding:16px 4px; line-height:1.5;
+    background:var(--gray200); border-radius:24px; }
   .tom code { font-size:12.5px; }
 
   @media (max-width:400px) {
-    .stor { font-size:38px; }
-    .stat { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .stat .rute:last-child { grid-column:1 / -1; }
+    .flis .ik { width:50px; height:50px; --mdc-icon-size:24px; }
+    .flis { grid-template-columns:64px 1fr; }
+    .flis.stor .v { font-size:32px; }
   }
-  @media (prefers-reduced-motion: reduce) { .spor i { transition:none; } }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition:none; } }
 `;
 
 const kiSpaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -18052,57 +18042,48 @@ class KiSparingCard extends HTMLElement {
     const dieselSt = this._st("dieselpris");
     const feil = dieselSt && dieselSt.attributes && dieselSt.attributes.feil;
 
-    // Det du faktisk betalte mot det du slapp å betale – én stolpe i stedet for to.
     const elKr = a.strom_kostet !== undefined && a.strom_kostet !== null ? Number(a.strom_kostet) : null;
     const dieselKr = a.diesel_ville_kostet !== undefined && a.diesel_ville_kostet !== null
       ? Number(a.diesel_ville_kostet) : null;
-    const andel = (dieselKr && dieselKr > 0 && elKr !== null)
-      ? Math.max(4, Math.min(96, Math.round(elKr / dieselKr * 100))) : null;
+    // Andel av dieselregningen dere faktisk betalte. Stolpen viser det motsatte: det sparte.
+    const spartAndel = (dieselKr && dieselKr > 0 && elKr !== null)
+      ? Math.max(2, Math.min(100, Math.round((1 - elKr / dieselKr) * 100))) : null;
 
     const elBil = biler.find((b) => b.el), dieselBil = biler.find((b) => !b.el);
 
-    const rute = (verdi, enhet, navn) => `
-      <div class="rute"><div class="v">${verdi}<span>${kiSpaEsc(enhet)}</span></div>
-        <div class="n">${kiSpaEsc(navn)}</div></div>`;
+    const flis = (ikon, navn, verdi, enhet, ekstra = "", kl = "") => `
+      <div class="flis ${kl}"${ekstra}>
+        <span class="ik"><ha-icon icon="${ikon}"></ha-icon></span>
+        <div class="n">${kiSpaEsc(navn)}</div>
+        <div class="v">${verdi}${enhet ? `<span>${kiSpaEsc(enhet)}</span>` : ""}</div>
+      </div>`;
 
     this.shadowRoot.innerHTML = `<style>${KI_SPAR_STIL}</style>
-      <div class="kort" style="${stil}">
-        <div class="hero">
-          <div>
-            <div class="merke">Spart ${kiSpaEsc(p.navn.toLowerCase())}</div>
-            <div class="stor">${kiSpaNf(spart, 0)}<small>kr</small></div>
-            ${dieselKr !== null ? `<div class="undertekst">Diesel ville kostet ${
-              kiSpaNf(dieselKr, 0)} kr. Strømmen kostet ${kiSpaNf(elKr, 0)} kr.</div>` : ""}
-          </div>
-          ${perioder.length > 1 ? `<div class="valg">${perioder.map((x) =>
-            `<button class="${x === this._p ? "aktiv" : ""}" data-p="${x}">${
-              kiSpaEsc(KI_SPAR_PERIODER[x].navn)}</button>`).join("")}</div>` : ""}
-        </div>
+      <div class="kort">
+        ${perioder.length > 1 ? `<div class="valg">${perioder.map((x) =>
+          `<button class="${x === this._p ? "aktiv" : ""}" data-p="${x}">${
+            kiSpaEsc(KI_SPAR_PERIODER[x].navn)}</button>`).join("")}</div>` : ""}
 
-        ${andel !== null ? `
-        <div class="delt">
-          <div class="spor" style="--el:${andel}%;--sp:${100 - andel}%">
-            <i class="el">${andel >= 12 ? kiSpaNf(elKr, 0) + " kr" : ""}</i>
-            <i class="sp">${kiSpaNf(spart, 0)} kr spart</i>
+        <div class="rutenett">
+          <div class="flis stor hel">
+            <span class="ik"><ha-icon icon="mdi:piggy-bank"></ha-icon></span>
+            <div class="n">Spart ${kiSpaEsc(p.navn.toLowerCase())}</div>
+            <div class="v">${kiSpaNf(spart, 0)}<span>kr</span></div>
+            ${dieselKr !== null ? `<div class="under">Diesel ville kostet ${kiSpaNf(dieselKr, 0)} kr,
+              strømmen kostet ${kiSpaNf(elKr, 0)} kr</div>` : ""}
+            ${spartAndel !== null ? `<div class="bar"><i style="--b:${spartAndel}%"></i></div>` : ""}
           </div>
-          <div class="nokler">
-            <span><i class="prikk el"></i>Strøm <b>${kiSpaNf(elKr, 0)} kr</b></span>
-            <span><i class="prikk sp"></i>Spart <b>${kiSpaNf(spart, 0)} kr</b></span>
-          </div>
-        </div>` : ""}
 
-        <div class="stat">
-          ${rute(kiSpaNf(a.kjort_km, 0), "km", "kjørt " + p.navn.toLowerCase())}
-          ${rute(kiSpaNf(liter, 0), "L", "diesel ikke fylt i år")}
-          ${rute(kiSpaNf(co2, 0), "kg", "CO₂ spart i år")}
-        </div>
+          ${flis("mdi:car-electric", elBil ? elBil.navn : "Elbil",
+            kiSpaNf(elBil && elBil.verdi, 2), "kr/mil",
+            elBil ? ` data-mer="${kiSpaEsc(elBil.id)}"` : "")}
+          ${flis("mdi:car-estate", dieselBil ? dieselBil.navn : "Diesel",
+            kiSpaNf(dieselBil && dieselBil.verdi, 2), "kr/mil",
+            dieselBil ? ` data-mer="${kiSpaEsc(dieselBil.id)}"` : "")}
 
-        <div class="mil" ${elBil ? `data-mer="${kiSpaEsc(elBil.id)}"` : ""}>
-          <div class="par"><ha-icon icon="mdi:car-electric"></ha-icon>
-            <span class="tall">${kiSpaNf(elBil && elBil.verdi, 2)} kr/mil</span></div>
-          <span class="mot">mot</span>
-          <div class="par"><span class="tall">${kiSpaNf(dieselBil && dieselBil.verdi, 2)} kr/mil</span>
-            <ha-icon icon="mdi:car-estate"></ha-icon></div>
+          ${flis("mdi:map-marker-distance", "Kjørt " + p.navn.toLowerCase(), kiSpaNf(a.kjort_km, 0), "km")}
+          ${flis("mdi:fuel", "Diesel ikke fylt i år", kiSpaNf(liter, 0), "L")}
+          ${flis("mdi:molecule-co2", "CO₂ spart i år", kiSpaNf(co2, 0), "kg", "", "hel")}
         </div>
 
         <div class="fot ${feil ? "varsel" : ""}">${feil

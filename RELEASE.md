@@ -1,20 +1,22 @@
-# ki-cards 3.40.0
+# ki-cards 3.41.0
 
-## `ki-strompris-card`: teksten i grafen var strukket
+## `ki-sparing-card` 2.0.0 – samme form som resten av Tesla-popupen
 
-Grafen ble tegnet i en viewBox på fast 320 enheter bredde, skalert ut til full bredde med
-`preserveAspectRatio="none"`. Da skaleres **alt** inni SVG-en horisontalt — ikke bare
-kurven, men også klokkeslettene, prisene og strektykkelsene. På en utbrettet skjerm var
-faktoren over det dobbelte, og bokstavene ble merkbart brede.
+Kortet hadde sitt eget uttrykk med delt stolpe, tallrad og prislinje. Det så greit ut for
+seg selv, men sto fremmed ved siden av batteriflisene og knapperaden i popupen.
 
-Forrige versjon la på `aspect-ratio` i CSS. Det gjorde grafen høyere, men rørte ikke selve
-strekkingen — derfor så tallene fortsatt gale ut.
+Nå er alt bygget som `universal_sensor_ny`-fliser: `--gray200`-bakgrunn, 24 px hjørner,
+rundt ikonfelt på 58 px til venstre med `rgba(250,251,252,.10)` bak, etiketten i 13 px over
+og verdien i 26 px under, med enheten som en liten 14 px span i vekt 300 — nøyaktig som
+rekkevidde- og kilometerflisene dine.
 
-Nå måles den faktiske bredden med en `ResizeObserver`, og viewBox settes til den bredden i
-piksler. Skaleringen blir 1:1 uansett skjerm, og tekst og streker tegnes i sin egen
-størrelse. Høyden regnes ut fra bredden med `graf_forhold` (standard 2,6), med `hoyde` som
-gulv og 1,9 ganger det som tak.
+* **Spart-flisen** går over hele bredden, med beløpet i 38 px, en linje som sier hva diesel
+  ville kostet mot hva strømmen kostet, og en stolpe nederst slik `show_bar` gjør det.
+  Stolpen viser hvor stor andel av dieselregningen dere slapp unna — 91 % i praksis.
+* **De to bilene** står side om side med kroner per mil. Trykk åpner more-info.
+* **Kjørt, liter og CO₂** følger under i samme rutenett.
+* **Periodevelgeren** har fått samme pilleform som `simple-tabs` i popupen: tynn hvit
+  ramme, valgt pille i `--active-big` med mørk tekst og skygge.
 
-Observeren kobles på nytt etter hver full omtegning — kortet bytter ut hele `.ramme`, så
-elementet den så på forsvinner — og ryddes når kortet fjernes. Endringer under 8 px
-utløser ingen ny tegning, så den ikke går i loop mot sin egen høyde.
+Prislinjen nederst står igjen som en dempet fotnote, og bytter til oransje med årsaken hvis
+hentingen av pumpeprisen feiler.
