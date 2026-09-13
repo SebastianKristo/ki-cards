@@ -1,4 +1,4 @@
-/* ki-cards v3.27.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.27.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.27.0";
+  KI.VERSION = "3.27.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -16158,26 +16158,56 @@ class KiSikkerhetCard extends HTMLElement {
       this._forrigeH = h;
       // Vokser boksen har tastaturet foldet seg ut: rull ned til det, så du slipper
       // å lete etter sifrene. Krymper den er koden tastet ferdig: tilbake til toppen.
-      this._rull(endring > 0 ? boks : this);
+      this._rull(endring > 0 ? "ned" : "opp");
     });
     this._ro.observe(boks);
   }
 
-  _rull(mal) {
-    clearTimeout(this._rullTid);
-    this._rullTid = setTimeout(() => {
-      if (!mal || !mal.scrollIntoView) return;
-      try { mal.scrollIntoView({ block: mal === this ? "start" : "nearest", behavior: "smooth" }); }
-      catch (e) { mal.scrollIntoView(true); }
-    }, 80);
+  /* Finner boksen som faktisk ruller. Inne i en bubble-card-popup er det ikke
+     vinduet, men et element med egen overflow – og det kan ligge på andre siden av
+     en shadow-rot, så vi går via host når parentElement tar slutt. */
+  _rulleboks() {
+    let el = this.parentElement || (this.getRootNode() && this.getRootNode().host);
+    for (let i = 0; i < 30 && el; i++) {
+      try {
+        const stil = getComputedStyle(el);
+        const kanRulle = /(auto|scroll|overlay)/.test(stil.overflowY);
+        if (kanRulle && el.scrollHeight > el.clientHeight + 8) return el;
+      } catch (e) { /* hopp over */ }
+      el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null;
+    }
+    return null;
   }
 
-  _ventendeFane() {
-    const KI = window.KI || {};
-    if (!KI.hentFane) return;
-    const f = KI.hentFane(this._faner());
-    if (f && f !== this._fane) { this._fane = f; return true; }
-    return false;
+  /* retning: "ned" viser hele tastaturet, "opp" går helt til toppen av kortet. */
+  _rull(retning) {
+    clearTimeout(this._rullTid);
+    // Vent til utfoldingen har satt seg, ellers måler vi på en høyde som fortsatt vokser
+    this._rullTid = setTimeout(() => {
+      const boks = this._rulleboks();
+      const mal = retning === "ned" ? this.shadowRoot.querySelector(".tastatur") : this;
+      if (!mal) return;
+
+      if (!boks) {
+        try {
+          mal.scrollIntoView({ block: retning === "ned" ? "end" : "start", behavior: "smooth" });
+        } catch (e) { mal.scrollIntoView(retning !== "ned"); }
+        return;
+      }
+
+      const luft = 16;
+      if (retning === "opp") {
+        // helt til toppen av kortet, ikke bare så vidt innenfor
+        const topp = boks.scrollTop + this.getBoundingClientRect().top
+          - boks.getBoundingClientRect().top - luft;
+        boks.scrollTo({ top: Math.max(0, topp), behavior: "smooth" });
+        return;
+      }
+      // ned: sørg for at hele tastaturet er synlig, ikke bare øverste kant
+      const m = mal.getBoundingClientRect(), b = boks.getBoundingClientRect();
+      const under = m.bottom - b.bottom + luft;
+      if (under > 0) boks.scrollTo({ top: boks.scrollTop + under, behavior: "smooth" });
+    }, 180);
   }
 
   connectedCallback() {

@@ -1,18 +1,25 @@
-# ki-cards 3.27.0
+# ki-cards 3.27.1
 
-## `ki-vanning-card` 3.5.0: forbruksdelen skjuler seg uten vannmåler
+## Rullingen i `ki-sikkerhet-card` gikk ikke langt nok
 
-Uten en måler er alle literne estimater regnet ut fra en standardrate. Kortet viste dem
-likevel som «brukt i dag», med kostnad og stolpe, som om de var målt.
+To feil, én i hver retning.
 
-Forbruk-fanen og literblokken i Nå-fanen forsvinner nå når det ikke finnes noen måler.
-Kortet ser etter, i tur og orden:
+**Ned:** tastaturet ble rullet inn med `scrollIntoView({ block: "nearest" })`, som gjør
+minst mulig — den flytter så vidt nærmeste kant innenfor synsfeltet og stopper der.
+Nederste tastrad ble liggende under kanten.
 
-1. `har_flyt` fra KI Vanning 3.1 — felles måler eller en sone-måler
-2. eldre versjoner: om noen sone i oversikten har `flow` satt
-3. OpenSprinklers egen `sensor.<prefiks>_flow_rate`
+**Opp:** `block: "start"` på kortet lander der kortet begynner, men inne i en
+bubble-card-popup ligger det en overskrift over, og kortet havnet delvis under den.
 
-Kan overstyres med `flyt: true` eller `flyt: false` i kortkonfigurasjonen.
+Begge deler regnes nå ut mot boksen som faktisk ruller. Den finnes ved å gå oppover fra
+kortet, via `host` når `parentElement` tar slutt, til vi treffer et element med egen
+`overflow-y` og mer innhold enn høyde — inne i en popup er det ikke vinduet.
 
-Resten av kortet er uendret — soner, programmer og kjøretider virker som før, siden de
-ikke er avhengige av en måler.
+* Ned: ruller nøyaktig så langt at hele tastaturet er synlig, med 16 px luft under.
+* Opp: ruller til toppen av kortet med 16 px luft over, klemt til 0 om vi alt er nær toppen.
+
+Ventetiden før målingen er økt fra 80 til 180 ms, så høyden har satt seg før vi regner —
+måler vi mens boksen fortsatt vokser, blir avstanden for kort.
+
+Finner vi ingen rulleboks, faller det tilbake på `scrollIntoView` med `end` og `start`
+i stedet for `nearest`.
