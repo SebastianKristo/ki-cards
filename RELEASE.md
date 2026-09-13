@@ -1,25 +1,20 @@
-# ki-cards 3.29.0
+# ki-cards 3.31.1
 
-## `ki-sovn-pro-card`: Enkel/Avansert flyttet opp på fanelinja
+## `ki-sikkerhet-card` forsvant helt fra popupen
 
-Kortet hadde to brede brytere rett over hverandre — Søvn/Vekking, og så Enkel/Avansert
-på egen rad. Det tok mye plass og gjorde det uklart hvilken som var hovedvalget.
+Min regresjon, innført i 3.27.1. Da jeg skrev om rullingen, byttet jeg ut alt mellom
+`_rull(...)` og `connectedCallback()`. Metoden `_ventendeFane()` lå akkurat der, og ble
+slettet sammen med den gamle rullekoden.
 
-S�vn/Vekking står nå alene på linja og får all bredden. Enkel/Avansert er blitt en
-kompakt knapp til høyre på samme rad, med et skyvekontroll-ikon og teksten «Avansert».
-Den lyser opp når avansert visning er på, og trykk veksler. Under 420 px faller teksten
-bort og bare ikonet står igjen.
+`connectedCallback()` kaller den fortsatt som første linje. Den fantes ikke, så kortet
+kastet `TypeError` idet det ble koblet til DOM-en, og rendret aldri. Huset, brikkene,
+tastaturet og fanene — alt var borte. Det har vært slik i 3.27.1, 3.28.0, 3.29.0, 3.30.0
+og 3.31.0.
 
-Har du ingen vekkealarmer, er det ingen faner å vise, og knappen står alene til høyre.
+Metoden er lagt inn igjen. Samtidig tåler kortet nå at `connectedCallback()` kommer før
+`setConfig()`, som det gjør i noen oppsett: både `_ventendeFane()` og `_faner()` sjekker
+at konfigurasjonen finnes før de leser den.
 
-`avansert_knapp: false` gir den gamle brede bryteren på egen rad tilbake.
-
-## Klikk på Søvn eller Vekking nullstilte visningen
-
-`KI.wirePro` la klikklytteren på alle `.switch-valg`, også fanepillene. De har `data-tab`,
-ikke `data-view`, så `el.dataset.view` var `undefined` — og et trykk på Søvn satte
-`_view` til `undefined`. Da var verken Enkel eller Avansert markert som valgt, og alt som
-sjekket `_view === "avansert"` slo av.
-
-Lytteren henger nå på `[data-view]` i stedet. Det gjelder alle kortene som bruker
-`KI.wirePro` med faner, ikke bare søvnkortet.
+Byggeskriptet pakker hvert kort i sin egen `try`, så feilen tok bare dette kortet med seg
+— resten av bundelen har virket hele tiden. Det er også grunnen til at den ikke ga noe
+synlig utslag utover at kortet uteble.

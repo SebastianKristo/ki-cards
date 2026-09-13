@@ -6,7 +6,12 @@
  * visning: valgt | alle            # valgt = én tavle med holdeplassvelger, alle = alle under hverandre
  * maks: 5                          # avganger per holdeplass
  * gange: 4                         # minutter å gå – avganger du ikke rekker tones ned
- * bakgrunn: var(--gray200)         # bakgrunnsfarge på kortet
+ * bakgrunn: none                   # standard: ingen egen bakgrunn (popupen har sin)
+ * animasjon: true                  # animert topp med kjøretøy
+ * reiser:                          # avganger mellom to holdeplasser
+ *   - fra: sensor.transport_frydenlund
+ *     til: Majorstuen              # matcher destinasjonen
+ *     navn: Frydenlund → Majorstuen
  * maks_bredde: 620px               # innholdet strekkes ikke bredere enn dette
  * bakgrunn_glod: false             # slår av det fargede skjæret øverst
  * vis_neste: true                  # den store «neste avgang»-blokken
@@ -21,7 +26,7 @@
  *
  * Nedtellingen går hvert tiende sekund uten å vente på Home Assistant.
  */
-const KI_RUTER_VERSJON = "4.0.0";
+const KI_RUTER_VERSJON = "4.1.0";
 
 const KI_R_MODUS = {
   bus: { ikon: "mdi:bus", farge: "#e2483d", navn: "Buss" },
@@ -38,9 +43,12 @@ const KI_R_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); --fjaer:cubic-bezier(.3,1.35,.5,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .ramme { max-width:100%; color:var(--gray1000, var(--primary-text-color)); }
+  /* Ingen egen bakgrunn som standard – kortet ligger som oftest i en popup som alt
+     har sin. Sett bakgrunn: var(--gray200) for a fa flaten tilbake nar det star alene. */
   .kort { position:relative; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
-    background:var(--kort-bg, var(--gray200, var(--card-background-color)));
-    color:var(--gray1000, var(--primary-text-color)); padding:18px; display:grid; gap:14px; }
+    background:var(--kort-bg, transparent);
+    color:var(--gray1000, var(--primary-text-color));
+    padding:var(--kort-pad, 0); display:grid; gap:14px; }
   .glo { position:absolute; inset:0; z-index:-1; overflow:hidden; border-radius:inherit; pointer-events:none; }
   .glo::before { content:""; position:absolute; inset:-45% -20% auto -20%; height:150%;
     background:radial-gradient(ellipse at 50% 0%, var(--tone,#2b7fd1) 0%, transparent 62%);
@@ -49,6 +57,22 @@ const KI_R_STIL = `
   button { font:inherit; border:0; background:none; color:inherit; font-family:inherit; }
   [data-a] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
   [tabindex]:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; border-radius:14px; }
+
+  /* ---- animert topp ---- */
+  .scene { position:relative; height:96px; border-radius:22px; overflow:hidden;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--tone,#2b7fd1) 26%, transparent), transparent 78%); }
+  .scene svg { position:absolute; inset:0; width:100%; height:100%; }
+  .scene .vei { stroke:var(--gray1000); stroke-opacity:.16; stroke-width:2; stroke-dasharray:10 9; }
+  .scene .skinne { stroke:var(--gray1000); stroke-opacity:.13; stroke-width:2; }
+  .scene .sville { stroke:var(--gray1000); stroke-opacity:.10; stroke-width:3; }
+  .kjt { animation:kiRKjor var(--fart,13s) linear infinite; animation-delay:var(--d,0s); }
+  @keyframes kiRKjor { from { transform:translateX(-70px) } to { transform:translateX(360px) } }
+  .kjt.mot { animation-name:kiRKjorMot; }
+  @keyframes kiRKjorMot { from { transform:translateX(360px) scaleX(-1) } to { transform:translateX(-70px) scaleX(-1) } }
+  .kjt rect, .kjt circle { shape-rendering:geometricPrecision; }
+  .hjul { fill:var(--gray1000); opacity:.5; }
+  .rute { fill:rgba(255,255,255,.75); }
+  .lykt { fill:#ffd98a; opacity:.9; }
 
   /* ---- topp ---- */
   .topp { display:flex; align-items:center; gap:12px; }
@@ -64,6 +88,7 @@ const KI_R_STIL = `
   .valg::-webkit-scrollbar { display:none; }
   .valg .v { display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border-radius:999px;
     font-size:14px; font-weight:500; white-space:nowrap; --mdc-icon-size:17px; cursor:pointer;
+    flex:none;   /* uten denne klemmes pillene til null bredde og teksten legger seg oppå hverandre */
     color:color-mix(in srgb, var(--gray1000) 72%, transparent); transition:background .2s, color .2s; }
   .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); font-weight:600;
     box-shadow:0 1px 6px rgba(0,0,0,.35); }
@@ -129,8 +154,13 @@ const KI_R_STIL = `
     width:100%; text-align:left; cursor:pointer; }
   .avvik-hode .pil { margin-left:auto; transition:transform .25s var(--myk); opacity:.6; }
   .avvik-hode .pil.ap { transform:rotate(180deg); }
-  .avvik-tekst { padding:0 18px 16px; font-size:13.5px; line-height:1.55; opacity:.85;
-    white-space:pre-line; max-height:260px; overflow-y:auto; }
+  .avvik-liste { max-height:320px; overflow-y:auto; padding:0 6px 6px; }
+  .avvik-rad { display:flex; gap:12px; padding:12px 12px; border-radius:16px; }
+  .avvik-rad + .avvik-rad { border-top:1px solid color-mix(in srgb, var(--gray1000) 12%, transparent); }
+  .avvik-rad .merke { height:26px; width:auto; border-radius:5px; flex:none; margin-top:1px; }
+  .a-tit { font-size:14.5px; font-weight:600; line-height:1.35; }
+  .a-tid { font-size:12.5px; opacity:.62; margin-top:3px; }
+  .a-tekst { font-size:13px; opacity:.8; line-height:1.5; margin-top:5px; }
 
   .linjer { display:flex; flex-wrap:wrap; gap:8px; }
   .lj { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:999px;
@@ -176,7 +206,7 @@ class KiRuterCard extends HTMLElement {
     const k = JSON.parse(JSON.stringify(c || {}));
     this._c = { tittel: k.tittel ?? k.title ?? "Ruter", ikon: k.ikon || k.title_icon || "mdi:bus-clock", visning: k.visning || "valgt",
       maks: k.maks || k.max_departures || 5, gange: k.gange ?? 0, vis_neste: true, vis_avvik: true, vis_linjer: true, vis_sanntid: true,
-      stops: k.stops || [], disruptions: k.disruptions || {}, ...k };
+      animasjon: true, stops: k.stops || [], reiser: k.reiser || [], disruptions: k.disruptions || {}, ...k };
     this._bygget = false; this._tegn();
   }
   connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 10000); this._tegn(); }
@@ -215,6 +245,23 @@ class KiRuterCard extends HTMLElement {
     return { ...st, navn: st.name || st.navn || (s ? s.attributes.friendly_name : st.entity), gange: st.gange ?? this._c.gange,
       avg, modus: this._modus(st, avg[0]), mangler: !s }; }); }
 
+  /* «Frydenlund → Majorstuen»: samme holdeplassdata, men bare avgangene som går dit.
+     `til` matcher mot destinasjonen, uten hensyn til store bokstaver og ø/ö. */
+  _reiser() {
+    const n = (x) => String(x || "").toLowerCase().replace(/ø|ö/g, "o").replace(/æ|ä|å/g, "a");
+    return (this._c.reiser || []).filter((r) => r.fra).map((r) => {
+      const kilde = { entity: r.fra, gange: r.gange ?? this._c.gange, icon: r.icon, linjer: r.linjer };
+      const st = this._h.states[r.fra];
+      const alle = this._avganger(kilde);
+      const maal = n(r.til);
+      const avg = maal ? alle.filter((a) => n(a.mal).includes(maal) || n(a.rute).includes(maal)) : alle;
+      const fraNavn = r.fra_navn || (st ? String(st.attributes.friendly_name || "").replace(/^Transport\s+/i, "") : r.fra);
+      return { ...kilde,
+        navn: r.navn || (r.til ? `${fraNavn} → ${r.til}` : fraNavn),
+        avg, modus: this._modus(kilde, avg[0]), mangler: !st, reise: true };
+    });
+  }
+
   /* -------------------------------------------------------------- html */
   _avgHtml(st, a) {
     const mod = this._modus(st, a), rekker = st.gange ? (a.min ?? 99) >= st.gange : true;
@@ -240,18 +287,51 @@ class KiRuterCard extends HTMLElement {
         <span class="meta" data-a="mer" data-e="${kiREsc(st.entity)}" tabindex="0">${kiREsc(meta)}</span></div>
       ${st.avg.length ? st.avg.map((a) => this._avgHtml(st, a)).join("") : `<div class="tom">${st.mangler ? `Fant ikke <code>${kiREsc(st.entity)}</code>` : "Ingen avganger de neste timene"}</div>`}</div>`;
   }
+  /* Ruter leverer avvikene som HTML: <ha-alert>-blokker med linjemerke som base64-SVG,
+     en title=-attributt, en liten tabell med Fra/Til og en brødtekst. Vi plukker det fra
+     hverandre i stedet for å vise råmarkering. */
+  _avvikListe(raa) {
+    const ut = [];
+    const blokker = String(raa || "").split(/<ha-alert\b/i).slice(1);
+    let merke = null;
+    for (const b of blokker) {
+      const bilde = (b.match(/<img[^>]*src="([^"]+)"[^>]*>/i) || [])[1];
+      const alt = (b.match(/<img[^>]*alt="([^"]+)"/i) || [])[1];
+      const tittel = (b.match(/title="([^"]*)"/i) || [])[1];
+      if (bilde && !tittel) { merke = { bilde, alt: alt || "" }; continue; }   // linjemerke foran avvikene
+      const fra = (b.match(/<b>Fra:.*?<i>(.*?)<\/i>/is) || [])[1];
+      const til = (b.match(/<b>Til:.*?<i>(.*?)<\/i>/is) || [])[1];
+      // Blokken begynner midt i selve taggen (vi splittet på «<ha-alert»), så alt fram
+      // til første > er attributter og ikke innhold.
+      const kropp = b.slice(b.indexOf(">") + 1);
+      const tekst = kropp.replace(/<table[\s\S]*?<\/table>/gi, "")
+        .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ")
+        .replace(/\s{2,}/g, " ").trim();
+      if (!tittel && !tekst) continue;
+      ut.push({ merke, tittel: tittel || tekst, tekst: tittel ? tekst : "", fra, til });
+    }
+    return ut;
+  }
+
   _avvikHtml() {
     const d = this._c.disruptions || {}, sum = d.summary && this._h.states[d.summary];
     if (!sum || !this._c.vis_avvik) return "";
     const ant = parseInt(sum.state) || 0;
     if (ant <= 0) return `<div class="avvik ok" data-a="mer" data-e="${kiREsc(d.summary)}" tabindex="0"><ha-icon icon="mdi:check-circle-outline"></ha-icon><span>Ingen meldte avvik</span></div>`;
-    const tekst = [sum.attributes.markdown_active, sum.attributes.markdown_planned].filter(Boolean).join("\n")
-      .replace(/^#+\s*(.*)$/gm, "$1").replace(/\*\*(.*?)\*\*/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
-    return `<div class="avvik varsel"><div class="avvik-hode" data-a="avvik" tabindex="0" role="button" aria-expanded="${this._visAvvik}">
+    const raa = [sum.attributes.markdown_active, sum.attributes.markdown_planned].filter(Boolean).join("\n");
+    const liste = this._avvikListe(raa);
+    return `<div class="avvik varsel"><button class="avvik-hode" data-a="avvik" aria-expanded="${this._visAvvik}">
         <ha-icon icon="mdi:alert-outline"></ha-icon><span>${ant} avvik i kollektivtrafikken</span>
-        <ha-icon class="pil ${this._visAvvik ? "ap" : ""}" icon="mdi:chevron-down"></ha-icon></div>
-      ${this._visAvvik && tekst ? `<div class="avvik-tekst">${kiREsc(tekst)}</div>` : ""}</div>`;
+        <ha-icon class="pil ${this._visAvvik ? "ap" : ""}" icon="mdi:chevron-down"></ha-icon></button>
+      ${this._visAvvik ? `<div class="avvik-liste">${liste.length ? liste.map((x) => `
+        <div class="avvik-rad">
+          ${x.merke ? `<img class="merke" src="${kiREsc(x.merke.bilde)}" alt="${kiREsc(x.merke.alt)}">` : ""}
+          <div><div class="a-tit">${kiREsc(x.tittel)}</div>
+            ${x.fra || x.til ? `<div class="a-tid">${kiREsc([x.fra, x.til].filter(Boolean).join(" – "))}</div>` : ""}
+            ${x.tekst ? `<div class="a-tekst">${kiREsc(x.tekst)}</div>` : ""}</div>
+        </div>`).join("") : `<div class="a-tekst" style="padding:0 18px 16px">${kiREsc(raa.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim())}</div>`}</div>` : ""}</div>`;
   }
+
   _linjerHtml() {
     if (!this._c.vis_linjer) return "";
     const l = ((this._c.disruptions || {}).lines || []).filter((x) => x.entity && this._h.states[x.entity]); if (!l.length) return "";
@@ -272,8 +352,54 @@ class KiRuterCard extends HTMLElement {
           st.gange ? ` · gå om ${Math.max(0, a.min - st.gange)} min` : ""}</div></div>
       <div class="stor">${kiRNed(a.min)}<small>${a.min <= 0 ? "" : a.min < 60 ? "min" : "timer"}</small></div></div>`;
   }
+  /* Kjøretøyene i toppen følger hvilke transportmidler holdeplassene faktisk bruker. */
+  _sceneHtml(tavler) {
+    if (this._c.animasjon === false) return "";
+    const moduser = [...new Set(tavler.map((t) => t.modus && t.modus.navn).filter(Boolean))];
+    const alle = moduser.length ? moduser : ["Buss"];
+    const kjt = {
+      Buss: (f) => `<rect x="0" y="6" width="52" height="20" rx="5" fill="${f}"/>
+        <rect x="5" y="10" width="12" height="8" rx="2" class="rute"/><rect x="21" y="10" width="12" height="8" rx="2" class="rute"/>
+        <rect x="37" y="10" width="9" height="8" rx="2" class="rute"/><circle cx="50" cy="14" r="2" class="lykt"/>
+        <circle cx="12" cy="28" r="4" class="hjul"/><circle cx="42" cy="28" r="4" class="hjul"/>`,
+      Trikk: (f) => `<rect x="0" y="4" width="60" height="22" rx="6" fill="${f}"/>
+        <rect x="5" y="9" width="14" height="9" rx="2" class="rute"/><rect x="23" y="9" width="14" height="9" rx="2" class="rute"/>
+        <rect x="41" y="9" width="12" height="9" rx="2" class="rute"/><circle cx="57" cy="14" r="2" class="lykt"/>
+        <path d="M30 4 L34 -4" stroke="${f}" stroke-width="2"/>
+        <circle cx="12" cy="28" r="3.5" class="hjul"/><circle cx="48" cy="28" r="3.5" class="hjul"/>`,
+      "T-bane": (f) => `<rect x="0" y="4" width="64" height="22" rx="8" fill="${f}"/>
+        <rect x="6" y="9" width="15" height="9" rx="2" class="rute"/><rect x="25" y="9" width="15" height="9" rx="2" class="rute"/>
+        <rect x="44" y="9" width="13" height="9" rx="2" class="rute"/><circle cx="61" cy="14" r="2" class="lykt"/>
+        <circle cx="14" cy="28" r="3.5" class="hjul"/><circle cx="50" cy="28" r="3.5" class="hjul"/>`,
+      Tog: (f) => `<rect x="0" y="3" width="70" height="23" rx="7" fill="${f}"/>
+        <rect x="6" y="8" width="16" height="10" rx="2" class="rute"/><rect x="26" y="8" width="16" height="10" rx="2" class="rute"/>
+        <rect x="46" y="8" width="14" height="10" rx="2" class="rute"/><circle cx="66" cy="14" r="2.5" class="lykt"/>
+        <circle cx="14" cy="28" r="4" class="hjul"/><circle cx="56" cy="28" r="4" class="hjul"/>`,
+      Båt: (f) => `<path d="M0 20 h56 l-8 10 h-40 z" fill="${f}"/><rect x="16" y="6" width="22" height="14" rx="3" fill="${f}"/>
+        <rect x="20" y="9" width="6" height="7" rx="1.5" class="rute"/><rect x="29" y="9" width="6" height="7" rx="1.5" class="rute"/>`,
+      Fly: (f) => `<path d="M0 18 l44 -6 l14 4 l-14 4 z" fill="${f}"/><path d="M24 12 l6 -10 l6 10 z" fill="${f}"/>`,
+    };
+    const farge = (navn) => (Object.values(KI_R_MODUS).find((m) => m.navn === navn) || {}).farge || "#888";
+    const rader = alle.slice(0, 3).map((navn, i) => {
+      const tegn = kjt[navn] || kjt.Buss;
+      const y = 18 + i * 26;
+      const mot = i % 2 === 1;
+      return `<g class="kjt ${mot ? "mot" : ""}" style="--fart:${11 + i * 4}s;--d:-${i * 3.5}s"
+                 transform="translate(0 ${y})">${tegn(farge(navn))}</g>`;
+    }).join("");
+    const baner = alle.slice(0, 3).map((navn, i) => {
+      const y = 18 + i * 26 + 32;
+      return navn === "Buss"
+        ? `<line class="vei" x1="0" y1="${y}" x2="320" y2="${y}"/>`
+        : `<line class="skinne" x1="0" y1="${y}" x2="320" y2="${y}"/>` +
+          Array.from({ length: 16 }, (_, j) => `<line class="sville" x1="${j * 20 + 4}" y1="${y - 3}" x2="${j * 20 + 4}" y2="${y + 3}"/>`).join("");
+    }).join("");
+    return `<div class="scene"><svg viewBox="0 0 320 96" preserveAspectRatio="xMidYMid slice">
+      ${baner}${rader}</svg></div>`;
+  }
+
   _innhold() {
-    const c = this._c, stopp = this._stopp();
+    const c = this._c, stopp = [...this._reiser(), ...this._stopp()];
     const topp = `<div class="topp"><span class="ikon"><ha-icon icon="${kiREsc(c.ikon)}"></ha-icon></span>
       ${c.tittel ? `<span class="tittel">${kiREsc(c.tittel)}</span>` : ""}
       <span class="klokke">oppdatert ${new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span></div>`;
@@ -283,7 +409,7 @@ class KiRuterCard extends HTMLElement {
     const velger = !enTavle ? "" : `<div class="valg" role="tablist">${stopp.map((st, i) => { const n = st.avg.length ? st.avg[0].min : null;
       return `<span class="v ${i === valgt ? "aktiv" : ""}" data-a="hp" data-i="${i}" tabindex="0" role="tab" aria-selected="${i === valgt}">
         <ha-icon icon="${kiREsc(st.icon || st.modus.ikon)}"></ha-icon>${kiREsc(st.navn)}${n !== null ? `<b>${n <= 0 ? "nå" : n + "′"}</b>` : ""}</span>`; }).join("")}</div>`;
-    return `${topp}${this._avvikHtml()}${this._linjerHtml()}${this._nesteHtml(stopp)}${velger}
+    return `${topp}${this._sceneHtml(stopp)}${this._avvikHtml()}${this._linjerHtml()}${this._nesteHtml(stopp)}${velger}
       ${enTavle ? this._tavle(stopp[valgt]) : stopp.map((st) => this._tavle(st)).join("")}`;
   }
 
@@ -298,7 +424,11 @@ class KiRuterCard extends HTMLElement {
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
-    const stil = `--kort-bg:${c.bakgrunn || "var(--gray200, var(--card-background-color))"};--maks:${c.maks_bredde || "620px"};--glod:${c.bakgrunn_glod === false ? 0 : 1}`;
+    // Ingen bakgrunn som standard: kortet ligger som oftest i en popup som har sin egen.
+    const bg = c.bakgrunn === undefined || c.bakgrunn === false || c.bakgrunn === "none"
+      ? "transparent" : c.bakgrunn;
+    const stil = [`--kort-bg:${bg}`, `--kort-pad:${bg === "transparent" ? "0" : "18px"}`,
+      `--maks:${c.maks_bredde || "620px"}`, `--glod:${c.bakgrunn_glod === false ? 0 : 1}`].join(";");
     const html = `<div class="ramme"><div class="kort" style="${stil}"><div class="glo"></div>${this._innhold()}</div></div>`;
     // Chromium og Safari nekter å sette outerHTML på et element som ligger rett i en shadow root,
     // så innholdet byttes inne i en fast beholder i stedet.

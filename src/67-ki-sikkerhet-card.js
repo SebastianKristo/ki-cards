@@ -309,7 +309,7 @@ class KiSikkerhetCard extends HTMLElement {
   }
 
   _faner() {
-    const f = this._c.faner;
+    const f = this._c && this._c.faner;
     if (f === false) return ["sikkerhet"];
     const mulige = ["sikkerhet", "laser", "logg"];
     return (Array.isArray(f) ? f : mulige).filter((x) => mulige.includes(x));
@@ -381,6 +381,15 @@ class KiSikkerhetCard extends HTMLElement {
       const under = m.bottom - b.bottom + luft;
       if (under > 0) boks.scrollTo({ top: boks.scrollTop + under, behavior: "smooth" });
     }, 180);
+  }
+
+  /* Henter en fane som ble bedt om med «#alarm::laser» rett før kortet ble bygget. */
+  _ventendeFane() {
+    const KI = window.KI || {};
+    if (!this._c || !KI.hentFane) return false;
+    const f = KI.hentFane(this._faner());
+    if (f && f !== this._fane) { this._fane = f; return true; }
+    return false;
   }
 
   connectedCallback() {

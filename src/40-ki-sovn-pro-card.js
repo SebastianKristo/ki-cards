@@ -44,7 +44,8 @@
       const a = st.attributes, sover = st.state === "on", pending = a["venter_på"] || null, pct = Math.round(a.sannsynlighet ?? 0);
       const txt = pending === "sovner" ? "Sovner …" : pending === "våkner" ? "Våkner …" : sover ? "Sover" : "Våken";
       const vindu = a["obs_vindu_åpent"] === true;
-      const sub = [a.siden ? "siden " + KI.clock(a.siden) : "", p.bedtime ? "legger seg " + p.bedtime : "", vindu ? "vindu åpent" : ""].filter(Boolean).join(" · ");
+      // «vindu åpent» vises som merke ved navnet – ikke gjenta det i underteksten
+      const sub = [a.siden ? "siden " + KI.clock(a.siden) : "", p.bedtime ? "legger seg " + p.bedtime : ""].filter(Boolean).join(" · ");
       return { ok: true, sover, pending, pct, txt, sub, vindu, tone: pending ? "advarsel" : sover ? "aktiv" : "nøytral", why: a["årsak"] || "", puls: a.obs_puls_glattet ?? null,
         obs: Object.keys(OBS).map(k => ({ l: OBS[k], v: a["obs_" + k] })).filter(o => o.v !== undefined) };
     }
@@ -80,6 +81,13 @@
         @keyframes ki-stjerne { 0%,100% { opacity:.25; } 50% { opacity:1; } }
         @keyframes ki-mzzz { 0% { opacity:0; transform:translate(0,0) scale(.7); } 25% { opacity:1; } 100% { opacity:0; transform:translate(10px,-20px) scale(1.2); } }
         .b-vindu { background:rgba(120,170,255,.28) !important; }
+        /* Navn og merke på samme linje. Før lå merket inline i teksten og brakk til
+           en ny rad så snart navnet ble litt langt. */
+        .navnfelt { min-width:0; }
+        .last-navn { display:flex; align-items:center; gap:6px; min-width:0; }
+        .last-navn .navn-tekst { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .last-navn .merke { flex:none; display:inline-flex; align-items:center; gap:3px;
+          --mdc-icon-size:13px; line-height:1.6; }
         @media (prefers-reduced-motion: reduce) { .glod, .stjerne, .mzzz text, .mane { animation:none !important; } }
       </style><div class="wrap">
         ${c.title ? `<div class="card-title">${KI.esc(c.title)}</div>` : ""}
@@ -143,7 +151,8 @@
       return `<div class="last ${open ? "apen" : ""}">
         <div class="last-hode med-bryter" data-open="${p.entity}" style="grid-template-columns:40px 1fr auto auto">
           <div class="avatar ${s.sover ? "sover pust" : s.ok ? "vaken" : "feil"} ${s.pending ? "blink" : ""}"><ha-icon icon="${!s.ok ? "mdi:help" : s.sover ? "mdi:sleep" : "mdi:white-balance-sunny"}"></ha-icon>${s.sover ? `<div class="zzz"><span>z</span><span>z</span><span>z</span></div>` : ""}</div>
-          <div><div class="last-navn">${KI.esc(p.name)}${s.vindu ? ` <span class="merke b-vindu">vindu åpent</span>` : ""}</div><div class="last-forklaring">${KI.esc(s.sub)}</div></div>
+          <div class="navnfelt"><div class="last-navn"><span class="navn-tekst">${KI.esc(p.name)}</span>${
+            s.vindu ? `<span class="merke b-vindu" title="Vindu åpent i soverommet"><ha-icon icon="mdi:window-open-variant"></ha-icon>vindu</span>` : ""}</div><div class="last-forklaring">${KI.esc(s.sub)}</div></div>
           <div class="last-verdi">${s.txt}${s.ok ? `<small>${s.pct} %</small>` : ""}</div>
           ${bryter}
         </div>
