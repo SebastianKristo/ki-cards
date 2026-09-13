@@ -1,21 +1,23 @@
-# ki-cards 3.32.0
+# ki-cards 3.33.0
 
-## `ki-ruter-card` 4.1.1: mobilfeil
+## `ki-ruter-card` 4.2.0
 
-**Kortet stakk ut av skjermen.** Holdeplassvelgeren hadde `width:fit-content`. Den regelen
-står etter `.kort > * { width:100% }` med samme spesifisitet, så den vant — og med seks
-holdeplasser ble rada bredere enn skjermen i stedet for å rulle. Velgeren er nå
-`width:auto; max-width:100%; min-width:0` og ruller sidelengs som den skulle. `:host` har
-fått `overflow-x:clip` som sikring.
+**Gløden øverst er tydeligere.** Den var nesten borte etter at kortet mistet sin egen
+bakgrunn — opaciteten er hevet fra .22 til .38, og gradienten er strammet inn til en
+ellipse så fargen samler seg i toppen i stedet for å smøre seg utover hele kortet.
 
-**Animasjonen var kuttet i to.** Scenen var én SVG med `viewBox="0 0 320 96"` og
-`preserveAspectRatio="slice"`. Radene lå på y=18, 44 og 70, og banen under tredje rad
-havnet på y=102 — utenfor høyden. På smale skjermer skalerte den i tillegg opp for å dekke
-bredden, så enda mer forsvant.
+**Kjøretøyene er tegnet om.** Karosseriet har gradient fra linjefargen ned til en mørkere
+variant, med et skyggebelte langs bunnen. Rutene er lyse med avrundede hjørner og en egen
+rute i front. Hjulene er mørke med en eike som roterer mens kjøretøyet kjører. Foran ligger
+en lykt med en pustende lyskjegle, og under står en myk skygge på bakken. Hele karosseriet
+humper svakt, så det ser ut til å kjøre og ikke gli.
 
-Scenen er bygget om: hver bane er en vanlig div på faste 34 px, og kjøretøyene er SVG-er i
-fast pikselstørrelse som flyttes med `left` fra `-90px` til `100%`. Ingenting skaleres,
-ingenting ligger utenfor. Buss får stiplet vei, skinnegående får sviller.
+Trikken har fått strømavtaker, toget en skrå front, og båt og fly egne former.
 
-Avgangsradene er samtidig strammet inn under 420 px: mindre linjemerker, kortere
-nedtelling og litt mindre luft, så en lang destinasjon ikke skyver nedtellingen ut.
+Gradienten regnes ut i JavaScript i stedet for med `color-mix()` i `stop-color` — det er
+ikke trygt i alle SVG-motorer, og faller det ut blir stoppen svart i stedet for mørk.
+
+**Scenen er høyere.** Banene er 46 px i stedet for 34, med en bydis øverst og en lav
+silhuett av bygninger bak, tonet ut mot toppen.
+
+**Flere avganger.** Standard `maks` er hevet fra 5 til 8 per holdeplass.
