@@ -9,6 +9,7 @@
  *  ikon: mdi:sofa               # standard: rommets ikon i HA
  *  navn: Stue                   # standard: romnavn
  *  path: '#stue'                # standard: '#<area_id>'
+ *  rom_tall: auto               # KI Energi sitt number.ki_rom_<rom>_temp brukes hvis det finnes
  *  teller: input_number.x       # standard: input_number.<første klima>_teller hvis den finnes
  *  varsel: binary_sensor.x      # "!"-merke når denne er on (standard: første dør/vindu i rommet)
  *
@@ -49,13 +50,39 @@
     'return parseFloat(temp).toFixed(0) + "°" + (isNaN(parseFloat(hum)) ? "" : "<span style=\\"font-size:14px;line-height:1.5em;font-weight:400;opacity:0.7;margin-left:2px;\\">" + parseFloat(hum).toFixed(0) + "%</span>");'
   );
 
-  // termostat-stepper (btn1) – input_number-teller hvis den finnes, ellers climate.set_temperature
-  function stepper(hass, clim, teller) {
+  /* «Kjøkken» -> «kjokken». Samme regel som number.py i KI Energi bruker. */
+  function romSlug(navn) {
+    return String(navn || '').toLowerCase()
+      .replace(/ø|ö/g, 'o').replace(/æ|ä|å/g, 'a')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  /* KI Energi lager ett temperaturpunkt per rom: number.ki_rom_<rom>_temp. Det setter
+     alle varmekildene i rommet – stua har panelovn og oljefyr, kjøkkenet panelovn og
+     gulvvarme – så kortet slipper en egen input_number. */
+  function kiRomTall(hass, romnavn, areaId) {
+    for (const n of [romnavn, areaId]) {
+      const id = 'number.ki_rom_' + romSlug(n) + '_temp';
+      if (n && hass.states[id]) return id;
+    }
+    return null;
+  }
+
+  // termostat-stepper (btn1). Rekkefølge: KI Energis romtall, så input_number-teller,
+  // ellers climate.set_temperature direkte.
+  function stepper(hass, clim, teller, romTall) {
     const has = teller && hass.states[teller];
-    const act = (dir) => has
+    const kiId = romTall && hass.states[romTall] ? romTall : null;
+    const steg = kiId ? (Number(hass.states[kiId].attributes.step) || 0.5) : 1;
+    const act = (dir) => kiId
+      ? { action: 'call-service', service: 'number.set_value', target: { entity_id: [kiId] },
+          data: { value: "{{ (states('" + kiId + "') | float(21)) " + (dir > 0 ? '+' : '-') + ' ' + steg + ' }}' } }
+      : has
       ? { action: 'call-service', service: 'input_number.' + (dir > 0 ? 'increment' : 'decrement'), target: { entity_id: [teller] }, data: { amount: 1 } }
       : { action: 'call-service', service: 'climate.set_temperature', data: { entity_id: clim, temperature: "{{ (state_attr('" + clim + "','temperature') | float(20)) " + (dir > 0 ? '+' : '-') + ' 1 }}' } };
-    const name = has ? "{{ states('" + teller + "') | round(0) }}°" : "{{ state_attr('" + clim + "', 'temperature') | round(0) }}°";
+    const name = kiId ? "{{ states('" + kiId + "') | round(0) }}°"
+      : has ? "{{ states('" + teller + "') | round(0) }}°"
+      : "{{ state_attr('" + clim + "', 'temperature') | round(0) }}°";
     const btn = (radius, h, border) => ({ background: 'var(--gray200)', 'border-radius': radius, width: '46px', height: h, 'z-index': 1, 'border-width': border, 'border-style': 'solid', 'border-color': 'var(--gray400)' });
     return {
       card: {
@@ -81,6 +108,9 @@
     const clim = cfg.klima || (a.klima[0] && a.klima[0].entity);
     const teller = cfg.teller || (clim ? 'input_number.' + clim.split('.')[1] + (cfg.teller_suffix || '_teller') : null);
     const name = cfg.navn || a.rom || cap(cfg.rom);
+    // cfg.rom_tall: false slår av automatikken, en streng peker på en annen entitet
+    const romTall = cfg.rom_tall === false ? null
+      : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, name, cfg.rom));
     const icon = cfg.ikon || a.ikon || 'mdi:home-outline';
     const path = cfg.path || ('#' + a.area_id);
     const color = cfg.farge || 'var(--green)';
@@ -108,7 +138,7 @@
     const big = size === 'big' || size === 'big_plain';
     const withClim = size === 'big' && clim;
     const custom = { error: T('return "!"'), temp: temp ? tempTpl(temp, hum) : '' };
-    if (withClim) custom.btn1 = stepper(hass, clim, teller);
+    if (withClim) custom.btn1 = stepper(hass, clim, teller, romTall);
     const card = {
       type: 'custom:button-card', icon, name: T('return ' + JSON.stringify(name)),
       entity: cfg.entity || ov.entity_id,

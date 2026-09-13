@@ -1,24 +1,19 @@
-# ki-cards 3.42.1
+# ki-cards 3.43.0
 
-## `ki-sparing-card`: flisene fløt utenfor kortet
+## Romflisene finner KI Energis romtemperatur selv
 
-Verdiene i flisene hadde ikke overflow-vern. «18,89 kr/mil» i 26 px er bredere enn halve
-kortet på en mobil, og siden `.flis` selv er et rutenett uten `min-width:0`, presset
-innholdet flisa bredere enn kolonnen. Rutenettet vokste forbi kortbredden, og hele kortet
-ble dyttet ut mot venstre — derfor lå ikonene halvveis utenfor kanten og kolonnene så
-ujevne ut.
+Termostat-knappene på den store romflisa i `ki-hjem-card` brukte en `input_number` du måtte
+lage og koble opp selv, med `input_number.<klima>_teller` som gjetning.
 
-* `min-width:0` på flisa og alle barna, og `minmax(0,1fr)` på tekstkolonnen.
-* Verdien klippes med ellipse i stedet for å presse på.
-* Verditeksten er ned fra 26 til 23 px, ikonfeltet fra 58 til 50 px og kolonnen fra 76 til
-  64 px, så «Audi A6 Avant 2011» og «18,89 kr/mil» får plass ved siden av hverandre.
-* Under 380 px krymper det et hakk til.
+Finnes `number.ki_rom_<rom>_temp` fra KI Energi 2.16, brukes den i stedet. Den setter alle
+varmekildene i rommet på én gang — panelovn og oljefyr i stua, panelovn og gulvvarme på
+kjøkkenet — så knappene virker uten oppsett.
 
-## «Diesel ville kostet 0 kr»
+Rekkefølgen er: KI Energis romtall, så `teller`/`input_number`, og til slutt
+`climate.set_temperature` rett på klimaenheten som før. Steget leses fra entiteten, så
+0,5-graders trinn virker.
 
-Rett etter oppsettet står alt på null: integrasjonen har satt nullpunktet sitt, men bilen
-har ikke kjørt noe ennå. Linja under beløpet sa da «Diesel ville kostet 0 kr, strømmen
-kostet 0 kr», som ser ut som en feil.
+Romnavnet gjøres om til entitetsnavn med samme regel som integrasjonen bruker — ø og ö
+til o, æ/ä/å til a, resten til understrek. «Kjøkken» blir `number.ki_rom_kjokken_temp`.
 
-Nå står det «Venter på de første kilometerne» til det finnes noe å regne på. Har bilen
-kjørt, men prisen mangler, sier den det i stedet.
+`rom_tall: false` slår av automatikken, og en streng peker på en annen entitet.

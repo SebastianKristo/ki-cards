@@ -1,10 +1,11 @@
 # Fanen «Sparing» i Tesla-popupen.
 #
-# Lim inn som et element i `tabs:`-lista under `type: custom:simple-tabs`,
-# for eksempel etter «Lading». Resten av popupen er uendret.
+# Bygget i de samme komponentene som resten av popupen: universal_sensor /
+# universal_sensor_ny, betingede bannerkort, 2-kolonners rutenett, paper-buttons-row
+# og mini-graph-card. Ingen egne kort.
 #
-# Kortet inneholder alt: beløpet, fordelingen, kilometer, liter, CO₂ og prisene.
-# Ingen ekstra fliser ved siden av – de gjentok bare det som allerede står i kortet.
+# Lim inn som et element i `tabs:`-lista under `type: custom:simple-tabs`,
+# for eksempel etter «Lading».
 
 - title: Sparing
   card:
@@ -13,12 +14,43 @@
       - type: custom:gap-card
         height: 0
 
-      - type: custom:ki-sparing-card
-        prefiks: sensor.ki_drivstoff_
-        periode: maaned
-        perioder: [i_dag, maaned, aar, totalt]
+      # Banner mens integrasjonen ikke har noe å regne på ennå
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.ki_drivstoff_spart_i_ar
+            below: 1
+        card:
+          type: custom:button-card
+          name: >-
+            [[[ return '<strong>Venter på data:</strong> sparingen begynner å telle når
+            bilen har kjørt noen kilometer.' ]]]
+          icon: mdi:timer-sand
+          styles:
+            card:
+              - padding: 0
+              - margin-bottom: 12px
+              - background: var(--gray200)
+            grid:
+              - grid-template-areas: '"i n"'
+              - grid-template-columns: 76px 1fr
+            img_cell:
+              - justify-self: start
+              - background: rgba(250,251,252, 0.1)
+              - margin: 4px 4px
+              - border-radius: 50%
+              - width: 58px
+              - height: 58px
+            icon:
+              - width: 30px
+              - height: 30px
+              - color: var(--gray1000)
+            name:
+              - justify-self: start
+              - color: var(--gray1000)
+              - font-size: 14px
 
-      # Vises bare hvis hentingen av pumpeprisen feiler. Trykk for å prøve igjen.
+      # Banner hvis pumpeprisen mangler. Trykk for å hente på nytt.
       - type: conditional
         conditions:
           - condition: state
@@ -26,15 +58,16 @@
             state: unknown
         card:
           type: custom:button-card
-          name: Hent pumpeprisen på nytt
-          icon: mdi:refresh
+          name: >-
+            [[[ return '<strong>Pumpepris mangler.</strong> Trykk for å hente på nytt.' ]]]
+          icon: mdi:gas-station-off
           tap_action:
             action: perform-action
             perform_action: ki_drivstoff.hent_pris
           styles:
             card:
               - padding: 0
-              - margin-top: 12px
+              - margin-bottom: 12px
               - background: var(--orange)
             grid:
               - grid-template-areas: '"i n"'
@@ -53,3 +86,248 @@
             name:
               - justify-self: start
               - color: var(--black)
+
+      # Spart, med stolpe som viser hvor stor andel av dieselregningen dere slapp unna
+      - square: false
+        type: grid
+        columns: 2
+        cards:
+          - type: custom:button-card
+            entity: sensor.ki_drivstoff_spart_denne_maneden
+            template: universal_sensor
+            variables:
+              sub_text: Spart <br> denne måneden
+              icon: mdi:piggy-bank
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              show_bar: true
+              bar_color: var(--green)
+              main_text: |
+                [[[
+                  return Math.round(parseFloat(entity.state) || 0) + ' kr';
+                ]]]
+              bar_value: |
+                [[[
+                  const d = parseFloat(entity.attributes.diesel_ville_kostet) || 0;
+                  const e = parseFloat(entity.attributes.strom_kostet) || 0;
+                  if (d <= 0) return 0;
+                  return Math.max(0, Math.min(100, Math.round((1 - e / d) * 100)));
+                ]]]
+          - type: custom:button-card
+            entity: sensor.ki_drivstoff_spart_i_ar
+            template: universal_sensor
+            variables:
+              sub_text: Spart <br> i år
+              icon: mdi:piggy-bank-outline
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              show_bar: true
+              bar_color: var(--orange)
+              main_text: |
+                [[[
+                  return Math.round(parseFloat(entity.state) || 0) + ' kr';
+                ]]]
+              bar_value: |
+                [[[
+                  const d = parseFloat(entity.attributes.diesel_ville_kostet) || 0;
+                  const e = parseFloat(entity.attributes.strom_kostet) || 0;
+                  if (d <= 0) return 0;
+                  return Math.max(0, Math.min(100, Math.round((1 - e / d) * 100)));
+                ]]]
+
+      - type: custom:gap-card
+        height: 10
+
+      # Kostnad per mil for hver bil
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_kostnad_per_mil_tesla_model_y
+            variables:
+              sub_text: Tesla Model Y
+              icon: mdi:car-electric
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                  return parseFloat(entity.state).toFixed(2) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">kr/mil</span>';
+                ]]]
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_kostnad_per_mil_audi_a6_avant_2011
+            variables:
+              sub_text: Audi A6 Avant
+              icon: mdi:car-estate
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                  return parseFloat(entity.state).toFixed(2) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">kr/mil</span>';
+                ]]]
+
+      - type: custom:gap-card
+        height: 10
+
+      # Liter og CO₂ som ikke ble til noe
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_liter_diesel_spart_i_ar
+            variables:
+              sub_text: Diesel ikke fylt
+              icon: mdi:fuel
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  return Math.round(parseFloat(entity.state) || 0) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">L</span>';
+                ]]]
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_co2_spart_i_ar
+            variables:
+              sub_text: CO₂ spart
+              icon: mdi:molecule-co2
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  return Math.round(parseFloat(entity.state) || 0) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">kg</span>';
+                ]]]
+
+      - type: custom:gap-card
+        height: 10
+
+      # Prisene bak regnestykket
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_dieselpris
+            variables:
+              sub_text: Uno-X Gressbanen
+              icon: mdi:gas-station
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                  return parseFloat(entity.state).toFixed(2) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">kr/L</span>';
+                ]]]
+          - type: custom:button-card
+            template: universal_sensor_ny
+            entity: sensor.ki_drivstoff_ladepris
+            variables:
+              sub_text: Ladepris
+              icon: mdi:ev-station
+              background_color: var(--gray200)
+              text_color: var(--gray1000)
+              main_text: |
+                [[[
+                  if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                  return parseFloat(entity.state).toFixed(2) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">kr/kWh</span>';
+                ]]]
+
+      # Setningen, i samme form som ladetid-raden i Lading-fanen
+      - type: custom:paper-buttons-row
+        styles:
+          justify-content: flex-start
+          flex-wrap: wrap
+          font-size: 1.4em
+          line-height: 1.2em
+          gap: 0px
+          margin-bottom: 12px
+          margin-top: 18px
+        buttons:
+          - layout: name
+            name: Så langt i år har dere kjørt
+            styles:
+              button:
+                flex-basis: 1
+                flex-shrink: 0
+              name:
+                color: var(--gray1000)
+          - layout: name
+            name: >-
+              {{ state_attr('sensor.ki_drivstoff_spart_i_ar', 'kjort_km') | float(0) |
+              round(0) }} km
+            styles:
+              name:
+                color: var(--black)
+              button:
+                padding: 2px 8px
+                flex-basis: 1
+                flex-shrink: 0
+                display: flex
+                background-color: var(--gray1000)
+                border-radius: 24px
+          - layout: name
+            name: og spart
+            styles:
+              button:
+                flex-basis: 1
+                flex-shrink: 0
+              name:
+                color: var(--gray1000)
+          - layout: name
+            name: "{{ states('sensor.ki_drivstoff_spart_i_ar') | float(0) | round(0) }} kroner"
+            styles:
+              name:
+                color: var(--black)
+              button:
+                padding: 2px 8px
+                flex-basis: 1
+                flex-shrink: 0
+                display: flex
+                background-color: var(--gray1000)
+                border-radius: 24px
+          - layout: name
+            name: mot den gamle dieselen.
+            styles:
+              button:
+                margin-left: -6px
+                flex-basis: 1
+                flex-shrink: 0
+              name:
+                color: var(--gray1000)
+
+      # Sparingen dag for dag
+      - type: custom:mini-graph-card
+        entities:
+          - entity: sensor.ki_drivstoff_spart_denne_maneden
+        name: Spart denne måneden
+        hours_to_show: 720
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: |
+            ha-card { background: var(--gray200); }
+            .header { padding: 2px 8px 8px 16px; }
+            .name > span { font-weight: 400 !important; font-size: 14px !important; }
+            .state__uom {
+              font-weight: 300 !important;
+              font-size: 14px !important;
+              opacity: 1 !important;
+              margin-top: 0 !important;
+              margin-bottom: 2px !important;
+            }
+            .state__value { font-size: 32px !important; }
