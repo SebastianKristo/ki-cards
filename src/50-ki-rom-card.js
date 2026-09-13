@@ -264,7 +264,9 @@
     Object.keys(hass.states).forEach((id) => {
       if (!id.startsWith('sensor.')) return;
       const a = hass.states[id].attributes || {};
-      if (a.integrasjon !== 'ki_lys' || a.ki_type !== 'oversikt') return;
+      // ki_lys ble slått inn i ki_rom; entitetene beholder markøren, men vi
+      // godtar begge så kortet virker uansett hvilken versjon som er installert
+      if ((a.integrasjon !== 'ki_lys' && a.integrasjon !== 'ki_rom') || a.ki_type !== 'oversikt') return;
       const omrader = (a.area_ids && a.area_ids.length ? a.area_ids : [a.area_id]).filter(Boolean);
       let treff;
       if (!omr.size && !navn.size) treff = true;

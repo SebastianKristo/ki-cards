@@ -1,4 +1,4 @@
-/* ki-cards v3.21.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.22.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.21.1";
+  KI.VERSION = "3.22.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -7503,7 +7503,9 @@ try {
     Object.keys(hass.states).forEach((id) => {
       if (!id.startsWith('sensor.')) return;
       const a = hass.states[id].attributes || {};
-      if (a.integrasjon !== 'ki_lys' || a.ki_type !== 'oversikt') return;
+      // ki_lys ble slått inn i ki_rom; entitetene beholder markøren, men vi
+      // godtar begge så kortet virker uansett hvilken versjon som er installert
+      if ((a.integrasjon !== 'ki_lys' && a.integrasjon !== 'ki_rom') || a.ki_type !== 'oversikt') return;
       const omrader = (a.area_ids && a.area_ids.length ? a.area_ids : [a.area_id]).filter(Boolean);
       let treff;
       if (!omr.size && !navn.size) treff = true;
@@ -14507,6 +14509,11 @@ try {
  */
 const KI_JUL_VERSJON = "1.4.0";
 
+/* Julelysene kom fra ki_lys, som ble slått inn i ki_rom. Entitetene beholder
+   markøren `integrasjon: ki_lys`, men vi godtar begge så kortet virker uansett
+   hvilken versjon av integrasjonen som står installert. */
+const KI_JUL_VAR = (a) => a && (a.integrasjon === "ki_lys" || a.integrasjon === "ki_rom");
+
 const KI_JUL_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
@@ -14711,7 +14718,7 @@ class KiJulCard extends HTMLElement {
     const h = this._h; if (!h) return null;
     return Object.keys(h.states).find((x) => {
       const a = h.states[x].attributes || {};
-      return a.integrasjon === "ki_lys" && a.ki_type === "jul";
+      return KI_JUL_VAR(a) && a.ki_type === "jul";
     });
   }
   _d() { const s = this._h && this._id() ? this._h.states[this._id()] : null; return s ? s.attributes : null; }
@@ -14730,7 +14737,7 @@ class KiJulCard extends HTMLElement {
     return Object.keys(h.states).find((x) => {
       if (!x.startsWith("switch.")) return false;
       const a = h.states[x].attributes || {};
-      return a.integrasjon === "ki_lys" && a.ki_type === "jul_sesong";
+      return KI_JUL_VAR(a) && a.ki_type === "jul_sesong";
     }) || (this._c && this._c.sesong) || null;
   }
   _sesongPaa() {
@@ -14749,7 +14756,7 @@ class KiJulCard extends HTMLElement {
     const h = this._h;
     const knapp = Object.keys(h.states).find((x) => x.startsWith("button.") && (() => {
       const a = h.states[x].attributes || {};
-      return a.integrasjon === "ki_lys" && a.ki_type === "jul_knapp" && !!a.pa === pa;
+      return KI_JUL_VAR(a) && a.ki_type === "jul_knapp" && !!a.pa === pa;
     })());
     if (knapp) return h.callService("button", "press", { entity_id: knapp });
     /* uten knappene fra integrasjonen tar vi lysene direkte */
@@ -15094,7 +15101,7 @@ class KiJulCard extends HTMLElement {
     const d = this._d();
     if (!d) {
       const tom = `<style>${KI_JUL_STIL}${KI_JUL_STIL2}</style>
-        <div class="tom">Fant ingen julelys fra <b>KI Lys</b>. Slå på julelysdelen i integrasjonen.</div>`;
+        <div class="tom">Fant ingen julelys fra <b>KI Rom</b>. Slå på julelysdelen under Innstillinger &rarr; Julelys.</div>`;
       if (tom !== this._forrige) { this.shadowRoot.innerHTML = tom; this._forrige = tom; }
       return;
     }
