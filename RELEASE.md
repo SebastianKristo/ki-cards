@@ -1,41 +1,23 @@
-# ki-cards 3.19.0
+# ki-cards 3.19.1
 
-## Nytt kort: `ki-sensor-liste-card`
+## `ki-sikkerhet-card` ved armering og avkobling
 
-Sensorer som brede piller, én per rad — sirkelmerke med ikon til venstre, navn, og
-tilstand med batteriprosent under. Laget for å ligge inne i et expander-kort.
+Tre feil som alle slo ut nettopp når panelet går `disarmed → arming → armed_away`.
 
-```yaml
-type: custom:ki-sensor-liste-card
-kolonner: 1            # 2 gir to i bredden
-batteri: true          # prosent bak tilstanden
-bare_aktive: false     # bare det som er åpent, ulåst eller i bevegelse
-zones: …               # samme struktur som i alarmkortet
-```
+**Hele heroen ble bygget på nytt ved hver tilstandsendring.** Ved armering skjer det tre
+ganger på under et sekund, og huset ble tegnet om midt i animasjonene — røyk, radar og
+døråpning startet forfra hver gang. Heroen er nå delt i tre deler (topp, hus, brikker) som
+oppdateres hver for seg, og bare når innholdet faktisk er nytt. Ved armering endrer bare
+toppen seg; huset står stille, med unntak av nedtellingsringen som legges til og fjernes
+som den skal.
 
-Kan også ta en enkel liste i stedet for soner:
+**Kortet klippet innholdet.** `.kort` hadde `overflow:hidden` fordi bakgrunnsgløden lå på
+elementet selv. Når tastaturet foldet seg ut, ble bunnen kappet. Gløden har fått sitt eget
+lag som klipper seg selv, og kortet kan vokse fritt.
 
-```yaml
-type: custom:ki-sensor-liste-card
-tittel: Dører
-kind: opening
-items:
-  - entity: binary_sensor.verandador
-    name: Verandadør
-    battery: sensor.verandador_battery
-```
+**Det innebygde alarmkortet fikk ikke fersk `hass`** på ticks der ingen av
+sikkerhetskortets egne entiteter endret seg, siden `set hass` returnerte tidlig. Tastaturet
+kunne dermed stå igjen med gammel tilstand. `hass` sendes nå alltid videre.
 
-Pilla farges av sonens `color:` når sensoren er aktiv, ikonet puster rolig, og ikonet
-byttes etter tilstand — åpen dør, lukket dør, åpen hengelås, lukket hengelås. Sensorer
-uten svar vises gjennomstreket og nedtonet. `bare_aktive: true` gir en kort liste som
-står tom med «Alt er lukket og låst» når ingenting er åpent.
-
-## `ki-sikkerhet-card` og `ki-alarm-card`
-
-Nytt valg `soner: false` på begge. Sikkerhetskortet slutter da etter
-Av/Hjemme/Borte/Natt, og sonelistene legges i egne kort lenger ned — se
-`examples/sikkerhet-popup.yaml`, der sonene defineres én gang med YAML-ankre og
-gjenbrukes av hvert expander-kort.
-
-Kortets minimumshøyde er justert tilsvarende, så det ikke reserverer plass til soner
-som ikke tegnes.
+Minimumshøyden med `soner: false` er hevet fra 9 til 11 rader, så det er plass til
+tastaturet uten at det reserveres plass til soner som ikke tegnes.

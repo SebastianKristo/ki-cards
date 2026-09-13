@@ -1,4 +1,4 @@
-/* ki-cards v3.19.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.19.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.19.0";
+  KI.VERSION = "3.19.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15766,19 +15766,21 @@ const KI_SIK_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); --fjaer:cubic-bezier(.3,1.35,.5,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
 
-  .kort { position:relative; overflow:hidden; isolation:isolate;
+  .kort { position:relative; isolation:isolate;
     border-radius:var(--ha-card-border-radius,24px);
     background:var(--gray200); color:var(--gray1000);
     display:grid; gap:14px; padding:18px 18px 16px;
     transition:background .7s var(--myk); }
-  .kort::before { content:""; position:absolute; inset:-40% -20% auto -20%; height:150%; z-index:-1;
+  /* Gløden ligger i sitt eget lag med overflow:hidden. Lå den på .kort selv,
+     måtte hele kortet klippes – og da ble tastaturet kappet når det foldet seg ut. */
+  .glo { position:absolute; inset:0; z-index:-1; overflow:hidden; border-radius:inherit; pointer-events:none; }
+  .glo::before { content:""; position:absolute; inset:-40% -20% auto -20%; height:150%;
     background:radial-gradient(ellipse at 50% 0%, var(--tone,#5ad18b) 0%, transparent 62%);
     opacity:.20; transition:opacity .7s var(--myk), background .7s var(--myk); }
-  .kort.utrygg::before { opacity:.30; }
-  .kort.alarm::before { opacity:.42; animation:kiSikBlink 1.1s steps(1,end) infinite; }
+  .kort.utrygg .glo::before { opacity:.30; }
+  .kort.alarm .glo::before { opacity:.42; animation:kiSikBlink 1.1s steps(1,end) infinite; }
   @keyframes kiSikBlink { 0%,49% { opacity:.45 } 50%,100% { opacity:.12 } }
 
-  .topp { display:flex; align-items:flex-start; gap:12px; }
   .tit { font-size:17px; font-weight:600; line-height:1.25; }
   .und { font-size:13px; opacity:.72; margin-top:2px; line-height:1.35; }
   .fyll { flex:1; }
@@ -15882,6 +15884,8 @@ const KI_SIK_STIL = `
 
   /* ---- brikker ---- */
   .hero { display:grid; gap:14px; }
+  .topp { display:flex; align-items:flex-start; gap:12px; }
+  .bunn { display:grid; gap:12px; }
   .tastatur:not(:empty) { margin-top:2px; padding-top:14px;
     border-top:1px solid color-mix(in srgb, var(--gray1000) 12%, transparent); }
   .brikker { display:flex; flex-wrap:wrap; gap:8px; }
@@ -15910,7 +15914,7 @@ const KI_SIK_STIL = `
   .tom { font-size:13px; opacity:.6; padding:10px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .kort::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
+    .glo::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
     .lampe.tent .lampeglo, .dorgruppe.apen .dorapning, .radar, .radarring.puls,
     .sirene, .tellering, .roykpust, .liste { animation:none !important; }
     .dorblad { transition:none; }
@@ -15934,7 +15938,7 @@ class KiSikkerhetCard extends HTMLElement {
     // Ingen fast høyde: med tastatur bygger kortet seg langt nedover, og en låst
     // radhøyde klipper bunnen av.
     const rader = !this._c || !this._c.tastatur ? 5
-      : this._c.soner === false ? 9
+      : this._c.soner === false ? 11
       : 12 + (this._c.zones || []).length * 2;
     return { columns: 12, rows: "auto", min_rows: rader };
   }
@@ -15948,7 +15952,11 @@ class KiSikkerhetCard extends HTMLElement {
   set hass(h) {
     const g = this._h; this._h = h;
     if (!this._c) return;
-    if (!g || this._ids().some((id) => g.states[id] !== h.states[id])) this._tegn();
+    if (!g || this._ids().some((id) => g.states[id] !== h.states[id])) { this._tegn(); return; }
+    // Ingenting av mitt endret seg, men det innebygde alarmkortet skal likevel
+    // ha fersk hass – ellers står tastaturet igjen med gammel tilstand mens
+    // panelet går disarmed → arming → armed_away.
+    if (this._alarm) this._alarm.hass = h;
   }
 
   _ids() {
@@ -16054,35 +16062,43 @@ class KiSikkerhetCard extends HTMLElement {
     if (!this._bygget) this._bygg();
 
     const kort = this.shadowRoot.querySelector(".kort");
-    kort.className = klasse;
+    kort.className = klasse;   // .glo og .hero ligger som barn og overlever
     kort.style.setProperty("--tone", tone);
 
-    this.shadowRoot.querySelector(".hero").innerHTML = `
-      <div class="topp">
-        <div class="fyll">
-          <div class="tit">${KI_SIK_ESC(c.navn)}</div>
-          <div class="und">${KI_SIK_ESC(und)}</div>
-        </div>
-        <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
-             role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
-          <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
-        </div>
+    // Heroen er delt i tre. Ved armering endrer bare toppen seg, og da skal ikke
+    // huset tegnes om – det ville nullstilt røyk, radar og døranimasjon midt i.
+    this._sett(".topp", `
+      <div class="fyll">
+        <div class="tit">${KI_SIK_ESC(c.navn)}</div>
+        <div class="und">${KI_SIK_ESC(und)}</div>
       </div>
+      <div class="skjold ${alarm ? "alarm" : paa ? "pa" : venter ? "venter" : ""}" data-mer="${c.entity}"
+           role="button" tabindex="0" title="${KI_SIK_ESC(KI_SIK_NAVN[st] || st)}">
+        <ha-icon icon="${alarm ? "mdi:shield-alert" : paa ? "mdi:shield-check" : venter ? "mdi:shield-sync" : "mdi:shield-off-outline"}"></ha-icon>
+      </div>`);
 
-      <div class="scene">${this._hus({ paa, venter, alarm, apne, rorer, ulast })}</div>
+    this._sett(".scene", this._hus({ paa, venter, alarm, apne, rorer, ulast }));
 
+    this._sett(".bunn", `
       <div class="brikker">${brikker}</div>
-      ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`;
-
-    for (const el of this.shadowRoot.querySelectorAll(".hero [data-mer]"))
-      el.addEventListener("click", () => this._mer(el.dataset.mer));
-    for (const el of this.shadowRoot.querySelectorAll(".hero [data-liste]"))
-      el.addEventListener("click", () => {
-        this._apen = this._apen === el.dataset.liste ? null : el.dataset.liste;
-        this._tegn();
-      });
+      ${valgt ? `<div class="liste">${this._liste(valgt)}</div>` : ""}`);
 
     this._tastatur();
+  }
+
+  /* Skriver bare når innholdet faktisk er nytt, og kobler opp igjen etterpå. */
+  _sett(velger, html) {
+    const el = this.shadowRoot.querySelector(velger);
+    if (!el || el._sist === html) return;
+    el.innerHTML = html;
+    el._sist = html;
+    for (const b of el.querySelectorAll("[data-mer]"))
+      b.addEventListener("click", () => this._mer(b.dataset.mer));
+    for (const b of el.querySelectorAll("[data-liste]"))
+      b.addEventListener("click", () => {
+        this._apen = this._apen === b.dataset.liste ? null : b.dataset.liste;
+        this._tegn();
+      });
   }
 
   /* Skallet bygges én gang. Ville vi skrevet hele shadowRoot på nytt ved hver
@@ -16093,7 +16109,12 @@ class KiSikkerhetCard extends HTMLElement {
       <style>${KI_SIK_STIL}</style>
       <ha-card>
         <div class="kort">
-          <div class="hero"></div>
+          <div class="glo"></div>
+          <div class="hero">
+            <div class="topp"></div>
+            <div class="scene"></div>
+            <div class="bunn"></div>
+          </div>
           <div class="tastatur"></div>
         </div>
       </ha-card>`;
