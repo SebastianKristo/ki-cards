@@ -11,6 +11,7 @@
  * zones: …                     # samme liste som ki-alarm-card
  * batteri_grense: 20           # varsler under denne prosenten (0 = av)
  * kompakt: false               # lavere hus, for smale popuper
+ * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
  * tastatur:                    # ki-alarm-card bakes inn under huset
  *   code_length: 6             # false slår det av og gir bare huset
  *   arm_requires_code: true
@@ -184,11 +185,13 @@ const KI_SIK_NAVN = {
 class KiSikkerhetCard extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); this._apen = null; }
   static getStubConfig() { return { entity: "alarm_control_panel.alarm", zones: [] }; }
-  getCardSize() { return this._c && this._c.tastatur ? 10 + (this._c.zones || []).length * 2 : 4; }
+  getCardSize() { return this._c && this._c.tastatur ? (this._c.soner === false ? 8 : 10 + (this._c.zones || []).length * 2) : 4; }
   getGridOptions() {
     // Ingen fast høyde: med tastatur bygger kortet seg langt nedover, og en låst
     // radhøyde klipper bunnen av.
-    const rader = this._c && this._c.tastatur ? 12 + (this._c.zones || []).length * 2 : 5;
+    const rader = !this._c || !this._c.tastatur ? 5
+      : this._c.soner === false ? 9
+      : 12 + (this._c.zones || []).length * 2;
     return { columns: 12, rows: "auto", min_rows: rader };
   }
 
@@ -366,6 +369,7 @@ class KiSikkerhetCard extends HTMLElement {
         entity: this._c.entity,
         zones: this._c.zones,
         hero: false,
+        soner: this._c.soner !== false,   // soner: false gir bare modusknappene
         ...ekstra,
       });
       boks.appendChild(this._alarm);
