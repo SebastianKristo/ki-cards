@@ -19,6 +19,7 @@
  * logg:
  *   ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
  *   personer: { Rune: person.rune }   # ellers gjettes person.* ut fra navnet
+ *   bilder: { Rune: /local/rune.jpg } # eller en bildeadresse rett fram
  *   dager: 7
  * rull_topp: true              # rull til toppen når tastaturet åpnes/lukkes
  * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
@@ -325,25 +326,35 @@ class KiSikkerhetCard extends HTMLElement {
     this._ro = new ResizeObserver((poster) => {
       const h = poster[0] && poster[0].contentRect ? poster[0].contentRect.height : 0;
       if (this._forrigeH === undefined) { this._forrigeH = h; return; }
-      if (Math.abs(h - this._forrigeH) < 40) return;   // små justeringer teller ikke
+      const endring = h - this._forrigeH;
+      if (Math.abs(endring) < 40) return;   // små justeringer teller ikke
       this._forrigeH = h;
-      this._tilTopp();
+      // Vokser boksen har tastaturet foldet seg ut: rull ned til det, så du slipper
+      // å lete etter sifrene. Krymper den er koden tastet ferdig: tilbake til toppen.
+      this._rull(endring > 0 ? boks : this);
     });
     this._ro.observe(boks);
   }
 
-  _tilTopp() {
+  _rull(mal) {
     clearTimeout(this._rullTid);
     this._rullTid = setTimeout(() => {
-      try {
-        this.scrollIntoView({ block: "start", behavior: "smooth" });
-      } catch (e) {
-        this.scrollIntoView(true);
-      }
-    }, 60);
+      if (!mal || !mal.scrollIntoView) return;
+      try { mal.scrollIntoView({ block: mal === this ? "start" : "nearest", behavior: "smooth" }); }
+      catch (e) { mal.scrollIntoView(true); }
+    }, 80);
+  }
+
+  _ventendeFane() {
+    const KI = window.KI || {};
+    if (!KI.hentFane) return;
+    const f = KI.hentFane(this._faner());
+    if (f && f !== this._fane) { this._fane = f; return true; }
+    return false;
   }
 
   connectedCallback() {
+    this._ventendeFane();
     if (this._faneAv) return;
     // «#alarm::laser» fra et annet kort velger fanen når popupen åpnes
     this._faneAv = (e) => {
@@ -505,6 +516,7 @@ class KiSikkerhetCard extends HTMLElement {
     kort.style.setProperty("--tone", tone);
 
     const faner = this._faner();
+    this._ventendeFane();      // trykket kom kanskje før kortet fantes
     if (!faner.includes(this._fane)) this._fane = faner[0];
     this._sett(".fanerad", faner.length < 2 ? "" : faner.map((f) => `
       <button class="fane ${f === this._fane ? "valgt" : ""}" data-fane="${f}">${
@@ -601,25 +613,40 @@ class KiSikkerhetCard extends HTMLElement {
     });
   }
 
-  /* Profilbilde for et navn. Tar person-entiteten fra `logg.personer`, ellers leter
-     vi den opp blant person.*-entitetene på navn. */
+  /* Profilbilde for et navn. Rekkefølge:
+   *   1. `logg.bilder` – en URL du setter selv
+   *   2. `logg.personer` – peker på en person-entitet
+   *   3. person.*-entiteter, matchet på hele navnet, fornavnet eller entitets-ID-en
+   * Ansiktssensoren melder ofte bare fornavnet («Rune») mens person-entiteten heter
+   * «Rune Kristo» – derfor sammenlignes også første ord. */
   _bilde(navn) {
-    if (!navn) return null;
+    if (!navn || !this._h) return null;
     const lg = this._c.logg || {};
+    const n = (x) => String(x || "").trim().toLowerCase()
+      .replace(/ø|ö/g, "o").replace(/æ|ä|å/g, "a");
+    const sok = n(navn);
+    if (!sok) return null;
+
+    if ((lg.bilder || {})[navn]) return lg.bilder[navn];
+
+    const hentBilde = (id) => {
+      const st = id && this._h.states[id];
+      return (st && st.attributes && st.attributes.entity_picture) || null;
+    };
     const eksplisitt = (lg.personer || {})[navn];
-    const nokkel = String(navn).trim().toLowerCase();
-    let st = eksplisitt ? this._h.states[eksplisitt] : null;
-    if (!st) {
-      const id = Object.keys(this._h.states).find((x) => {
-        if (!x.startsWith("person.")) return false;
-        const a = this._h.states[x].attributes || {};
-        return String(a.friendly_name || "").trim().toLowerCase() === nokkel
-          || x.slice(7).toLowerCase() === nokkel;
-      });
-      st = id ? this._h.states[id] : null;
-    }
-    const b = st && st.attributes && st.attributes.entity_picture;
-    return b || null;
+    if (eksplisitt) return hentBilde(eksplisitt);
+
+    const kandidater = Object.keys(this._h.states).filter((x) => x.startsWith("person."));
+    const treff = (test) => kandidater.find((id) => {
+      const fn = n((this._h.states[id].attributes || {}).friendly_name);
+      return test(fn, n(id.slice(7)));
+    });
+
+    const id =
+      treff((fn, eid) => fn === sok || eid === sok) ||
+      treff((fn, eid) => fn.split(" ")[0] === sok || eid.split("_")[0] === sok) ||
+      treff((fn) => fn.startsWith(sok + " "));
+    return hentBilde(id);
   }
 
   async _hentLogg() {

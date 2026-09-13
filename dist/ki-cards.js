@@ -1,4 +1,4 @@
-/* ki-cards v3.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
+/* ki-cards v3.26.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-13 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.24.0";
+  KI.VERSION = "3.26.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -356,6 +356,16 @@ window.KI = window.KI || {};
   /* Navigerer uten å laste dashbordet på nytt: bygger mål-URL-en, bytter den med
      history og varsler både HA-ruteren og popup-kort som lytter på hashchange.
      `window.location.hash = …` unngås – i companion-appen gir det full innlasting. */
+  /* Henter en fane som ble bedt om rett før kortet ble bygget. Gyldig i 6 sekunder,
+     så et gammelt trykk ikke overstyrer et nytt valg. */
+  KI.hentFane = (gyldige) => {
+    const v = KI.ventendeFane;
+    if (!v || Date.now() - v.tid > 6000) return null;
+    if (gyldige && !gyldige.includes(v.fane)) return null;
+    KI.ventendeFane = null;
+    return v.fane;
+  };
+
   /* «#alarm::laser» åpner popupen #alarm og ber kortet inni om å vise fanen
      «laser». Fane-delen fjernes før navigeringen, så bubble-card ser bare hashen
      sin. Alle kort som allerede navigerer via KI.navigate får dette gratis. */
@@ -366,8 +376,11 @@ window.KI = window.KI || {};
       const [f, ...rest] = String(sti).split("::").reverse();
       fane = f; sti = rest.reverse().join("::");
     }
-    if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
-      { detail: { hash: String(sti), fane } })), 0);
+    if (fane) {
+      KI.ventendeFane = { hash: String(sti), fane, tid: Date.now() };
+      setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+        { detail: { hash: String(sti), fane } })), 0);
+    }
     const gammel = window.location.hash;
     let url = null;
     try { url = new URL(sti, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
@@ -392,7 +405,12 @@ window.KI = window.KI || {};
       window.dispatchEvent(new Event("location-changed"));
       try { window.dispatchEvent(new HashChangeEvent("hashchange")); }
       catch (e) { window.dispatchEvent(new Event("hashchange")); }
-      if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+      if (!fane) return;
+      // Popupen bygger kortet først etter at hashen er satt, så en hendelse her ville
+      // kommet før det finnes noen lytter. Vi legger den igjen, og kortet plukker den
+      // opp når det kobles til.
+      KI.ventendeFane = { hash: ren, fane, tid: Date.now() };
+      setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
         { detail: { hash: ren, fane } })), 0);
     };
     window.addEventListener("hashchange", KI._faneVakt);
@@ -9209,6 +9227,8 @@ try {
           s.push({ name: 'rom_' + r + '_rekkefolge', selector: { number: { min: 0, max: 99, mode: 'box' } } });
           s.push({ name: 'rom_' + r + '_farge', selector: { select: { mode: 'dropdown', custom_value: true, options: FARGEVALG } } });
           s.push({ name: 'rom_' + r + '_path', selector: { text: {} } });
+          s.push({ name: 'rom_' + r + '_varselvis', selector: { boolean: {} } });
+          s.push({ name: 'rom_' + r + '_varsel', selector: { entity: { domain: ['binary_sensor', 'input_boolean', 'switch'] } } });
         });
       });
       return s;
@@ -9239,6 +9259,9 @@ try {
           d['rom_' + a.area_id + '_rekkefolge'] = o.rekkefolge;
           d['rom_' + a.area_id + '_farge'] = o.farge;
           d['rom_' + a.area_id + '_path'] = o.path;
+          // varsel: false = merket er slått av; en entitet = egen kilde
+          d['rom_' + a.area_id + '_varselvis'] = o.varsel !== false;
+          d['rom_' + a.area_id + '_varsel'] = typeof o.varsel === 'string' ? o.varsel : undefined;
         });
       });
       return d;
@@ -9281,7 +9304,7 @@ try {
         if (Object.keys(e).length) fc[f.key] = e;
         f.rom.forEach((a) => {
           const r = a.area_id; const o = { ...((prev.rom || {})[r] || {}) };
-          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn;
+          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn; delete o.varsel;
           if (v['rom_' + r + '_vis'] === false) o.skjul = true;
           if (v['rom_' + r + '_navn']) o.navn = v['rom_' + r + '_navn'];
           if (v['rom_' + r + '_size'] && v['rom_' + r + '_size'] !== 'big') o.size = v['rom_' + r + '_size'];
@@ -9290,6 +9313,8 @@ try {
           if (rk !== undefined && rk !== null && rk !== '') o.rekkefolge = Number(rk);
           if (v['rom_' + r + '_farge']) o.farge = v['rom_' + r + '_farge'];
           if (v['rom_' + r + '_path']) o.path = v['rom_' + r + '_path'];
+          if (v['rom_' + r + '_varselvis'] === false) o.varsel = false;
+          else if (v['rom_' + r + '_varsel']) o.varsel = v['rom_' + r + '_varsel'];
           if (Object.keys(o).length) rc[r] = o;
         });
       });
@@ -9371,7 +9396,8 @@ try {
           };
           if (m[n]) return m[n];
           if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
-          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash' }[n.split('_').pop()] || n;
+          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash',
+            varselvis: 'Vis «!»-merke på flisen', varsel: '«!»-merke når denne er på (standard: første dør/vindu i rommet)' }[n.split('_').pop()] || n;
           return sc.label || n;
         };
         this._form.addEventListener('value-changed', (ev) => {
@@ -15800,6 +15826,7 @@ try {
  * logg:
  *   ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
  *   personer: { Rune: person.rune }   # ellers gjettes person.* ut fra navnet
+ *   bilder: { Rune: /local/rune.jpg } # eller en bildeadresse rett fram
  *   dager: 7
  * rull_topp: true              # rull til toppen når tastaturet åpnes/lukkes
  * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
@@ -16106,25 +16133,35 @@ class KiSikkerhetCard extends HTMLElement {
     this._ro = new ResizeObserver((poster) => {
       const h = poster[0] && poster[0].contentRect ? poster[0].contentRect.height : 0;
       if (this._forrigeH === undefined) { this._forrigeH = h; return; }
-      if (Math.abs(h - this._forrigeH) < 40) return;   // små justeringer teller ikke
+      const endring = h - this._forrigeH;
+      if (Math.abs(endring) < 40) return;   // små justeringer teller ikke
       this._forrigeH = h;
-      this._tilTopp();
+      // Vokser boksen har tastaturet foldet seg ut: rull ned til det, så du slipper
+      // å lete etter sifrene. Krymper den er koden tastet ferdig: tilbake til toppen.
+      this._rull(endring > 0 ? boks : this);
     });
     this._ro.observe(boks);
   }
 
-  _tilTopp() {
+  _rull(mal) {
     clearTimeout(this._rullTid);
     this._rullTid = setTimeout(() => {
-      try {
-        this.scrollIntoView({ block: "start", behavior: "smooth" });
-      } catch (e) {
-        this.scrollIntoView(true);
-      }
-    }, 60);
+      if (!mal || !mal.scrollIntoView) return;
+      try { mal.scrollIntoView({ block: mal === this ? "start" : "nearest", behavior: "smooth" }); }
+      catch (e) { mal.scrollIntoView(true); }
+    }, 80);
+  }
+
+  _ventendeFane() {
+    const KI = window.KI || {};
+    if (!KI.hentFane) return;
+    const f = KI.hentFane(this._faner());
+    if (f && f !== this._fane) { this._fane = f; return true; }
+    return false;
   }
 
   connectedCallback() {
+    this._ventendeFane();
     if (this._faneAv) return;
     // «#alarm::laser» fra et annet kort velger fanen når popupen åpnes
     this._faneAv = (e) => {
@@ -16286,6 +16323,7 @@ class KiSikkerhetCard extends HTMLElement {
     kort.style.setProperty("--tone", tone);
 
     const faner = this._faner();
+    this._ventendeFane();      // trykket kom kanskje før kortet fantes
     if (!faner.includes(this._fane)) this._fane = faner[0];
     this._sett(".fanerad", faner.length < 2 ? "" : faner.map((f) => `
       <button class="fane ${f === this._fane ? "valgt" : ""}" data-fane="${f}">${
@@ -16382,25 +16420,40 @@ class KiSikkerhetCard extends HTMLElement {
     });
   }
 
-  /* Profilbilde for et navn. Tar person-entiteten fra `logg.personer`, ellers leter
-     vi den opp blant person.*-entitetene på navn. */
+  /* Profilbilde for et navn. Rekkefølge:
+   *   1. `logg.bilder` – en URL du setter selv
+   *   2. `logg.personer` – peker på en person-entitet
+   *   3. person.*-entiteter, matchet på hele navnet, fornavnet eller entitets-ID-en
+   * Ansiktssensoren melder ofte bare fornavnet («Rune») mens person-entiteten heter
+   * «Rune Kristo» – derfor sammenlignes også første ord. */
   _bilde(navn) {
-    if (!navn) return null;
+    if (!navn || !this._h) return null;
     const lg = this._c.logg || {};
+    const n = (x) => String(x || "").trim().toLowerCase()
+      .replace(/ø|ö/g, "o").replace(/æ|ä|å/g, "a");
+    const sok = n(navn);
+    if (!sok) return null;
+
+    if ((lg.bilder || {})[navn]) return lg.bilder[navn];
+
+    const hentBilde = (id) => {
+      const st = id && this._h.states[id];
+      return (st && st.attributes && st.attributes.entity_picture) || null;
+    };
     const eksplisitt = (lg.personer || {})[navn];
-    const nokkel = String(navn).trim().toLowerCase();
-    let st = eksplisitt ? this._h.states[eksplisitt] : null;
-    if (!st) {
-      const id = Object.keys(this._h.states).find((x) => {
-        if (!x.startsWith("person.")) return false;
-        const a = this._h.states[x].attributes || {};
-        return String(a.friendly_name || "").trim().toLowerCase() === nokkel
-          || x.slice(7).toLowerCase() === nokkel;
-      });
-      st = id ? this._h.states[id] : null;
-    }
-    const b = st && st.attributes && st.attributes.entity_picture;
-    return b || null;
+    if (eksplisitt) return hentBilde(eksplisitt);
+
+    const kandidater = Object.keys(this._h.states).filter((x) => x.startsWith("person."));
+    const treff = (test) => kandidater.find((id) => {
+      const fn = n((this._h.states[id].attributes || {}).friendly_name);
+      return test(fn, n(id.slice(7)));
+    });
+
+    const id =
+      treff((fn, eid) => fn === sok || eid === sok) ||
+      treff((fn, eid) => fn.split(" ")[0] === sok || eid.split("_")[0] === sok) ||
+      treff((fn) => fn.startsWith(sok + " "));
+    return hentBilde(id);
   }
 
   async _hentLogg() {

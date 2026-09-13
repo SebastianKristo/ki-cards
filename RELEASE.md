@@ -1,41 +1,43 @@
-# ki-cards 3.24.0
+# ki-cards 3.26.0
 
-## Dyplenken til en fane virket ikke fra ki-hjem-card
+## Dyplenken til en fane virket fortsatt ikke
 
-`KI.navigate` forsto `#alarm::laser`, men ki-hjem-card bygger flisene som button-card med
-`tap_action: navigate` — den går gjennom Home Assistants egen navigering, ikke gjennom
-`KI.navigate`. Hele strengen havnet derfor i adressefeltet, og bubble-card kjente ikke
-igjen `#alarm::laser` som sin hash. Ingenting åpnet seg.
+Vakten ryddet hashen riktig og sendte `ki-fane`, men hendelsen gikk ut **før** popupen
+hadde rukket å bygge kortet. Det fantes ingen lytter å høre den, og fanen ble aldri valgt.
+Hashen ble ryddet — derfor åpnet popupen seg — men alltid på første fane.
 
-Fane-delen fanges nå globalt i bundelen: en vakt på `hashchange` og `location-changed`
-rydder hashen til `#alarm` og melder fra om fanen. Det virker uansett hvilket kort som
-navigerer, og uansett om stien går gjennom `KI.navigate` eller ikke.
+Fanen legges nå igjen i `KI.ventendeFane` i tillegg til å kringkastes, og kortet henter
+den når det kobles til og ved første tegning. Den er gyldig i seks sekunder, så et gammelt
+trykk ikke overstyrer et nytt valg, og hentes bare én gang.
 
-```yaml
-hjem:
-  las: lock.dorlas
-  las_path: '#alarm::laser'
-```
+`las_path: '#alarm::laser'` skal nå åpne popupen rett på Dørlåser.
 
-## Tastaturet dro deg nedover i kortet
+## Tastaturet ruller feil vei
 
-Når tastaturet foldes ut og igjen, endrer kortets høyde seg kraftig, og du ble stående
-midt nede i kortet etter at koden var tastet ferdig. En `ResizeObserver` på tastaturboksen
-ruller nå kortet til toppen når høyden endrer seg mer enn 40 px. Små justeringer teller
-ikke. Slås av med `rull_topp: false`.
+Forrige versjon rullet til toppen uansett, også når tastaturet foldet seg **ut** — så du
+måtte bla ned for å finne sifrene.
 
-## Profilbilder i loggen
+Nå følger rullingen retningen: vokser tastaturboksen, rulles den inn i synsfeltet så
+tastene ligger klare. Krymper den, altså når koden er tastet ferdig, rulles kortet tilbake
+til toppen. Slås av med `rull_topp: false`.
 
-Låste Rune opp med ansiktsgjenkjenning, vises bildet hans i stedet for ikonet. Personen
-finnes automatisk blant `person.*`-entitetene ved å matche navnet fra sensoren mot
-`friendly_name` eller entitets-ID-en, så Rune, Cybele og Sebastian kommer med uten
-oppsett. Har du navn som ikke matcher, sett dem selv:
+## Profilbildene fant ikke personene
+
+Oppslaget krevde at navnet fra ansiktssensoren var nøyaktig likt `friendly_name` på
+person-entiteten. Sensoren melder fornavnet — «Rune» — mens personen ofte heter «Rune
+Kristo». Ingen treff, og ikonet ble stående.
+
+Oppslaget prøver nå i tur og orden: hele navnet, fornavnet, og entitets-ID-en, alt
+sammenlignet uten store bokstaver og med ø/ö og æ/ä/å slått sammen. «Rune» treffer «Rune
+Kristo», og «Cybele» treffer «Cybele Jemtland».
+
+To nye måter å sette det selv på:
 
 ```yaml
 logg:
-  ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
-  personer:
-    Rune: person.rune
+  personer: { Rune: person.rune_kristo }    # peker på en person-entitet
+  bilder:   { Rune: /local/rune.jpg }       # eller en bildeadresse rett fram
 ```
 
-Finnes ingen person eller mangler bildet, brukes ansiktsikonet som før.
+Har personen ikke noe bilde i Home Assistant, brukes ansiktsikonet som før — kortet kan
+bare vise det som finnes.

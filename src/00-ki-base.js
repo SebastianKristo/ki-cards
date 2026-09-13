@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.24.0";
+  KI.VERSION = "3.26.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -326,6 +326,16 @@ window.KI = window.KI || {};
   /* Navigerer uten å laste dashbordet på nytt: bygger mål-URL-en, bytter den med
      history og varsler både HA-ruteren og popup-kort som lytter på hashchange.
      `window.location.hash = …` unngås – i companion-appen gir det full innlasting. */
+  /* Henter en fane som ble bedt om rett før kortet ble bygget. Gyldig i 6 sekunder,
+     så et gammelt trykk ikke overstyrer et nytt valg. */
+  KI.hentFane = (gyldige) => {
+    const v = KI.ventendeFane;
+    if (!v || Date.now() - v.tid > 6000) return null;
+    if (gyldige && !gyldige.includes(v.fane)) return null;
+    KI.ventendeFane = null;
+    return v.fane;
+  };
+
   /* «#alarm::laser» åpner popupen #alarm og ber kortet inni om å vise fanen
      «laser». Fane-delen fjernes før navigeringen, så bubble-card ser bare hashen
      sin. Alle kort som allerede navigerer via KI.navigate får dette gratis. */
@@ -336,8 +346,11 @@ window.KI = window.KI || {};
       const [f, ...rest] = String(sti).split("::").reverse();
       fane = f; sti = rest.reverse().join("::");
     }
-    if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
-      { detail: { hash: String(sti), fane } })), 0);
+    if (fane) {
+      KI.ventendeFane = { hash: String(sti), fane, tid: Date.now() };
+      setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+        { detail: { hash: String(sti), fane } })), 0);
+    }
     const gammel = window.location.hash;
     let url = null;
     try { url = new URL(sti, window.location.origin + window.location.pathname + window.location.search); } catch (e) { /* tom */ }
@@ -362,7 +375,12 @@ window.KI = window.KI || {};
       window.dispatchEvent(new Event("location-changed"));
       try { window.dispatchEvent(new HashChangeEvent("hashchange")); }
       catch (e) { window.dispatchEvent(new Event("hashchange")); }
-      if (fane) setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
+      if (!fane) return;
+      // Popupen bygger kortet først etter at hashen er satt, så en hendelse her ville
+      // kommet før det finnes noen lytter. Vi legger den igjen, og kortet plukker den
+      // opp når det kobles til.
+      KI.ventendeFane = { hash: ren, fane, tid: Date.now() };
+      setTimeout(() => window.dispatchEvent(new CustomEvent("ki-fane",
         { detail: { hash: ren, fane } })), 0);
     };
     window.addEventListener("hashchange", KI._faneVakt);

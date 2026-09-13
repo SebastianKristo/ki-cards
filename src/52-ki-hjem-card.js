@@ -433,6 +433,8 @@
           s.push({ name: 'rom_' + r + '_rekkefolge', selector: { number: { min: 0, max: 99, mode: 'box' } } });
           s.push({ name: 'rom_' + r + '_farge', selector: { select: { mode: 'dropdown', custom_value: true, options: FARGEVALG } } });
           s.push({ name: 'rom_' + r + '_path', selector: { text: {} } });
+          s.push({ name: 'rom_' + r + '_varselvis', selector: { boolean: {} } });
+          s.push({ name: 'rom_' + r + '_varsel', selector: { entity: { domain: ['binary_sensor', 'input_boolean', 'switch'] } } });
         });
       });
       return s;
@@ -463,6 +465,9 @@
           d['rom_' + a.area_id + '_rekkefolge'] = o.rekkefolge;
           d['rom_' + a.area_id + '_farge'] = o.farge;
           d['rom_' + a.area_id + '_path'] = o.path;
+          // varsel: false = merket er slått av; en entitet = egen kilde
+          d['rom_' + a.area_id + '_varselvis'] = o.varsel !== false;
+          d['rom_' + a.area_id + '_varsel'] = typeof o.varsel === 'string' ? o.varsel : undefined;
         });
       });
       return d;
@@ -505,7 +510,7 @@
         if (Object.keys(e).length) fc[f.key] = e;
         f.rom.forEach((a) => {
           const r = a.area_id; const o = { ...((prev.rom || {})[r] || {}) };
-          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn;
+          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn; delete o.varsel;
           if (v['rom_' + r + '_vis'] === false) o.skjul = true;
           if (v['rom_' + r + '_navn']) o.navn = v['rom_' + r + '_navn'];
           if (v['rom_' + r + '_size'] && v['rom_' + r + '_size'] !== 'big') o.size = v['rom_' + r + '_size'];
@@ -514,6 +519,8 @@
           if (rk !== undefined && rk !== null && rk !== '') o.rekkefolge = Number(rk);
           if (v['rom_' + r + '_farge']) o.farge = v['rom_' + r + '_farge'];
           if (v['rom_' + r + '_path']) o.path = v['rom_' + r + '_path'];
+          if (v['rom_' + r + '_varselvis'] === false) o.varsel = false;
+          else if (v['rom_' + r + '_varsel']) o.varsel = v['rom_' + r + '_varsel'];
           if (Object.keys(o).length) rc[r] = o;
         });
       });
@@ -595,7 +602,8 @@
           };
           if (m[n]) return m[n];
           if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
-          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash' }[n.split('_').pop()] || n;
+          if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse', kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash',
+            varselvis: 'Vis «!»-merke på flisen', varsel: '«!»-merke når denne er på (standard: første dør/vindu i rommet)' }[n.split('_').pop()] || n;
           return sc.label || n;
         };
         this._form.addEventListener('value-changed', (ev) => {
