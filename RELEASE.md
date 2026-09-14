@@ -1,27 +1,21 @@
-# ki-cards 3.48.0
+# ki-cards 3.49.1
 
-## Ansiktshistorikken: loggboken som reservevei
+## Loggbok-stien var feil
 
-`significant_changes_only=0` var ikke nok. Jeg har nå gjettet to ganger på hvordan
-historikk-API-et behandler endringer som bare rører attributter, og i stedet for å gjette
-en tredje gang henter kortet fra to uavhengige kilder:
+`logbook/period/<tid>` finnes ikke. Historikk-API-et heter `history/period/<tid>`, men
+loggboken heter bare **`logbook/<tid>`** — uten `period`. Jeg antok at de var bygget likt,
+og kallet traff dermed ingenting.
 
-1. **Historikk** med attributter, som før. Den gir `bekreftet_tid` og `kilde`.
-2. Kom det færre enn to rader ut av den, hentes **loggboken** i tillegg
-   (`logbook/period/…?entity=…`). Den lister hver tilstandsendring for seg, så
-   Rune i går, Sebastian i dag og Cybele senere kommer med uansett hva historikken
-   filtrerte bort.
+Riktig sti brukes nå, med den gamle skrivemåten som reserve i fall en HA-versjon vil ha
+den.
 
-Radene slås sammen på navn og tidspunkt, så samme opplåsning kommer ikke med to ganger.
-Feiler den ene kilden helt, brukes den andre; feiler begge, vises gjeldende tilstand som før.
+## «loggbok feilet: [object Object]»
 
-`logg.diagnose: true` skriver en linje nederst i loggen med hvor radene kom fra —
-«historikk (1 rader) + loggbok (3 rader)». Den forteller med én gang hvilken vei som
-faktisk virker hos deg, i stedet for at jeg må gjette videre.
+Diagnoselinja skrev `e.message` rett ut, men Home Assistant kaster et objekt og ikke en
+`Error` — så du fikk `[object Object]` i stedet for årsaken. Feilteksten plukker nå
+`message`, `body.message`, `status`/`code`, og faller til slutt tilbake på en kort JSON.
+Den samme linja viser nå «alarm: 2 · dorlas_blatann: 4 · ansikt: 2» når det går bra, og
+«alarm: HTTP 404» når det ikke gjør det.
 
-## Om dørlåsen
-
-`lock.dorlas_blatann` er med i loggen, som radene «Dørlås låst» og «Dørlås låst opp» —
-navnet kommer fra sonen din. At de er seks dager gamle betyr at låsentiteten ikke har
-endret tilstand siden. Åpnes døra med ansiktsgjenkjenning uten at låsen selv rapporterer
-ulåst, får ikke loggen noe å vise fra den.
+Det var den meldingen som til slutt pekte på selve feilen, så den var verdt å ha — den
+skulle bare vært lesbar fra starten.

@@ -651,8 +651,9 @@ class KiSikkerhetCard extends HTMLElement {
       const mangler = this._forventet().filter((id) => !(this._lest || {})[id]);
       if (mangler.length) boks.innerHTML += `<div class="tom">Ingen historikk for ${
         KI_SIK_ESC(mangler.join(", "))}. Sjekk at entiteten ikke er utelatt fra recorder.</div>`;
-      if (this._c.logg && this._c.logg.diagnose && this._ansiktKilde)
-        boks.innerHTML += `<div class="tom">Ansikt: ${KI_SIK_ESC(this._ansiktKilde)}</div>`;
+      if (this._c.logg && this._c.logg.diagnose && (this._diag || []).length)
+        boks.innerHTML += `<div class="tom">Loggbok-rader — ${
+          KI_SIK_ESC(this._diag.join(" · "))}</div>`;
     }).catch((e) => {
       boks.innerHTML = `<div class="tom">Fikk ikke hentet historikk: ${KI_SIK_ESC(e.message || e)}</div>`;
     });
@@ -701,6 +702,11 @@ class KiSikkerhetCard extends HTMLElement {
     return [this._c.entity, ...this._laser().map((x) => x.id), lg.ansikt].filter(Boolean);
   }
 
+  /* Hendelseslista. Loggboken er kilden for tilstandsendringer – den er laget for
+   * nettopp dette og gir én rad per endring med tidspunkt. Historikk-API-et brukte
+   * jeg først, men med `minimal_response` kom bare de eldste radene med, og alarmen
+   * forsvant helt. Historikken brukes nå kun til ansiktssensorens attributter
+   * (`bekreftet_tid` og `kilde`), som loggboken ikke har. */
   async _hentLogg() {
     const lg = this._c.logg || {};
     const dager = lg.dager || 7;
@@ -710,99 +716,103 @@ class KiSikkerhetCard extends HTMLElement {
     for (const x of laser) navn[x.id] = x.navn;
 
     const ut = [];
+    this._lest = {};
+    this._diag = [];
 
-    // Alarm og låser: minimal_response holder, vi trenger bare tilstanden
-    const ids = [this._c.entity, ...laser.map((x) => x.id)].filter(Boolean);
-    if (ids.length) {
-      // significant_changes_only er på som standard i historikk-API-et, og da kan
-      // låsen miste raske låst/ulåst-vekslinger. Vi ber om alt.
-      const svar = await this._h.callApi("GET",
-        `history/period/${fra}?filter_entity_id=${ids.join(",")}` +
-        `&minimal_response&significant_changes_only=0`);
-      this._lest = {};
-      for (const serie of svar || []) {
-        const eid = serie[0] && serie[0].entity_id;
-        for (const punkt of serie) {
-          const id = punkt.entity_id || eid;
-          const tid = punkt.last_changed || punkt.last_updated;
-          const v = punkt.state;
-          if (!id || !tid) continue;
-          this._lest[id] = (this._lest[id] || 0) + 1;
-          if (["unavailable", "unknown", ""].includes(v)) continue;
-          if (id === this._c.entity) {
-            ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
-              stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
-              tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
-          } else if (id.startsWith("lock.")) {
-            const l = v === "locked";
-            ut.push({ tid, ikon: l ? "mdi:lock" : "mdi:lock-open-variant", stil: l ? "" : "av",
-              tittel: `${navn[id] || id} ${l ? "låst" : "låst opp"}`, under: "Dørlås" });
-          }
+    /* Loggbokens REST-sti er `logbook/<tid>` – uten `period`, i motsetning til
+       historikken som heter `history/period/<tid>`. Jeg brukte `logbook/period/…`
+       først, og da traff kallet ingenting. Vi prøver den riktige først og faller
+       tilbake på den andre skrivemåten i fall en HA-versjon vil ha den. */
+    const feiltekst = (e) => {
+      if (!e) return "ukjent";
+      if (typeof e === "string") return e;
+      if (e.message) return String(e.message);
+      if (e.body && e.body.message) return String(e.body.message);
+      if (e.status || e.code) return `HTTP ${e.status || e.code}`;
+      try { return JSON.stringify(e).slice(0, 120); } catch (x) { return String(e); }
+    };
+
+    const loggbok = async (id) => {
+      const kort = id.split(".")[1] || id;
+      const stier = [`logbook/${fra}?entity=${id}`, `logbook/period/${fra}?entity=${id}`];
+      let siste = null;
+      for (const sti of stier) {
+        try {
+          const r = await this._h.callApi("GET", sti);
+          const rader = Array.isArray(r) ? r : [];
+          this._lest[id] = rader.length;
+          this._diag.push(`${kort}: ${rader.length}`);
+          return rader;
+        } catch (e) {
+          siste = e;
         }
+      }
+      this._lest[id] = 0;
+      this._diag.push(`${kort}: ${feiltekst(siste)}`);
+      console.warn("ki-sikkerhet-card: loggbok feilet for", id, siste);
+      return [];
+    };
+
+    // --- alarmen
+    if (this._c.entity) {
+      for (const e of await loggbok(this._c.entity)) {
+        const v = e.state;
+        if (!v || !e.when || ["unavailable", "unknown"].includes(v)) continue;
+        ut.push({ tid: e.when,
+          ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
+          stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
+          tittel: KI_SIK_NAVN[v] || v, under: "Alarm" });
       }
     }
 
-    // Ansiktsgjenkjenning må hentes med attributter. Sensoren står ofte på samme
-    // navn flere opplåsninger på rad – det er `bekreftet_tid` som flytter seg, og
-    // den forsvinner med minimal_response. Derfor en egen spørring, og vi grupperer
-    // på bekreftet_tid i stedet for på tilstandsendring.
+    // --- låsene
+    for (const x of laser) {
+      for (const e of await loggbok(x.id)) {
+        const v = e.state;
+        if (!v || !e.when || ["unavailable", "unknown"].includes(v)) continue;
+        const l = v === "locked";
+        ut.push({ tid: e.when, ikon: l ? "mdi:lock" : "mdi:lock-open-variant",
+          stil: l ? "" : "av",
+          tittel: `${navn[x.id] || x.navn || x.id} ${l ? "låst" : "låst opp"}`,
+          under: "Dørlås" });
+      }
+    }
+
+    // --- ansiktsgjenkjenning: loggboken for hendelsene, historikken for attributtene
     if (lg.ansikt) {
       const naa = this._h.states[lg.ansikt];
-      const rad = (hvem, tid, a) => ({
-        tid, ikon: (a && a.icon) || "mdi:face-recognition", stil: "av",
-        bilde: this._bilde(hvem), tittel: `${hvem} låste opp`,
-        under: a && a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning",
-      });
       const sett = new Set();
+      const attr = {};            // bekreftet_tid -> attributter
       const legg = (hvem, tid, a) => {
         if (!hvem || !tid || ["unavailable", "unknown", ""].includes(hvem)) return;
         const merke = `${hvem}|${tid}`;
         if (sett.has(merke)) return;
         sett.add(merke);
-        ut.push(rad(hvem, tid, a));
+        ut.push({ tid, ikon: (a && a.icon) || "mdi:face-recognition", stil: "av",
+          bilde: this._bilde(hvem), tittel: `${hvem} låste opp`,
+          under: a && a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
       };
 
-      this._ansiktKilde = "";
-      // 1) historikk med attributter. significant_changes_only=0 skal gi også de
-      //    endringene der bare bekreftet_tid flyttet seg.
       try {
-        const svar = await this._h.callApi("GET",
+        const h = await this._h.callApi("GET",
           `history/period/${fra}?filter_entity_id=${lg.ansikt}&significant_changes_only=0`);
-        let n = 0;
-        for (const serie of svar || []) for (const punkt of serie) {
-          n++;
+        for (const serie of h || []) for (const punkt of serie) {
           const a = punkt.attributes || {};
-          legg(punkt.state, a.bekreftet_tid || punkt.last_changed || punkt.last_updated, a);
+          const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
+          if (tid) attr[tid] = a;
+          legg(punkt.state, tid, a);
         }
-        this._ansiktKilde = `historikk (${n} rader)`;
       } catch (e) {
-        this._ansiktKilde = `historikk feilet: ${e && e.message ? e.message : e}`;
         console.warn("ki-sikkerhet-card: historikk for ansiktssensoren feilet", e);
       }
 
-      // 2) Fikk vi bare én rad, har spørringen sannsynligvis blitt filtrert likevel.
-      //    Loggboken lister hver tilstandsendring for seg, og er en uavhengig vei inn.
-      if (sett.size < 2) {
-        try {
-          const lb = await this._h.callApi("GET",
-            `logbook/period/${fra}?entity=${lg.ansikt}`);
-          let n = 0;
-          for (const e of lb || []) {
-            n++;
-            legg(e.state, e.when, naa && naa.attributes);
-          }
-          this._ansiktKilde += ` + loggbok (${n} rader)`;
-        } catch (e) {
-          this._ansiktKilde += ` + loggbok feilet: ${e && e.message ? e.message : e}`;
-          console.warn("ki-sikkerhet-card: loggbok for ansiktssensoren feilet", e);
-        }
+      for (const e of await loggbok(lg.ansikt)) {
+        legg(e.state, e.when, attr[e.when] || (naa && naa.attributes));
       }
 
-      // 3) Fortsatt ingenting? Vis i det minste siste opplåsning.
       if (!sett.size && naa) {
         const a = naa.attributes || {};
         legg(naa.state, a.bekreftet_tid || naa.last_changed, a);
-        this._ansiktKilde += " + bare gjeldende tilstand";
       }
     }
 
