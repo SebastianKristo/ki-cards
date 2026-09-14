@@ -21,6 +21,7 @@
  *   personer: { Rune: person.rune }   # ellers gjettes person.* ut fra navnet
  *   bilder: { Rune: /local/rune.jpg } # eller en bildeadresse rett fram
  *   dager: 7
+ *   diagnose: true                  # vis hvor ansiktsradene kom fra
  * rull_topp: true              # rull til toppen når tastaturet åpnes/lukkes
  * soner: false                 # sonelistene utelates – bruk ki-sensor-liste-card
  * tastatur:                    # ki-alarm-card bakes inn under huset
@@ -650,6 +651,8 @@ class KiSikkerhetCard extends HTMLElement {
       const mangler = this._forventet().filter((id) => !(this._lest || {})[id]);
       if (mangler.length) boks.innerHTML += `<div class="tom">Ingen historikk for ${
         KI_SIK_ESC(mangler.join(", "))}. Sjekk at entiteten ikke er utelatt fra recorder.</div>`;
+      if (this._c.logg && this._c.logg.diagnose && this._ansiktKilde)
+        boks.innerHTML += `<div class="tom">Ansikt: ${KI_SIK_ESC(this._ansiktKilde)}</div>`;
     }).catch((e) => {
       boks.innerHTML = `<div class="tom">Fikk ikke hentet historikk: ${KI_SIK_ESC(e.message || e)}</div>`;
     });
@@ -744,36 +747,62 @@ class KiSikkerhetCard extends HTMLElement {
     // den forsvinner med minimal_response. Derfor en egen spørring, og vi grupperer
     // på bekreftet_tid i stedet for på tilstandsendring.
     if (lg.ansikt) {
+      const naa = this._h.states[lg.ansikt];
+      const rad = (hvem, tid, a) => ({
+        tid, ikon: (a && a.icon) || "mdi:face-recognition", stil: "av",
+        bilde: this._bilde(hvem), tittel: `${hvem} låste opp`,
+        under: a && a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning",
+      });
+      const sett = new Set();
+      const legg = (hvem, tid, a) => {
+        if (!hvem || !tid || ["unavailable", "unknown", ""].includes(hvem)) return;
+        const merke = `${hvem}|${tid}`;
+        if (sett.has(merke)) return;
+        sett.add(merke);
+        ut.push(rad(hvem, tid, a));
+      };
+
+      this._ansiktKilde = "";
+      // 1) historikk med attributter. significant_changes_only=0 skal gi også de
+      //    endringene der bare bekreftet_tid flyttet seg.
       try {
-        // Her er significant_changes_only=0 avgjørende: sensoren står på samme navn
-        // flere opplåsninger på rad, og det er bare attributtet bekreftet_tid som
-        // flytter seg. Med standardinnstillingen ser API-et én endring, og du fikk
-        // bare den ene raden uansett hvor mange ganger døra faktisk ble åpnet.
         const svar = await this._h.callApi("GET",
           `history/period/${fra}?filter_entity_id=${lg.ansikt}&significant_changes_only=0`);
-        const sett = new Set();
+        let n = 0;
         for (const serie of svar || []) for (const punkt of serie) {
+          n++;
           const a = punkt.attributes || {};
-          const hvem = punkt.state;
-          if (!hvem || ["unavailable", "unknown", ""].includes(hvem)) continue;
-          const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
-          const merke = `${hvem}|${tid}`;
-          if (!tid || sett.has(merke)) continue;
-          sett.add(merke);
-          ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av", bilde: this._bilde(hvem),
-            tittel: `${hvem} låste opp`,
-            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
+          legg(punkt.state, a.bekreftet_tid || punkt.last_changed || punkt.last_updated, a);
         }
-        // Ingen historikk (nylig lagt til sensor)? Vis i det minste siste opplåsning.
-        const naa = this._h.states[lg.ansikt];
-        if (!sett.size && naa && naa.state && !["unavailable", "unknown"].includes(naa.state)) {
-          const a = naa.attributes || {};
-          ut.push({ tid: a.bekreftet_tid || naa.last_changed, ikon: a.icon || "mdi:face-recognition",
-            stil: "av", bilde: this._bilde(naa.state), tittel: `${naa.state} låste opp`,
-            under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
-        }
+        this._ansiktKilde = `historikk (${n} rader)`;
       } catch (e) {
-        console.warn("ki-sikkerhet-card: fikk ikke historikk for ansiktssensoren", e);
+        this._ansiktKilde = `historikk feilet: ${e && e.message ? e.message : e}`;
+        console.warn("ki-sikkerhet-card: historikk for ansiktssensoren feilet", e);
+      }
+
+      // 2) Fikk vi bare én rad, har spørringen sannsynligvis blitt filtrert likevel.
+      //    Loggboken lister hver tilstandsendring for seg, og er en uavhengig vei inn.
+      if (sett.size < 2) {
+        try {
+          const lb = await this._h.callApi("GET",
+            `logbook/period/${fra}?entity=${lg.ansikt}`);
+          let n = 0;
+          for (const e of lb || []) {
+            n++;
+            legg(e.state, e.when, naa && naa.attributes);
+          }
+          this._ansiktKilde += ` + loggbok (${n} rader)`;
+        } catch (e) {
+          this._ansiktKilde += ` + loggbok feilet: ${e && e.message ? e.message : e}`;
+          console.warn("ki-sikkerhet-card: loggbok for ansiktssensoren feilet", e);
+        }
+      }
+
+      // 3) Fortsatt ingenting? Vis i det minste siste opplåsning.
+      if (!sett.size && naa) {
+        const a = naa.attributes || {};
+        legg(naa.state, a.bekreftet_tid || naa.last_changed, a);
+        this._ansiktKilde += " + bare gjeldende tilstand";
       }
     }
 

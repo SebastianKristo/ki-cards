@@ -1,24 +1,27 @@
-# ki-cards 3.47.0
+# ki-cards 3.48.0
 
-## Loggen i `ki-sikkerhet-card` viste bare én opplåsning
+## Ansiktshistorikken: loggboken som reservevei
 
-Historikk-API-et i Home Assistant har `significant_changes_only` slått på som standard.
-Endringer som bare rører attributtene regnes ikke som betydelige — og ansiktssensoren står
-på samme navn mens det er `bekreftet_tid` som flytter seg. Låste Rune opp i går og
-Sebastian i dag, så API-et to endringer; låste Rune opp tre ganger, så det én.
+`significant_changes_only=0` var ikke nok. Jeg har nå gjettet to ganger på hvordan
+historikk-API-et behandler endringer som bare rører attributter, og i stedet for å gjette
+en tredje gang henter kortet fra to uavhengige kilder:
 
-Ansiktssensoren hentes nå med `significant_changes_only=0`. Da kommer hver opplåsning med,
-også flere på rad av samme person.
+1. **Historikk** med attributter, som før. Den gir `bekreftet_tid` og `kilde`.
+2. Kom det færre enn to rader ut av den, hentes **loggboken** i tillegg
+   (`logbook/period/…?entity=…`). Den lister hver tilstandsendring for seg, så
+   Rune i går, Sebastian i dag og Cybele senere kommer med uansett hva historikken
+   filtrerte bort.
 
-Dublettfiltreringen er samtidig strammet: den gikk på tidspunktet alene, så to personer med
-samme `bekreftet_tid` slo hverandre ut. Nå er nøkkelen navn og tidspunkt sammen.
+Radene slås sammen på navn og tidspunkt, så samme opplåsning kommer ikke med to ganger.
+Feiler den ene kilden helt, brukes den andre; feiler begge, vises gjeldende tilstand som før.
 
-## Dørlåsen manglet
+`logg.diagnose: true` skriver en linje nederst i loggen med hvor radene kom fra —
+«historikk (1 rader) + loggbok (3 rader)». Den forteller med én gang hvilken vei som
+faktisk virker hos deg, i stedet for at jeg må gjette videre.
 
-Samme innstilling gjaldt alarm- og låsespørringen: raske låst/ulåst-vekslinger kunne
-forsvinne. Den ber nå også om alt.
+## Om dørlåsen
 
-Er entiteten helt fraværende fra svaret, sier loggen det rett ut: «Ingen historikk for
-lock.dorlas_blatann. Sjekk at entiteten ikke er utelatt fra recorder.» Det er den
-vanligste årsaken når en enkelt entitet mangler mens resten er der — en `exclude` i
-recorder-oppsettet, eller at `purge_keep_days` er kortere enn perioden loggen ber om.
+`lock.dorlas_blatann` er med i loggen, som radene «Dørlås låst» og «Dørlås låst opp» —
+navnet kommer fra sonen din. At de er seks dager gamle betyr at låsentiteten ikke har
+endret tilstand siden. Åpnes døra med ansiktsgjenkjenning uten at låsen selv rapporterer
+ulåst, får ikke loggen noe å vise fra den.
