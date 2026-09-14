@@ -647,6 +647,9 @@ class KiSikkerhetCard extends HTMLElement {
               <span class="htid">${KI_SIK_ESC(KI_SIK_SIDEN(r.tid))}</span>
             </div>`).join("")}</div>`
         : `<div class="tom">Ingen hendelser i perioden.</div>`;
+      const mangler = this._forventet().filter((id) => !(this._lest || {})[id]);
+      if (mangler.length) boks.innerHTML += `<div class="tom">Ingen historikk for ${
+        KI_SIK_ESC(mangler.join(", "))}. Sjekk at entiteten ikke er utelatt fra recorder.</div>`;
     }).catch((e) => {
       boks.innerHTML = `<div class="tom">Fikk ikke hentet historikk: ${KI_SIK_ESC(e.message || e)}</div>`;
     });
@@ -688,6 +691,13 @@ class KiSikkerhetCard extends HTMLElement {
     return hentBilde(id);
   }
 
+  /* Hvilke entiteter loggen forventet å finne noe fra. Brukes til å si fra når en av
+     dem ikke ga en eneste rad – typisk fordi den er utelatt fra recorder. */
+  _forventet() {
+    const lg = this._c.logg || {};
+    return [this._c.entity, ...this._laser().map((x) => x.id), lg.ansikt].filter(Boolean);
+  }
+
   async _hentLogg() {
     const lg = this._c.logg || {};
     const dager = lg.dager || 7;
@@ -701,15 +711,21 @@ class KiSikkerhetCard extends HTMLElement {
     // Alarm og låser: minimal_response holder, vi trenger bare tilstanden
     const ids = [this._c.entity, ...laser.map((x) => x.id)].filter(Boolean);
     if (ids.length) {
+      // significant_changes_only er på som standard i historikk-API-et, og da kan
+      // låsen miste raske låst/ulåst-vekslinger. Vi ber om alt.
       const svar = await this._h.callApi("GET",
-        `history/period/${fra}?filter_entity_id=${ids.join(",")}&minimal_response`);
+        `history/period/${fra}?filter_entity_id=${ids.join(",")}` +
+        `&minimal_response&significant_changes_only=0`);
+      this._lest = {};
       for (const serie of svar || []) {
         const eid = serie[0] && serie[0].entity_id;
         for (const punkt of serie) {
           const id = punkt.entity_id || eid;
           const tid = punkt.last_changed || punkt.last_updated;
           const v = punkt.state;
-          if (!id || !tid || ["unavailable", "unknown", ""].includes(v)) continue;
+          if (!id || !tid) continue;
+          this._lest[id] = (this._lest[id] || 0) + 1;
+          if (["unavailable", "unknown", ""].includes(v)) continue;
           if (id === this._c.entity) {
             ut.push({ tid, ikon: KI_SIK_PA.has(v) ? "mdi:shield-check" : v === "triggered" ? "mdi:shield-alert" : "mdi:shield-off-outline",
               stil: v === "triggered" ? "fare" : KI_SIK_PA.has(v) ? "pa" : "",
@@ -729,16 +745,21 @@ class KiSikkerhetCard extends HTMLElement {
     // på bekreftet_tid i stedet for på tilstandsendring.
     if (lg.ansikt) {
       try {
+        // Her er significant_changes_only=0 avgjørende: sensoren står på samme navn
+        // flere opplåsninger på rad, og det er bare attributtet bekreftet_tid som
+        // flytter seg. Med standardinnstillingen ser API-et én endring, og du fikk
+        // bare den ene raden uansett hvor mange ganger døra faktisk ble åpnet.
         const svar = await this._h.callApi("GET",
-          `history/period/${fra}?filter_entity_id=${lg.ansikt}`);
+          `history/period/${fra}?filter_entity_id=${lg.ansikt}&significant_changes_only=0`);
         const sett = new Set();
         for (const serie of svar || []) for (const punkt of serie) {
           const a = punkt.attributes || {};
           const hvem = punkt.state;
           if (!hvem || ["unavailable", "unknown", ""].includes(hvem)) continue;
           const tid = a.bekreftet_tid || punkt.last_changed || punkt.last_updated;
-          if (!tid || sett.has(tid)) continue;
-          sett.add(tid);
+          const merke = `${hvem}|${tid}`;
+          if (!tid || sett.has(merke)) continue;
+          sett.add(merke);
           ut.push({ tid, ikon: a.icon || "mdi:face-recognition", stil: "av", bilde: this._bilde(hvem),
             tittel: `${hvem} låste opp`,
             under: a.kilde ? `Ansiktsgjenkjenning · ${a.kilde}` : "Ansiktsgjenkjenning" });
