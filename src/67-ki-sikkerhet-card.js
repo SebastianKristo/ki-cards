@@ -712,6 +712,10 @@ class KiSikkerhetCard extends HTMLElement {
     const dager = lg.dager || 7;
     const laser = this._laser();
     const fra = new Date(Date.now() - dager * 864e5).toISOString();
+    // Loggboken returnerer ETT DØGN fra `fra` hvis vi ikke sier noe annet. Uten end_time
+    // fikk vi døgnet som begynte for sju dager siden – derfor bare seks dager gamle rader,
+    // og ingenting fra entiteter som ikke hadde aktivitet nettopp det døgnet.
+    const til = new Date(Date.now() + 6e4).toISOString();
     const navn = {};
     for (const x of laser) navn[x.id] = x.navn;
 
@@ -734,7 +738,8 @@ class KiSikkerhetCard extends HTMLElement {
 
     const loggbok = async (id) => {
       const kort = id.split(".")[1] || id;
-      const stier = [`logbook/${fra}?entity=${id}`, `logbook/period/${fra}?entity=${id}`];
+      const q = `entity=${id}&end_time=${encodeURIComponent(til)}`;
+      const stier = [`logbook/${fra}?${q}`, `logbook/period/${fra}?${q}`];
       let siste = null;
       for (const sti of stier) {
         try {

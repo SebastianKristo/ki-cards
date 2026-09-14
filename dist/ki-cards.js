@@ -1,4 +1,4 @@
-/* ki-cards v3.49.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-14 */
+/* ki-cards v3.50.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-14 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.49.1";
+  KI.VERSION = "3.50.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -16882,6 +16882,10 @@ class KiSikkerhetCard extends HTMLElement {
     const dager = lg.dager || 7;
     const laser = this._laser();
     const fra = new Date(Date.now() - dager * 864e5).toISOString();
+    // Loggboken returnerer ETT DØGN fra `fra` hvis vi ikke sier noe annet. Uten end_time
+    // fikk vi døgnet som begynte for sju dager siden – derfor bare seks dager gamle rader,
+    // og ingenting fra entiteter som ikke hadde aktivitet nettopp det døgnet.
+    const til = new Date(Date.now() + 6e4).toISOString();
     const navn = {};
     for (const x of laser) navn[x.id] = x.navn;
 
@@ -16904,7 +16908,8 @@ class KiSikkerhetCard extends HTMLElement {
 
     const loggbok = async (id) => {
       const kort = id.split(".")[1] || id;
-      const stier = [`logbook/${fra}?entity=${id}`, `logbook/period/${fra}?entity=${id}`];
+      const q = `entity=${id}&end_time=${encodeURIComponent(til)}`;
+      const stier = [`logbook/${fra}?${q}`, `logbook/period/${fra}?${q}`];
       let siste = null;
       for (const sti of stier) {
         try {

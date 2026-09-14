@@ -1,21 +1,21 @@
-# ki-cards 3.49.1
+# ki-cards 3.50.0
 
-## Loggbok-stien var feil
+## Loggen viste bare det første døgnet av perioden
 
-`logbook/period/<tid>` finnes ikke. Historikk-API-et heter `history/period/<tid>`, men
-loggboken heter bare **`logbook/<tid>`** — uten `period`. Jeg antok at de var bygget likt,
-og kallet traff dermed ingenting.
+Diagnoselinja avgjorde det: «alarm: 0 · dorlas_blatann: 8 · ansikt: 0», med alle åtte
+låseradene seks dager gamle — i et vindu på sju dager.
 
-Riktig sti brukes nå, med den gamle skrivemåten som reserve i fall en HA-versjon vil ha
-den.
+Loggbokens REST-endepunkt returnerer **ett døgn** fra tidspunktet du oppgir hvis du ikke
+sier noe annet. `logbook/<sju dager siden>` ga altså døgnet som begynte for sju dager
+siden, og ingenting etter det. Låsen hadde tilfeldigvis aktivitet nettopp det døgnet, mens
+alarmen og ansiktssensoren ikke hadde det — derfor åtte rader fra den ene og null fra de
+to andre.
 
-## «loggbok feilet: [object Object]»
+`end_time` settes nå til nå, så hele perioden kommer med.
 
-Diagnoselinja skrev `e.message` rett ut, men Home Assistant kaster et objekt og ikke en
-`Error` — så du fikk `[object Object]` i stedet for årsaken. Feilteksten plukker nå
-`message`, `body.message`, `status`/`code`, og faller til slutt tilbake på en kort JSON.
-Den samme linja viser nå «alarm: 2 · dorlas_blatann: 4 · ansikt: 2» når det går bra, og
-«alarm: HTTP 404» når det ikke gjør det.
+Testet med hendelser spredt over sju dager: både det som skjedde for et kvarter siden og
+det som skjedde for seks dager siden kommer med, sortert riktig.
 
-Det var den meldingen som til slutt pekte på selve feilen, så den var verdt å ha — den
-skulle bare vært lesbar fra starten.
+Det var tre feil på rad i samme spørring — `minimal_response` som kuttet svaret, feil sti,
+og manglende `end_time`. Diagnoselinja fra 3.48 er grunnen til at den siste ble funnet på
+ett forsøk i stedet for fire; behold `diagnose: true` til du ser tall du kjenner igjen.
