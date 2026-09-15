@@ -1,28 +1,40 @@
-# ki-cards 3.62.0
+# ki-cards 3.63.0
 
-## `ki-k2-card` 1.1.0
+## `ki-k2-scene-card` 1.1.0: skrivehodet følger emnet
 
-Lett hånd, som med kameraktortet — strukturen og de to visningene er uendret.
+Kommentaren i koden sa at hodet «stiger med laget», og `dyseY` ble regnet ut på linje 174
+— men verdien ble aldri brukt noe sted. Hodet sto i fast høyde mens emnet vokste oppover,
+så ved høy framdrift stakk dysa ned inni emnet.
 
-**Tittelrad med ikonfelt.** Tittelen var ren tekst i 20 px. Nå står den i en rad med
-48 px rundt ikonfelt til venstre, som sikkerhets-, ruter- og kameraktortet. Ikonet kan
-settes med `icon:`; standard er `mdi:printer-3d-nozzle`.
+Hodet senkes nå til platen ved start og stiger med emnet, slik at dysespissen ligger to
+piksler over øverste lag hele veien. Er printeren av, parkeres hodet øverst i stedet for
+å stå nede ved platen som om den er midt i en jobb.
 
-Til høyre i rada står en kort status: «Skriver ut · 64 %». Under utskrift ser du dermed
-hvor det står uten å lese fremdriftsringen, og ved 0 og 100 % faller prosenten bort så
-det ikke står «Skriver ut · 100 %» på en ferdig jobb.
+Geometrien er kontrollert i alle fire tilstandene: dysa er over emnet, og hodet holder seg
+innenfor kabinettet.
 
-**Mediebryteren** mellom kamera og forhåndsvisning hadde en grå flate på den valgte
-halvdelen. Den bruker nå `--active-small` med lys tekst, som alle de andre bryterne i
-bundelen.
+## Resten av scenen
 
-**Fremdriftsringen pulserer** svakt mens den skriver ut, så du ser at noe skjer.
-`prefers-reduced-motion` slår det av.
+**Lagstriper.** Emnet var en glatt boks. Nå tegnes en linje per fjerde piksel, så det ser
+printet ut i stedet for støpt. Antallet vokser med framdriften.
 
-**Fargene kommer fra temaet.** Tretten steder brukte `rgba(128,128,128,...)` direkte —
-flater er nå `--gray100`, og streker og spor `color-mix` mot `--gray1000`. Det betyr at
-kortet følger temaet ditt i stedet for å ligge et hakk ved siden av, og at det ser riktig
-ut om du bytter til et lyst tema.
+**Øverste lag lyser.** En tynn varm stripe på toppen av emnet, som pulserer mens den
+skriver — det er der plasten nettopp ble lagt.
 
-Fallbacken for filamentfarge i slot-visningen er beholdt som den var — der er det en
-faktisk farge fra printeren som mangler, ikke en temafarge.
+**Dysa glør** når den er varm, med uskarp kant.
+
+**Kammerlyset** slås på mens den skriver og dempes når den er ferdig.
+
+**Hodet svinger som en portal.** Den gamle bevegelsen var en ren fram-og-tilbake og så ut
+som en metronom. Nå går den litt forbi ytterkanten og hviler et øyeblikk i enden av
+sveipet.
+
+**Vifta går dobbelt så fort når det er varmt**, slik den gjør i virkeligheten.
+
+**Framdriftslinja** har fått et lysstrøk som går over mens den skriver.
+
+Plasttråden legges nå ut rett under dysa i stedet for å strekke seg ned til platen — med
+hodet i riktig høyde er det bare et par piksler mellom dyse og emne, og en lang tråd der
+ga ingen mening.
+
+Alt slås av med `prefers-reduced-motion`.

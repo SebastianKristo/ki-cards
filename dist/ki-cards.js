@@ -1,4 +1,4 @@
-/* ki-cards v3.62.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.63.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.62.0";
+  KI.VERSION = "3.63.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -16097,7 +16097,7 @@ try {
  * # framdrift/status/dyse/seng/gjenstaar/lag/av_lag/filnavn kan settes manuelt
  * demo: skriver | ferdig | pause | av
  */
-const KI_K2S_VERSJON = "1.0.0";
+const KI_K2S_VERSJON = "1.1.0";
 
 const KI_K2S_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -16110,14 +16110,43 @@ const KI_K2S_STIL = `
   .kort.feil { background:linear-gradient(180deg,#3a1f22 0%,#2a171a 60%,#1d1215 100%); }
   .kort svg { position:absolute; inset:0; width:100%; height:100%; }
 
-  /* skrivehodet går fram og tilbake, og stiger med laget */
+  /* Hodet går fram og tilbake. Løftet ligger på .loft og settes fra framdriften, så
+     dysa holder seg rett over emnets topp i stedet for å stå i fast høyde. */
+  .loft { transition:transform 1.2s var(--myk); }
   .hode { transform-box:fill-box; animation:k2-hode 3.2s ease-in-out infinite alternate; }
-  .kort.pause .hode, .kort.av .hode, .kort.ferdig .hode { animation:none; }
-  @keyframes k2-hode { from { transform:translateX(-46px); } to { transform:translateX(46px); } }
+  .kort.pause .hode, .kort.av .hode, .kort.ferdig .hode, .kort.feil .hode { animation:none; }
+  /* Sving litt forbi ytterkanten og hvil et øyeblikk, som en ekte portal gjør i enden
+     av et sveip. En ren fram-og-tilbake så ut som en metronom. */
+  @keyframes k2-hode {
+    0%   { transform:translateX(-46px) }
+    46%  { transform:translateX(44px) }
+    54%  { transform:translateX(46px) }
+    100% { transform:translateX(-46px) }
+  }
+
+  /* plasten som legges ut */
   .traad { opacity:0; }
-  .kort.skriver .traad { opacity:.9; animation:k2-traad 1.1s linear infinite; }
-  @keyframes k2-traad { 0% { transform:translateY(-3px); opacity:.2; } 60% { opacity:.9; }
-    100% { transform:translateY(4px); opacity:0; } }
+  .kort.skriver .traad { animation:k2-traad .9s linear infinite; }
+  @keyframes k2-traad { 0% { opacity:0; transform:translateY(-2px) scaleY(.4) }
+    40% { opacity:.95; transform:translateY(0) scaleY(1) }
+    100% { opacity:0; transform:translateY(3px) scaleY(1) } }
+
+  /* dysa glør når den er varm */
+  .glo { opacity:0; }
+  .kort.varm .glo { opacity:.5; filter:blur(2px); animation:k2-glo 2.2s ease-in-out infinite; }
+  @keyframes k2-glo { 0%,100% { opacity:.32 } 50% { opacity:.6 } }
+
+  /* øverste lag er nylagt plast, og lyser så lenge den skriver */
+  .ferskt { opacity:0; transition:y .8s var(--myk); }
+  .kort.skriver .ferskt { opacity:.85; animation:k2-ferskt 1.8s ease-in-out infinite; }
+  @keyframes k2-ferskt { 0%,100% { opacity:.55 } 50% { opacity:.95 } }
+
+  /* kammerlyset er på mens den jobber, og dempet ellers */
+  .kammerlys { opacity:0; filter:blur(18px); transition:opacity 1s ease; }
+  .kort.skriver .kammerlys { opacity:.16; }
+  .kort.ferdig .kammerlys { opacity:.10; }
+
+  .lagstriper { transition:opacity .6s ease; }
 
   /* spolen snurrer når den skriver */
   .spole { transform-box:fill-box; transform-origin:center; }
@@ -16126,6 +16155,8 @@ const KI_K2S_STIL = `
   /* vifta går litt raskere */
   .vifte { transform-box:fill-box; transform-origin:center; }
   .kort.skriver .vifte { animation:k2-vifte 1.1s linear infinite; }
+  /* vifta går raskere når det er varmt, slik den gjør i virkeligheten */
+  .kort.skriver.varm .vifte { animation-duration:.55s; }
   @keyframes k2-vifte { to { transform:rotate(360deg); } }
 
   /* varmen over sengen når den er varm */
@@ -16150,7 +16181,12 @@ const KI_K2S_STIL = `
 
   /* framdriftslinje nederst */
   .bar { position:absolute; left:0; right:0; bottom:0; height:6px; z-index:2; background:rgba(255,255,255,.12); }
-  .bar i { display:block; height:6px; background:var(--active-big,#ee95ff); transition:width .8s var(--myk); }
+  .bar i { display:block; height:6px; background:var(--active-big,#ee95ff);
+    transition:width .8s var(--myk); position:relative; overflow:hidden; }
+  .kort.skriver .bar i::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+    animation:k2-strok 2.2s linear infinite; }
+  @keyframes k2-strok { from { transform:translateX(-100%) } to { transform:translateX(100%) } }
   .kort.ferdig .bar i { background:var(--green,#7ee081); }
   .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
@@ -16257,10 +16293,19 @@ class KiK2SceneCard extends HTMLElement {
     const fil = demo ? "brakett_v3.gcode" : this._tekst(this._id_filnavn());
     const varm = (dyse || 0) > 50 || (seng || 0) > 35;
 
-    /* emnet vokser på platen etter framdriften */
+    /* Emnet vokser på platen etter framdriften. Platen ligger på y=150, så toppen av
+       emnet er 150 - h2. */
     const maksH = 54;
     const h2 = Math.max(2, Math.round(maksH * pct / 100));
-    const dyseY = 150 - h2 - 16;
+    /* Hodet senkes ned til platen ved start og stiger med emnet. Dysespissen ligger på
+       y=80 i hodets egne koordinater, så forskyvningen blir (emnets topp - 2) - 80.
+       Dette var utregnet som `dyseY` før, men aldri koblet på — derfor sto hodet i fast
+       høyde mens emnet vokste opp gjennom det. */
+    /* Er printeren av, parkeres hodet øverst. Nede ved platen ser den ut som om den
+       er midt i en jobb. */
+    const hodeY = tilstand === "av" ? 0 : Math.round((150 - h2 - 2) - 80);
+    /* Lagstriper: én linje per ~4 px, så emnet ser printet ut i stedet for støpt */
+    const striper = Math.max(0, Math.floor(h2 / 4));
 
     const tekst = {
       skriver: fil ? fil.replace(/\.(gcode|3mf)$/i, "") : "Skriver ut",
@@ -16283,20 +16328,26 @@ class KiK2SceneCard extends HTMLElement {
           <!-- kabinettet -->
           <rect x="58" y="28" width="244" height="140" rx="10" fill="#0f141d"/>
           <rect class="glass" x="66" y="36" width="228" height="124" rx="6" fill="#8fd3ff"/>
+          <!-- kammerlyset slås på mens den skriver -->
+          <ellipse class="kammerlys" cx="180" cy="150" rx="120" ry="52" fill="#ffd98a"/>
           <rect x="58" y="28" width="244" height="140" rx="10" fill="none" stroke="#3d4a5f" stroke-width="4"/>
           <!-- portalen -->
           <path d="M74 52h212" stroke="#54627a" stroke-width="6" stroke-linecap="round"/>
           <path d="M74 46v112M286 46v112" stroke="#3d4a5f" stroke-width="5" stroke-linecap="round"/>
 
-          <!-- skrivehodet -->
-          <g transform="translate(180 0)"><g class="hode">
+          <!-- skrivehodet: y følger emnets topp, x går fram og tilbake -->
+          <g class="loft" transform="translate(180 ${hodeY})"><g class="hode">
             <rect x="-20" y="46" width="40" height="22" rx="5" fill="#6f7f99"/>
+            <rect x="-20" y="46" width="40" height="22" rx="5" fill="none" stroke="#8c9cb8" stroke-width="1"/>
             <path d="M-6 68h12l-4 12h-4z" fill="#c9d4e6"/>
             <g class="vifte" transform="translate(14 57)">
               <circle r="7" fill="none" stroke="#c9d4e6" stroke-width="2"/>
               <path d="M0 -6 A6 6 0 0 1 5 3z" fill="#c9d4e6" opacity=".8"/>
             </g>
-            <rect class="traad" x="-1.2" y="80" width="2.4" height="${Math.max(6, 150 - h2 - 82)}" fill="#ffd98a"/>
+            <!-- dysa glør når den er varm -->
+            <circle class="glo" cx="0" cy="79" r="5" fill="#ff9d4d"/>
+            <!-- plasten som legges ut, rett under dysa -->
+            <rect class="traad" x="-1.2" y="79" width="2.4" height="7" rx="1.2" fill="#ffd98a"/>
           </g></g>
 
           <!-- varmeflimmer -->
@@ -16304,9 +16355,15 @@ class KiK2SceneCard extends HTMLElement {
             <circle cx="150" cy="140" r="3"/><circle cx="180" cy="136" r="2.4"/><circle cx="212" cy="141" r="3"/>
           </g>
 
-          <!-- emnet som vokser, og platen -->
+          <!-- emnet som vokser, med lagstriper, og platen -->
           <rect class="emne" x="150" y="${150 - h2}" width="62" height="${h2}" rx="3" fill="#8fd3ff" opacity=".85"/>
           <rect class="emne" x="162" y="${150 - h2}" width="38" height="${Math.max(1, h2 - 8)}" rx="2" fill="#b9e3ff" opacity=".5"/>
+          <g class="lagstriper" opacity=".28">${
+            Array.from({ length: striper }, (_, i) =>
+              `<line x1="151" y1="${149 - i * 4}" x2="211" y2="${149 - i * 4}" stroke="#0f141d" stroke-width="1"/>`
+            ).join("")}</g>
+          <!-- øverste lag lyser mens det legges -->
+          <rect class="ferskt" x="150" y="${150 - h2}" width="62" height="2.5" rx="1" fill="#ffd98a"/>
           <rect x="120" y="150" width="122" height="8" rx="3" fill="#c9d4e6"/>
           <rect x="112" y="158" width="138" height="6" rx="3" fill="#54627a"/>
 
