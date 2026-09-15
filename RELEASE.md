@@ -1,22 +1,43 @@
-# ki-cards 3.51.0
+# ki-cards 3.52.0
 
-## Flisene i Hjem-fanen kan redigeres i editoren
+## Editoren for `ki-hjem-card` er skrevet om
 
-Flisene i `hjem.stov` — gjøremål, transport, veikamera, drivstoffpris og hva du ellers
-legger der — fantes bare i YAML. Nå ligger de i en egen seksjon nederst i editoren,
-«Fliser i Hjem-fanen», med antallet i overskriften.
+Den gamle var skjemadrevet med flate feltnavn: `rom_<område>_farge`, `et_<etasje>_vis`.
+Hvert felt måtte finnes på fire steder — skjemaet, `_data()`, `_toConfig()` og
+etikettlista — og navnene ble tolket ved å splitte på understrek. Det er derfor
+«Vis rom» og «Vis etasje» kolliderte, og derfor «!»-merket krevde et eget
+`varselvis`-felt.
 
-Hver flis har en rad med navn og tre knapper: opp, ned og fjern. Under raden står flisens
-egne felt, og feltene følger typen:
+Nå eier hvert felt sin egen sti i konfigurasjonen, og leser og skriver rett på den:
 
-* **Fri flis** (`navigate`) — tittel, undertekst, valgfri entitet, ikon, farge og
-  popup-hash. Det er den du bruker for transport, veikamera og drivstoffpris.
-* **Gjøremål, kalender, dørlås, garasjeport, alarm** — entitetsvelger begrenset til riktig
-  domene, pluss undertekst.
-* **Rom** — romnøkkel og størrelse.
+```js
+F.tekst('rom.stue.farge', 'Farge, f.eks. var(--green)')
+F.valg('rom.stue.size', 'Størrelse', [...], 'big')
+```
 
-Alle typer har ikon, farge og popup-hash.
+Et nytt felt legges til på ett sted. Felt med særegen lagring — alarmen som er streng
+eller objekt, batterier som er `true` eller `{terskel}`, `skjul` som er snudd, `varsel`
+som er `false` eller en entitet — oppgir sin egen `les` og `skriv` ved siden av.
 
-«+ Legg til flis» legger en fri flis nederst, klar til å fylles ut. Tomme felt fjernes fra
-konfigurasjonen i stedet for å bli liggende som blanke strenger, og fjerner du den siste
-flisa, forsvinner `stov`-nøkkelen helt.
+## Konfigurasjonen bevares av seg selv
+
+Dette er den viktigste endringen. Den gamle editoren bygget konfigurasjonen opp fra bunnen
+ved hver tastetrykk, og måtte derfor liste opp alt den skulle ta med videre — `tabs`,
+`monster`, `hopp_over`, rom som ikke lenger finnes i Home Assistant. Glemte man én, forsvant
+den ved neste lagring.
+
+Nå skrives endringen på en kopi av konfigurasjonen. Alt editoren ikke kjenner blir stående
+uten at den vet om det. Verifisert med et oppsett som inneholder nøkler editoren aldri har
+hørt om: de er uendret etter redigering.
+
+Tomme felt fjerner nøkkelen i stedet for å skrive blank streng, og objekter som blir tomme
+ryddes bort — så YAML-en holder seg like kort som om du skrev den for hånd.
+
+## Oppsettet
+
+Sammenfoldbare seksjoner som før: Hjem, Aktuelt, Batterier, Etasjer, én per etasje, én per
+rom under sin etasje, og flislista nederst. Hvert rom viser sammendrag i overskriften.
+Romplasseringen med piler og kolonnebytte er beholdt uendret øverst.
+
+Nye felt som ikke fantes i editoren før: popup-hash for dørlås og garasje, og fanenavn og
+rekkefølge per etasje.

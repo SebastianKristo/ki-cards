@@ -1,4 +1,4 @@
-/* ki-cards v3.51.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.52.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.51.0";
+  KI.VERSION = "3.52.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9419,9 +9419,341 @@ try {
   const SIZES = [{ value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten klimaknapp' }, { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten (rad)' }];
   const FARGEVALG = ['var(--green)', 'var(--blue)', 'var(--blue-dark)', 'var(--yellow)', 'var(--orange)', 'var(--red)', 'var(--purple)', 'var(--pink)', 'var(--gray1000)'].map((v) => ({ value: v, label: v.replace('var(--', '').replace(')', '') }));
 
+  /* ---------------------------------------------------------------- editor
+   * Deklarativ: hvert felt eier sin egen sti i konfigurasjonen, og lesing og
+   * skriving skjer rett på den. Et nytt felt legges dermed til på ett sted, i
+   * stedet for i skjema, lesing, lagring og etikettliste som før.
+   *
+   * Like viktig: skrivingen skjer på en kopi av konfigurasjonen. Alt editoren
+   * ikke kjenner — nye nøkler, ting du har satt for hånd — blir stående av seg
+   * selv. Den gamle versjonen bygget konfigurasjonen opp fra bunnen ved hver
+   * endring og måtte derfor liste opp alt den skulle bevare.
+   */
+
+  // les/skriv på «hjem.alarm.script»-form. Tomme verdier fjernes, og objekter som
+  // blir tomme ryddes bort, så konfigurasjonen ikke fylles med blanke nøkler.
+  function les(obj, vei) {
+    return String(vei).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  }
+
+  function skriv(obj, vei, verdi) {
+    const deler = String(vei).split('.');
+    const siste = deler.pop();
+    let o = obj;
+    for (const k of deler) {
+      if (typeof o[k] !== 'object' || o[k] === null) o[k] = {};
+      o = o[k];
+    }
+    const tom = verdi === undefined || verdi === null || verdi === ''
+      || (Array.isArray(verdi) && !verdi.length);
+    if (tom) delete o[siste]; else o[siste] = verdi;
+    // rydd tomme foreldre
+    for (let i = deler.length - 1; i >= 0; i--) {
+      const foreldre = deler.slice(0, i).reduce((x, k) => x[k], obj);
+      const navn = deler[i];
+      const v = foreldre[navn];
+      if (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length) delete foreldre[navn];
+    }
+    return obj;
+  }
+
+  const F = {
+    tekst: (vei, etikett, hjelp) => ({ vei, etikett, hjelp, selector: { text: {} } }),
+    ent: (vei, etikett, domain) => ({ vei, etikett, selector: { entity: domain ? { domain } : {} } }),
+    ikon: (vei, etikett) => ({ vei, etikett, selector: { icon: {} } }),
+    tall: (vei, etikett, min, max) => ({ vei, etikett,
+      selector: { number: { min, max, mode: 'box' } },
+      skriv: (cfg, v) => skriv(cfg, vei, v === '' || v === null || v === undefined ? undefined : Number(v)) }),
+    valg: (vei, etikett, options, standard) => ({ vei, etikett,
+      selector: { select: { mode: 'dropdown', options } },
+      les: (cfg) => les(cfg, vei) || standard,
+      skriv: (cfg, v) => skriv(cfg, vei, v === standard ? undefined : v) }),
+    /* Bryter der «på» er standard og lagres som ingenting. `nei` er verdien som
+       skrives når den slås av — `false` for hjem/etasjer, `true` for rom.skjul. */
+    bryter: (vei, etikett, { nei = false, snudd = false } = {}) => ({ vei, etikett,
+      selector: { boolean: {} },
+      les: (cfg) => (snudd ? les(cfg, vei) !== nei : les(cfg, vei) !== nei),
+      skriv: (cfg, v) => skriv(cfg, vei, v ? undefined : nei) }),
+  };
+
   class KiHjemEditor extends HTMLElement {
     setConfig(config) { this._config = JSON.parse(JSON.stringify(config || {})); this._render(); }
     set hass(hass) { this._hass = hass; this._render(); }
+
+    _endre(endring) {
+      const ut = JSON.parse(JSON.stringify(this._config || {}));
+      ut.type = ut.type || 'custom:ki-hjem-card';
+      endring(ut);
+      this._config = ut;
+      this.dispatchEvent(new CustomEvent('config-changed',
+        { detail: { config: ut }, bubbles: true, composed: true }));
+      this._render();
+    }
+
+    // ------------------------------------------------------------- grupper
+    _grupper() {
+      const cfg = this._config || {};
+      const rom = () => allOversikt(this._hass).map((st) => ({
+        value: st.attributes.area_id, label: st.attributes.rom || st.attributes.area_id }));
+      const g = [];
+
+      g.push({ id: 'hjem', tittel: 'Hjem-fanen', niva: 0, felt: [
+        F.bryter('hjem', 'Vis Hjem-fanen'),
+        F.ent('hjem.las', 'Dørlås', 'lock'),
+        F.tekst('hjem.las_path', 'Popup for dørlås'),
+        F.ent('hjem.garasje', 'Garasjeport', 'cover'),
+        F.tekst('hjem.garasje_path', 'Popup for garasje'),
+        { vei: 'hjem.alarm', etikett: 'Alarm', selector: { entity: { domain: ['alarm_control_panel', 'select'] } },
+          les: (c) => { const a = les(c, 'hjem.alarm'); return typeof a === 'string' ? a : (a || {}).entity; },
+          skriv: (c, v) => { const s = les(c, 'hjem.alarm.script');
+            if (!v) return skriv(c, 'hjem.alarm', undefined);
+            return skriv(c, 'hjem.alarm', s ? { entity: v, script: s } : v); } },
+        { vei: 'hjem.alarm.script', etikett: 'Alarm av/på-skript', selector: { entity: { domain: 'script' } },
+          les: (c) => (les(c, 'hjem.alarm') || {}).script,
+          skriv: (c, v) => { const a = les(c, 'hjem.alarm');
+            const e = typeof a === 'string' ? a : (a || {}).entity;
+            if (!e) return c;
+            return skriv(c, 'hjem.alarm', v ? { entity: e, script: v } : e); } },
+        F.ent('hjem.kalender', 'Kalender-sensor', 'sensor'),
+        { vei: 'hjem.rom', etikett: 'Rom i venstre swipe',
+          selector: { select: { multiple: true, options: rom() } } },
+        { vei: 'hjem.rom_hoyre', etikett: 'Rom i høyre swipe',
+          selector: { select: { multiple: true, options: rom() } } },
+      ] });
+
+      g.push({ id: 'aktuelt', tittel: 'Aktuelt-fanen', niva: 0, felt: [
+        F.ent('aktuelt.tv', 'TV', 'media_player'),
+        F.ent('aktuelt.stovsuger', 'Støvsuger', 'vacuum'),
+        F.ent('aktuelt.vaskemaskin', 'Vaskemaskin (tid igjen)', ['sensor', 'binary_sensor']),
+        F.ent('aktuelt.oppvaskmaskin', 'Oppvaskmaskin (tid igjen)', ['sensor', 'binary_sensor']),
+      ] });
+
+      g.push({ id: 'batterier', tittel: 'Batterier-fanen', niva: 0, felt: [
+        { vei: 'batterier', etikett: 'Vis ved lavt batteri', selector: { boolean: {} },
+          les: (c) => !!les(c, 'batterier'),
+          skriv: (c, v) => { if (!v) return skriv(c, 'batterier', undefined);
+            const t = (typeof c.batterier === 'object' && c.batterier && c.batterier.terskel) || null;
+            c.batterier = t ? { terskel: t } : true; return c; } },
+        { vei: 'batterier.terskel', etikett: 'Terskel (%)', selector: { number: { min: 1, max: 100, mode: 'box' } },
+          les: (c) => (typeof c.batterier === 'object' && c.batterier && c.batterier.terskel) || 30,
+          skriv: (c, v) => { if (!les(c, 'batterier')) return c;
+            const n = Number(v);
+            c.batterier = (n && n !== 30) ? { terskel: n } : true; return c; } },
+      ] });
+
+      g.push({ id: 'etasjer', tittel: 'Etasjer', niva: 0, felt: [
+        F.bryter('etasjer', 'Vis etasje-faner'),
+      ] });
+
+      for (const f of this._floors()) {
+        g.push({ id: 'f_' + f.key, tittel: f.navn, niva: 1, felt: [
+          F.bryter(`etasje_innstillinger.${f.key}.vis`, 'Vis etasjen'),
+          F.tekst(`etasje_innstillinger.${f.key}.navn`, 'Fanenavn'),
+          F.tall(`etasje_innstillinger.${f.key}.rekkefolge`, 'Rekkefølge', 1, 99),
+        ] });
+        for (const a of f.rom) {
+          const r = a.area_id;
+          g.push({
+            id: 'r_' + r, tittel: a.rom || r, niva: 2,
+            sammendrag: (c) => {
+              const o = (c.rom || {})[r] || {};
+              return [o.skjul ? 'skjult' : '', o.size && o.size !== 'big' ? o.size : '',
+                o.kolonne || ''].filter(Boolean).join(' · ');
+            },
+            felt: [
+              F.bryter(`rom.${r}.skjul`, 'Vis rommet', { nei: true }),
+              F.tekst(`rom.${r}.navn`, 'Navn (<br> gir linjeskift)'),
+              F.valg(`rom.${r}.size`, 'Størrelse', [
+                { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
+                { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }], 'big'),
+              F.valg(`rom.${r}.kolonne`, 'Plassering', [
+                { value: 'auto', label: 'Automatisk' }, { value: 'venstre', label: 'Venstre' },
+                { value: 'hoyre', label: 'Høyre' }], 'auto'),
+              F.tall(`rom.${r}.rekkefolge`, 'Rekkefølge', 1, 99),
+              F.tekst(`rom.${r}.farge`, 'Farge, f.eks. var(--green)'),
+              F.tekst(`rom.${r}.path`, 'Popup-hash'),
+              { vei: `rom.${r}.varsel`, etikett: 'Vis «!»-merke', selector: { boolean: {} },
+                les: (c) => (((c.rom || {})[r] || {}).varsel) !== false,
+                skriv: (c, v) => { const o = les(c, `rom.${r}.varsel`);
+                  return skriv(c, `rom.${r}.varsel`, v ? (typeof o === 'string' ? o : undefined) : false); } },
+              { vei: `rom.${r}.varsel_ent`, etikett: '«!» når denne er på',
+                selector: { entity: { domain: ['binary_sensor', 'input_boolean', 'switch'] } },
+                les: (c) => { const o = ((c.rom || {})[r] || {}).varsel; return typeof o === 'string' ? o : undefined; },
+                skriv: (c, v) => (((c.rom || {})[r] || {}).varsel === false ? c : skriv(c, `rom.${r}.varsel`, v)) },
+            ],
+          });
+        }
+      }
+
+      g.push({ id: 'stov', tittel: 'Fliser i Hjem-fanen', niva: 0, liste: {
+        vei: 'hjem.stov',
+        nytt: () => ({ kind: 'navigate', main_text: 'Ny flis', ikon: 'mdi:card-outline' }),
+        navn: (f) => f.main_text || f.navn || f.rom || f.entity
+          || (this._stovTyper().find((x) => x.value === (f.kind || 'navigate')) || {}).label || 'Flis',
+        skjema: (f) => this._stovSkjema(f),
+      } });
+
+      return g;
+    }
+
+    // --------------------------------------------------- flistyper (hjem.stov)
+    _stovTyper() {
+      return [
+        { value: 'navigate', label: 'Fri flis (egen tekst, ikon og popup)' },
+        { value: 'gjoremal', label: 'Gjøremål' }, { value: 'kalender', label: 'Kalender' },
+        { value: 'las', label: 'Dørlås' }, { value: 'garasje', label: 'Garasjeport' },
+        { value: 'alarm', label: 'Alarm' }, { value: 'rom', label: 'Rom' },
+      ];
+    }
+
+    _stovSkjema(flis) {
+      const k = flis.kind || 'navigate';
+      const ut = [{ name: 'kind', selector: { select: { mode: 'dropdown', options: this._stovTyper() } } }];
+      if (k === 'rom') {
+        ut.push({ name: 'rom', selector: { text: {} } },
+          { name: 'size', selector: { select: { mode: 'dropdown', options: [
+            { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
+            { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }] } } });
+      } else if (k === 'navigate') {
+        ut.push({ name: 'main_text', selector: { text: {} } },
+          { name: 'sub_text', selector: { text: {} } }, { name: 'entity', selector: { entity: {} } });
+      } else {
+        const dom = { las: 'lock', alarm: ['select', 'alarm_control_panel'], garasje: 'cover',
+          kalender: 'sensor', gjoremal: 'sensor' }[k];
+        ut.push({ name: 'entity', selector: { entity: dom ? { domain: dom } : {} } },
+          { name: 'sub_text', selector: { text: {} } });
+      }
+      ut.push({ name: 'ikon', selector: { icon: {} } }, { name: 'farge', selector: { text: {} } },
+        { name: 'path', selector: { text: {} } });
+      return ut;
+    }
+
+    // ------------------------------------------------------------- tegning
+    _stil() {
+      const st = document.createElement('style');
+      st.textContent = `
+        .del { border-radius:12px; background:var(--secondary-background-color, rgba(128,128,128,.08));
+          margin-bottom:6px; overflow:hidden; }
+        .del[data-niva="2"] { margin:4px 0 4px 12px; background:rgba(128,128,128,.06); }
+        summary { cursor:pointer; padding:10px 14px; font-size:14px; font-weight:600;
+          list-style:none; display:flex; align-items:center; gap:8px; }
+        summary::-webkit-details-marker { display:none; }
+        summary::after { content:"›"; margin-left:auto; opacity:.5; transition:transform .2s; font-size:18px; }
+        details[open] > summary::after { transform:rotate(90deg); }
+        .del[data-niva="2"] summary { font-weight:500; font-size:13.5px; padding:8px 12px; }
+        .sum { margin-left:auto; margin-right:6px; font-size:12px; opacity:.55; font-weight:400; }
+        .innhold { padding:0 12px 12px; }
+        .frad { display:flex; align-items:center; gap:6px; padding:6px 12px; }
+        .frad .nr { width:18px; text-align:right; opacity:.5; font-size:12px; }
+        .frad .navn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; font-size:13.5px; }
+        .frad button, .legg { border:0; cursor:pointer; color:inherit; font-size:12px;
+          background:var(--secondary-background-color, rgba(128,128,128,.2)); }
+        .frad button { width:30px; height:30px; border-radius:8px; }
+        .frad button[disabled] { opacity:.3; cursor:default; }
+        .frad button.bort { color:var(--error-color, #e0524a); }
+        .legg { margin:6px 12px 12px; padding:8px 14px; border-radius:10px; font-size:13px; }
+        .fform { padding:0 12px 10px 36px; }
+      `;
+      return st;
+    }
+
+    _boks(gr) {
+      if (this._bokser[gr.id]) return this._bokser[gr.id];
+      const d = document.createElement('details');
+      d.className = 'del';
+      d.dataset.niva = String(gr.niva || 0);
+      if (gr.id === 'hjem') d.open = true;
+      const sum = document.createElement('summary');
+      const tit = document.createElement('span');
+      const meta = document.createElement('span');
+      meta.className = 'sum';
+      sum.appendChild(tit); sum.appendChild(meta);
+      const innhold = document.createElement('div');
+      innhold.className = 'innhold';
+      d.appendChild(sum); d.appendChild(innhold);
+      this._skall.appendChild(d);
+      return (this._bokser[gr.id] = { d, tit, meta, innhold, f: null, sist: '' });
+    }
+
+    _tegnFelt(gr, b) {
+      const cfg = this._config || {};
+      if (!b.f) {
+        b.f = document.createElement('ha-form');
+        b.f.computeLabel = (sc) => (gr.felt.find((x) => x.vei === sc.name) || {}).etikett || sc.name;
+        b.f.addEventListener('value-changed', (ev) => {
+          ev.stopPropagation();
+          const v = ev.detail.value || {};
+          this._endre((ut) => {
+            for (const felt of gr.felt) {
+              if (!(felt.vei in v)) continue;
+              if (felt.skriv) felt.skriv(ut, v[felt.vei]);
+              else skriv(ut, felt.vei, v[felt.vei]);
+            }
+          });
+        });
+        b.innhold.appendChild(b.f);
+      }
+      const skjema = gr.felt.map((x) => ({ name: x.vei, selector: x.selector }));
+      const n = JSON.stringify(skjema);
+      if (n !== b.sist) { b.sist = n; b.f.schema = skjema; }
+      b.f.hass = this._hass;
+      const data = {};
+      for (const felt of gr.felt) data[felt.vei] = felt.les ? felt.les(cfg) : les(cfg, felt.vei);
+      b.f.data = data;
+    }
+
+    _tegnListe(gr, b) {
+      const L = gr.liste;
+      const liste = () => {
+        const v = les(this._config || {}, L.vei);
+        return Array.isArray(v) ? v.map((x) => ({ ...x })) : [];
+      };
+      const lagre = (ny) => this._endre((ut) => skriv(ut, L.vei, ny.length ? ny : undefined));
+      b.innhold.innerHTML = '';
+      const rader = liste();
+
+      rader.forEach((flis, i) => {
+        const rad = document.createElement('div');
+        rad.className = 'frad';
+        const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = String(i + 1);
+        const navn = document.createElement('span'); navn.className = 'navn'; navn.textContent = L.navn(flis);
+        const opp = document.createElement('button'); opp.textContent = '▲'; opp.disabled = i === 0;
+        const ned = document.createElement('button'); ned.textContent = '▼'; ned.disabled = i === rader.length - 1;
+        const bort = document.createElement('button'); bort.textContent = '✕'; bort.className = 'bort';
+        bort.title = 'Fjern';
+        opp.addEventListener('click', () => { const l = liste(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; lagre(l); });
+        ned.addEventListener('click', () => { const l = liste(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; lagre(l); });
+        bort.addEventListener('click', () => { const l = liste(); l.splice(i, 1); lagre(l); });
+        rad.append(nr, navn, opp, ned, bort);
+        b.innhold.appendChild(rad);
+
+        const boks = document.createElement('div');
+        boks.className = 'fform';
+        const f = document.createElement('ha-form');
+        f.hass = this._hass;
+        f.schema = L.skjema(flis);
+        f.data = flis;
+        f.computeLabel = (sc) => ({ kind: 'Type', rom: 'Rom', size: 'Størrelse', entity: 'Entitet',
+          main_text: 'Tittel', sub_text: 'Undertekst', ikon: 'Ikon',
+          farge: 'Farge, f.eks. var(--green)', path: 'Popup-hash, f.eks. #ruter' }[sc.name] || sc.name);
+        f.addEventListener('value-changed', (ev) => {
+          ev.stopPropagation();
+          const l = liste();
+          l[i] = { ...l[i], ...(ev.detail.value || {}) };
+          for (const k of Object.keys(l[i])) if (l[i][k] === '' || l[i][k] === undefined) delete l[i][k];
+          lagre(l);
+        });
+        boks.appendChild(f);
+        b.innhold.appendChild(boks);
+      });
+
+      const legg = document.createElement('button');
+      legg.className = 'legg';
+      legg.textContent = '+ Legg til flis';
+      legg.addEventListener('click', () => lagre([...liste(), L.nytt()]));
+      b.innhold.appendChild(legg);
+    }
 
     _floors() {
       const m = new Map();
@@ -9434,143 +9766,6 @@ try {
       return [...m.values()].sort((x, y) => x.niva - y.niva);
     }
 
-    _schema() {
-      const roomOpts = allOversikt(this._hass).map((st) => ({ value: st.attributes.area_id, label: st.attributes.rom || st.attributes.area_id }));
-      const s = [
-        { name: 'h_hjem', type: 'constant', label: 'Hjem-fanen' },
-        { name: 'hjem_vis', selector: { boolean: {} } },
-        { name: 'hjem_las', selector: { entity: { domain: 'lock' } } },
-        { name: 'hjem_garasje', selector: { entity: { domain: 'cover' } } },
-        { name: 'hjem_alarm', selector: { entity: { domain: ['select', 'alarm_control_panel'] } } },
-        { name: 'hjem_alarm_script', selector: { entity: { domain: 'script' } } },
-        { name: 'hjem_kalender', selector: { entity: { domain: 'sensor' } } },
-        { name: 'hjem_rom', selector: { select: { multiple: true, mode: 'list', options: roomOpts } } },
-        { name: 'hjem_rom_hoyre', selector: { select: { multiple: true, mode: 'list', options: roomOpts } } },
-        { name: 'h_aktuelt', type: 'constant', label: 'Aktuelt-fanen (tom = skjult)' },
-        { name: 'aktuelt_tv', selector: { entity: { domain: 'media_player' } } },
-        { name: 'aktuelt_stovsuger', selector: { entity: { domain: 'vacuum' } } },
-        { name: 'aktuelt_vaskemaskin', selector: { entity: { domain: ['sensor', 'binary_sensor'] } } },
-        { name: 'aktuelt_oppvaskmaskin', selector: { entity: { domain: ['sensor', 'binary_sensor'] } } },
-        { name: 'h_batterier', type: 'constant', label: 'Batterier-fanen' },
-        { name: 'batterier_vis', selector: { boolean: {} } },
-        { name: 'batterier_terskel', selector: { number: { min: 1, max: 100, mode: 'box', unit_of_measurement: '%' } } },
-        { name: 'h_etasjer', type: 'constant', label: 'Etasjer' },
-        { name: 'etasjer_vis', selector: { boolean: {} } },
-      ];
-      this._floors().forEach((f) => {
-        s.push({ name: 'f_' + f.key, type: 'constant', label: '— ' + f.navn + ' —' });
-        s.push({ name: 'et_' + f.key + '_vis', selector: { boolean: {} } });
-        s.push({ name: 'et_' + f.key + '_rekkefolge', selector: { number: { min: 0, max: 99, mode: 'box' } } });
-        s.push({ name: 'et_' + f.key + '_navn', selector: { text: {} } });
-        f.rom.forEach((a) => {
-          const r = a.area_id;
-          s.push({ name: 'r_' + r, type: 'constant', label: a.rom || r });
-          s.push({ name: 'rom_' + r + '_vis', selector: { boolean: {} } });
-          s.push({ name: 'rom_' + r + '_navn', selector: { text: {} } });
-          s.push({ name: 'rom_' + r + '_size', selector: { select: { mode: 'dropdown', options: SIZES } } });
-          s.push({ name: 'rom_' + r + '_kolonne', selector: { select: { mode: 'dropdown', options: [{ value: 'auto', label: 'Automatisk' }, { value: 'venstre', label: 'Venstre' }, { value: 'hoyre', label: 'Høyre' }] } } });
-          s.push({ name: 'rom_' + r + '_rekkefolge', selector: { number: { min: 0, max: 99, mode: 'box' } } });
-          s.push({ name: 'rom_' + r + '_farge', selector: { select: { mode: 'dropdown', custom_value: true, options: FARGEVALG } } });
-          s.push({ name: 'rom_' + r + '_path', selector: { text: {} } });
-          s.push({ name: 'rom_' + r + '_varselvis', selector: { boolean: {} } });
-          s.push({ name: 'rom_' + r + '_varsel', selector: { entity: { domain: ['binary_sensor', 'input_boolean', 'switch'] } } });
-        });
-      });
-      return s;
-    }
-
-    _data() {
-      const c = this._config; const h = (typeof c.hjem === 'object' && c.hjem) || {};
-      const d = {
-        hjem_vis: c.hjem !== false, hjem_las: h.las, hjem_garasje: h.garasje,
-        hjem_alarm: typeof h.alarm === 'string' ? h.alarm : (h.alarm || {}).entity, hjem_alarm_script: (h.alarm || {}).script,
-        hjem_kalender: h.kalender, hjem_rom: h.rom || [], hjem_rom_hoyre: h.rom_hoyre || [],
-        etasjer_vis: c.etasjer !== false,
-        aktuelt_tv: (c.aktuelt || {}).tv, aktuelt_stovsuger: (c.aktuelt || {}).stovsuger,
-        aktuelt_vaskemaskin: (c.aktuelt || {}).vaskemaskin, aktuelt_oppvaskmaskin: (c.aktuelt || {}).oppvaskmaskin,
-        batterier_vis: !!c.batterier, batterier_terskel: (typeof c.batterier === 'object' && c.batterier && c.batterier.terskel) || 30,
-      };
-      const fc = c.etasje_innstillinger || {}; const rc = c.rom || {};
-      this._floors().forEach((f) => {
-        d['et_' + f.key + '_vis'] = (fc[f.key] || {}).vis !== false;
-        d['et_' + f.key + '_rekkefolge'] = (fc[f.key] || {}).rekkefolge;
-        d['et_' + f.key + '_navn'] = (fc[f.key] || {}).navn;
-        f.rom.forEach((a) => {
-          const o = rc[a.area_id] || {};
-          d['rom_' + a.area_id + '_vis'] = !o.skjul;
-          d['rom_' + a.area_id + '_navn'] = o.navn;
-          d['rom_' + a.area_id + '_size'] = o.size || 'big';
-          d['rom_' + a.area_id + '_kolonne'] = o.kolonne || 'auto';
-          d['rom_' + a.area_id + '_rekkefolge'] = o.rekkefolge;
-          d['rom_' + a.area_id + '_farge'] = o.farge;
-          d['rom_' + a.area_id + '_path'] = o.path;
-          // varsel: false = merket er slått av; en entitet = egen kilde
-          d['rom_' + a.area_id + '_varselvis'] = o.varsel !== false;
-          d['rom_' + a.area_id + '_varsel'] = typeof o.varsel === 'string' ? o.varsel : undefined;
-        });
-      });
-      return d;
-    }
-
-    _toConfig(v) {
-      const out = { type: 'custom:ki-hjem-card' };
-      const prev = this._config || {};
-      if (prev.tabs) out.tabs = prev.tabs;
-      if (prev.monster) out.monster = prev.monster;
-      if (prev.hopp_over) out.hopp_over = prev.hopp_over;
-      const hOld = (typeof prev.hjem === 'object' && prev.hjem) || {};
-      if (v.hjem_vis === false) out.hjem = false;
-      else {
-        const h = { ...hOld };
-        delete h.las; delete h.garasje; delete h.alarm; delete h.kalender; delete h.rom; delete h.rom_hoyre;
-        if (v.hjem_las) h.las = v.hjem_las;
-        if (v.hjem_garasje) h.garasje = v.hjem_garasje;
-        if (v.hjem_alarm) h.alarm = v.hjem_alarm_script ? { entity: v.hjem_alarm, script: v.hjem_alarm_script } : v.hjem_alarm;
-        if (v.hjem_kalender) h.kalender = v.hjem_kalender;
-        if (v.hjem_rom && v.hjem_rom.length) h.rom = v.hjem_rom;
-        if (v.hjem_rom_hoyre && v.hjem_rom_hoyre.length) h.rom_hoyre = v.hjem_rom_hoyre;
-        if (Object.keys(h).length) out.hjem = h;
-      }
-      if (v.etasjer_vis === false) out.etasjer = false;
-      const ak = { ...((typeof prev.aktuelt === 'object' && prev.aktuelt) || {}) };
-      delete ak.tv; delete ak.stovsuger; delete ak.vaskemaskin; delete ak.oppvaskmaskin;
-      if (v.aktuelt_tv) ak.tv = v.aktuelt_tv;
-      if (v.aktuelt_stovsuger) ak.stovsuger = v.aktuelt_stovsuger;
-      if (v.aktuelt_vaskemaskin) ak.vaskemaskin = v.aktuelt_vaskemaskin;
-      if (v.aktuelt_oppvaskmaskin) ak.oppvaskmaskin = v.aktuelt_oppvaskmaskin;
-      if (Object.keys(ak).length) out.aktuelt = ak;
-      if (v.batterier_vis) out.batterier = (v.batterier_terskel && Number(v.batterier_terskel) !== 30) ? { terskel: Number(v.batterier_terskel) } : true;
-      const fc = {}; const rc = {};
-      this._floors().forEach((f) => {
-        const e = {};
-        if (v['et_' + f.key + '_vis'] === false) e.vis = false;
-        if (v['et_' + f.key + '_rekkefolge'] !== undefined && v['et_' + f.key + '_rekkefolge'] !== null && v['et_' + f.key + '_rekkefolge'] !== '') e.rekkefolge = Number(v['et_' + f.key + '_rekkefolge']);
-        if (v['et_' + f.key + '_navn']) e.navn = v['et_' + f.key + '_navn'];
-        if (Object.keys(e).length) fc[f.key] = e;
-        f.rom.forEach((a) => {
-          const r = a.area_id; const o = { ...((prev.rom || {})[r] || {}) };
-          delete o.skjul; delete o.size; delete o.kolonne; delete o.rekkefolge; delete o.farge; delete o.path; delete o.navn; delete o.varsel;
-          if (v['rom_' + r + '_vis'] === false) o.skjul = true;
-          if (v['rom_' + r + '_navn']) o.navn = v['rom_' + r + '_navn'];
-          if (v['rom_' + r + '_size'] && v['rom_' + r + '_size'] !== 'big') o.size = v['rom_' + r + '_size'];
-          if (v['rom_' + r + '_kolonne'] && v['rom_' + r + '_kolonne'] !== 'auto') o.kolonne = v['rom_' + r + '_kolonne'];
-          const rk = v['rom_' + r + '_rekkefolge'];
-          if (rk !== undefined && rk !== null && rk !== '') o.rekkefolge = Number(rk);
-          if (v['rom_' + r + '_farge']) o.farge = v['rom_' + r + '_farge'];
-          if (v['rom_' + r + '_path']) o.path = v['rom_' + r + '_path'];
-          if (v['rom_' + r + '_varselvis'] === false) o.varsel = false;
-          else if (v['rom_' + r + '_varsel']) o.varsel = v['rom_' + r + '_varsel'];
-          if (Object.keys(o).length) rc[r] = o;
-        });
-      });
-      // rom som ikke er på noen etasje i listen (f.eks. skjult fra ki-rom) beholdes
-      Object.entries(prev.rom || {}).forEach(([r, o]) => { if (!(r in rc) && !allOversikt(this._hass).some((st) => st.attributes.area_id === r)) rc[r] = o; });
-      if (Object.keys(fc).length) out.etasje_innstillinger = fc;
-      if (Object.keys(rc).length) out.rom = rc;
-      return out;
-    }
-
-    // ---- plasserings-UI: to kolonner per etasje, flytt rom med piler
     _renderLayout() {
       if (!this._layout) {
         this._layout = document.createElement('div');
@@ -9621,282 +9816,37 @@ try {
       let n = 1;
       ['venstre', 'hoyre'].forEach((k) => cols[k].forEach((r) => { cfg.rom[r] = { ...(cfg.rom[r] || {}), kolonne: k, rekkefolge: n++ }; }));
       this._config = cfg;
-      this._lastData = null;
       this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
       this._render();
-    }
-
-    _etikett(sc) {
-      const n = sc.name;
-      const m = {
-        hjem_vis: 'Vis Hjem-fanen', hjem_las: 'Dørlås', hjem_garasje: 'Garasjeport',
-        hjem_alarm: 'Alarm (entitet)', hjem_alarm_script: 'Alarm av/på-skript',
-        hjem_kalender: 'Kalender-sensor', hjem_rom: 'Rom i venstre swipe', hjem_rom_hoyre: 'Rom i høyre swipe',
-        etasjer_vis: 'Vis etasje-faner',
-        aktuelt_tv: 'TV', aktuelt_stovsuger: 'Støvsuger (vises når den vasker)',
-        aktuelt_vaskemaskin: 'Vaskemaskin (tid igjen-sensor)', aktuelt_oppvaskmaskin: 'Oppvaskmaskin (tid igjen-sensor)',
-        batterier_vis: 'Vis Batterier-fanen ved lavt batteri', batterier_terskel: 'Terskel',
-      };
-      if (m[n]) return m[n];
-      if (n.startsWith('et_')) return { vis: 'Vis etasje', rekkefolge: 'Rekkefølge', navn: 'Fanenavn' }[n.split('_').pop()] || n;
-      if (n.startsWith('rom_')) return { vis: 'Vis rom', navn: 'Navn (<br> eller \\n = linjeskift)', size: 'Størrelse',
-        kolonne: 'Plassering', rekkefolge: 'Rekkefølge', farge: 'Farge', path: 'Popup-hash',
-        varselvis: 'Vis «!»-merke på flisen', varsel: '«!»-merke når denne er på' }[n.split('_').pop()] || n;
-      return sc.label || n;
-    }
-
-    /* Deler det store skjemaet i biter: én for hver overskrift, én per etasje og én per
-       rom. Alt annet enn den du har åpen er foldet sammen, så editoren er til å finne
-       fram i selv med tjue rom. */
-    _deler() {
-      const ut = [];
-      let gjeldende = null;
-      const nytt = (id, tittel, niva) => { gjeldende = { id, tittel, niva, felt: [] }; ut.push(gjeldende); };
-      nytt('start', 'Generelt', 0);
-      for (const sc of this._schema()) {
-        if (sc.type === 'constant') {
-          const n = sc.name;
-          nytt(n, String(sc.label || n).replace(/^—\s*|\s*—$/g, ''),
-            n.startsWith('f_') ? 1 : n.startsWith('r_') ? 2 : 0);
-          continue;
-        }
-        if (!gjeldende) nytt('start', 'Generelt', 0);
-        gjeldende.felt.push(sc);
-      }
-      return ut.filter((d) => d.felt.length);
-    }
-
-    _sammendrag(del, data) {
-      if (del.niva !== 2) return '';
-      const r = del.id.slice(2);
-      const av = data['rom_' + r + '_vis'] === false;
-      const størrelse = data['rom_' + r + '_size'];
-      const kol = data['rom_' + r + '_kolonne'];
-      const biter = [av ? 'skjult' : '', størrelse && størrelse !== 'auto' ? størrelse : '',
-        kol && kol !== 'auto' ? kol : ''].filter(Boolean);
-      return biter.join(' · ');
-    }
-
-    /* Flisene i `hjem.stov` – gjøremål, transport, veikamera, drivstoffpris og hva du
-       ellers legger der. De fantes bare i YAML; her kan de legges til, endres,
-       flyttes og fjernes. `navigate` er den frie typen: egen tekst, ikon og hash. */
-    _stovTyper() {
-      return [
-        { value: 'navigate', label: 'Fri flis (egen tekst, ikon og popup)' },
-        { value: 'gjoremal', label: 'Gjøremål' },
-        { value: 'kalender', label: 'Kalender' },
-        { value: 'las', label: 'Dørlås' },
-        { value: 'garasje', label: 'Garasjeport' },
-        { value: 'alarm', label: 'Alarm' },
-        { value: 'rom', label: 'Rom' },
-      ];
-    }
-
-    _stovSkjema(flis) {
-      const k = flis.kind || 'navigate';
-      const ut = [{ name: 'kind', selector: { select: { mode: 'dropdown', options: this._stovTyper() } } }];
-      if (k === 'rom') {
-        ut.push({ name: 'rom', selector: { text: {} } },
-          { name: 'size', selector: { select: { mode: 'dropdown', options: [
-            { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
-            { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }] } } });
-      } else if (k === 'navigate') {
-        ut.push({ name: 'main_text', selector: { text: {} } },
-          { name: 'sub_text', selector: { text: {} } },
-          { name: 'entity', selector: { entity: {} } });
-      } else {
-        const dom = { las: 'lock', alarm: ['select', 'alarm_control_panel'], garasje: 'cover',
-          kalender: 'sensor', gjoremal: 'sensor' }[k];
-        ut.push({ name: 'entity', selector: { entity: dom ? { domain: dom } : {} } },
-          { name: 'sub_text', selector: { text: {} } });
-      }
-      ut.push({ name: 'ikon', selector: { icon: {} } },
-        { name: 'farge', selector: { text: {} } },
-        { name: 'path', selector: { text: {} } });
-      return ut;
-    }
-
-    _stovListe() {
-      const h = (typeof this._config.hjem === 'object' && this._config.hjem) || {};
-      return Array.isArray(h.stov) ? h.stov.map((x) => ({ ...x })) : [];
-    }
-
-    _stovLagre(liste) {
-      const ut = JSON.parse(JSON.stringify(this._config));
-      const h = (typeof ut.hjem === 'object' && ut.hjem) ? ut.hjem : {};
-      if (liste.length) h.stov = liste; else delete h.stov;
-      ut.hjem = h;
-      this._config = ut;
-      this.dispatchEvent(new CustomEvent('config-changed',
-        { detail: { config: ut }, bubbles: true, composed: true }));
-      this._render();
-    }
-
-    _stovNavn(f) {
-      const t = (this._stovTyper().find((x) => x.value === (f.kind || 'navigate')) || {}).label;
-      return f.main_text || f.navn || f.rom || f.entity || t || 'Flis';
-    }
-
-    _renderStov() {
-      if (!this._stovBoks) {
-        this._stovBoks = document.createElement('details');
-        this._stovBoks.className = 'del';
-        this._stovBoks.dataset.niva = '0';
-        const st = document.createElement('style');
-        st.textContent = `
-          .frad { display:flex; align-items:center; gap:6px; padding:6px 12px; }
-          .frad .nr { width:18px; text-align:right; opacity:.5; font-size:12px; }
-          .frad .navn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
-            white-space:nowrap; font-size:13.5px; }
-          .frad button, .legg { border:0; cursor:pointer; color:inherit; font-size:12px;
-            background:var(--secondary-background-color, rgba(128,128,128,.2)); }
-          .frad button { width:30px; height:30px; border-radius:8px; }
-          .frad button[disabled] { opacity:.3; cursor:default; }
-          .frad button.bort { color:var(--error-color, #e0524a); }
-          .legg { margin:6px 12px 12px; padding:8px 14px; border-radius:10px; font-size:13px; }
-          .fform { padding:0 12px 10px 36px; }
-        `;
-        this._stovBoks.appendChild(st);
-        this._skall.appendChild(this._stovBoks);
-        this._stovDeler = {};
-      }
-      const liste = this._stovListe();
-      this._stovBoks.querySelectorAll('summary, .frad, .fform, .legg').forEach((e) => e.remove());
-
-      const sum = document.createElement('summary');
-      const tit = document.createElement('span');
-      tit.textContent = 'Fliser i Hjem-fanen';
-      const meta = document.createElement('span');
-      meta.className = 'sum';
-      meta.textContent = liste.length ? `${liste.length} stk` : 'ingen';
-      sum.appendChild(tit); sum.appendChild(meta);
-      this._stovBoks.appendChild(sum);
-
-      liste.forEach((flis, i) => {
-        const rad = document.createElement('div');
-        rad.className = 'frad';
-        const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = String(i + 1);
-        const navn = document.createElement('span'); navn.className = 'navn'; navn.textContent = this._stovNavn(flis);
-        const opp = document.createElement('button'); opp.textContent = '▲'; opp.disabled = i === 0;
-        const ned = document.createElement('button'); ned.textContent = '▼'; ned.disabled = i === liste.length - 1;
-        const bort = document.createElement('button'); bort.textContent = '✕'; bort.className = 'bort';
-        bort.title = 'Fjern flisen';
-        opp.addEventListener('click', () => { const l = this._stovListe(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; this._stovLagre(l); });
-        ned.addEventListener('click', () => { const l = this._stovListe(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; this._stovLagre(l); });
-        bort.addEventListener('click', () => { const l = this._stovListe(); l.splice(i, 1); this._stovLagre(l); });
-        rad.appendChild(nr); rad.appendChild(navn); rad.appendChild(opp); rad.appendChild(ned); rad.appendChild(bort);
-        this._stovBoks.appendChild(rad);
-
-        const boks = document.createElement('div');
-        boks.className = 'fform';
-        const f = document.createElement('ha-form');
-        f.hass = this._hass;
-        f.schema = this._stovSkjema(flis);
-        f.data = flis;
-        f.computeLabel = (sc) => ({ kind: 'Type', rom: 'Rom', size: 'Størrelse', entity: 'Entitet',
-          main_text: 'Tittel', sub_text: 'Undertekst', ikon: 'Ikon',
-          farge: 'Farge (CSS, f.eks. var(--green))', path: 'Popup-hash, f.eks. #ruter' }[sc.name] || sc.name);
-        f.addEventListener('value-changed', (ev) => {
-          ev.stopPropagation();
-          const l = this._stovListe();
-          l[i] = { ...l[i], ...(ev.detail.value || {}) };
-          for (const k of Object.keys(l[i])) if (l[i][k] === '' || l[i][k] === undefined) delete l[i][k];
-          this._stovLagre(l);
-        });
-        boks.appendChild(f);
-        this._stovBoks.appendChild(boks);
-      });
-
-      const legg = document.createElement('button');
-      legg.className = 'legg';
-      legg.textContent = '+ Legg til flis';
-      legg.addEventListener('click', () => {
-        const l = this._stovListe();
-        l.push({ kind: 'navigate', main_text: 'Ny flis', ikon: 'mdi:card-outline' });
-        this._stovLagre(l);
-      });
-      this._stovBoks.appendChild(legg);
     }
 
     _render() {
       if (!this._hass || !this._config) return;
       this._renderLayout();
-      const data = this._data();
-      const deler = this._deler();
-
       if (!this._skall) {
         this._skall = document.createElement('div');
-        const st = document.createElement('style');
-        st.textContent = `
-          .del { border-radius:12px; background:var(--secondary-background-color, rgba(128,128,128,.08));
-            margin-bottom:6px; overflow:hidden; }
-          .del[data-niva="1"] { margin-left:0; }
-          .del[data-niva="2"] { margin:4px 0 4px 12px; background:rgba(128,128,128,.06); }
-          summary { cursor:pointer; padding:10px 14px; font-size:14px; font-weight:600;
-            list-style:none; display:flex; align-items:center; gap:8px; }
-          summary::-webkit-details-marker { display:none; }
-          summary::after { content:"›"; margin-left:auto; opacity:.5; transition:transform .2s;
-            font-size:18px; line-height:1; }
-          details[open] > summary::after { transform:rotate(90deg); }
-          .del[data-niva="2"] summary { font-weight:500; font-size:13.5px; padding:8px 12px; }
-          .sum { margin-left:auto; margin-right:6px; font-size:12px; opacity:.55; font-weight:400; }
-          .innhold { padding:0 12px 12px; }
-        `;
-        this._skall.appendChild(st);
+        this._skall.appendChild(this._stil());
         this.appendChild(this._skall);
-        this._former = {};
+        this._bokser = {};
       }
-
+      const grupper = this._grupper();
       const brukt = new Set();
-      for (const del of deler) {
-        brukt.add(del.id);
-        let boks = this._former[del.id];
-        if (!boks) {
-          const d = document.createElement('details');
-          d.className = 'del';
-          d.dataset.niva = String(del.niva);
-          if (del.niva === 0 && del.id === 'start') d.open = true;
-          const sum = document.createElement('summary');
-          const tit = document.createElement('span');
-          const meta = document.createElement('span');
-          meta.className = 'sum';
-          sum.appendChild(tit); sum.appendChild(meta);
-          const innhold = document.createElement('div');
-          innhold.className = 'innhold';
-          const f = document.createElement('ha-form');
-          f.computeLabel = (sc) => this._etikett(sc);
-          f.addEventListener('value-changed', (ev) => {
-            ev.stopPropagation();
-            // Hver delform sender bare sine egne felt – slå dem sammen med resten
-            const out = this._toConfig({ ...this._data(), ...(ev.detail.value || {}) });
-            this._config = out;
-            this.dispatchEvent(new CustomEvent('config-changed',
-              { detail: { config: out }, bubbles: true, composed: true }));
-            this._render();
-          });
-          innhold.appendChild(f);
-          d.appendChild(sum); d.appendChild(innhold);
-          this._skall.appendChild(d);
-          boks = this._former[del.id] = { d, tit, meta, f, sist: '' };
-        }
-        boks.tit.textContent = del.tittel;
-        boks.meta.textContent = this._sammendrag(del, data);
-        const n = JSON.stringify(del.felt);
-        if (n !== boks.sist) { boks.sist = n; boks.f.schema = del.felt; }
-        boks.f.hass = this._hass;
-        const egne = {};
-        for (const sc of del.felt) egne[sc.name] = data[sc.name];
-        boks.f.data = egne;
+      for (const gr of grupper) {
+        brukt.add(gr.id);
+        const b = this._boks(gr);
+        b.tit.textContent = gr.tittel;
+        b.meta.textContent = gr.sammendrag ? gr.sammendrag(this._config)
+          : (gr.liste ? `${(les(this._config, gr.liste.vei) || []).length || 'ingen'}` : '');
+        if (gr.liste) this._tegnListe(gr, b); else this._tegnFelt(gr, b);
       }
-      // rom eller etasjer som er fjernet i mellomtiden
-      for (const id of Object.keys(this._former)) {
+      for (const id of Object.keys(this._bokser)) {
         if (brukt.has(id)) continue;
-        this._former[id].d.remove();
-        delete this._former[id];
+        this._bokser[id].d.remove();
+        delete this._bokser[id];
       }
-      this._renderStov();
     }
   }
+
 
   class KiHjemCard extends HTMLElement {
     static getConfigElement() { return document.createElement('ki-hjem-editor'); }
