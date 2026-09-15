@@ -1,4 +1,4 @@
-/* ki-cards v3.50.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-14 */
+/* ki-cards v3.51.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.50.0";
+  KI.VERSION = "3.51.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9677,6 +9677,147 @@ try {
       return biter.join(' · ');
     }
 
+    /* Flisene i `hjem.stov` – gjøremål, transport, veikamera, drivstoffpris og hva du
+       ellers legger der. De fantes bare i YAML; her kan de legges til, endres,
+       flyttes og fjernes. `navigate` er den frie typen: egen tekst, ikon og hash. */
+    _stovTyper() {
+      return [
+        { value: 'navigate', label: 'Fri flis (egen tekst, ikon og popup)' },
+        { value: 'gjoremal', label: 'Gjøremål' },
+        { value: 'kalender', label: 'Kalender' },
+        { value: 'las', label: 'Dørlås' },
+        { value: 'garasje', label: 'Garasjeport' },
+        { value: 'alarm', label: 'Alarm' },
+        { value: 'rom', label: 'Rom' },
+      ];
+    }
+
+    _stovSkjema(flis) {
+      const k = flis.kind || 'navigate';
+      const ut = [{ name: 'kind', selector: { select: { mode: 'dropdown', options: this._stovTyper() } } }];
+      if (k === 'rom') {
+        ut.push({ name: 'rom', selector: { text: {} } },
+          { name: 'size', selector: { select: { mode: 'dropdown', options: [
+            { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
+            { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }] } } });
+      } else if (k === 'navigate') {
+        ut.push({ name: 'main_text', selector: { text: {} } },
+          { name: 'sub_text', selector: { text: {} } },
+          { name: 'entity', selector: { entity: {} } });
+      } else {
+        const dom = { las: 'lock', alarm: ['select', 'alarm_control_panel'], garasje: 'cover',
+          kalender: 'sensor', gjoremal: 'sensor' }[k];
+        ut.push({ name: 'entity', selector: { entity: dom ? { domain: dom } : {} } },
+          { name: 'sub_text', selector: { text: {} } });
+      }
+      ut.push({ name: 'ikon', selector: { icon: {} } },
+        { name: 'farge', selector: { text: {} } },
+        { name: 'path', selector: { text: {} } });
+      return ut;
+    }
+
+    _stovListe() {
+      const h = (typeof this._config.hjem === 'object' && this._config.hjem) || {};
+      return Array.isArray(h.stov) ? h.stov.map((x) => ({ ...x })) : [];
+    }
+
+    _stovLagre(liste) {
+      const ut = JSON.parse(JSON.stringify(this._config));
+      const h = (typeof ut.hjem === 'object' && ut.hjem) ? ut.hjem : {};
+      if (liste.length) h.stov = liste; else delete h.stov;
+      ut.hjem = h;
+      this._config = ut;
+      this.dispatchEvent(new CustomEvent('config-changed',
+        { detail: { config: ut }, bubbles: true, composed: true }));
+      this._render();
+    }
+
+    _stovNavn(f) {
+      const t = (this._stovTyper().find((x) => x.value === (f.kind || 'navigate')) || {}).label;
+      return f.main_text || f.navn || f.rom || f.entity || t || 'Flis';
+    }
+
+    _renderStov() {
+      if (!this._stovBoks) {
+        this._stovBoks = document.createElement('details');
+        this._stovBoks.className = 'del';
+        this._stovBoks.dataset.niva = '0';
+        const st = document.createElement('style');
+        st.textContent = `
+          .frad { display:flex; align-items:center; gap:6px; padding:6px 12px; }
+          .frad .nr { width:18px; text-align:right; opacity:.5; font-size:12px; }
+          .frad .navn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+            white-space:nowrap; font-size:13.5px; }
+          .frad button, .legg { border:0; cursor:pointer; color:inherit; font-size:12px;
+            background:var(--secondary-background-color, rgba(128,128,128,.2)); }
+          .frad button { width:30px; height:30px; border-radius:8px; }
+          .frad button[disabled] { opacity:.3; cursor:default; }
+          .frad button.bort { color:var(--error-color, #e0524a); }
+          .legg { margin:6px 12px 12px; padding:8px 14px; border-radius:10px; font-size:13px; }
+          .fform { padding:0 12px 10px 36px; }
+        `;
+        this._stovBoks.appendChild(st);
+        this._skall.appendChild(this._stovBoks);
+        this._stovDeler = {};
+      }
+      const liste = this._stovListe();
+      this._stovBoks.querySelectorAll('summary, .frad, .fform, .legg').forEach((e) => e.remove());
+
+      const sum = document.createElement('summary');
+      const tit = document.createElement('span');
+      tit.textContent = 'Fliser i Hjem-fanen';
+      const meta = document.createElement('span');
+      meta.className = 'sum';
+      meta.textContent = liste.length ? `${liste.length} stk` : 'ingen';
+      sum.appendChild(tit); sum.appendChild(meta);
+      this._stovBoks.appendChild(sum);
+
+      liste.forEach((flis, i) => {
+        const rad = document.createElement('div');
+        rad.className = 'frad';
+        const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = String(i + 1);
+        const navn = document.createElement('span'); navn.className = 'navn'; navn.textContent = this._stovNavn(flis);
+        const opp = document.createElement('button'); opp.textContent = '▲'; opp.disabled = i === 0;
+        const ned = document.createElement('button'); ned.textContent = '▼'; ned.disabled = i === liste.length - 1;
+        const bort = document.createElement('button'); bort.textContent = '✕'; bort.className = 'bort';
+        bort.title = 'Fjern flisen';
+        opp.addEventListener('click', () => { const l = this._stovListe(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; this._stovLagre(l); });
+        ned.addEventListener('click', () => { const l = this._stovListe(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; this._stovLagre(l); });
+        bort.addEventListener('click', () => { const l = this._stovListe(); l.splice(i, 1); this._stovLagre(l); });
+        rad.appendChild(nr); rad.appendChild(navn); rad.appendChild(opp); rad.appendChild(ned); rad.appendChild(bort);
+        this._stovBoks.appendChild(rad);
+
+        const boks = document.createElement('div');
+        boks.className = 'fform';
+        const f = document.createElement('ha-form');
+        f.hass = this._hass;
+        f.schema = this._stovSkjema(flis);
+        f.data = flis;
+        f.computeLabel = (sc) => ({ kind: 'Type', rom: 'Rom', size: 'Størrelse', entity: 'Entitet',
+          main_text: 'Tittel', sub_text: 'Undertekst', ikon: 'Ikon',
+          farge: 'Farge (CSS, f.eks. var(--green))', path: 'Popup-hash, f.eks. #ruter' }[sc.name] || sc.name);
+        f.addEventListener('value-changed', (ev) => {
+          ev.stopPropagation();
+          const l = this._stovListe();
+          l[i] = { ...l[i], ...(ev.detail.value || {}) };
+          for (const k of Object.keys(l[i])) if (l[i][k] === '' || l[i][k] === undefined) delete l[i][k];
+          this._stovLagre(l);
+        });
+        boks.appendChild(f);
+        this._stovBoks.appendChild(boks);
+      });
+
+      const legg = document.createElement('button');
+      legg.className = 'legg';
+      legg.textContent = '+ Legg til flis';
+      legg.addEventListener('click', () => {
+        const l = this._stovListe();
+        l.push({ kind: 'navigate', main_text: 'Ny flis', ikon: 'mdi:card-outline' });
+        this._stovLagre(l);
+      });
+      this._stovBoks.appendChild(legg);
+    }
+
     _render() {
       if (!this._hass || !this._config) return;
       this._renderLayout();
@@ -9753,6 +9894,7 @@ try {
         this._former[id].d.remove();
         delete this._former[id];
       }
+      this._renderStov();
     }
   }
 

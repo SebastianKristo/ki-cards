@@ -1,21 +1,22 @@
-# ki-cards 3.50.0
+# ki-cards 3.51.0
 
-## Loggen viste bare det første døgnet av perioden
+## Flisene i Hjem-fanen kan redigeres i editoren
 
-Diagnoselinja avgjorde det: «alarm: 0 · dorlas_blatann: 8 · ansikt: 0», med alle åtte
-låseradene seks dager gamle — i et vindu på sju dager.
+Flisene i `hjem.stov` — gjøremål, transport, veikamera, drivstoffpris og hva du ellers
+legger der — fantes bare i YAML. Nå ligger de i en egen seksjon nederst i editoren,
+«Fliser i Hjem-fanen», med antallet i overskriften.
 
-Loggbokens REST-endepunkt returnerer **ett døgn** fra tidspunktet du oppgir hvis du ikke
-sier noe annet. `logbook/<sju dager siden>` ga altså døgnet som begynte for sju dager
-siden, og ingenting etter det. Låsen hadde tilfeldigvis aktivitet nettopp det døgnet, mens
-alarmen og ansiktssensoren ikke hadde det — derfor åtte rader fra den ene og null fra de
-to andre.
+Hver flis har en rad med navn og tre knapper: opp, ned og fjern. Under raden står flisens
+egne felt, og feltene følger typen:
 
-`end_time` settes nå til nå, så hele perioden kommer med.
+* **Fri flis** (`navigate`) — tittel, undertekst, valgfri entitet, ikon, farge og
+  popup-hash. Det er den du bruker for transport, veikamera og drivstoffpris.
+* **Gjøremål, kalender, dørlås, garasjeport, alarm** — entitetsvelger begrenset til riktig
+  domene, pluss undertekst.
+* **Rom** — romnøkkel og størrelse.
 
-Testet med hendelser spredt over sju dager: både det som skjedde for et kvarter siden og
-det som skjedde for seks dager siden kommer med, sortert riktig.
+Alle typer har ikon, farge og popup-hash.
 
-Det var tre feil på rad i samme spørring — `minimal_response` som kuttet svaret, feil sti,
-og manglende `end_time`. Diagnoselinja fra 3.48 er grunnen til at den siste ble funnet på
-ett forsøk i stedet for fire; behold `diagnose: true` til du ser tall du kjenner igjen.
+«+ Legg til flis» legger en fri flis nederst, klar til å fylles ut. Tomme felt fjernes fra
+konfigurasjonen i stedet for å bli liggende som blanke strenger, og fjerner du den siste
+flisa, forsvinner `stov`-nøkkelen helt.
