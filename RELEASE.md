@@ -1,37 +1,21 @@
-# ki-cards 3.54.0
+# ki-cards 3.55.0
 
-## Nytt kort: `ki-vann-card`
+## `ki-kamera-card` 1.9.0 – i tråd med resten
 
-Viser hva vannet går til, fra sensorene til KI Vann.
+Lett hånd, men kortet sto litt fremmed ved siden av de andre.
 
-```yaml
-type: custom:ki-vann-card
-prefiks: sensor.hjemme_
-mal: 400          # liter per dag du sikter mot – styrer hvor høyt vannet står
-```
+**Overskriften.** Ikonfeltet er 48 px rundt med den samme svakt lyse flaten bak som
+sikkerhets- og ruterkortet bruker, i stedet for 38 px med `--gray200` — som ble en tydelig
+klump mot bakgrunnen. Tittelen er 19 px i vekt 700 i stedet for 22 i 600, så den er på
+linje med de andre kortoverskriftene.
 
-Heroen er en tank som fyller seg: vannstanden er dagens forbruk mot målet, med to bølger
-som ruller i ulik fart og motsatt retning, og dråper som faller ovenfra. Liter i stort til
-venstre, kostnaden for vann og avløp til høyre, og hva vannet stort sett gikk til under.
+**Kildebryteren** mellom Frigate og Vanlig er nå den samme pilleformen som `simple-tabs`
+ellers i dashbordet: tynn hvit ramme rundt, valgt pille i `--active-big` med mørk tekst og
+skygge. Før var den en firkantet `--gray200`-boks med hvit tekst på rosa, som er dårlig
+kontrast.
 
-Under heroen en delt stolpe med én farge per kategori, og så kategoriene i rekkefølge
-etter forbruk — ikon i farget sirkel, liter og andel. Trykk åpner more-info.
+**Kameravelgeren** har fått samme behandling og er midtstilt. Den ruller fortsatt sidelengs
+med mange kameraer, men ligger nå inne i én ramme i stedet for som løse firkanter.
 
-Nederst to brikker: modellens status med antall timer den har lært av, og hvor stor andel
-av forrige time sensorene forklarer. Er den under 60 %, blir brikken oransje.
-
-Fargene er hentet fra temaet, så kortet følger resten av dashbordet. `prefers-reduced-motion`
-slår av alle animasjonene.
-
-## `examples/vanning-popup-faner.yaml`
-
-To faner til vanningspopupen, bygget i de samme komponentene som resten av dashbordet.
-
-**Vanning** — `ki-vanning-card` med flytmåler, vannet i dag og neste vanning som fliser,
-og en månedsgraf. Øverst et grønt banner som bare vises mens et program faktisk vanner,
-med sonen som går.
-
-**Vann** — `ki-vann-card`, liter per person, andel forklart, forbruk per dag, og en graf
-med de tre største kategoriene ved siden av hverandre så du ser vanene endre seg over
-uker. Nederst et oransje varsel som dukker opp når mindre enn halvparten av forrige time
-kan forklares — det er lekkasjesignalet.
+Ingenting funksjonelt er endret — de innebygde kortene, hendelsesgalleriet og editoren er
+uendret.
