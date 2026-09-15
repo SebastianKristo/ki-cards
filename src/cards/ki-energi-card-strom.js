@@ -683,28 +683,35 @@ KiEnergiCard.styles = `
     gap: 8px;
     margin-bottom: 16px;
   }
+  /* Samme bryter som Vekking/Søvn i søvnpopupen og resten av pro-kortene:
+     75 px hjørner ute og inne, --active-small på valgt halvdel, 15 px vekt 500.
+     Før var beholderen 16 px og pillen inni 12 px, med --active-big og lys tekst —
+     det ga en rund pille i en nesten firkantet boks, og stemte ikke med fanerada over. */
   .pille {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     gap: 4px;
     background: var(--gray200, var(--card-background-color));
-    border-radius: 16px;
+    border-radius: 75px;
     padding: 4px;
-    height: 44px;
     box-sizing: border-box;
   }
   .pille button {
     background: transparent;
     color: var(--gray1000, var(--primary-text-color));
-    opacity: .5;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 600;
+    opacity: .6;
+    border-radius: 75px;
+    padding: 9px 0;
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 0;
     transition: background .18s ease, opacity .18s ease;
   }
   .pille button.aktiv {
-    background: var(--active-big, var(--primary-color));
-    color: var(--gray100, #fff);
+    background: var(--active-small, var(--active-big, var(--primary-color)));
+    color: var(--gray100, #fafbfc);
     opacity: 1;
   }
   .pille button:focus-visible { outline: 2px solid var(--active-big, var(--primary-color)); outline-offset: 1px; }

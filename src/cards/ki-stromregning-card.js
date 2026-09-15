@@ -850,19 +850,21 @@ KiStromregningCard.styles = `
   .chip-tall { font-size: 15px; font-weight: 700; line-height: 1.4; font-variant-numeric: tabular-nums; }
 
   /* ---------- periodebryter ---------- */
+  /* Samme bryter som resten av pro-kortene: 75 px hjørner, --active-small på valgt. */
   .pille {
     display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     gap: 4px; background: var(--gray200, var(--card-background-color));
-    border-radius: 16px; padding: 4px; height: 44px; margin-bottom: 20px;
+    border-radius: 75px; padding: 4px; margin-bottom: 20px;
   }
   .pille button {
     background: transparent; color: var(--gray1000, var(--primary-text-color));
-    opacity: .5; border-radius: 12px; font-size: 13px; font-weight: 600;
+    opacity: .6; border-radius: 75px; padding: 9px 0; font-size: 15px; font-weight: 500;
+    white-space: nowrap; min-width: 0;
     transition: background .18s ease, opacity .18s ease;
   }
   .pille button.aktiv {
-    background: var(--active-big, var(--primary-color));
-    color: var(--gray100, #fff); opacity: 1;
+    background: var(--active-small, var(--active-big, var(--primary-color)));
+    color: var(--gray100, #fafbfc); opacity: 1;
   }
 
   /* ---------- bolker ---------- */

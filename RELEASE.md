@@ -1,25 +1,38 @@
-# ki-cards 3.57.0
+# ki-cards 3.59.0
 
-## `ki-kamera-card` 1.10.0: luft rundt kortet
+## Nytt kort: `ki-avfall-card`
 
-Nytt valg **`luft`**. I en panelvisning gir Home Assistant ingen padding, og da lå
-kameraene klemt helt ut i skjermkanten.
+Alle avfallsfraksjonene i ett kort, laget for sensorer med `days_to_pickup` og `raw_date`
+slik de norske renovasjonsintegrasjonene lager dem.
 
 ```yaml
-luft: 12          # px
-luft: "0 14px"    # eller en hvilken som helst CSS-padding
+type: custom:ki-avfall-card
+monster: "sensor\\.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)"
 ```
 
-Et rent tall blir piksler, alt annet brukes som det står. Den loddrette lufta trekkes
-automatisk fra høydeberegningen, så `fill_screen` fortsatt treffer skjermhøyden.
+Kortet finner sensorene selv ut fra mønsteret — eller du lister dem i `entities:` — og
+sorterer etter hvor nær tømmingen er. Den nærmeste får heroen med dager i 52 px,
+fraksjonsnavnet til høyre og hele datoen under: «Tirsdag 15. september». De øvrige står
+som fliser i samme form som resten av dashbordet.
 
-En felle underveis: jeg brukte først `parseFloat` for å avgjøre om verdien var et tall,
-og den godtar alt som *begynner* med et tall — så `0 14px` ble tolket som `0`. Nå
-sjekkes hele strengen.
+**Fargene kjennes igjen på navnet** og følger de norske sorteringsfargene: papir blått,
+plast lilla, glass og metall grønt, matavfall oransje, restavfall grått. Treffer navnet
+ingenting, blir det grått med en vanlig søppelbøtte.
 
-## Om panelvisning
+**På tømmedagen** skifter heroen til fraksjonens farge, tallet blir «I dag» og pulserer,
+bøtta rister, og søppelbilen kjører over nederst med hjul som ruller. To dager før eller
+mindre får heroen en dempet versjon av fargen. Dagen én dag unna sier «I morgen» i stedet
+for «1 dag».
 
-En panelvisning viser bare ett kort. Har du flere, får du advarselen «en panelvisning kan
-bare vise 1 kort», og de øvrige forsvinner. Løsningen er en `vertical-stack` rundt dem —
-se `examples/kamera-dashboard.yaml`, der kameraet og Tilbake-knappen ligger i samme
-stabel. Knappen har fått `z-index: 5`, siden kortet ellers dekker den.
+Trykk på heroen eller en flis åpner more-info, eller `path` hvis du har satt den.
+`prefers-reduced-motion` slår av all animasjon.
+
+## `examples/soppel-popup.yaml`
+
+Søppel-popupen bygget om: ett kort i stedet for `auto-entities` med en button-card-mal og
+tre nøstede templatelag. Datolista framover ligger under som en `entities`-liste med
+card-mod, hvis du vil ha begge.
+
+Det gamle oppsettet regnet ut «I dag» og datoformatet i JavaScript inni YAML, én gang per
+sensor. Nå gjør kortet det, og du ser resultatet i editoren i stedet for å måtte lagre og
+lukke for å sjekke.

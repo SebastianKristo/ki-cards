@@ -1,0 +1,106 @@
+# Søppel-popupen.
+#
+# Erstatter auto-entities-oppsettet med ett kort. Kortet finner sensorene selv ut fra
+# mønsteret, leser `days_to_pickup` og `raw_date`, sorterer etter hvor nær tømmingen er,
+# og gir den nærmeste heroen.
+#
+# På tømmedagen skifter heroen til fraksjonens farge, tallet pulserer, bøtta rister og
+# søppelbilen kjører over. Dagen etter er den rolig igjen.
+
+type: custom:bubble-card
+card_type: pop-up
+name: Søppel
+icon: mdi:trash-can
+state: null
+hash: '#soppel'
+is_sidebar_hidden: true
+styles: |+
+  .bubble-pop-up-container {
+    --vertical-stack-card-gap: 0px!important;
+  } #header-container > div > div {
+    background: var(--gray000)!important;
+  }
+  #header-container > button {background: none;}
+  .icon-container {background-color:var(--gray1000)!important;}
+  .icon-container > ha-icon {color:var(--black)!important;opacity:1!important}
+  .bubble-icon {
+    --mdc-icon-size: 24px !important;
+  }
+  .bubble-name {
+    font-size: 30px !important;
+    font-weight: 500;
+    line-height: 1.4 !important;
+    padding: 8px 0 !important;
+  }
+  .bubble-close-button {
+    background-color: var(--gray200) !important;
+    border-radius: 50%;
+  }
+
+bg_blur: '5'
+shadow_opacity: '20'
+bg_opacity: '98'
+margin_top_mobile: 50px
+margin_top_desktop: 50px
+card_layout: large
+button_type: name
+sub_button:
+  main: []
+  bottom: []
+slider_fill_orientation: left
+slider_value_position: right
+cards:
+  - type: custom:gap-card
+    height: 0
+
+  - type: custom:ki-avfall-card
+    # Enten mønsteret, som finner sensorene selv:
+    monster: "sensor\\.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)"
+    # ...eller en fast liste, hvis du vil styre rekkefølgen av hvilke som er med:
+    # entities:
+    #   - sensor.restavfall
+    #   - sensor.papir_og_papp
+    #   - sensor.plastemballasje
+    #   - sensor.glass_og_metallemballasje
+    dager_attributt: days_to_pickup
+    dato_attributt: raw_date
+
+  - type: custom:gap-card
+    height: 10
+
+  # Datoene framover, hvis du vil ha hele lista i tillegg
+  - type: custom:auto-entities
+    card:
+      type: entities
+      title: Datoer framover
+      card_mod:
+        style: |
+          ha-card {
+            background: var(--gray200);
+            border-radius: 24px;
+            border: none;
+          }
+          .card-header {
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            padding: 16px 18px 4px !important;
+          }
+    card_param: entities
+    filter:
+      include:
+        - entity_id: >-
+            /sensor.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)/
+          options:
+            type: attribute
+            attribute: raw_date
+            format: date
+    sort:
+      method: attribute
+      attribute: days_to_pickup
+      numeric: true
+    show_empty: false
+
+  - type: custom:gap-card
+    height: 36
+
+popup_mode: default
