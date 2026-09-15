@@ -1,4 +1,4 @@
-/* ki-cards v3.55.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.55.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.55.0";
+  KI.VERSION = "3.55.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26430,7 +26430,7 @@ try {
  * JavaScript Module: /local/ki-kamera-card.js
  */
 
-const KI_KAMERA_VERSION = "1.9.0";
+const KI_KAMERA_VERSION = "1.9.1";
 
 console.info(
   `%c KI-KAMERA-CARD %c ${KI_KAMERA_VERSION} `,
@@ -27449,19 +27449,17 @@ KiKameraCard.styles = `
     display: flex; align-items: center; gap: 12px;
     padding: 0 4px 14px;
   }
-  /* Ikonfeltet følger de andre kortene: 48 px rundt, med den samme svakt lyse
-     flaten bak i stedet for --gray200, som ble en tydelig klump mot bakgrunnen. */
   .tittel-ikon {
-    width: 48px; height: 48px; border-radius: 50%;
+    width: 38px; height: 38px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(250, 251, 252, .10);
+    background: var(--gray200, var(--card-background-color));
     color: var(--gray1000, var(--primary-text-color));
-    --mdc-icon-size: 24px;
+    --mdc-icon-size: 21px;
     flex: 0 0 auto;
   }
   .tittelrad h2 {
     margin: 0; flex: 1; min-width: 0;
-    font-size: 19px; font-weight: 700; letter-spacing: -.01em;
+    font-size: 22px; font-weight: 600;
     color: var(--gray1000, var(--primary-text-color));
   }
   .tittel-antall {
@@ -27471,53 +27469,52 @@ KiKameraCard.styles = `
   }
 
   /* ---------- kildebryter ---------- */
-  /* Kildebryteren og kameravelgeren er nå samme pilleform som simple-tabs ellers i
-     dashbordet: tynn ramme rundt, valgt pille i --active-big med mørk tekst. */
-  .kilde { margin-bottom: 12px; display: flex; justify-content: center; }
+  /* Kildebryteren er den samme brede bryteren som Vekking/Søvn i søvnpopupen:
+     --gray200 bak, 75 px hjørner, valgt halvdel i --active-small. */
+  .kilde { margin-bottom: 12px; }
   .pille {
-    display: inline-grid; grid-auto-flow: column; gap: 4px;
-    border: 1px solid rgba(255, 255, 255, .3);
-    border-radius: 999px; padding: 3px; box-sizing: border-box;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    gap: 4px; padding: 4px; border-radius: 75px;
+    background: var(--gray200, var(--card-background-color));
+    box-sizing: border-box;
   }
   .pille button {
-    background: transparent;
-    color: rgba(255, 255, 255, .72);
-    border-radius: 999px; padding: 8px 22px;
-    font-size: 14px; font-weight: 500; white-space: nowrap;
-    transition: background .2s ease, color .2s ease;
+    background: transparent; text-align: center;
+    color: var(--gray1000, var(--primary-text-color));
+    opacity: .6; border-radius: 75px; padding: 9px 0;
+    font-size: 15px; font-weight: 500; white-space: nowrap;
+    transition: background .18s ease, opacity .18s ease;
   }
-  .pille button:hover { color: rgba(255, 255, 255, .95); }
   .pille button.aktiv {
-    background: var(--active-big, var(--primary-color));
-    color: rgba(70, 58, 64, .95); font-weight: 500;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+    background: var(--active-small, var(--active-big, var(--primary-color)));
+    color: var(--gray100, #fafbfc); opacity: 1;
   }
   .pille button:focus-visible { outline: 2px solid var(--active-big, var(--primary-color)); outline-offset: 1px; }
 
   /* ---------- kamerapiller ---------- */
   .piller {
-    display: flex; gap: 4px; padding: 3px;
-    width: fit-content; max-width: 100%; margin: 0 auto 14px;
-    border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px;
-    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    display: flex; gap: 8px;
+    overflow-x: auto; padding-bottom: 4px;
+    margin-bottom: 14px;
+    scrollbar-width: none;
   }
   .piller::-webkit-scrollbar { display: none; }
   .fane {
     display: flex; align-items: center; gap: 7px;
     flex: 0 0 auto;
-    padding: 8px 16px;
-    border-radius: 999px;
-    background: transparent;
-    color: rgba(255, 255, 255, .72);
-    font-size: 14px; font-weight: 500; white-space: nowrap;
-    --mdc-icon-size: 17px;
-    transition: background .2s ease, color .2s ease;
+    padding: 9px 15px 9px 12px;
+    border-radius: 16px;
+    background: var(--gray200, var(--card-background-color));
+    color: var(--gray1000, var(--primary-text-color));
+    font-size: 13px; font-weight: 600;
+    opacity: .55;
+    --mdc-icon-size: 18px;
+    transition: background .18s ease, opacity .18s ease, color .18s ease;
   }
-  .fane:hover { color: rgba(255, 255, 255, .95); }
   .fane.aktiv {
     background: var(--active-big, var(--primary-color));
-    color: rgba(70, 58, 64, .95);
-    box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+    color: var(--gray100, #fff);
+    opacity: 1;
   }
   .fane:focus-visible { outline: 2px solid var(--active-big, var(--primary-color)); outline-offset: 2px; }
 

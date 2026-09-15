@@ -1,21 +1,17 @@
-# ki-cards 3.55.0
+# ki-cards 3.55.1
 
-## `ki-kamera-card` 1.9.0 – i tråd med resten
+## `ki-kamera-card`: tilbake til det gamle, med ny kildebryter
 
-Lett hånd, men kortet sto litt fremmed ved siden av de andre.
+Redesignet i 3.55.0 gikk for langt. Overskriften og kameravelgeren er tilbake som de var:
+38 px ikonfelt med `--gray200`, tittel i 22 px vekt 600, og kameravelgeren som løse
+pilleknapper med 16 px hjørner som ruller sidelengs.
 
-**Overskriften.** Ikonfeltet er 48 px rundt med den samme svakt lyse flaten bak som
-sikkerhets- og ruterkortet bruker, i stedet for 38 px med `--gray200` — som ble en tydelig
-klump mot bakgrunnen. Tittelen er 19 px i vekt 700 i stedet for 22 i 600, så den er på
-linje med de andre kortoverskriftene.
+Det som beholdes er **kildebryteren mellom Frigate og Vanlig**, og den er nå den samme
+brede bryteren som Vekking/Søvn i søvnpopupen: `--gray200` bak, 75 px hjørner, 4 px luft,
+og den valgte halvdelen i `--active-small` med `--gray100`-tekst.
 
-**Kildebryteren** mellom Frigate og Vanlig er nå den samme pilleformen som `simple-tabs`
-ellers i dashbordet: tynn hvit ramme rundt, valgt pille i `--active-big` med mørk tekst og
-skygge. Før var den en firkantet `--gray200`-boks med hvit tekst på rosa, som er dårlig
-kontrast.
+Den gamle kildebryteren hadde firkantede 16 px-hjørner og hvit tekst på `--active-big`.
+`--active-small` er laget for nettopp denne bruken og gir riktig kontrast.
 
-**Kameravelgeren** har fått samme behandling og er midtstilt. Den ruller fortsatt sidelengs
-med mange kameraer, men ligger nå inne i én ramme i stedet for som løse firkanter.
-
-Ingenting funksjonelt er endret — de innebygde kortene, hendelsesgalleriet og editoren er
-uendret.
+Bryteren bruker `grid-auto-columns: 1fr` i stedet for `1fr 1fr`, så den fordeler seg likt
+uansett om det er to kilder eller flere.
