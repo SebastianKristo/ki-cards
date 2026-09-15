@@ -1,0 +1,294 @@
+# To faner i vanningspopupen: «Vanning» for sprinkler og bed, «Vann» for forbruket.
+#
+# Erstatt `cards:`-lista i bubble-card-popupen din med dette, eller lim fanene inn i
+# en `tabs:`-liste du har fra før. Bygget i de samme komponentene som resten av
+# dashbordet: universal_sensor_ny, betingede bannere og mini-graph-card.
+
+- type: custom:gap-card
+  height: 0
+
+# Banner mens et program faktisk vanner
+- type: conditional
+  conditions:
+    - condition: state
+      entity: binary_sensor.ki_vanning_vanner
+      state: 'on'
+  card:
+    type: custom:button-card
+    name: >-
+      [[[ return '<strong>Vanner nå:</strong> ' +
+      (states['sensor.ki_vanning_oversikt'].attributes.aktiv_sone || 'sone ukjent') ]]]
+    icon: mdi:sprinkler-variant
+    styles:
+      card:
+        - padding: 0
+        - margin-bottom: 12px
+        - background: var(--green)
+      grid:
+        - grid-template-areas: '"i n"'
+        - grid-template-columns: 76px 1fr
+      img_cell:
+        - justify-self: start
+        - background: rgba(0,0,0, 0.1)
+        - margin: 4px 4px
+        - border-radius: 50%
+        - width: 58px
+        - height: 58px
+      icon:
+        - width: 30px
+        - height: 30px
+        - color: var(--black)
+      name:
+        - justify-self: start
+        - color: var(--black)
+
+- type: custom:simple-tabs
+  alignment: center
+  tab_position: top
+  show_fade: false
+  tabs_gap: 4px
+  button_padding: 9px 22px
+  background-color: transparent
+  border-color: transparent
+  text-color: rgba(255, 255, 255, 0.72)
+  hover-color: rgba(255, 255, 255, 0.95)
+  container_background: transparent
+  container_padding: 0 0 12px 0
+  tabs:
+    # ------------------------------------------------------ sprinkler og bed
+    - title: Vanning
+      card:
+        type: vertical-stack
+        cards:
+          - type: custom:ki-vanning-card
+            flyt: true
+
+          - type: custom:gap-card
+            height: 10
+
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: custom:button-card
+                template: universal_sensor_ny
+                entity: sensor.ki_vanning_vannforbruk_i_dag
+                variables:
+                  sub_text: Vannet i dag
+                  icon: mdi:sprinkler-variant
+                  background_color: var(--gray200)
+                  text_color: var(--gray1000)
+                  main_text: |
+                    [[[
+                      if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                      return Math.round(parseFloat(entity.state)) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">L</span>';
+                    ]]]
+              - type: custom:button-card
+                template: universal_sensor_ny
+                entity: sensor.ki_vanning_neste_vanning
+                variables:
+                  sub_text: Neste vanning
+                  icon: mdi:clock-outline
+                  background_color: var(--gray200)
+                  text_color: var(--gray1000)
+                  main_text: |
+                    [[[
+                      return entity && entity.state !== 'unknown' ? entity.state : 'Ingen';
+                    ]]]
+
+          - type: custom:mini-graph-card
+            entities:
+              - entity: sensor.ki_vanning_vannforbruk_i_dag
+            name: Vanning per dag
+            hours_to_show: 720
+            aggregate_func: max
+            group_by: date
+            font_size: 50
+            font_size_header: 12
+            hour24: true
+            line_color: var(--green)
+            show:
+              graph: bar
+              legend: false
+              icon: false
+              labels: false
+              labels_secondary: false
+            card_mod:
+              style: |
+                ha-card { background: var(--gray200); margin-top: 12px; }
+                .header { padding: 2px 8px 8px 16px; }
+                .name > span { font-weight: 400 !important; font-size: 14px !important; }
+                .state__uom {
+                  font-weight: 300 !important;
+                  font-size: 14px !important;
+                  opacity: 1 !important;
+                  margin-top: 0 !important;
+                  margin-bottom: 2px !important;
+                }
+                .state__value { font-size: 32px !important; }
+
+    # ------------------------------------------------------ vann i huset
+    - title: Vann
+      card:
+        type: vertical-stack
+        cards:
+          # Animert fordeling, kostnad og kategorier
+          - type: custom:ki-vann-card
+            prefiks: sensor.hjemme_
+            navn: Vann
+            mal: 400
+
+          - type: custom:gap-card
+            height: 10
+
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: custom:button-card
+                template: universal_sensor_ny
+                entity: sensor.hjemme_vann_i_dag
+                variables:
+                  sub_text: Per person i dag
+                  icon: mdi:account-multiple
+                  background_color: var(--gray200)
+                  text_color: var(--gray1000)
+                  main_text: |
+                    [[[
+                      const v = entity && entity.attributes.per_person;
+                      if (v === undefined || v === null) return '–';
+                      return Math.round(v) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">L</span>';
+                    ]]]
+              - type: custom:button-card
+                template: universal_sensor_ny
+                entity: sensor.hjemme_forklart_av_sensorene
+                variables:
+                  sub_text: Forklart av sensorene
+                  icon: mdi:help-circle-outline
+                  background_color: var(--gray200)
+                  text_color: var(--gray1000)
+                  main_text: |
+                    [[[
+                      if (!entity || isNaN(parseFloat(entity.state))) return '–';
+                      return Math.round(parseFloat(entity.state)) + '<span style="font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;">%</span>';
+                    ]]]
+
+          # Forbruket time for time, siste døgn
+          - type: custom:mini-graph-card
+            entities:
+              - entity: sensor.hjemme_vann_i_dag
+            name: Vann i dag
+            hours_to_show: 336
+            aggregate_func: max
+            group_by: date
+            font_size: 50
+            font_size_header: 12
+            hour24: true
+            line_color: var(--blue)
+            show:
+              graph: bar
+              legend: false
+              icon: false
+              labels: false
+              labels_secondary: false
+            card_mod:
+              style: |
+                ha-card { background: var(--gray200); margin-top: 12px; }
+                .header { padding: 2px 8px 8px 16px; }
+                .name > span { font-weight: 400 !important; font-size: 14px !important; }
+                .state__uom {
+                  font-weight: 300 !important;
+                  font-size: 14px !important;
+                  opacity: 1 !important;
+                  margin-top: 0 !important;
+                  margin-bottom: 2px !important;
+                }
+                .state__value { font-size: 32px !important; }
+
+          # De tre største kategoriene over tid, så du ser vanene endre seg
+          - type: custom:mini-graph-card
+            entities:
+              - entity: sensor.hjemme_dusj_i_dag
+                name: Dusj
+                color: var(--blue)
+              - entity: sensor.hjemme_toalett_i_dag
+                name: Toalett
+                color: var(--purple)
+              - entity: sensor.hjemme_vaskemaskin_i_dag
+                name: Vaskemaskin
+                color: var(--yellow)
+            name: Fordeling per dag
+            hours_to_show: 336
+            aggregate_func: max
+            group_by: date
+            font_size: 40
+            font_size_header: 12
+            hour24: true
+            show:
+              graph: bar
+              legend: true
+              icon: false
+              labels: false
+              labels_secondary: false
+            card_mod:
+              style: |
+                ha-card { background: var(--gray200); margin-top: 12px; }
+                .header { padding: 2px 8px 8px 16px; }
+                .name > span { font-weight: 400 !important; font-size: 14px !important; }
+                .state__value { font-size: 26px !important; }
+
+          # Varsel når noe bruker vann uten at en sensor ser hvorfor
+          - type: conditional
+            conditions:
+              - condition: numeric_state
+                entity: sensor.hjemme_forklart_av_sensorene
+                below: 50
+            card:
+              type: custom:button-card
+              name: >-
+                [[[ return '<strong>Uforklart vannforbruk.</strong> Bare ' +
+                Math.round(parseFloat(states['sensor.hjemme_forklart_av_sensorene'].state)) +
+                ' % av forrige time kan forklares. Skjer det om natten, sjekk for lekkasje.' ]]]
+              icon: mdi:water-alert
+              styles:
+                card:
+                  - padding: 0
+                  - margin-top: 12px
+                  - background: var(--orange)
+                grid:
+                  - grid-template-areas: '"i n"'
+                  - grid-template-columns: 76px 1fr
+                img_cell:
+                  - justify-self: start
+                  - background: rgba(0,0,0, 0.1)
+                  - margin: 4px 4px
+                  - border-radius: 50%
+                  - width: 58px
+                  - height: 58px
+                icon:
+                  - width: 30px
+                  - height: 30px
+                  - color: var(--black)
+                name:
+                  - justify-self: start
+                  - color: var(--black)
+                  - font-size: 14px
+  card_mod:
+    style: |
+      .tabs-container {
+        width: fit-content !important;
+        margin: 0 auto !important;
+        padding: 2px 2px !important;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 999px;
+        overflow: hidden !important;
+      }
+      .tab-button { border-radius: 999px !important; font-weight: 500; }
+      .tab-button.active {
+        background: var(--active-big) !important;
+        color: rgba(70, 58, 64, 0.95) !important;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+      }
+
+- type: custom:gap-card
+  height: 36

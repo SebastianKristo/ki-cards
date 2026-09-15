@@ -1,28 +1,37 @@
-# ki-cards 3.53.0
+# ki-cards 3.54.0
 
-## Editoren dekker nå det som bare fantes i YAML
+## Nytt kort: `ki-vann-card`
 
-Tre ting i en vanlig `ki-hjem-card`-konfigurasjon kunne ikke røres fra grensesnittet i det
-hele tatt.
+Viser hva vannet går til, fra sensorene til KI Vann.
 
-**Swipe-grupper i `hjem.stov`.** Et element i lista er enten en flis eller en `swipe:`-
-gruppe med egne kort inni. Editoren så bare flisene, og en gruppe ble vist som en tom
-«Fri flis». Nå vises gruppa som «Swipe-gruppe (2 kort)» med høyde og swipe-type som egne
-felt, og kortene inni ligger under den — innrykket, med opp, ned og fjern hver for seg.
-Redigerer du ett kort inni gruppa, er søsterkortene og høyden urørt.
+```yaml
+type: custom:ki-vann-card
+prefiks: sensor.hjemme_
+mal: 400          # liter per dag du sikter mot – styrer hvor høyt vannet står
+```
 
-«+ Legg til swipe-gruppe» ved siden av «+ Legg til flis».
+Heroen er en tank som fyller seg: vannstanden er dagens forbruk mot målet, med to bølger
+som ruller i ulik fart og motsatt retning, og dråper som faller ovenfra. Liter i stort til
+venstre, kostnaden for vann og avløp til høyre, og hva vannet stort sett gikk til under.
 
-**`aktuelt.sesong`.** Sesongflisene — jul, vanning, brøyting — fantes ikke i editoren.
-Egen seksjon nå, med «Vises fra» og «Vises til» på `MM-DD`-form pluss flisens vanlige
-felt. Overskriften viser perioden: «Jul (09-01 – 03-01)».
+Under heroen en delt stolpe med én farge per kategori, og så kategoriene i rekkefølge
+etter forbruk — ikon i farget sirkel, liter og andel. Trykk åpner more-info.
 
-**Romfelt.** `ikon`, `temperatur` og `fuktighet` per rom manglet. De er lagt inn; tomt
-ikon betyr fortsatt rommets ikon fra Home Assistant, og tomme sensorer betyr husets
-fellessensorer som før.
+Nederst to brikker: modellens status med antall timer den har lært av, og hvor stor andel
+av forrige time sensorene forklarer. Er den under 60 %, blir brikken oransje.
 
-## En feil funnet underveis
+Fargene er hentet fra temaet, så kortet følger resten av dashbordet. `prefers-reduced-motion`
+slår av alle animasjonene.
 
-Lista for fliser og lista for sesongkort delte samme kode, og jeg brukte `skjema` både
-som feltdefinisjon og som markør for «enkel liste uten grupper». Flislista fikk derfor
-aldri swipe-grenen. Markøren heter nå `enkel`, og swipe-grupper vises som de skal.
+## `examples/vanning-popup-faner.yaml`
+
+To faner til vanningspopupen, bygget i de samme komponentene som resten av dashbordet.
+
+**Vanning** — `ki-vanning-card` med flytmåler, vannet i dag og neste vanning som fliser,
+og en månedsgraf. Øverst et grønt banner som bare vises mens et program faktisk vanner,
+med sonen som går.
+
+**Vann** — `ki-vann-card`, liter per person, andel forklart, forbruk per dag, og en graf
+med de tre største kategoriene ved siden av hverandre så du ser vanene endre seg over
+uker. Nederst et oransje varsel som dukker opp når mindre enn halvparten av forrige time
+kan forklares — det er lekkasjesignalet.
