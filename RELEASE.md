@@ -1,18 +1,25 @@
-# ki-cards 3.56.0
+# ki-cards 3.57.0
 
-## `.switch` tåler mer enn to valg
+## `ki-kamera-card` 1.10.0: luft rundt kortet
 
-Bryteren som brukes i `ki-energi-card`, `ki-sovn-pro-card` og de andre pro-kortene var
-låst til `grid-template-columns: 1fr 1fr`. Med to valg gikk det fint, men et tredje ville
-havnet på egen rad og tatt halve bredden.
+Nytt valg **`luft`**. I en panelvisning gir Home Assistant ingen padding, og da lå
+kameraene klemt helt ut i skjermkanten.
 
-Den bruker nå `grid-auto-flow: column` med `grid-auto-columns: 1fr`, så halvdelene
-fordeler seg likt uansett antall. `white-space: nowrap` og `min-width: 0` er lagt til, så
-en lang etikett ikke brekker midt i ordet eller presser bryteren bredere enn kortet.
+```yaml
+luft: 12          # px
+luft: "0 14px"    # eller en hvilken som helst CSS-padding
+```
 
-Endringen ligger både i `KI.css` i basen og i `ki-energi-card`, som har sin egen kopi av
-regelen. Selve utseendet er identisk med to valg — `--gray200` bak, 75 px hjørner, valgt
-halvdel i `--active-small`.
+Et rent tall blir piksler, alt annet brukes som det står. Den loddrette lufta trekkes
+automatisk fra høydeberegningen, så `fill_screen` fortsatt treffer skjermhøyden.
 
-`ki-kamera-card` fikk samme oppsett i 3.55.1, så alle tre bryterne er nå like i både
-utseende og oppførsel.
+En felle underveis: jeg brukte først `parseFloat` for å avgjøre om verdien var et tall,
+og den godtar alt som *begynner* med et tall — så `0 14px` ble tolket som `0`. Nå
+sjekkes hele strengen.
+
+## Om panelvisning
+
+En panelvisning viser bare ett kort. Har du flere, får du advarselen «en panelvisning kan
+bare vise 1 kort», og de øvrige forsvinner. Løsningen er en `vertical-stack` rundt dem —
+se `examples/kamera-dashboard.yaml`, der kameraet og Tilbake-knappen ligger i samme
+stabel. Knappen har fått `z-index: 5`, siden kortet ellers dekker den.

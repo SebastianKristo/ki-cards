@@ -1,0 +1,125 @@
+# Kamera-dashbord.
+#
+# `type: panel` i stedet for `type: masonry`: masonry legger kort i kolonner med en
+# maksbredde på rundt 500 px. På mobil er skjermen smalere enn det, så du merker
+# ingenting — men på iPad, PC og utbrettet Fold står kortet i en smal kolonne.
+#
+# Det henger sammen med kortet: ki-kamera-card bytter til høydestyrt rutenett først når
+# *kortet selv* er minst 700 px bredt (`fill_breakpoint`). I masonry blir det aldri det.
+#
+# En panelvisning viser bare ETT kort. Derfor ligger kameraet og Tilbake-knappen i en
+# `vertical-stack` — ellers kommer advarselen «en panelvisning kan bare vise 1 kort»,
+# og knappen forsvinner.
+
+kiosk_mode:
+  mobile_settings:
+    hide_header: '{{ is_state("input_boolean.kiosk_mode", "on") }}'
+    custom_width: 1000
+  non_admin_settings:
+    kiosk: true
+
+paper_buttons_row: null
+
+views:
+  - title: Kamera
+    type: panel
+    icon: mdi:cctv
+    theme: My SmartHome Theme v3
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:ki-kamera-card
+            default_source: vanlig
+            show_events: true
+            events_limit: 12
+            events_columns: 2
+            events_height: 500px
+
+            # Luft rundt kortet. Panelvisning gir ingen padding, så uten dette ligger
+            # kameraene klemt helt ut i skjermkanten. Tall blir px; «0 14px» virker også.
+            luft: 12
+
+            # Fyll skjermhøyden når kortet er bredt:
+            #   fill_screen: false      slår av høydemodusen helt
+            #   fill_breakpoint: 700    bredden kortet må ha før den slår inn
+            # iPad i portrett er rundt 768 px, altså knapt over. Blir det ikke høyt nok,
+            # sett 600.
+            fill_screen: true
+            fill_breakpoint: 700
+
+            grid_layout: hoved
+            cameras:
+              - name: Inngang
+                icon: mdi:doorbell-video
+                plain: camera.ringeklokke_g6_entry_high_resolution_channel
+                frigate:
+                  - camera.ringeklokke
+                  - camera.ringeklokke_pakke
+                privacy: switch.ringeklokke_g6_entry_privacy_mode
+                motion: binary_sensor.ringeklokke_g6_entry_motion
+                last_motion: sensor.ringeklokke_g6_entry_last_motion_detected
+                logbook:
+                  - binary_sensor.ringeklokke_g6_entry_motion
+                  - switch.ringeklokke_g6_entry_animal_detection
+                  - switch.ringeklokke_g6_entry_speaking_detection
+                  - event.ringeklokke_g6_entry_doorbell
+              - name: Mellomgang
+                icon: mdi:stairs
+                plain: camera.mellomgang_g5_turret_ultra_high_resolution_channel
+                frigate:
+                  - camera.mellomgang
+                privacy: switch.mellomgang_g5_turret_ultra_privacy_mode
+                motion: binary_sensor.mellomgang_g5_turret_ultra_motion
+                last_motion: sensor.mellomgang_g5_turret_ultra_last_motion_detected
+              - name: Veranda
+                icon: mdi:flower
+                plain: camera.veranda_g6_bullet_high_resolution_channel
+                frigate:
+                  - camera.veranda
+                privacy: switch.veranda_g6_bullet_privacy_mode
+                motion: binary_sensor.veranda_g6_bullet_motion
+                last_motion: sensor.veranda_g6_bullet_last_motion_detected
+              - name: Stue
+                icon: mdi:sofa
+                plain: camera.stue_g6_turret_high_resolution_channel
+                frigate:
+                  - camera.stue
+                privacy: switch.stue_g6_turret_privacy_mode
+                motion: binary_sensor.stue_g6_turret_motion
+                last_motion: sensor.stue_g6_turret_last_motion_detected
+              - name: Pakke
+                icon: mdi:package-variant-closed
+                plain: camera.ringeklokke_g6_entry_package_camera
+                frigate:
+                  - camera.ringeklokke_pakke
+
+          # Ligger fast nederst på skjermen, men må være inne i stabelen for å vises
+          - type: custom:button-card
+            name: Tilbake
+            icon: mdi:arrow-left
+            tap_action:
+              action: navigate
+              navigation_path: /dashboard-mysmarthome
+            styles:
+              grid:
+                - grid-template-areas: '"i n"'
+                - grid-template-columns: min-content 1fr
+              card:
+                - margin-top: 12px
+                - border: 1px solid var(--gray400)
+                - background: var(--gray100)
+                - position: fixed
+                - bottom: 20px
+                - left: 50%
+                - transform: translateX(-50%)
+                - width: auto
+                - max-width: 600px
+                - padding: 24px
+                - z-index: 5
+              icon:
+                - width: 22px
+                - padding-right: 6px
+              name:
+                - font-size: 16px
+                - font-weight: 500
+                - padding-left: 6px

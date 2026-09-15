@@ -1,4 +1,4 @@
-/* ki-cards v3.56.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.57.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.56.0";
+  KI.VERSION = "3.57.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26436,7 +26436,7 @@ try {
  * JavaScript Module: /local/ki-kamera-card.js
  */
 
-const KI_KAMERA_VERSION = "1.9.1";
+const KI_KAMERA_VERSION = "1.10.0";
 
 console.info(
   `%c KI-KAMERA-CARD %c ${KI_KAMERA_VERSION} `,
@@ -26758,6 +26758,14 @@ class KiKameraCard extends HTMLElement {
   setConfig(config) {
     this._config = JSON.parse(JSON.stringify(config));
     if (!this._config.cameras) this._config.cameras = [];
+    // luft: marg rundt kortet. Et rent tall blir px, ellers brukes verdien som den er
+    // — «0 14px» er en gyldig CSS-padding. parseFloat alene duger ikke her: den
+    // godtar alt som begynner med et tall, så «0 14px» ble tolket som 0.
+    const luft = this._config.luft;
+    const rentTall = /^-?\d+(\.\d+)?$/.test(String(luft).trim());
+    this.style.setProperty("--ki-kam-luft",
+      luft === undefined || luft === null || luft === "" ? "0px"
+        : (rentTall ? `${parseFloat(luft)}px` : String(luft)));
     this._oppsett = OPPSETT[config.grid_layout] ? config.grid_layout : "mosaikk";
     this._menyApen = false;
     this._kilde = config.default_source === "vanlig" ? "vanlig" : "frigate";
@@ -27211,7 +27219,11 @@ class KiKameraCard extends HTMLElement {
   _byggRutenett(kameraer) {
     const preset = OPPSETT[this._oppsett] || OPPSETT.rutenett;
     const fyll = !!this._bred && this._config.fill_screen !== false;
-    const avstand = this._config.fill_offset || 210;
+    // Lufta rundt kortet spiser av høyden, så den legges til avstanden vi trekker fra
+    // Bare loddrett luft spiser av høyden. Er verdien en CSS-streng med flere ledd,
+    // er første ledd den loddrette – «0 14px» gir 0.
+    const luft = parseFloat(String(this._config.luft ?? 0)) || 0;
+    const avstand = (this._config.fill_offset || 210) + luft * 2;
 
     const vert = document.createElement("div");
     vert.className = "rutenett" + (fyll ? " fyll" : "");
@@ -27444,9 +27456,11 @@ class KiKameraCard extends HTMLElement {
 
 KiKameraCard.styles = `
   :host { display: block; }
+  /* Valget luft gir marg rundt hele kortet. I en panelvisning gir Home Assistant ingen
+     padding, og da lå kameraene klemt helt ut i skjermkanten. */
   .rot {
     background: transparent; border: none; box-shadow: none;
-    padding: 0; display: block;
+    padding: var(--ki-kam-luft, 0); display: block;
   }
   button { font: inherit; cursor: pointer; border: none; }
 
