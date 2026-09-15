@@ -1,21 +1,31 @@
-# ki-cards 3.60.1
+# ki-cards 3.61.0
 
-## `examples/soppel-popup.yaml`: flisene har fått ikonet tilbake
+## `ki-avfall-card` plukket opp sensorer som ikke er avfall
 
-Søppelflisene hadde `icon: null`, så det runde ikonfeltet med bakgrunn sto tomt. De var
-dermed de eneste flisene i dashbordet uten det trekket.
+Kortet viste «Neste tømming: I dag — Data energy yearly» og «Deretter sun solhøyde om
+-14 dager».
 
-Ikonet er tilbake, med fraksjonen kjent igjen på navnet: avispapir for papir og papp,
-resirkuleringssymbol for plast, flaske for glass og metall, eple for matavfall, blad for
-hageavfall, og søppelbøtte for restavfall. Ikon og felt får fraksjonens farge — papir
-blått, plast lilla, glass og metall grønt, restavfall grått.
+Årsaken var min egen reserveløsning: når dager-attributtet manglet, leste kortet dagene
+fra sensorens tilstand i stedet. Da blir hvilken som helst tallsensor en gyldig
+avfallsfraksjon, og solhøyden på −14 sorterte seg naturlig nok først.
 
-**Tømmes fraksjonen i dag**, får hele flisen fraksjonens farge, slik de andre flisene
-dine gjør for aktiv tilstand. Da byttes ikonet og teksten til mørkt — et blått ikon på
-blå bakgrunn er usynlig, og det var den ene feilen som lett kunne blitt stående.
+Tre ting er rettet:
 
-Alt annet er uendret: `template_sensor_big_alt`, to kolonner, `text_sub` med
-`friendly_name`, `text_alt` med datoen, sortering på `days_to_pickup`. Den animerte
-heroen ligger fortsatt over.
+**Dager-attributtet kreves** når kortet leter etter mønster. En sensor uten
+`days_to_pickup` er ikke en avfallssensor, uansett hva den heter. Oppgir du `entities:`
+selv, stoler kortet på deg som før.
 
-Alle åtte JavaScript-blokkene er kjørt gjennom med fraksjoner på 0, 1, 5 og 26 dager.
+**Mønsteret ankres** med `^` og `$` om det ikke er ankret selv, så det må treffe hele
+entitets-id-en. Før kunne «rest» treffe `sensor.data_energy_yearly` midt i navnet.
+
+**Urimelige verdier forkastes.** Negative dager eller mer enn to år fram betyr at
+sensoren ikke handler om tømming, eller at datoen er utdatert.
+
+Etter dette gir selv `monster: "sensor\\..*"` — som treffer alt — riktig resultat.
+
+## Eksempelet bruker `entities:` i stedet for `monster:`
+
+Bakstrekene i et regexuttrykk overlever ikke alltid en runde i YAML-editoren, og et
+mønster som havarerer er vanskelig å skille fra et som treffer for bredt. En liste med
+fire sensornavn er kjedeligere og alltid riktig. `monster:` finnes fortsatt for den som
+vil.

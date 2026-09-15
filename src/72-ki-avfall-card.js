@@ -17,7 +17,7 @@
  * fliser: false                    # bare heroen — bruk når du har egne fliser under
  * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "1.1.0";
+const KI_AV_VERSJON = "1.2.0";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -132,9 +132,14 @@ class KiAvfallCard extends HTMLElement {
 
   setConfig(c) {
     this._c = { dager_attributt: "days_to_pickup", dato_attributt: "raw_date", ...(c || {}) };
+    this._re = null;
     if (this._c.monster) {
-      try { this._re = new RegExp(this._c.monster, "i"); }
-      catch (e) { this._re = null; console.warn("ki-avfall-card: ugyldig monster", e); }
+      // Ankre mønsteret om det ikke er ankret selv, så det må treffe hele entitets-id-en
+      let m = String(this._c.monster);
+      if (!m.startsWith("^")) m = `^${m}`;
+      if (!m.endsWith("$")) m = `${m}$`;
+      try { this._re = new RegExp(m, "i"); }
+      catch (e) { console.warn("ki-avfall-card: ugyldig monster", this._c.monster, e); }
     }
   }
 
@@ -146,11 +151,23 @@ class KiAvfallCard extends HTMLElement {
     else if (!g) this._tegn();
   }
 
-  /* Enten en eksplisitt liste, eller alt som treffer mønsteret. */
+  /* Enten en eksplisitt liste, eller alt som treffer mønsteret.
+   *
+   * Mønsteret ankres med ^ og $, så «rest» ikke plutselig treffer
+   * «sensor.data_energy_yearly». Og ved søk etter mønster kreves det at entiteten
+   * faktisk har dager-attributtet — ellers ville et mønster som treffer for bredt gjøre
+   * hvilken som helst tallsensor til en avfallsfraksjon. Det er nettopp det som skjedde:
+   * solhøyden dukket opp som «neste tømming om -14 dager».
+   */
   _ider() {
     if (Array.isArray(this._c.entities) && this._c.entities.length) return this._c.entities;
     if (!this._re || !this._h) return [];
-    return Object.keys(this._h.states).filter((id) => id.startsWith("sensor.") && this._re.test(id));
+    const attr = this._c.dager_attributt;
+    return Object.keys(this._h.states).filter((id) => {
+      if (!id.startsWith("sensor.") || !this._re.test(id)) return false;
+      const a = (this._h.states[id] || {}).attributes || {};
+      return a[attr] !== undefined && a[attr] !== null;
+    });
   }
 
   _slag(navn, id) {
@@ -171,6 +188,9 @@ class KiAvfallCard extends HTMLElement {
       let dager = a[c.dager_attributt];
       if (dager === undefined || dager === null || dager === "") dager = parseFloat(st.state);
       dager = isNaN(parseFloat(dager)) ? null : Math.round(parseFloat(dager));
+      // Negative dager betyr at sensoren ikke handler om tømming i det hele tatt, eller
+      // at datoen er utdatert. Over to år fram er like meningsløst.
+      if (dager !== null && (dager < 0 || dager > 730)) continue;
       const slag = this._slag(a.friendly_name, id);
       ut.push({ id, dager, dato: a[c.dato_attributt] || null,
         navn: a.friendly_name || slag.navn, ikon: a.icon || slag.ikon, farge: slag.farge });

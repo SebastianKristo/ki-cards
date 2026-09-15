@@ -65,8 +65,17 @@ cards:
 
   # Animert topp: neste tømming stort, med søppelbil på tømmedagen.
   # `fliser: false` gjør at kortet bare viser heroen — fraksjonene står i rutenettet under.
+  #
+  # Sensorene listes eksplisitt. Kortet støtter også `monster:` med et regexuttrykk, men
+  # bakstrekene i et slikt uttrykk overlever ikke alltid en runde i YAML-editoren, og et
+  # mønster som havarerer er vondt å se forskjell på et som treffer for bredt. En liste
+  # er kjedeligere og alltid riktig.
   - type: custom:ki-avfall-card
-    monster: "sensor\\.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)"
+    entities:
+      - sensor.restavfall
+      - sensor.papir_og_papp
+      - sensor.plastemballasje
+      - sensor.glass_og_metallemballasje
     dager_attributt: days_to_pickup
     dato_attributt: raw_date
     fliser: false
