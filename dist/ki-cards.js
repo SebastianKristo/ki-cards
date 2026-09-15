@@ -1,4 +1,4 @@
-/* ki-cards v3.55.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.56.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.55.1";
+  KI.VERSION = "3.56.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -109,8 +109,11 @@ window.KI = window.KI || {};
     .hero-forklaring { font-size:13.5px; opacity:.72; line-height:1.4; margin-top:3px; }
     .merke { font-size:11px; font-weight:600; padding:2px 7px; border-radius:75px; background:rgba(128,128,128,.28); vertical-align:middle; }
     .merke.gul { background:rgba(242,201,76,.35); } .merke.rod { background:rgba(244,67,54,.3); }
-    .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px; background:var(--gray200); }
-    .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500; cursor:pointer; opacity:.6; transition:background .18s ease, opacity .18s ease; }
+    .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px;
+      border-radius:75px; background:var(--gray200); }
+    .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
+      cursor:pointer; opacity:.6; white-space:nowrap; min-width:0;
+      transition:background .18s ease, opacity .18s ease; }
     .switch-valg.aktiv { background:var(--active-small, var(--active-big)); color:var(--gray100,#fafbfc); opacity:1; }
     /* Faner og «Avansert» på samme linje, så det ikke blir to brede brytere over hverandre */
     .fanelinje { display:flex; align-items:center; gap:8px; }
@@ -23681,10 +23684,13 @@ class KiEnergiCard extends HTMLElement {
       .merke { font-size:11px; font-weight:600; padding:2px 7px; border-radius:75px;
         background: rgba(128,128,128,.28); vertical-align:middle; }
 
-      .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px;
-        background: var(--gray200, var(--secondary-background-color)); }
+      /* grid-auto-columns i stedet for «1fr 1fr»: bryteren fordeler seg likt uansett
+         om det er to valg eller flere, så en tredje visning ikke krever CSS-endring. */
+      .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px;
+        border-radius:75px; background: var(--gray200, var(--secondary-background-color)); }
       .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
-        cursor:pointer; opacity:.6; transition: background .18s ease, opacity .18s ease; }
+        cursor:pointer; opacity:.6; white-space:nowrap; min-width:0;
+        transition: background .18s ease, opacity .18s ease; }
       .switch-valg.aktiv { background: var(--active-small, var(--active-big, var(--primary-color)));
         color: var(--gray100, #fafbfc); opacity:1; }
 
@@ -26222,7 +26228,7 @@ class KiK2Card extends HTMLElement {
       .knapp.bekreft .knapp-navn::after { content:" — trykk igjen"; }
 
       /* Visningsbryter */
-      .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px;
+      .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px; border-radius:75px;
         background: var(--gray200, var(--secondary-background-color)); }
       .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
         cursor:pointer; opacity:.6; transition: background .18s ease, opacity .18s ease, color .18s ease; }
@@ -33837,7 +33843,7 @@ class KiVekkealarmCard extends HTMLElement {
       .master-nedtell { font-size:14px; font-weight:600; opacity:.85; white-space:nowrap; font-variant-numeric:tabular-nums; }
 
       /* Visningsbryter */
-      .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px;
+      .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px; border-radius:75px;
         background: var(--gray200, var(--secondary-background-color)); }
       .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
         cursor:pointer; color: var(--gray1000, var(--primary-text-color)); opacity:.6;

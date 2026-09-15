@@ -481,10 +481,13 @@ class KiEnergiCard extends HTMLElement {
       .merke { font-size:11px; font-weight:600; padding:2px 7px; border-radius:75px;
         background: rgba(128,128,128,.28); vertical-align:middle; }
 
-      .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px;
-        background: var(--gray200, var(--secondary-background-color)); }
+      /* grid-auto-columns i stedet for «1fr 1fr»: bryteren fordeler seg likt uansett
+         om det er to valg eller flere, så en tredje visning ikke krever CSS-endring. */
+      .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px;
+        border-radius:75px; background: var(--gray200, var(--secondary-background-color)); }
       .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
-        cursor:pointer; opacity:.6; transition: background .18s ease, opacity .18s ease; }
+        cursor:pointer; opacity:.6; white-space:nowrap; min-width:0;
+        transition: background .18s ease, opacity .18s ease; }
       .switch-valg.aktiv { background: var(--active-small, var(--active-big, var(--primary-color)));
         color: var(--gray100, #fafbfc); opacity:1; }
 

@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.55.1";
+  KI.VERSION = "3.56.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -79,8 +79,11 @@ window.KI = window.KI || {};
     .hero-forklaring { font-size:13.5px; opacity:.72; line-height:1.4; margin-top:3px; }
     .merke { font-size:11px; font-weight:600; padding:2px 7px; border-radius:75px; background:rgba(128,128,128,.28); vertical-align:middle; }
     .merke.gul { background:rgba(242,201,76,.35); } .merke.rod { background:rgba(244,67,54,.3); }
-    .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px; background:var(--gray200); }
-    .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500; cursor:pointer; opacity:.6; transition:background .18s ease, opacity .18s ease; }
+    .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px;
+      border-radius:75px; background:var(--gray200); }
+    .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
+      cursor:pointer; opacity:.6; white-space:nowrap; min-width:0;
+      transition:background .18s ease, opacity .18s ease; }
     .switch-valg.aktiv { background:var(--active-small, var(--active-big)); color:var(--gray100,#fafbfc); opacity:1; }
     /* Faner og «Avansert» på samme linje, så det ikke blir to brede brytere over hverandre */
     .fanelinje { display:flex; align-items:center; gap:8px; }

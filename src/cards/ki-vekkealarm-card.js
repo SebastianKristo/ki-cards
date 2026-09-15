@@ -547,7 +547,7 @@ class KiVekkealarmCard extends HTMLElement {
       .master-nedtell { font-size:14px; font-weight:600; opacity:.85; white-space:nowrap; font-variant-numeric:tabular-nums; }
 
       /* Visningsbryter */
-      .switch { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:75px;
+      .switch { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px; border-radius:75px;
         background: var(--gray200, var(--secondary-background-color)); }
       .switch-valg { text-align:center; padding:9px 0; border-radius:75px; font-size:15px; font-weight:500;
         cursor:pointer; color: var(--gray1000, var(--primary-text-color)); opacity:.6;
