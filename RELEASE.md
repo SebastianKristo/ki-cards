@@ -1,31 +1,28 @@
-# ki-cards 3.61.0
+# ki-cards 3.62.0
 
-## `ki-avfall-card` plukket opp sensorer som ikke er avfall
+## `ki-k2-card` 1.1.0
 
-Kortet viste «Neste tømming: I dag — Data energy yearly» og «Deretter sun solhøyde om
--14 dager».
+Lett hånd, som med kameraktortet — strukturen og de to visningene er uendret.
 
-Årsaken var min egen reserveløsning: når dager-attributtet manglet, leste kortet dagene
-fra sensorens tilstand i stedet. Da blir hvilken som helst tallsensor en gyldig
-avfallsfraksjon, og solhøyden på −14 sorterte seg naturlig nok først.
+**Tittelrad med ikonfelt.** Tittelen var ren tekst i 20 px. Nå står den i en rad med
+48 px rundt ikonfelt til venstre, som sikkerhets-, ruter- og kameraktortet. Ikonet kan
+settes med `icon:`; standard er `mdi:printer-3d-nozzle`.
 
-Tre ting er rettet:
+Til høyre i rada står en kort status: «Skriver ut · 64 %». Under utskrift ser du dermed
+hvor det står uten å lese fremdriftsringen, og ved 0 og 100 % faller prosenten bort så
+det ikke står «Skriver ut · 100 %» på en ferdig jobb.
 
-**Dager-attributtet kreves** når kortet leter etter mønster. En sensor uten
-`days_to_pickup` er ikke en avfallssensor, uansett hva den heter. Oppgir du `entities:`
-selv, stoler kortet på deg som før.
+**Mediebryteren** mellom kamera og forhåndsvisning hadde en grå flate på den valgte
+halvdelen. Den bruker nå `--active-small` med lys tekst, som alle de andre bryterne i
+bundelen.
 
-**Mønsteret ankres** med `^` og `$` om det ikke er ankret selv, så det må treffe hele
-entitets-id-en. Før kunne «rest» treffe `sensor.data_energy_yearly` midt i navnet.
+**Fremdriftsringen pulserer** svakt mens den skriver ut, så du ser at noe skjer.
+`prefers-reduced-motion` slår det av.
 
-**Urimelige verdier forkastes.** Negative dager eller mer enn to år fram betyr at
-sensoren ikke handler om tømming, eller at datoen er utdatert.
+**Fargene kommer fra temaet.** Tretten steder brukte `rgba(128,128,128,...)` direkte —
+flater er nå `--gray100`, og streker og spor `color-mix` mot `--gray1000`. Det betyr at
+kortet følger temaet ditt i stedet for å ligge et hakk ved siden av, og at det ser riktig
+ut om du bytter til et lyst tema.
 
-Etter dette gir selv `monster: "sensor\\..*"` — som treffer alt — riktig resultat.
-
-## Eksempelet bruker `entities:` i stedet for `monster:`
-
-Bakstrekene i et regexuttrykk overlever ikke alltid en runde i YAML-editoren, og et
-mønster som havarerer er vanskelig å skille fra et som treffer for bredt. En liste med
-fire sensornavn er kjedeligere og alltid riktig. `monster:` finnes fortsatt for den som
-vil.
+Fallbacken for filamentfarge i slot-visningen er beholdt som den var — der er det en
+faktisk farge fra printeren som mangler, ikke en temafarge.

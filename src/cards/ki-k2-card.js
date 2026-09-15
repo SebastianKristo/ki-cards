@@ -15,7 +15,7 @@
  *   type: custom:ki-k2-card
  */
 
-const KI_K2_CARD_VERSION = "1.0.0";
+const KI_K2_CARD_VERSION = "1.1.0";
 
 console.info(
   `%c KI-K2-CARD %c ${KI_K2_CARD_VERSION} `,
@@ -108,6 +108,19 @@ class KiK2Card extends HTMLElement {
 
   getCardSize() { return this._view === "avansert" ? 24 : 14; }
 
+  /* Kort status til høyre i tittelrada: «Skriver ut · 64 %», eller bare tilstanden.
+     Da ser du hvordan printeren står uten å lese ringen. */
+  _tittelMeta() {
+    const h = this._hass;
+    if (!h) return "";
+    const st = h.states[this.s("print_status")];
+    if (!st || ["unknown", "unavailable", ""].includes(st.state)) return "";
+    const navn = STATUS_NO[String(st.state).toLowerCase()] || st.state;
+    const pr = h.states[this.s("print_progress")];
+    const n = pr ? parseFloat(pr.state) : NaN;
+    return isNaN(n) || n <= 0 || n >= 100 ? navn : `${navn} · ${Math.round(n)} %`;
+  }
+
   s(n) { return `sensor.${this._p}_${n}`; }
   nu(n) { return `number.${this._p}_${n}`; }
   bt(n) { return `button.${this._p}_${n}`; }
@@ -142,7 +155,11 @@ class KiK2Card extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>${KiK2Card.styles}</style>
       <ha-card>
         <div class="wrap">
-          ${c.title ? `<div class="card-title">${escK(c.title)}</div>` : ""}
+          ${c.title ? `<div class="tittelrad">
+            <span class="tittel-ikon"><ha-icon icon="${escK(c.icon || "mdi:printer-3d-nozzle")}"></ha-icon></span>
+            <h2>${escK(c.title)}</h2>
+            <span class="tittel-meta">${escK(this._tittelMeta())}</span>
+          </div>` : ""}
           ${this._statusHtml()}
           ${c.show_media ? this._mediaHtml() : ""}
           ${this._knapperHtml()}
@@ -689,7 +706,14 @@ class KiK2Card extends HTMLElement {
       :host { display:block; }
       ha-card { background:transparent; border:none; box-shadow:none; padding:0; }
       .wrap { display:flex; flex-direction:column; gap:10px; color: var(--gray1000, var(--primary-text-color)); }
-      .card-title { font-size:20px; font-weight:600; padding:2px 6px 0; }
+      /* Tittelrad med rundt ikonfelt, samme form som sikkerhets- og kameraktortet. */
+      .tittelrad { display:flex; align-items:center; gap:12px; padding:2px 2px 0; }
+      .tittel-ikon { width:48px; height:48px; border-radius:50%; flex:none;
+        display:flex; align-items:center; justify-content:center;
+        background: rgba(250,251,252,.10); --mdc-icon-size:24px; }
+      .tittelrad h2 { margin:0; flex:1; min-width:0; font-size:19px; font-weight:700;
+        letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .tittel-meta { font-size:13px; opacity:.55; white-space:nowrap; }
       .wrap[data-view="enkel"] .avansert-kun { display:none !important; }
 
       /* Status */
@@ -702,10 +726,12 @@ class KiK2Card extends HTMLElement {
       .ring { position:relative; width:88px; height:88px; cursor:pointer; }
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }
-      .ring-spor { stroke: rgba(128,128,128,.24); }
+      .ring-spor { stroke: color-mix(in srgb, var(--gray1000) 18%, transparent); }
       .ring-fyll { stroke: var(--gray1000, var(--primary-text-color));
         transition: stroke-dashoffset .6s cubic-bezier(.2,.7,.3,1), stroke .3s ease; }
-      .status[data-tilstand="aktiv"] .ring-fyll { stroke: var(--green, #4caf50); }
+      .status[data-tilstand="aktiv"] .ring-fyll { stroke: var(--green, #4caf50);
+        animation: kiK2Puls 2.4s ease-in-out infinite; }
+      @keyframes kiK2Puls { 0%,100% { opacity:1 } 50% { opacity:.72 } }
       .status[data-tilstand="pauset"] .ring-fyll { stroke: var(--orange, #fc6d09); }
       .status[data-tilstand="feil"] .ring-fyll { stroke: var(--red, #f44336); }
       .ring-tall { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -717,9 +743,12 @@ class KiK2Card extends HTMLElement {
       /* Media */
       .media { background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:8px; }
       .media-bytt { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:2px 2px 8px; }
-      .media-valg { text-align:center; padding:7px 0; border-radius:75px; font-size:13px; cursor:pointer; opacity:.6;
-        background: rgba(128,128,128,.16); }
-      .media-valg.aktiv { background: rgba(128,128,128,.30); opacity:1; font-weight:600; }
+      .media-valg { text-align:center; padding:8px 0; border-radius:75px; font-size:14px;
+        font-weight:500; cursor:pointer; opacity:.6;
+        background: var(--gray100, rgba(128,128,128,.16)); }
+      /* Samme aktive farge som bryterne ellers, i stedet for en grå flate. */
+      .media-valg.aktiv { background: var(--active-small, var(--active-big, var(--primary-color)));
+        color: var(--gray100, #fafbfc); opacity:1; }
       .media-flate { border-radius:18px; overflow:hidden; min-height:120px; background: rgba(0,0,0,.2); }
       .media-flate ha-card { background:none; border:none; box-shadow:none; }
 
@@ -728,9 +757,12 @@ class KiK2Card extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); border-radius:24px; padding:12px 10px; }
       .knapp { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; }
       .knapp-sirkel { width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-        background: rgba(128,128,128,.18); transition: background .18s ease, color .18s ease; }
+        background: var(--gray100, rgba(128,128,128,.18)); transition: background .18s ease, color .18s ease; }
       .knapp-sirkel ha-icon { --mdc-icon-size:26px; }
       .knapp-navn { font-size:12px; opacity:.7; }
+      @media (prefers-reduced-motion: reduce) {
+        .ring-fyll { animation:none !important; }
+      }
       .knapp:active .knapp-sirkel { transform: scale(.94); }
       .knapp.inaktiv { opacity:.32; pointer-events:none; }
       .knapp.mangler { opacity:.25; pointer-events:none; }
@@ -760,7 +792,8 @@ class KiK2Card extends HTMLElement {
 
       /* Temperatur */
       .temp-rutenett { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-      .temp { background: rgba(128,128,128,.12); border-radius:18px; padding:12px 8px; text-align:center; cursor:pointer; }
+      .temp { background: var(--gray100, rgba(128,128,128,.12)); border-radius:18px;
+        padding:12px 8px; text-align:center; cursor:pointer; }
       .temp ha-icon { --mdc-icon-size:22px; opacity:.8; }
       .temp-navn { font-size:12px; opacity:.65; margin-top:2px; }
       .temp-verdi { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:2px; }
@@ -769,33 +802,37 @@ class KiK2Card extends HTMLElement {
       /* Slots */
       .slots { display:flex; flex-direction:column; gap:8px; }
       .slot { display:grid; grid-template-columns:38px 1fr 90px 48px; align-items:center; gap:10px;
-        padding:6px 8px; border-radius:16px; cursor:pointer; background: rgba(128,128,128,.10); }
-      .slot.aktiv { background: rgba(128,128,128,.22); box-shadow: inset 0 0 0 2px var(--active-big, var(--primary-color)); }
+        padding:6px 8px; border-radius:16px; cursor:pointer; background: var(--gray100, rgba(128,128,128,.10)); }
+      .slot.aktiv { background: color-mix(in srgb, var(--active-big) 16%, var(--gray100));
+        box-shadow: inset 0 0 0 2px var(--active-big, var(--primary-color)); }
       .slot-farge { width:34px; height:34px; border-radius:10px; position:relative;
         box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
       .slot-nr { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
         font-size:12px; font-weight:700; color:#fff; text-shadow:0 0 3px rgba(0,0,0,.7); }
       .slot-navn { font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .slot-spor { height:7px; border-radius:4px; background: rgba(128,128,128,.26); overflow:hidden; }
+      .slot-spor { height:7px; border-radius:99px;
+        background: color-mix(in srgb, var(--gray1000) 16%, transparent); overflow:hidden; }
       .slot-fyll { height:100%; width:0%; border-radius:4px; background: var(--gray1000, var(--primary-text-color)); opacity:.75;
         transition: width .5s ease; }
       .slot-pct { font-size:13px; font-weight:600; text-align:right; font-variant-numeric:tabular-nums; }
 
       /* Rader */
       .rad { display:grid; grid-template-columns:36px 1fr auto auto; align-items:center; gap:10px; padding:8px 2px; }
-      .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
+      .rad + .rad { border-top:1px solid color-mix(in srgb, var(--gray1000) 12%, transparent); }
       .rad-les { grid-template-columns:14px 1fr auto; cursor:pointer; }
       .rad-ikon { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-        background: rgba(128,128,128,.14); }
+        background: color-mix(in srgb, var(--gray1000) 12%, transparent); }
       .rad-ikon ha-icon { --mdc-icon-size:19px; opacity:.85; }
       .rad-ikon.spinner ha-icon { animation: snurr 2.4s linear infinite; }
       @keyframes snurr { to { transform: rotate(360deg); } }
       .rad-navn { font-size:14.5px; cursor:pointer; }
       .rad-verdi { font-size:14px; font-weight:600; opacity:.85; font-variant-numeric:tabular-nums; }
-      .prikk { width:10px; height:10px; border-radius:50%; background: rgba(128,128,128,.4); }
+      .prikk { width:10px; height:10px; border-radius:50%;
+        background: color-mix(in srgb, var(--gray1000) 34%, transparent); }
       .prikk.usynlig { background:none; }
 
-      .bryter { width:46px; height:28px; border-radius:75px; background: rgba(128,128,128,.28); cursor:pointer;
+      .bryter { width:46px; height:28px; border-radius:75px;
+        background: color-mix(in srgb, var(--gray1000) 24%, transparent); cursor:pointer;
         position:relative; transition: background .18s ease; }
       .bryter.on { background: var(--active-big, var(--primary-color)); }
       .bryter-kule { position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
@@ -808,7 +845,7 @@ class KiK2Card extends HTMLElement {
       .slider-navn { font-size:14.5px; font-weight:500; cursor:pointer; }
       .slider-verdi { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
       .slider { -webkit-appearance:none; appearance:none; width:100%; height:8px; margin:12px 0 4px;
-        border-radius:4px; background: rgba(128,128,128,.28); outline:none; }
+        border-radius:99px; background: color-mix(in srgb, var(--gray1000) 24%, transparent); outline:none; }
       .slider::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
         background: var(--gray1000, var(--primary-text-color)); cursor:pointer; border:none; }
       .slider::-moz-range-thumb { width:20px; height:20px; border-radius:50%; border:none;
@@ -816,14 +853,14 @@ class KiK2Card extends HTMLElement {
 
       /* Posisjon */
       .posisjon { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
-      .pos { background: rgba(128,128,128,.12); border-radius:14px; padding:8px; text-align:center; }
+      .pos { background: var(--gray100, rgba(128,128,128,.12)); border-radius:14px; padding:8px; text-align:center; }
       .pos span { font-size:12px; opacity:.6; margin-right:6px; }
       .pos b { font-size:14px; font-variant-numeric:tabular-nums; }
 
       /* Hurtigvalg */
       .hurtig { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
       .mini { text-align:center; padding:11px 8px; border-radius:75px; font-size:13px; cursor:pointer;
-        background: rgba(128,128,128,.16); }
+        background: var(--gray100, rgba(128,128,128,.16)); }
       .mini:active { transform: scale(.98); }
 
       .mangler { opacity:.4; }
@@ -898,7 +935,7 @@ class KiK2CardEditor extends HTMLElement {
     if (!this._form) {
       this.shadowRoot.innerHTML = `<style>
         .info { font-size:13px; opacity:.7; padding:10px 2px 0; line-height:1.45; }
-        code { background: rgba(128,128,128,.18); padding:1px 5px; border-radius:5px; }
+        code { background: color-mix(in srgb, var(--gray1000) 16%, transparent); padding:1px 5px; border-radius:5px; }
       </style>`;
       this._form = document.createElement("ha-form");
       this._form.schema = K2_SCHEMA;
