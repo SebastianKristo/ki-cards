@@ -1,4 +1,4 @@
-/* ki-cards v3.52.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.53.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.52.0";
+  KI.VERSION = "3.53.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9563,6 +9563,9 @@ try {
             felt: [
               F.bryter(`rom.${r}.skjul`, 'Vis rommet', { nei: true }),
               F.tekst(`rom.${r}.navn`, 'Navn (<br> gir linjeskift)'),
+              F.ikon(`rom.${r}.ikon`, 'Ikon (tomt = rommets ikon i HA)'),
+              F.ent(`rom.${r}.temperatur`, 'Temperatursensor', 'sensor'),
+              F.ent(`rom.${r}.fuktighet`, 'Fuktighetssensor', 'sensor'),
               F.valg(`rom.${r}.size`, 'Størrelse', [
                 { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
                 { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }], 'big'),
@@ -9585,12 +9588,22 @@ try {
         }
       }
 
+      g.push({ id: 'sesong', tittel: 'Sesongfliser i Aktuelt', niva: 0, liste: {
+        vei: 'aktuelt.sesong',
+        nytt: () => ({ fra: '11-01', til: '03-01', kind: 'navigate', main_text: 'Ny sesong' }),
+        navn: (f) => `${f.main_text || f.navn || f.entity || 'Sesong'} (${f.fra || '?'} – ${f.til || '?'})`,
+        skjema: (f) => [
+          { name: 'fra', selector: { text: {} } }, { name: 'til', selector: { text: {} } },
+          ...this._stovSkjema(f),
+        ],
+        knapp: '+ Legg til sesongflis',
+        enkel: true,        // ingen swipe-grupper i sesonglista
+      } });
+
       g.push({ id: 'stov', tittel: 'Fliser i Hjem-fanen', niva: 0, liste: {
         vei: 'hjem.stov',
         nytt: () => ({ kind: 'navigate', main_text: 'Ny flis', ikon: 'mdi:card-outline' }),
-        navn: (f) => f.main_text || f.navn || f.rom || f.entity
-          || (this._stovTyper().find((x) => x.value === (f.kind || 'navigate')) || {}).label || 'Flis',
-        skjema: (f) => this._stovSkjema(f),
+        navn: (f) => this._flisNavn(f),
       } });
 
       return g;
@@ -9703,56 +9716,153 @@ try {
       b.f.data = data;
     }
 
-    _tegnListe(gr, b) {
-      const L = gr.liste;
-      const liste = () => {
-        const v = les(this._config || {}, L.vei);
-        return Array.isArray(v) ? v.map((x) => ({ ...x })) : [];
-      };
-      const lagre = (ny) => this._endre((ut) => skriv(ut, L.vei, ny.length ? ny : undefined));
-      b.innhold.innerHTML = '';
-      const rader = liste();
+    /* Liste av fliser. Et element er enten en flis, eller en `swipe`-gruppe med egne
+       kort inni — og da tegner vi lista på nytt ett nivå ned. Uten dette kunne swipe-
+       gruppene i `hjem.stov` bare redigeres i YAML. */
+    _flisListe(vert, lesL, lagreL, dybde) {
+      const rader = lesL();
 
-      rader.forEach((flis, i) => {
+      rader.forEach((el, i) => {
+        const erSwipe = el && typeof el.swipe === 'object' && el.swipe;
         const rad = document.createElement('div');
         rad.className = 'frad';
+        if (dybde) rad.style.paddingLeft = (12 + dybde * 16) + 'px';
         const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = String(i + 1);
-        const navn = document.createElement('span'); navn.className = 'navn'; navn.textContent = L.navn(flis);
+        const navn = document.createElement('span'); navn.className = 'navn';
+        navn.textContent = erSwipe
+          ? `Swipe-gruppe (${(el.swipe.cards || []).length} kort)`
+          : this._flisNavn(el || {});
         const opp = document.createElement('button'); opp.textContent = '▲'; opp.disabled = i === 0;
         const ned = document.createElement('button'); ned.textContent = '▼'; ned.disabled = i === rader.length - 1;
         const bort = document.createElement('button'); bort.textContent = '✕'; bort.className = 'bort';
         bort.title = 'Fjern';
-        opp.addEventListener('click', () => { const l = liste(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; lagre(l); });
-        ned.addEventListener('click', () => { const l = liste(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; lagre(l); });
-        bort.addEventListener('click', () => { const l = liste(); l.splice(i, 1); lagre(l); });
+        opp.addEventListener('click', () => { const l = lesL(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; lagreL(l); });
+        ned.addEventListener('click', () => { const l = lesL(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; lagreL(l); });
+        bort.addEventListener('click', () => { const l = lesL(); l.splice(i, 1); lagreL(l); });
         rad.append(nr, navn, opp, ned, bort);
-        b.innhold.appendChild(rad);
+        vert.appendChild(rad);
 
         const boks = document.createElement('div');
         boks.className = 'fform';
+        if (dybde) boks.style.paddingLeft = (36 + dybde * 16) + 'px';
+
+        if (erSwipe) {
+          // gruppens egne innstillinger
+          const f = document.createElement('ha-form');
+          f.hass = this._hass;
+          f.schema = [{ name: 'height', selector: { text: {} } },
+            { name: 'type', selector: { select: { mode: 'dropdown', options: [
+              { value: 'css', label: 'Med paginering' }, { value: 'plain', label: 'Enkel' }] } } }];
+          f.data = { height: el.swipe.height, type: el.swipe.type || 'css' };
+          f.computeLabel = (sc) => ({ height: 'Høyde, f.eks. 85px', type: 'Swipe-type' }[sc.name] || sc.name);
+          f.addEventListener('value-changed', (ev) => {
+            ev.stopPropagation();
+            const l = lesL();
+            l[i] = { ...l[i], swipe: { ...l[i].swipe, ...(ev.detail.value || {}) } };
+            for (const k of Object.keys(l[i].swipe)) if (l[i].swipe[k] === '' || l[i].swipe[k] === undefined) delete l[i].swipe[k];
+            lagreL(l);
+          });
+          boks.appendChild(f);
+          vert.appendChild(boks);
+
+          // kortene inni gruppen
+          this._flisListe(vert,
+            () => (lesL()[i].swipe.cards || []).map((x) => ({ ...x })),
+            (kort) => { const l = lesL(); l[i] = { ...l[i], swipe: { ...l[i].swipe, cards: kort } }; lagreL(l); },
+            (dybde || 0) + 1);
+          return;
+        }
+
         const f = document.createElement('ha-form');
         f.hass = this._hass;
-        f.schema = L.skjema(flis);
-        f.data = flis;
-        f.computeLabel = (sc) => ({ kind: 'Type', rom: 'Rom', size: 'Størrelse', entity: 'Entitet',
-          main_text: 'Tittel', sub_text: 'Undertekst', ikon: 'Ikon',
-          farge: 'Farge, f.eks. var(--green)', path: 'Popup-hash, f.eks. #ruter' }[sc.name] || sc.name);
+        f.schema = this._stovSkjema(el || {});
+        f.data = el || {};
+        f.computeLabel = (sc) => this._flisEtikett(sc.name);
         f.addEventListener('value-changed', (ev) => {
           ev.stopPropagation();
-          const l = liste();
+          const l = lesL();
           l[i] = { ...l[i], ...(ev.detail.value || {}) };
           for (const k of Object.keys(l[i])) if (l[i][k] === '' || l[i][k] === undefined) delete l[i][k];
-          lagre(l);
+          lagreL(l);
         });
         boks.appendChild(f);
-        b.innhold.appendChild(boks);
+        vert.appendChild(boks);
       });
+    }
 
+    _flisNavn(f) {
+      return f.main_text || f.navn || f.rom || f.entity
+        || (this._stovTyper().find((x) => x.value === (f.kind || 'navigate')) || {}).label || 'Flis';
+    }
+
+    _flisEtikett(n) {
+      return { kind: 'Type', rom: 'Rom', size: 'Størrelse', entity: 'Entitet', main_text: 'Tittel',
+        sub_text: 'Undertekst', ikon: 'Ikon', farge: 'Farge, f.eks. var(--green)',
+        path: 'Popup-hash eller sti, f.eks. #ruter', fra: 'Vises fra (MM-DD)',
+        til: 'Vises til (MM-DD)' }[n] || n;
+    }
+
+    _tegnListe(gr, b) {
+      const L = gr.liste;
+      const lesL = () => {
+        const v = les(this._config || {}, L.vei);
+        return Array.isArray(v) ? v.map((x) => JSON.parse(JSON.stringify(x))) : [];
+      };
+      const lagreL = (ny) => this._endre((ut) => skriv(ut, L.vei, ny.length ? ny : undefined));
+      b.innhold.innerHTML = '';
+
+      if (L.enkel) {
+        // enkel liste (sesongfliser): ingen swipe-grupper her
+        lesL().forEach((el, i) => {
+          const rader = lesL();
+          const rad = document.createElement('div');
+          rad.className = 'frad';
+          const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = String(i + 1);
+          const navn = document.createElement('span'); navn.className = 'navn'; navn.textContent = L.navn(el);
+          const opp = document.createElement('button'); opp.textContent = '▲'; opp.disabled = i === 0;
+          const ned = document.createElement('button'); ned.textContent = '▼'; ned.disabled = i === rader.length - 1;
+          const bort = document.createElement('button'); bort.textContent = '✕'; bort.className = 'bort';
+          opp.addEventListener('click', () => { const l = lesL(); [l[i - 1], l[i]] = [l[i], l[i - 1]]; lagreL(l); });
+          ned.addEventListener('click', () => { const l = lesL(); [l[i + 1], l[i]] = [l[i], l[i + 1]]; lagreL(l); });
+          bort.addEventListener('click', () => { const l = lesL(); l.splice(i, 1); lagreL(l); });
+          rad.append(nr, navn, opp, ned, bort);
+          b.innhold.appendChild(rad);
+          const boks = document.createElement('div');
+          boks.className = 'fform';
+          const f = document.createElement('ha-form');
+          f.hass = this._hass;
+          f.schema = L.skjema(el);
+          f.data = el;
+          f.computeLabel = (sc) => this._flisEtikett(sc.name);
+          f.addEventListener('value-changed', (ev) => {
+            ev.stopPropagation();
+            const l = lesL();
+            l[i] = { ...l[i], ...(ev.detail.value || {}) };
+            for (const k of Object.keys(l[i])) if (l[i][k] === '' || l[i][k] === undefined) delete l[i][k];
+            lagreL(l);
+          });
+          boks.appendChild(f);
+          b.innhold.appendChild(boks);
+        });
+      } else {
+        this._flisListe(b.innhold, lesL, lagreL, 0);
+      }
+
+      const knapper = document.createElement('div');
       const legg = document.createElement('button');
       legg.className = 'legg';
-      legg.textContent = '+ Legg til flis';
-      legg.addEventListener('click', () => lagre([...liste(), L.nytt()]));
-      b.innhold.appendChild(legg);
+      legg.textContent = L.knapp || '+ Legg til flis';
+      legg.addEventListener('click', () => lagreL([...lesL(), L.nytt()]));
+      knapper.appendChild(legg);
+      if (!L.enkel) {
+        const gruppe = document.createElement('button');
+        gruppe.className = 'legg';
+        gruppe.textContent = '+ Legg til swipe-gruppe';
+        gruppe.addEventListener('click', () => lagreL([...lesL(),
+          { swipe: { height: '85px', cards: [{ kind: 'navigate', main_text: 'Ny flis' }] } }]));
+        knapper.appendChild(gruppe);
+      }
+      b.innhold.appendChild(knapper);
     }
 
     _floors() {
