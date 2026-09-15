@@ -1,11 +1,18 @@
-# Søppel-popupen.
+# Søppel-popupen — ditt originale oppsett, med en animert topp over.
 #
-# Erstatter auto-entities-oppsettet med ett kort. Kortet finner sensorene selv ut fra
-# mønsteret, leser `days_to_pickup` og `raw_date`, sorterer etter hvor nær tømmingen er,
-# og gir den nærmeste heroen.
+# Rutenettet er uendret: auto-entities som lager to kolonner av
+# template_sensor_big_alt, sortert på days_to_pickup. Kortet skal være til å kjenne igjen.
 #
-# På tømmedagen skifter heroen til fraksjonens farge, tallet pulserer, bøtta rister og
-# søppelbilen kjører over. Dagen etter er den rolig igjen.
+# Over det ligger ki-avfall-card med `fliser: false`, altså bare heroen — den dupliserer
+# ikke fraksjonene under. Den viser neste tømming stort, og på tømmedagen skifter den til
+# fraksjonens farge, tallet pulserer, bøtta rister og søppelbilen kjører over.
+#
+# Flisene har fått tilbake ikonet i det runde feltet med bakgrunn — samme plassering som
+# universal_sensor_ny-flisene ellers i dashbordet. `icon: null` gjorde at det feltet sto
+# tomt, så søppelflisene var de eneste uten. Ikonet og bakgrunnen får fraksjonens farge:
+# papir blått, plast lilla, glass og metall grønt, restavfall grått.
+#
+# Ellers: «I morgen» og riktig entall i text_main. Før sto det «1 dager».
 
 type: custom:bubble-card
 card_type: pop-up
@@ -19,9 +26,9 @@ styles: |+
     --vertical-stack-card-gap: 0px!important;
   } #header-container > div > div {
     background: var(--gray000)!important;
-  }
-  #header-container > button {background: none;}
-  .icon-container {background-color:var(--gray1000)!important;}
+  }     
+  #header-container > button {background: none;}    
+  .icon-container {background-color:var(--gray1000)!important;} 
   .icon-container > ha-icon {color:var(--black)!important;opacity:1!important}
   .bubble-icon {
     --mdc-icon-size: 24px !important;
@@ -31,11 +38,14 @@ styles: |+
     font-weight: 500;
     line-height: 1.4 !important;
     padding: 8px 0 !important;
+
   }
   .bubble-close-button {
     background-color: var(--gray200) !important;
     border-radius: 50%;
   }
+
+
 
 bg_blur: '5'
 shadow_opacity: '20'
@@ -53,54 +63,104 @@ cards:
   - type: custom:gap-card
     height: 0
 
+  # Animert topp: neste tømming stort, med søppelbil på tømmedagen.
+  # `fliser: false` gjør at kortet bare viser heroen — fraksjonene står i rutenettet under.
   - type: custom:ki-avfall-card
-    # Enten mønsteret, som finner sensorene selv:
     monster: "sensor\\.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)"
-    # ...eller en fast liste, hvis du vil styre rekkefølgen av hvilke som er med:
-    # entities:
-    #   - sensor.restavfall
-    #   - sensor.papir_og_papp
-    #   - sensor.plastemballasje
-    #   - sensor.glass_og_metallemballasje
     dager_attributt: days_to_pickup
     dato_attributt: raw_date
+    fliser: false
+    hoyde: 150
 
   - type: custom:gap-card
     height: 10
 
-  # Datoene framover, hvis du vil ha hele lista i tillegg
   - type: custom:auto-entities
     card:
-      type: entities
-      title: Datoer framover
-      card_mod:
-        style: |
-          ha-card {
-            background: var(--gray200);
-            border-radius: 24px;
-            border: none;
-          }
-          .card-header {
-            font-size: 15px !important;
-            font-weight: 600 !important;
-            padding: 16px 18px 4px !important;
-          }
-    card_param: entities
+      type: grid
+      columns: 2
+      square: false
+    card_param: cards
     filter:
       include:
         - entity_id: >-
             /sensor.(glass_og_metallemballasje|plastemballasje|papir_og_papp|restavfall)/
           options:
-            type: attribute
-            attribute: raw_date
-            format: date
+            type: custom:button-card
+            template: template_sensor_big_alt
+            entity: this.entity_id
+            variables:
+              margin: 0
+              # Tømmes den i dag, får hele flisen fraksjonens farge — samme grep som
+              # de andre flisene dine bruker for aktiv tilstand
+              background_color: |
+                [[[
+                  if (entity.attributes.days_to_pickup !== 0) return 'var(--gray200)';
+                  const n = (entity.attributes.friendly_name || '').toLowerCase();
+                  if (n.includes('glass') || n.includes('metall')) return 'var(--green)';
+                  if (n.includes('plast')) return 'var(--purple)';
+                  if (n.includes('papir') || n.includes('papp')) return 'var(--blue)';
+                  if (n.includes('mat')) return 'var(--orange)';
+                  return 'var(--gray600)';
+                ]]]
+              text_color: |
+                [[[
+                  return entity.attributes.days_to_pickup === 0
+                    ? 'var(--black)' : 'var(--gray1000)';
+                ]]]
+              text_sub: '[[[ return entity.attributes.friendly_name ]]]'
+              text_main: |
+                [[[
+                  const d = entity.attributes.days_to_pickup;
+                  if (d === 0) return 'I dag';
+                  if (d === 1) return 'I morgen';
+                  return d + '<span style="font-size:14px;line-height:1.5em"> dager</span>';
+                ]]]
+              text_alt: |
+                [[[ 
+                    const date = new Date(entity.attributes.raw_date);
+                    const day = date.getDate();
+                    const month = date.toLocaleString('nb-NO', { month: 'short' }).replace('.', '');
+                    return day + '. ' + month;
+                ]]]          
+              # Ikonet i det runde feltet, som på de andre flisene i dashbordet
+              icon: |
+                [[[
+                  const n = (entity.attributes.friendly_name || '').toLowerCase();
+                  if (n.includes('glass') || n.includes('metall')) return 'mdi:bottle-soda-classic-outline';
+                  if (n.includes('plast')) return 'mdi:recycle';
+                  if (n.includes('papir') || n.includes('papp')) return 'mdi:newspaper-variant-outline';
+                  if (n.includes('mat')) return 'mdi:food-apple-outline';
+                  if (n.includes('hage')) return 'mdi:leaf';
+                  return 'mdi:trash-can-outline';
+                ]]]
+              # Fraksjonens farge på ikonet. Tømmes den i dag, er hele flisen allerede
+              # i den fargen — da må ikonet bli mørkt, ellers forsvinner det i bakgrunnen.
+              color: |
+                [[[
+                  if (entity.attributes.days_to_pickup === 0) return 'var(--black)';
+                  const n = (entity.attributes.friendly_name || '').toLowerCase();
+                  if (n.includes('glass') || n.includes('metall')) return 'var(--green)';
+                  if (n.includes('plast')) return 'var(--purple)';
+                  if (n.includes('papir') || n.includes('papp')) return 'var(--blue)';
+                  if (n.includes('mat')) return 'var(--orange)';
+                  return 'var(--gray600)';
+                ]]]
+              icon_color: |
+                [[[
+                  if (entity.attributes.days_to_pickup === 0) return 'var(--black)';
+                  const n = (entity.attributes.friendly_name || '').toLowerCase();
+                  if (n.includes('glass') || n.includes('metall')) return 'var(--green)';
+                  if (n.includes('plast')) return 'var(--purple)';
+                  if (n.includes('papir') || n.includes('papp')) return 'var(--blue)';
+                  if (n.includes('mat')) return 'var(--orange)';
+                  return 'var(--gray600)';
+                ]]]
     sort:
       method: attribute
       attribute: days_to_pickup
       numeric: true
-    show_empty: false
-
-  - type: custom:gap-card
-    height: 36
+      reverse: false
+    show_empty: true
 
 popup_mode: default

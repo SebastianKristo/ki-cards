@@ -1,4 +1,4 @@
-/* ki-cards v3.59.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.60.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.59.0";
+  KI.VERSION = "3.60.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -18899,8 +18899,10 @@ try {
  * dager_attributt: days_to_pickup
  * dato_attributt: raw_date
  * path: '#soppel'                  # hva trykk på heroen åpner
+ * fliser: false                    # bare heroen — bruk når du har egne fliser under
+ * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "1.0.0";
+const KI_AV_VERSJON = "1.1.0";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -18935,6 +18937,8 @@ const KI_AV_STIL = `
   @keyframes kiAvPuls { 0%,100% { transform:scale(1) } 50% { transform:scale(1.04) } }
   .dato { font-size:13.5px; opacity:.62; margin-top:8px; }
   .navn { text-align:right; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .navn .etter { font-size:12px; font-weight:500; opacity:.55; margin-top:6px;
+    letter-spacing:0; line-height:1.4; }
 
   /* bøtte og bil nederst i heroen */
   .scene { position:absolute; inset:auto 0 0 0; height:70px; z-index:-1;
@@ -19092,14 +19096,17 @@ class KiAvfallCard extends HTMLElement {
     }
 
     const neste = alle[0];
-    const resten = alle.slice(1);
+    // fliser: false gir bare heroen. Da kan den ligge som animert topp over et
+    // rutenett du har bygget selv, uten at kortet dupliserer fraksjonene under.
+    const resten = c.fliser === false ? [] : alle.slice(1);
     const t = kiAvTekst(neste.dager);
     const idag = neste.dager !== null && neste.dager <= 0;
     const snart = neste.dager !== null && neste.dager > 0 && neste.dager <= 2;
 
     this.shadowRoot.innerHTML = `<style>${KI_AV_STIL}</style>
       <div class="kort">
-        <div class="hero ${idag ? "idag" : snart ? "snart" : ""}" style="--f:${neste.farge}"
+        <div class="hero ${idag ? "idag" : snart ? "snart" : ""}"
+             style="--f:${neste.farge}${c.hoyde ? `;min-height:${parseFloat(c.hoyde) || 168}px` : ""}"
              data-mer="${kiAvEsc(neste.id)}" tabindex="0">
           ${this._scene(idag ? "rgba(0,0,0,.45)" : neste.farge)}
           <div>
@@ -19107,7 +19114,10 @@ class KiAvfallCard extends HTMLElement {
             <div class="stor">${kiAvEsc(t.tall)}${t.enhet ? `<small>${t.enhet}</small>` : ""}</div>
             <div class="dato">${kiAvEsc(kiAvDato(neste.dato))}</div>
           </div>
-          <div class="navn">${kiAvEsc(neste.navn)}</div>
+          <div class="navn">${kiAvEsc(neste.navn)}${
+            c.fliser === false && alle.length > 1
+              ? `<div class="etter">Deretter ${kiAvEsc(alle[1].navn.toLowerCase())} om ${
+                  alle[1].dager} dager</div>` : ""}</div>
         </div>
 
         ${resten.length ? `<div class="rutenett">${resten.map((f) => {
