@@ -15,7 +15,7 @@
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.6.1";
+const KI_VANN_VERSJON = "3.7.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -131,11 +131,24 @@ const KI_VANN_STIL = `
   .innlag .lukk { border:0; background:rgba(255,255,255,.12); color:#fff; width:32px; height:32px;
     border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:19px; }
 
-  .faner { display:flex; justify-content:center; }
-  .skinne { display:inline-flex; gap:4px; padding:3px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:15px; font-weight:500;
-    padding:9px 22px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:background .2s, color .2s; }
-  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  /* Fanerada. Fem faner med 22 px sidepadding ble bredere enn kortet, og uten
+     overflow-x klemte pillene seg sammen i stedet for å rulle — teksten ble smal og
+     rada like fullt for stor. Nå er pillene strammere, de beholder bredden sin, og
+     rada ruller sidelengs når det er flere faner enn det er plass til. */
+  .faner { display:flex; justify-content:center; min-width:0; }
+  .skinne { display:flex; gap:3px; padding:3px; border:1px solid rgba(255,255,255,.3);
+    border-radius:999px; width:fit-content; max-width:100%; min-width:0;
+    overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none;
+    -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; }
+  .skinne::-webkit-scrollbar { display:none; }
+  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit;
+    font-size:13.5px; font-weight:500; padding:8px 15px; border-radius:999px; cursor:pointer;
+    white-space:nowrap; flex:none; scroll-snap-align:center;
+    transition:background .2s, color .2s; }
+  .fane:hover { color:rgba(255,255,255,.95); }
+  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
+    box-shadow:0 1px 6px rgba(0,0,0,.35); }
+  @media (max-width:380px) { .fane { font-size:12.5px; padding:7px 12px; } }
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
   /* ---- soner ---- */
@@ -1364,6 +1377,13 @@ class KiVanningCard extends HTMLElement {
     const lag = r.querySelector(".innlag .innhold");
     if (lag) { lag.innerHTML = this._panelInnstillinger(); this._koblInnstillinger(lag); }
     r.querySelectorAll(".fane").forEach((b) => b.classList.toggle("valgt", b.dataset.f === this._fane));
+    // Ruller rada så den valgte fanen er synlig. Uten dette kan du trykke på en fane
+    // helt til høyre og miste den ut av syne igjen ved neste omtegning.
+    const valgtFane = r.querySelector(".fane.valgt");
+    if (valgtFane && valgtFane.scrollIntoView) {
+      try { valgtFane.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" }); }
+      catch (e) { /* eldre nettlesere: la den stå */ }
+    }
     r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
 
     /* klikk i panelene kobles på nytt etter hver tegning */

@@ -15,9 +15,10 @@
  * dato_attributt: raw_date
  * path: '#soppel'                  # hva trykk på heroen åpner
  * fliser: false                    # bare heroen — bruk når du har egne fliser under
+ * kolonner: 1                      # 1 gir én fraksjon per rad, 2 gir to i bredden
  * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "1.2.0";
+const KI_AV_VERSJON = "2.0.0";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -35,73 +36,95 @@ const KI_AV_STIL = `
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .kort { display:grid; gap:8px; color:var(--gray1000); }
 
-  /* ---- heroen: neste tømming ---- */
+  /* ---- heroen ----
+     Alt innholdet ligger i én kolonne ved siden av ikonet. Første utgave hadde
+     fraksjonsnavnet i en egen kolonne til høyre og «Deretter»-linja under det; på en
+     mobil ble kolonnen så smal at teksten rant inn over nedtellingen. */
   .hero { position:relative; overflow:hidden; isolation:isolate; border-radius:24px;
-    background:var(--gray200); min-height:168px; padding:18px;
-    display:grid; grid-template-columns:1fr auto; align-items:start; gap:12px;
-    cursor:pointer; transition:background .5s var(--myk), color .3s; }
-  .hero.snart { background:color-mix(in srgb, var(--f) 30%, var(--gray200)); }
+    background:var(--gray200); padding:16px 18px 0;
+    display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px;
+    align-items:start; cursor:pointer; transition:background .5s var(--myk), color .3s; }
+  .hero.snart { background:color-mix(in srgb, var(--f) 26%, var(--gray200)); }
   .hero.idag { background:var(--f); color:var(--black,#1b1b1b); }
 
-  .merke { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600;
-    opacity:.75; --mdc-icon-size:18px; }
-  .stor { font-size:52px; font-weight:600; line-height:1; letter-spacing:-.04em;
-    font-variant-numeric:tabular-nums; margin-top:8px; }
-  .stor small { font-size:17px; font-weight:500; opacity:.6; margin-left:7px; letter-spacing:0; }
-  .hero.idag .stor { animation:kiAvPuls 2.6s ease-in-out infinite; transform-origin:left center; }
-  @keyframes kiAvPuls { 0%,100% { transform:scale(1) } 50% { transform:scale(1.04) } }
-  .dato { font-size:13.5px; opacity:.62; margin-top:8px; }
-  .navn { text-align:right; font-size:15px; font-weight:700; letter-spacing:-.01em; }
-  .navn .etter { font-size:12px; font-weight:500; opacity:.55; margin-top:6px;
-    letter-spacing:0; line-height:1.4; }
+  .hero .ik { width:48px; height:48px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:25px;
+    background:rgba(250,251,252,.12); }
+  .hero.idag .ik { background:rgba(0,0,0,.14); }
 
-  /* bøtte og bil nederst i heroen */
-  .scene { position:absolute; inset:auto 0 0 0; height:70px; z-index:-1;
-    pointer-events:none; opacity:.35; }
+  .merke { font-size:12.5px; font-weight:600; opacity:.7; letter-spacing:.01em; }
+  .frak { font-size:17px; font-weight:700; letter-spacing:-.01em; margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Nedtellingen skal aldri brekke. «I morgen» er bredere enn «5», så størrelsen
+     følger bredden i stedet for å være fast. */
+  .stor { font-size:clamp(28px, 9vw, 42px); font-weight:600; line-height:1.05;
+    letter-spacing:-.035em; white-space:nowrap; margin-top:8px;
+    font-variant-numeric:tabular-nums; }
+  .stor small { font-size:.42em; font-weight:500; opacity:.62; margin-left:7px;
+    letter-spacing:0; }
+  .hero.idag .stor { animation:kiAvPuls 2.6s ease-in-out infinite; transform-origin:left center; }
+  @keyframes kiAvPuls { 0%,100% { transform:scale(1) } 50% { transform:scale(1.03) } }
+  .dato { font-size:13px; opacity:.66; margin-top:4px; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .etter { font-size:12.5px; opacity:.55; margin-top:6px; line-height:1.4; }
+
+  /* Scenen ligger som et bånd nederst i heroen, i full bredde. Teksten over har
+     bunnpadding, så de aldri overlapper — før lå bøtta oppå datoen. */
+  .scene { grid-column:1 / -1; position:relative; height:58px; margin:10px -18px 0;
+    pointer-events:none; opacity:.4; }
   .hero.idag .scene { opacity:1; }
+  .hero.snart .scene { opacity:.62; }
   .scene svg { position:absolute; inset:0; width:100%; height:100%; }
+
   .botte { transform-box:fill-box; transform-origin:50% 100%; }
-  .hero.idag .botte { animation:kiAvRist 1.1s ease-in-out infinite; }
-  @keyframes kiAvRist { 0%,100% { transform:rotate(0) } 25% { transform:rotate(-7deg) } 75% { transform:rotate(7deg) } }
+  .hero.idag .botte { animation:kiAvRist 1.15s ease-in-out infinite; }
+  @keyframes kiAvRist { 0%,100% { transform:rotate(0) } 25% { transform:rotate(-8deg) }
+    75% { transform:rotate(8deg) } }
+  .lokk { transform-box:fill-box; transform-origin:88% 100%; }
+  .hero.idag .lokk { animation:kiAvLokk 1.15s ease-in-out infinite; }
+  @keyframes kiAvLokk { 0%,100% { transform:rotate(0) } 40% { transform:rotate(-26deg) } }
+
   .bil { opacity:0; transform-box:fill-box; }
-  .hero.idag .bil { animation:kiAvKjor 7s linear infinite; }
+  .hero.idag .bil { animation:kiAvKjor 7.5s cubic-bezier(.35,0,.65,1) infinite; }
   @keyframes kiAvKjor {
-    0% { opacity:0; transform:translateX(-46%) } 8% { opacity:1 }
-    88% { opacity:1 } 100% { opacity:0; transform:translateX(150%) }
+    0% { opacity:0; transform:translateX(-42%) } 7% { opacity:1 }
+    42% { transform:translateX(24%) } 58% { transform:translateX(24%) }
+    93% { opacity:1 } 100% { opacity:0; transform:translateX(130%) }
   }
   .hjul { transform-box:fill-box; transform-origin:center; }
   .hero.idag .hjul { animation:kiAvRull .5s linear infinite; }
   @keyframes kiAvRull { to { transform:rotate(360deg) } }
+  /* eksos når bilen står og tømmer */
+  .eksos { opacity:0; }
+  .hero.idag .eksos { animation:kiAvEksos 2.4s ease-out infinite; }
+  @keyframes kiAvEksos { 0% { opacity:.5; transform:translate(0,0) scale(.6) }
+    100% { opacity:0; transform:translate(-14px,-12px) scale(1.5) } }
 
-  /* ---- de øvrige fraksjonene ---- */
-  .rutenett { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .flis { background:var(--gray200); border-radius:24px; padding:0; overflow:hidden;
-    display:grid; grid-template-areas:"i n" "i v"; grid-template-columns:64px minmax(0,1fr);
-    grid-template-rows:1fr 1fr; align-items:center; min-height:84px; width:100%;
-    text-align:left; min-width:0; cursor:pointer; }
-  .flis > * { min-width:0; }
-  .flis .ik { grid-area:i; justify-self:center; width:50px; height:50px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center; --mdc-icon-size:25px;
+  /* ---- fraksjonene under ----
+     Én per rad: både navnet og nedtellingen fikk plass, mens to kolonner klipte
+     «Plastemballasje» til «Plastemball…» og «I morgen» til «I mo…». */
+  .liste { display:grid; grid-template-columns:repeat(var(--kol,1),minmax(0,1fr)); gap:8px; }
+  .rad { display:flex; align-items:center; gap:14px; min-height:66px;
+    padding:10px 16px 10px 10px; border-radius:22px; background:var(--gray200);
+    width:100%; text-align:left; cursor:pointer; min-width:0; }
+  .rad .ik { width:46px; height:46px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:23px;
     background:color-mix(in srgb, var(--f) 26%, transparent); color:var(--f); }
-  .flis .n { grid-area:n; align-self:end; font-size:12.5px; opacity:.62; line-height:1.25;
-    padding-right:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .flis .v { grid-area:v; align-self:start; font-size:23px; font-weight:500; line-height:1.2;
-    letter-spacing:-.02em; font-variant-numeric:tabular-nums; padding-right:14px;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .flis .v span { font-size:13px; font-weight:400; opacity:.55; margin-left:5px; }
+  .rad .tekst { flex:1; min-width:0; }
+  .rad .navn { font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .rad .nar { font-size:12.5px; opacity:.58; margin-top:2px; }
+  .rad .tall { font-size:20px; font-weight:600; letter-spacing:-.02em; white-space:nowrap;
+    font-variant-numeric:tabular-nums; flex:none; }
+  .rad .tall small { font-size:12px; font-weight:500; opacity:.55; margin-left:4px; }
+  .rad.idag { background:color-mix(in srgb, var(--f) 30%, var(--gray200)); }
 
   .tom { font-size:14px; opacity:.7; padding:16px; line-height:1.55;
     background:var(--gray200); border-radius:24px; }
   .tom code { font-size:12.5px; }
 
-  @media (max-width:400px) {
-    .stor { font-size:42px; }
-    .flis { grid-template-columns:56px minmax(0,1fr); }
-    .flis .ik { width:44px; height:44px; --mdc-icon-size:22px; }
-    .flis .v { font-size:21px; }
-  }
   @media (prefers-reduced-motion: reduce) {
-    .botte, .bil, .hjul, .stor { animation:none !important; }
+    .botte, .lokk, .bil, .hjul, .stor, .eksos { animation:none !important; }
   }
 `;
 
@@ -198,21 +221,27 @@ class KiAvfallCard extends HTMLElement {
     return ut.sort((x, y) => (x.dager ?? 9999) - (y.dager ?? 9999));
   }
 
-  _scene(farge) {
-    return `<div class="scene"><svg viewBox="0 0 320 70" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-      <line x1="0" y1="62" x2="320" y2="62" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/>
+  _scene(farge, mork) {
+    const strek = mork ? "rgba(0,0,0,.45)" : farge;
+    return `<div class="scene"><svg viewBox="0 0 340 58" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <line x1="0" y1="52" x2="340" y2="52" stroke="currentColor" stroke-opacity=".22" stroke-width="2"/>
+      <!-- bøtta, med lokk som vipper opp når den tømmes -->
       <g class="botte">
-        <rect x="24" y="30" width="26" height="32" rx="4" fill="${farge}"/>
-        <rect x="21" y="25" width="32" height="7" rx="3" fill="${farge}"/>
-        <path d="M31 38 V54 M37 38 V54 M43 38 V54" stroke="rgba(0,0,0,.18)" stroke-width="2"/>
+        <rect x="22" y="22" width="26" height="30" rx="4" fill="${strek}"/>
+        <path d="M28 30 V46 M35 30 V46 M42 30 V46" stroke="rgba(0,0,0,.2)" stroke-width="2"/>
+        <g class="lokk"><rect x="19" y="16" width="32" height="7" rx="3.5" fill="${strek}"/></g>
       </g>
+      <!-- søppelbilen -->
       <g class="bil">
-        <rect x="90" y="26" width="84" height="26" rx="5" fill="currentColor" fill-opacity=".55"/>
-        <path d="M174 34 h22 l10 12 v6 h-32 z" fill="currentColor" fill-opacity=".7"/>
-        <rect x="178" y="36" width="14" height="9" rx="2" fill="rgba(255,255,255,.55)"/>
-        <circle class="hjul" cx="110" cy="58" r="6" fill="#1b1b1e"/>
-        <circle class="hjul" cx="160" cy="58" r="6" fill="#1b1b1e"/>
-        <circle class="hjul" cx="192" cy="58" r="6" fill="#1b1b1e"/>
+        <rect x="96" y="16" width="86" height="28" rx="5" fill="currentColor" fill-opacity=".5"/>
+        <rect x="102" y="21" width="74" height="9" rx="2" fill="rgba(0,0,0,.12)"/>
+        <path d="M182 24 h24 l11 13 v7 h-35 z" fill="currentColor" fill-opacity=".68"/>
+        <rect x="187" y="27" width="15" height="10" rx="2" fill="rgba(255,255,255,.6)"/>
+        <circle cx="94" cy="30" r="3" fill="currentColor" fill-opacity=".5"/>
+        <circle class="hjul" cx="118" cy="48" r="6" fill="#1b1b1e"/>
+        <circle class="hjul" cx="166" cy="48" r="6" fill="#1b1b1e"/>
+        <circle class="hjul" cx="202" cy="48" r="6" fill="#1b1b1e"/>
+        <circle class="eksos" cx="92" cy="40" r="4" fill="currentColor" fill-opacity=".35"/>
       </g>
     </svg></div>`;
   }
@@ -239,28 +268,33 @@ class KiAvfallCard extends HTMLElement {
     const snart = neste.dager !== null && neste.dager > 0 && neste.dager <= 2;
 
     this.shadowRoot.innerHTML = `<style>${KI_AV_STIL}</style>
-      <div class="kort">
+      <div class="kort" style="--kol:${Math.max(1, Math.min(2, Number(c.kolonner) || 1))}">
         <div class="hero ${idag ? "idag" : snart ? "snart" : ""}"
-             style="--f:${neste.farge}${c.hoyde ? `;min-height:${parseFloat(c.hoyde) || 168}px` : ""}"
-             data-mer="${kiAvEsc(neste.id)}" tabindex="0">
-          ${this._scene(idag ? "rgba(0,0,0,.45)" : neste.farge)}
+             style="--f:${neste.farge}" data-mer="${kiAvEsc(neste.id)}" tabindex="0">
+          <span class="ik"><ha-icon icon="${kiAvEsc(neste.ikon)}"></ha-icon></span>
           <div>
-            <div class="merke"><ha-icon icon="${kiAvEsc(neste.ikon)}"></ha-icon>Neste tømming</div>
+            <div class="merke">Neste tømming</div>
+            <div class="frak">${kiAvEsc(neste.navn)}</div>
             <div class="stor">${kiAvEsc(t.tall)}${t.enhet ? `<small>${t.enhet}</small>` : ""}</div>
             <div class="dato">${kiAvEsc(kiAvDato(neste.dato))}</div>
+            ${c.fliser === false && alle.length > 1 ? `<div class="etter">Deretter ${
+              kiAvEsc(alle[1].navn.toLowerCase())} ${
+              alle[1].dager === 0 ? "i dag" : alle[1].dager === 1 ? "i morgen"
+                : `om ${alle[1].dager} dager`}</div>` : ""}
           </div>
-          <div class="navn">${kiAvEsc(neste.navn)}${
-            c.fliser === false && alle.length > 1
-              ? `<div class="etter">Deretter ${kiAvEsc(alle[1].navn.toLowerCase())} om ${
-                  alle[1].dager} dager</div>` : ""}</div>
+          ${this._scene(neste.farge, idag)}
         </div>
 
-        ${resten.length ? `<div class="rutenett">${resten.map((f) => {
+        ${resten.length ? `<div class="liste">${resten.map((f) => {
           const r = kiAvTekst(f.dager);
-          return `<div class="flis" style="--f:${f.farge}" data-mer="${kiAvEsc(f.id)}" tabindex="0">
+          return `<div class="rad ${f.dager !== null && f.dager <= 0 ? "idag" : ""}"
+                       style="--f:${f.farge}" data-mer="${kiAvEsc(f.id)}" tabindex="0">
             <span class="ik"><ha-icon icon="${kiAvEsc(f.ikon)}"></ha-icon></span>
-            <div class="n">${kiAvEsc(f.navn)}</div>
-            <div class="v">${kiAvEsc(r.tall)}${r.enhet ? `<span>${r.enhet}</span>` : ""}</div>
+            <div class="tekst">
+              <div class="navn">${kiAvEsc(f.navn)}</div>
+              <div class="nar">${kiAvEsc(kiAvDato(f.dato))}</div>
+            </div>
+            <div class="tall">${kiAvEsc(r.tall)}${r.enhet ? `<small>${r.enhet}</small>` : ""}</div>
           </div>`;
         }).join("")}</div>` : ""}
       </div>`;
