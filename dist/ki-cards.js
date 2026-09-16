@@ -1,4 +1,4 @@
-/* ki-cards v3.76.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
+/* ki-cards v3.78.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.76.0";
+  KI.VERSION = "3.78.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -3663,7 +3663,7 @@ try {
  * vis_seertid: true      # seertidboksene (skjules automatisk når vis_media: stor viser dem)
  * apper: { com.netflix.Netflix: Netflix } # legges til standardlista
  */
-const KI_FJK_VERSJON = "1.3.0";
+const KI_FJK_VERSJON = "1.4.0";
 
 const KI_FJK_APPER = {
   "com.netflix.Netflix": "Netflix", "com.apple.TVWatchList": "Apple TV+", "com.apple.TVMovies": "Filmer",
@@ -3832,14 +3832,36 @@ class KiFjernkontrollCard extends HTMLElement {
     return t === "playing" ? "Spiller" : t === "paused" ? "Pause" : "Påskrudd";
   }
 
-  _vibrer(ms) { if (navigator.vibrate) navigator.vibrate(ms || 8); }
+  /* Haptikk.
+   *
+   * `navigator.vibrate` finnes ikke i Safari på iOS, så på iPhone ga fjernkontrollen
+   * ingen respons i det hele tatt. Home Assistant-appen — både iOS og Android — lytter
+   * i stedet på et `haptic`-event på window, der detaljen er styrken. Vi sender begge:
+   * appen tar eventet, en nettleser på Android tar vibrasjonen.
+   *
+   * Typene er HAs egne: selection, light, medium, heavy, success, warning, failure.
+   */
+  _haptikk(type = "light") {
+    try {
+      window.dispatchEvent(new CustomEvent("haptic", { detail: type, bubbles: true, composed: true }));
+    } catch (e) { /* eldre nettlesere: la det stå */ }
+    const ms = { selection: 5, light: 8, medium: 14, heavy: 22,
+      success: 12, warning: 20, failure: 30 }[type] || 8;
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  /* Beholdt for bakoverkompatibilitet: kall med millisekunder oversettes til en type */
+  _vibrer(ms) {
+    const n = Number(ms) || 8;
+    this._haptikk(n >= 18 ? "medium" : n >= 10 ? "light" : "selection");
+  }
   _send(kommando) {
     const c = this._c; if (!c.fjernkontroll || !this._h) return;
-    this._vibrer(8);
+    this._haptikk("light");
     this._h.callService("remote", "send_command", { entity_id: c.fjernkontroll, command: kommando, hold_secs: 0 });
   }
   _veksle() {
-    const c = this._c; this._vibrer(12);
+    const c = this._c; this._haptikk("medium");   // av/på er et større inngrep
     this._forvent = { state: this._pa() ? "off" : "on", t: Date.now() };
     clearTimeout(this._ft); this._ft = setTimeout(() => this._oppdater(), 4100);
     this._oppdater();
@@ -3849,7 +3871,7 @@ class KiFjernkontrollCard extends HTMLElement {
      så vi bruker media_player.volume_mute når spilleren støtter det. */
   _demp() {
     const c = this._c, h = this._h; if (!h) return;
-    this._vibrer(10);
+    this._haptikk("light");
     const st = c.media && h.states[c.media];
     const funksjoner = (st && Number(st.attributes.supported_features)) || 0;
     const kanMute = (funksjoner & 8) === 8;               /* VOLUME_MUTE */
@@ -3864,7 +3886,7 @@ class KiFjernkontrollCard extends HTMLElement {
      og faller vi gjennom sendes vanlig home med hold_secs. */
   _holdKommando(kommando) {
     const c = this._c; if (!c.fjernkontroll || !this._h) return;
-    this._vibrer(18);
+    this._haptikk("heavy");                        // langt trykk skal kjennes tydelig
     const lang = { home: "home_hold", menu: "top_menu", select: "select_hold" }[kommando];
     this._h.callService("remote", "send_command", {
       entity_id: c.fjernkontroll,
@@ -3874,7 +3896,7 @@ class KiFjernkontrollCard extends HTMLElement {
   }
 
   _velgKilde(kilde) {
-    this._vibrer(10);
+    this._haptikk("selection");
     this._h.callService("media_player", "select_source", { entity_id: this._c.media, source: kilde });
   }
   _mer() { this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: this._c.media }, bubbles: true, composed: true })); }
@@ -3885,7 +3907,14 @@ class KiFjernkontrollCard extends HTMLElement {
       if (e.button) return;
       this._send(kommando);
       clearInterval(this._gjenta);
-      this._gjenta = setInterval(() => this._send(kommando), 320);
+      // Gjentakelsen bruker den letteste typen. Full styrke 3 ganger i sekundet
+      // blir ubehagelig å holde inne.
+      this._gjenta = setInterval(() => {
+        if (!this._c.fjernkontroll || !this._h) return;
+        this._haptikk("selection");
+        this._h.callService("remote", "send_command",
+          { entity_id: this._c.fjernkontroll, command: kommando, hold_secs: 0 });
+      }, 320);
     };
     const stopp = () => clearInterval(this._gjenta);
     el.addEventListener("pointerdown", start);
@@ -4039,7 +4068,7 @@ class KiFjernkontrollCard extends HTMLElement {
     r.querySelectorAll(".kilde").forEach((b) => b.addEventListener("click", () => this._velgKilde(b.dataset.kilde)));
     r.querySelectorAll(".app").forEach((b) => b.addEventListener("click", () => {
       const a = this._appliste[+b.dataset.app];
-      if (a.skript || a.tjeneste) { const [d, s2] = String(a.skript || a.tjeneste).split("."); this._vibrer(10); this._h.callService(d, s2, a.data || {}); }
+      if (a.skript || a.tjeneste) { const [d, s2] = String(a.skript || a.tjeneste).split("."); this._haptikk("selection"); this._h.callService(d, s2, a.data || {}); }
       else if (a.kommando) this._send(a.kommando);
       else if (a.kilde) this._velgKilde(a.kilde);
     }));
@@ -5573,7 +5602,7 @@ try {
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.12.0";
+const KI_PROSA_VERSJON = "2.13.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -5607,7 +5636,11 @@ const KI_PROSA_STD = {
                 tekst: "{navn} kommer hjem ca. kl {pille}.", path: "#personer" }],
   ringeklokke: { entity: "input_boolean.ki_ringeklokke_varsel_aktiv", ikon: "🔔", animasjon: "vink",
                  stil: "varsel", tekst: "{pille} Noen ringer på døren!", tjeneste: "input_boolean.turn_off" },
-  laser: { entity: "auto", natt: [23, 6], ikon: "🔒", stil: "gradient",
+  /* Låsing er en rutinehandling, og pillen bruker derfor den vanlige stilen — hvit på
+     mørk, som de andre. Gradienten gjorde denne ene pillen annerledes uten at fargen
+     betydde noe. Bursdag beholder gradienten: der markerer den noe. Vil du ha den
+     tilbake, sett `laser: { stil: gradient }` i konfigurasjonen. */
+  laser: { entity: "auto", natt: [23, 6], ikon: "🔒", stil: "vanlig",
            tekst: "Lås alle dørene {pille}", tjeneste: "lock.lock" },
   planter: { entity: "auto", ikon: "🪴", tekst: "{pille} trenger vann.", path: "#planter" },
   bursdag: { vis: "binary_sensor.vis_bursdagskort", skjult: "input_boolean.bursdagskort_skjult",

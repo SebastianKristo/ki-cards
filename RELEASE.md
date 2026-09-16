@@ -1,30 +1,24 @@
-# ki-cards 3.76.0
+# ki-cards 3.78.0
 
-## «Ingen sensorer å vise» sa ikke hva som manglet
+## `ki-prosa-card` 2.13.0: låse-pillen bruker vanlig stil
 
-`ki-sensor-liste-card` dropper en rad når entiteten ikke finnes i Home Assistant. Var alle
-borte, sto det bare «Ingen sensorer å vise» — teknisk sant, men ubrukelig når årsaken er
-én skrivefeil eller en entitet som har byttet navn.
+Pillen i «Lås alle dørene» hadde den rosa-oransje gradienten, mens alle de andre pillene
+i kortet er hvite på mørk bakgrunn. Låsing er en rutinehandling, og fargen betydde
+ingenting — den gjorde bare denne ene pillen annerledes.
 
-Nå navngis de:
+Den innebygde profilen setter nå `stil: vanlig` for `laser`, så den matcher resten.
 
-> Fant ingen av disse entitetene i Home Assistant: binary_sensor.inngangsdor,
-> binary_sensor.verandador. Sjekk om navnene stemmer.
+**Bursdag beholder gradienten.** Der markerer den noe, og pillen er ment å skille seg ut
+den dagen den vises.
 
-Og finnes noen, men ikke alle, vises resten som før med en dempet linje under:
+Vil du ha gradienten tilbake på låsene:
 
-> Fant ikke entiteten: binary_sensor.skrivefeil
+```yaml
+type: custom:ki-prosa-card
+profil: stromstad
+laser:
+  stil: gradient
+```
 
-Det er den viktigste av de to. Én entitet som stille forsvinner fra en liste på tolv er
-nesten umulig å oppdage.
-
-De andre tomme tilstandene er også skilt fra hverandre: soner satt opp uten `items:` sier
-det, og `bare_aktive` med alt lukket sier «Alt er lukket og låst» som før.
-
-Kontrollert i DOM for alle fire tilfellene: alle mangler, én mangler, soner uten items, og
-alt lukket.
-
-## `ki-sikkerhet-card`
-
-`hero: false` til det innebygde alarmkortet står nå sist i konfigurasjonen, så en
-`hero`-nøkkel i `tastatur`-objektet ikke kan overstyre den.
+Stilene er `vanlig`, `varsel` (rød og pulserende), `gradient` og `glans` — de to siste kan
+kombineres, som bursdagspillen gjør.

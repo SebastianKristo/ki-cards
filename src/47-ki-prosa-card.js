@@ -47,7 +47,7 @@
  *
  * Trykk på en pille = navigering eller handling. Langt trykk = more-info (eller `hold`).
  */
-const KI_PROSA_VERSJON = "2.12.0";
+const KI_PROSA_VERSJON = "2.13.0";
 
 /* Standardoppsettet. Hver nøkkel kan overstyres helt eller delvis i konfigurasjonen. */
 const KI_PROSA_STD = {
@@ -81,7 +81,11 @@ const KI_PROSA_STD = {
                 tekst: "{navn} kommer hjem ca. kl {pille}.", path: "#personer" }],
   ringeklokke: { entity: "input_boolean.ki_ringeklokke_varsel_aktiv", ikon: "🔔", animasjon: "vink",
                  stil: "varsel", tekst: "{pille} Noen ringer på døren!", tjeneste: "input_boolean.turn_off" },
-  laser: { entity: "auto", natt: [23, 6], ikon: "🔒", stil: "gradient",
+  /* Låsing er en rutinehandling, og pillen bruker derfor den vanlige stilen — hvit på
+     mørk, som de andre. Gradienten gjorde denne ene pillen annerledes uten at fargen
+     betydde noe. Bursdag beholder gradienten: der markerer den noe. Vil du ha den
+     tilbake, sett `laser: { stil: gradient }` i konfigurasjonen. */
+  laser: { entity: "auto", natt: [23, 6], ikon: "🔒", stil: "vanlig",
            tekst: "Lås alle dørene {pille}", tjeneste: "lock.lock" },
   planter: { entity: "auto", ikon: "🪴", tekst: "{pille} trenger vann.", path: "#planter" },
   bursdag: { vis: "binary_sensor.vis_bursdagskort", skjult: "input_boolean.bursdagskort_skjult",
