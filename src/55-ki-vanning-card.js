@@ -15,7 +15,7 @@
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.6.0";
+const KI_VANN_VERSJON = "3.6.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -876,14 +876,16 @@ class KiVanningCard extends HTMLElement {
   _panelHistorikk() {
     const ki = this._kiEntitet();
     if (!ki) return `<div class="tom">Installer <b>KI Vanning</b>-integrasjonen for historikk.</div>`;
-    const h = this._historikk;
+    // Datafeltet heter _histData, ikke _historikk: det siste er en metode i kortet
+    // som programfanen bruker. Å legge data der overskrev metoden.
+    const h = this._histData;
     if (!h) {
       // hent én gang, og tegn på nytt når svaret er inne
       if (!this._henterHist) {
         this._henterHist = true;
         this._hentHistorikk().then((r) => {
           this._henterHist = false;
-          this._historikk = r || { rader: [], feil: null };
+          this._histData = r || { rader: [], feil: null };
           this._tegn();
         });
       }
