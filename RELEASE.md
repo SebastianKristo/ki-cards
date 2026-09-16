@@ -1,21 +1,31 @@
-# ki-cards 3.69.0
+# ki-cards 3.70.0
 
-## `ki-klima-pro-card`: brytere med egen entitet oppdaterte ikke
+## `ki-avfall-card` 2.1.0: månedskalender
 
-Slo du av eller på berederbryteren under Varmtvann, ble bryteren stående i gammel
-stilling til du lukket kortet og åpnet det igjen.
+Ny kalendervisning, bygget etter samme mønster som kalenderen i `ki-lansering-card`:
+månedsrutenett med mandag først, piler mellom månedene, dagen i dag markert, og en liste
+under for dagen du trykker på. Fargeprikker på hver dag forteller hvilke fraksjoner som
+tømmes — blå for papir, grønn for glass og metall, og så videre.
 
-Kortet tegner bare om når signaturen endrer seg, og signaturen bygges av en fast liste
-over fulgte entiteter. Men mange rader henter entiteten sin fra et attributt — bereder­
-bryteren er `a("bryter", "switch.varmtvannsbereder")`, håndklevarmeren likeså. Bruker du
-standardnavnet, virker det; har du en annen entitet, sto den ikke i lista, og da endret
-ikke signaturen seg i det hele tatt når du trykket. Tjenestekallet gikk gjennom — det var
-bare visningen som ikke fulgte etter.
+En knapperad øverst bytter mellom **Fraksjoner** og **Kalender**. `visning: kalender`
+åpner rett i kalenderen.
 
-Etter hver opptegning plukkes nå entitetene opp fra det som faktisk er tegnet, og legges
-i den fulgte lista. Neste tilstandsendring treffer dermed uansett hvilken entitet du har
-konfigurert. Oppsamlingen settler seg selv: andre gang finnes de allerede.
+**Om datoene, som er det ærlige forbeholdet.** Sensorene oppgir bare *neste* tømming per
+fraksjon. En månedskalender trenger flere, og det finnes to kilder:
 
-Gardinbryteren `input_boolean.ki_gardin_folg_sol` var i tillegg den ene faste bryteren
-som manglet i lista, og hadde samme symptom. Nå er alle med, kontrollert mekanisk mot
-markupen.
+* `kalender_entitet: calendar.renovasjon` — har renovasjonsselskapet en kalender i Home
+  Assistant, brukes den, og datoene er faktiske.
+* `intervall_dager: 14` — ellers framskrives datoene fra neste tømming. De fleste
+  fraksjoner går hver 14. eller 28. dag, så det treffer som regel. Men det er et anslag,
+  og kortet skriver det i klartekst under kalenderen i stedet for å late som det er
+  hentet fra kilden. `intervall` kan også settes per fraksjon.
+
+## Søppelflisene ligger nå i kortet
+
+`examples/soppel-popup.yaml` bruker ikke lenger `auto-entities` med
+`template_sensor_big_alt`. Malen har stor skrift i ett felt, og «I morgen» ble klippet
+uansett hvor mye jeg justerte størrelsen — det var å lappe på noe som ikke passet.
+
+Fraksjonene ligger i stedet som rader i kortet, med ikonet i farget sirkel, navnet, datoen
+med ukedag og nedtellingen hver på sin plass. Det gir samme formspråk som resten av
+dashbordet, og ingenting klippes.
