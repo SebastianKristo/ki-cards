@@ -121,8 +121,13 @@ cards:
               text_main: |
                 [[[
                   const d = entity.attributes.days_to_pickup;
-                  if (d === 0) return 'I dag';
-                  if (d === 1) return 'I morgen';
+                  // Tall får full størrelse. Ord er bredere enn tall, og «I morgen»
+                  // ble klippet til «I mo…» i den store skriften — derfor settes
+                  // ordene ned til 22 px så de får plass i flisen.
+                  const ord = (t) => '<span style="font-size:22px;line-height:1.25em;'
+                    + 'display:inline-block;white-space:nowrap">' + t + '</span>';
+                  if (d === 0) return ord('I dag');
+                  if (d === 1) return ord('I morgen');
                   return d + '<span style="font-size:14px;line-height:1.5em"> dager</span>';
                 ]]]
               text_alt: |

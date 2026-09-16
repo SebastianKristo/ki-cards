@@ -1,4 +1,4 @@
-/* ki-cards v3.67.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
+/* ki-cards v3.68.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.67.0";
+  KI.VERSION = "3.68.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -10025,7 +10025,7 @@ try {
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.7.0";
+const KI_VANN_VERSJON = "3.8.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10141,24 +10141,32 @@ const KI_VANN_STIL = `
   .innlag .lukk { border:0; background:rgba(255,255,255,.12); color:#fff; width:32px; height:32px;
     border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:19px; }
 
-  /* Fanerada. Fem faner med 22 px sidepadding ble bredere enn kortet, og uten
-     overflow-x klemte pillene seg sammen i stedet for å rulle — teksten ble smal og
-     rada like fullt for stor. Nå er pillene strammere, de beholder bredden sin, og
-     rada ruller sidelengs når det er flere faner enn det er plass til. */
-  .faner { display:flex; justify-content:center; min-width:0; }
-  .skinne { display:flex; gap:3px; padding:3px; border:1px solid rgba(255,255,255,.3);
-    border-radius:999px; width:fit-content; max-width:100%; min-width:0;
-    overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none;
-    -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; }
-  .skinne::-webkit-scrollbar { display:none; }
-  .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit;
-    font-size:13.5px; font-weight:500; padding:8px 15px; border-radius:999px; cursor:pointer;
-    white-space:nowrap; flex:none; scroll-snap-align:center;
-    transition:background .2s, color .2s; }
-  .fane:hover { color:rgba(255,255,255,.95); }
-  .fane.valgt { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
-    box-shadow:0 1px 6px rgba(0,0,0,.35); }
-  @media (max-width:380px) { .fane { font-size:12.5px; padding:7px 12px; } }
+  /* Fanerada, etter mønsteret fra ki-klima-pro-card.
+   *
+   * Min forrige variant sentrerte en skinne med width:fit-content inne i en flex-boks.
+   * Den løsningen overflyter i stedet for å krympe, og da hjelper ikke overflow-x
+   * heller — rada lot seg ikke rulle.
+   *
+   * Nå fyller rada hele bredden, fanene deler den med flex:1 0 auto, og ikonet står
+   * over teksten. Under 430 px skjules teksten og ikonene deler bredden likt — da får
+   * fem faner plass på en mobil uten at noe må rulles i det hele tatt.
+   */
+  .faner { display:flex; gap:4px; padding:4px; border-radius:20px; max-width:100%;
+    background:var(--gray200); overflow-x:auto; scrollbar-width:none;
+    overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+  .faner::-webkit-scrollbar { display:none; }
+  .fane { flex:1 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px;
+    border:0; background:none; color:var(--gray1000); font:inherit; font-size:11.5px;
+    padding:8px 12px; border-radius:16px; cursor:pointer; opacity:.55; white-space:nowrap;
+    transition:background .18s, opacity .18s; }
+  .fane ha-icon { --mdc-icon-size:20px; }
+  .fane.valgt { background:var(--active-small, var(--active-big, var(--primary-color)));
+    color:var(--gray100, #fafbfc); opacity:1; font-weight:600; }
+  @media (max-width:430px) {
+    .fane span { display:none; }
+    .fane { flex:1; padding:10px 8px; }
+  }
+
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
   /* ---- soner ---- */
@@ -10711,6 +10719,11 @@ class KiVanningCard extends HTMLElement {
       : !(kiNa && kiNa.anlegg === false);
     const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer", forbruk: "Forbruk",
       historikk: "Historikk", innstillinger: "Mer" };
+    /* Ikonene bærer fanen alene på smal skjerm, der teksten skjules — så de må være
+       til å skille fra hverandre på et blikk. */
+    const faneIkon = { naa: "mdi:water", soner: "mdi:sprinkler-variant",
+      programmer: "mdi:calendar-clock", forbruk: "mdi:chart-bar",
+      historikk: "mdi:chart-timeline-variant", innstillinger: "mdi:tune-variant" };
     const gress = Array.from({ length: 26 }, (_, i) =>
       `<i style="left:${(i * 4 + 1)}%;height:${8 + ((i * 7) % 14)}px;animation-delay:-${((i * 0.19) % 2.6).toFixed(2)}s"></i>`).join("");
     const drapper = Array.from({ length: 14 }, (_, i) =>
@@ -10743,8 +10756,12 @@ class KiVanningCard extends HTMLElement {
             <span>${c.vinter ? "Vintermodus" : anleggPa ? "Anlegget på" : "Anlegget av"}</span></button>
         </div>
 
-        ${faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${faner.map((f) =>
-          `<button class="fane ${f === this._fane ? "valgt" : ""}" role="tab" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
+        ${faner.length > 1 ? `<div class="faner" role="tablist">${faner.map((f) =>
+          `<button class="fane ${f === this._fane ? "valgt" : ""}" role="tab" data-f="${f}"
+                   title="${kiVaEsc(navn[f] || f)}" aria-label="${kiVaEsc(navn[f] || f)}">
+            <ha-icon icon="${faneIkon[f] || "mdi:circle-small"}"></ha-icon>
+            <span>${kiVaEsc(navn[f] || f)}</span>
+          </button>`).join("")}</div>` : ""}
         ${faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}"></div>`).join("")}
         ${harMer ? `<div class="panel" data-p="innstillinger" hidden></div>` : ""}
       </div>`;
