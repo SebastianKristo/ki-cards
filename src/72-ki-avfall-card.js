@@ -22,7 +22,7 @@
  * intervall_dager: 14              # framskriv datoer når du ikke har kalenderentitet
  * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "2.2.0";
+const KI_AV_VERSJON = "2.3.0";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -108,30 +108,39 @@ const KI_AV_STIL = `
      Én per rad: både navnet og nedtellingen fikk plass, mens to kolonner klipte
      «Plastemballasje» til «Plastemball…» og «I morgen» til «I mo…». */
   .liste { display:grid; grid-template-columns:repeat(var(--kol,1),minmax(0,1fr)); gap:8px; }
-  .rad { display:flex; align-items:center; gap:14px; min-height:66px;
-    padding:10px 16px 10px 10px; border-radius:22px; background:var(--gray200);
+  /* Radene følger formen fra søvnpopupen: 24 px hjørner, og et nøytralt rundt ikonfelt
+     i stedet for et farget. Fargen ligger på selve ikonet, så fraksjonen er fortsatt til
+     å kjenne igjen uten at hver rad får sin egen tonede flate. */
+  .rad { display:flex; align-items:center; gap:14px; min-height:72px;
+    padding:10px 18px 10px 10px; border-radius:24px; background:var(--gray200);
     width:100%; text-align:left; cursor:pointer; min-width:0; }
-  .rad .ik { width:46px; height:46px; border-radius:50%; flex:none; display:flex;
-    align-items:center; justify-content:center; --mdc-icon-size:23px;
-    background:color-mix(in srgb, var(--f) 26%, transparent); color:var(--f); }
+  .rad > * { min-width:0; }
+  .rad .ik { width:52px; height:52px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:26px;
+    background:rgba(250,251,252,.10); color:var(--f); }
+  .rad.idag .ik { background:rgba(0,0,0,.14); }
   .rad .tekst { flex:1; min-width:0; }
-  .rad .navn { font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis;
+  .rad .navn { font-size:16px; font-weight:500; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; }
-  .rad .nar { font-size:12.5px; opacity:.58; margin-top:2px; }
+  .rad .nar { font-size:13px; opacity:.55; margin-top:2px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
   .rad .tall { font-size:20px; font-weight:600; letter-spacing:-.02em; white-space:nowrap;
     font-variant-numeric:tabular-nums; flex:none; }
   .rad .tall small { font-size:12px; font-weight:500; opacity:.55; margin-left:4px; }
   .rad.idag { background:color-mix(in srgb, var(--f) 30%, var(--gray200)); }
 
   /* ---- månedskalender, samme oppbygning som i lanseringskortet ---- */
-  .bytt { display:flex; justify-content:center; gap:4px; padding:3px; border-radius:20px;
-    background:var(--gray200); }
-  .bytt button { flex:1; border:0; background:none; color:var(--gray1000); font:inherit;
-    font-size:12.5px; padding:8px 14px; border-radius:16px; cursor:pointer; opacity:.55;
-    display:flex; align-items:center; justify-content:center; gap:6px; --mdc-icon-size:18px;
-    transition:background .18s, opacity .18s; }
+  /* Samme bryter som Vekking/Søvn i søvnpopupen: gray200 bak, 75 px hjørner,
+     --active-small på den valgte halvdelen. */
+  .bytt { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; padding:4px;
+    border-radius:75px; background:var(--gray200); }
+  .bytt button { border:0; background:none; color:var(--gray1000); font:inherit;
+    font-size:15px; font-weight:500; padding:9px 0; border-radius:75px; cursor:pointer;
+    opacity:.6; display:flex; align-items:center; justify-content:center; gap:7px;
+    --mdc-icon-size:19px; white-space:nowrap; min-width:0;
+    transition:background .18s ease, opacity .18s ease; }
   .bytt button.valgt { background:var(--active-small, var(--active-big, #ee95ff));
-    color:var(--gray100,#fafbfc); opacity:1; font-weight:600; }
+    color:var(--gray100,#fafbfc); opacity:1; }
 
   .kal { padding:4px 2px 2px; }
   .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center;

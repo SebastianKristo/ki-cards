@@ -1,34 +1,22 @@
-# ki-cards 3.71.0
+# ki-cards 3.72.0
 
-## Navn under faneikonene kan slås av
+## `ki-avfall-card` 2.3.0
 
-Nytt valg **«Vis navn under faneikonene»** i UI-editoren, i både `ki-vanning-card` og
-`ki-klima-pro-card`. Slår du det av, står fanerada med bare ikoner uansett skjermbredde,
-og fanene deler bredden likt.
+**Valget mellom Fraksjoner og Kalender** er nå den samme brede bryteren som Vekking/Søvn
+i søvnpopupen: `--gray200` bak, 75 px hjørner, 4 px luft, og den valgte halvdelen i
+`--active-small` med lys tekst. Teksten er 15 px i vekt 500, som de andre bryterne.
 
-Begge kortene skjulte navnene automatisk under 430 px fra før. Nå kan du velge det også på
-brede skjermer — nyttig når kortet står i en smal kolonne, eller når du bare vil ha mindre
-tekst.
+Før var den en flat 20 px-boks med 12,5 px halvfet tekst og `--active-small` — samme
+farge, men en annen form enn resten av bundelen.
 
-`vis_fanenavn: false` i YAML gjør det samme. Standardverdien legges inn i editorens data,
-så bryteren viser riktig stilling fra første åpning i stedet for å stå av mens navnene
-vises.
+**Fraksjonsradene** følger formen fra søvnpopupen: 24 px hjørner i stedet for 22, 72 px
+høyde, og et **nøytralt rundt ikonfelt** på 52 px med `rgba(250,251,252,.10)` bak — i
+stedet for en tonet flate i fraksjonens farge.
 
-Vanningskortets editor har samtidig fått **«Dager i historikkfanen»**, som bare fantes i
-YAML.
+Fargen ligger nå på selve ikonet. Fraksjonen er dermed like lett å kjenne igjen, men hver
+rad får ikke sin egen kulørte flate — det er det som fikk radene til å se ut som noe annet
+enn resten av dashbordet. Navnet er 16 px i vekt 500 og undertittelen 13 px, som i
+skjermbildet du sendte.
 
-## `ki-vann-card` 1.1.0: fordelingsbåndet
-
-Båndet under vannheroen var én sammenhengende stolpe der segmentene gikk rett i
-hverandre. Med seks kategorier i beslektede blå- og grønntoner var det vanskelig å se hvor
-én slutter og den neste begynner, og en andel på fem prosent ble en stripe uten form.
-
-Hvert segment er nå en egen avrundet bit med 3 px luft mellom, som en rad brikker. Da
-leser du antallet kategorier direkte, og små andeler har en minstebredde på 8 px så de
-fortsatt er synlige. Den største biten har et svakt lysstrøk, så øyet finner den først.
-
-Under båndet står en forklaring med farge, navn og andel for de fire største — «Dusj 46 %
-· Vaskemaskin 17 % · Toalett 15 % · Oppvask 9 % · + 2 til». Før måtte du gjette hvilken
-farge som var hva, eller lese hele lista under.
-
-Den animerte heroen over er urørt.
+Tømmes fraksjonen i dag, får raden fraksjonens farge og ikonfeltet et mørkt felt, så
+ikonet fortsatt leses.
