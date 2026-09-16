@@ -7,14 +7,15 @@
  * vinter: input_boolean.vinter_modus_vanning
  * varigheter: [5, 10, 15, 30, 60]   # minutter på hurtigknappene
  * skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
- * faner: [naa, soner, programmer, forbruk, innstillinger]
+ * faner: [naa, soner, programmer, forbruk, historikk, innstillinger]
+ * historikk_dager: 30          # hvor langt tilbake historikkfanen viser
  * ki_vanning: sensor.ki_vanning_oversikt   # oppdages automatisk når integrasjonen er installert
  * hero: stor                       # stor (hagescene, 190 px) | smal (den gamle linja)
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.5.1";
+const KI_VANN_VERSJON = "3.6.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -306,6 +307,17 @@ const KI_VANN_STIL = `
   .frad .tall { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
   .knagg { font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; background:var(--gray100); opacity:.7; }
   .periodefaner { display:flex; gap:6px; flex-wrap:wrap; }
+
+  /* ---- historikk ---- */
+  .histogram { display:flex; align-items:flex-end; gap:2px; height:120px; margin-top:8px; }
+  .hs { flex:1 1 0; min-width:0; height:100%; display:flex; align-items:flex-end; }
+  .hs i { display:block; width:100%; border-radius:3px 3px 0 0;
+    background:var(--blue, #4aa3e0); transition:height .5s cubic-bezier(.2,.8,.2,1); }
+  .hs i.tom { background:color-mix(in srgb, var(--gray1000) 14%, transparent); }
+  .hs:hover i { filter:brightness(1.25); }
+  .histakse { display:flex; justify-content:space-between; font-size:11.5px;
+    opacity:.5; margin-top:6px; }
+  @media (prefers-reduced-motion: reduce) { .hs i { transition:none; } }
   .pf { border:0; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:12px; font-weight:600;
     padding:6px 12px; border-radius:999px; cursor:pointer; opacity:.6; }
   .pf.valgt { opacity:1; background:var(--gray1000); color:var(--gray100); }
@@ -390,7 +402,8 @@ class KiVanningCard extends HTMLElement {
 
   setConfig(c) {
     this._c = { varigheter: [5, 10, 15, 30, 60], skjul_ubrukte: true, navn_kort: true,
-                faner: ["naa", "soner", "programmer", "forbruk", "innstillinger"], ...(c || {}) };
+                faner: ["naa", "soner", "programmer", "forbruk", "historikk", "innstillinger"],
+                historikk_dager: 30, ...(c || {}) };
     this._periode = "i_dag";
     this._fane = this._c.faner[0]; this._bygget = false; this._tegn();
   }
@@ -472,6 +485,14 @@ class KiVanningCard extends HTMLElement {
     const st = id ? S[id] : null;
     return st ? { id, ...st.attributes } : null;
   }
+  /* Entiteten statistikken skal hentes fra. `historikk_entitet` overstyrer, ellers
+     brukes oversiktssensoren — det er den som har det kumulative forbruket. */
+  _kiEntitet() {
+    if (this._c.historikk_entitet) return this._c.historikk_entitet;
+    const ki = this._ki();
+    return ki ? ki.id : null;
+  }
+
   /* Finner en entitet fra KI Vanning ut fra markøren i attributtene,
      slik at regnpause, hovedbryter og knappene ikke må skrives inn. */
   _kiEnt(type) {
@@ -656,13 +677,17 @@ class KiVanningCard extends HTMLElement {
     /* «Mer» ligger nå bak tannhjulet i hjørnet, ikke som egen fane */
     const faner = (c.faner || [])
       .filter((f) => f !== "innstillinger")
-      .filter((f) => f !== "forbruk" || this._harFlyt());
+      .filter((f) => f !== "forbruk" || this._harFlyt())
+      // Historikken bygger på statistikken, og krever ingen vannmåler — men den er
+      // meningsløs uten integrasjonen.
+      .filter((f) => f !== "historikk" || !!this._kiEntitet());
     const harMer = (c.faner || []).includes("innstillinger");
     const kiNa = this._ki();
     const anleggId = this._ventilmodus() ? this._kiEnt("anlegg") : null;
     const anleggPa = anleggId ? this._on(anleggId)
       : !(kiNa && kiNa.anlegg === false);
-    const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer", forbruk: "Forbruk", innstillinger: "Mer" };
+    const navn = { naa: "Nå", soner: "Soner", programmer: "Programmer", forbruk: "Forbruk",
+      historikk: "Historikk", innstillinger: "Mer" };
     const gress = Array.from({ length: 26 }, (_, i) =>
       `<i style="left:${(i * 4 + 1)}%;height:${8 + ((i * 7) % 14)}px;animation-delay:-${((i * 0.19) % 2.6).toFixed(2)}s"></i>`).join("");
     const drapper = Array.from({ length: 14 }, (_, i) =>
@@ -769,8 +794,17 @@ class KiVanningCard extends HTMLElement {
     const per = { i_dag: "I dag", uke: "Uke", maaned: "Måned", aar: "År" };
     const valgt = this._periode;
     const total = Number(ki[valgt] || 0);
-    const soner = (ki.soner || []).slice().sort((a, b) => (b.i_dag || 0) - (a.i_dag || 0));
-    const maks = Math.max(1, ...soner.map((x) => Number(x.i_dag || 0)));
+    /* Fordelingen skal følge perioden du har valgt. Før leste den alltid `i_dag`, så
+       stolpene sto stille når du byttet til Uke eller År — og den største sonen kunne
+       være en annen enn den som faktisk sto øverst. */
+    const sonetall = (x) => {
+      const v = x[valgt];
+      return Number(v === undefined || v === null ? (valgt === "i_dag" ? x.i_dag : 0) : v);
+    };
+    const soner = (ki.soner || []).slice().sort((a, b) => sonetall(b) - sonetall(a));
+    const maks = Math.max(1, ...soner.map(sonetall));
+    const manglerPeriode = valgt !== "i_dag"
+      && soner.length > 0 && soner.every((x) => x[valgt] === undefined);
     const pris = Number(ki.pris_m3 || 0);
     const est = Number(ki.estimat_i_dag || 0), brukt = Number(ki.i_dag || 0);
     const andel = est ? Math.min(100, (brukt / est) * 100) : 0;
@@ -786,15 +820,113 @@ class KiVanningCard extends HTMLElement {
         <div class="und">${Math.round(brukt)} av ${Math.round(est)} L brukt i dag${est > brukt ? ` · ${Math.round(est - brukt)} L igjen` : ""}</div>
       </div>
       <div class="maal">
-        <div class="und">Fordeling ${per[valgt].toLowerCase()}</div>
+        <div class="und">Fordeling ${per[valgt].toLowerCase()}${manglerPeriode
+          ? " — integrasjonen oppgir bare dagstall per sone" : ""}</div>
         <div class="fordeling">${soner.map((x) => {
-          const v = Number(x[valgt === "i_dag" ? "i_dag" : valgt] ?? x.i_dag ?? 0);
+          const v = sonetall(x);
           return `<div class="frad"><div>
             <div class="navn"><span>${kiVaEsc(x.navn)}</span>${x.kalibrert
               ? `<span class="knagg">${x.rate} L/min</span>` : `<span class="knagg">anslag</span>`}</div>
             <div class="fbar"><i style="width:${((v / maks) * 100).toFixed(1)}%"></i></div>
           </div><div class="tall">${this._litertekst(v)}</div></div>`;
         }).join("")}</div>
+      </div>`;
+  }
+
+  /* Historikken hentes fra statistikk-API-et, ikke fra tilstandshistorikken.
+   * Vanningssensorene er `total_increasing`, og statistikken har ferdig utregnet
+   * endring per døgn — det er nettopp det vi vil vise. Tilstandshistorikken måtte vi
+   * ellers summert selv, og den nullstilles ved omstart.
+   */
+  async _hentHistorikk() {
+    const ki = this._kiEntitet();
+    if (!ki || !this._h || !this._h.callWS) return null;
+    const dager = Math.max(7, Math.min(400, Number(this._c.historikk_dager) || 30));
+    const slutt = new Date();
+    const start = new Date(slutt.getTime() - dager * 864e5);
+    start.setHours(0, 0, 0, 0);
+    try {
+      const svar = await this._h.callWS({
+        type: "recorder/statistics_during_period",
+        start_time: start.toISOString(),
+        end_time: slutt.toISOString(),
+        statistic_ids: [ki],
+        period: "day",
+        types: ["change", "sum"],
+      });
+      const rader = (svar && svar[ki]) || [];
+      if (!rader.length) return { rader: [], feil: null };
+      // `change` finnes i nyere Home Assistant. Mangler den, regner vi differansen
+      // mellom summene selv.
+      let forrige = null;
+      const ut = rader.map((r) => {
+        let v = r.change;
+        if (v === undefined || v === null) {
+          v = forrige === null ? null : Number(r.sum) - forrige;
+          forrige = Number(r.sum);
+        }
+        return { dato: new Date(r.start), liter: v === null ? null : Math.max(0, Number(v)) };
+      }).filter((r) => r.liter !== null);
+      return { rader: ut, feil: null };
+    } catch (e) {
+      return { rader: [], feil: e && e.message ? e.message : String(e) };
+    }
+  }
+
+  _panelHistorikk() {
+    const ki = this._kiEntitet();
+    if (!ki) return `<div class="tom">Installer <b>KI Vanning</b>-integrasjonen for historikk.</div>`;
+    const h = this._historikk;
+    if (!h) {
+      // hent én gang, og tegn på nytt når svaret er inne
+      if (!this._henterHist) {
+        this._henterHist = true;
+        this._hentHistorikk().then((r) => {
+          this._henterHist = false;
+          this._historikk = r || { rader: [], feil: null };
+          this._tegn();
+        });
+      }
+      return `<div class="tom">Henter historikk …</div>`;
+    }
+    if (h.feil) {
+      return `<div class="tom">Fikk ikke hentet statistikken: ${kiVaEsc(h.feil)}.
+        Sensoren må ha <code>state_class: total_increasing</code> for at Home Assistant
+        skal føre langtidsstatistikk på den.</div>`;
+    }
+    if (!h.rader.length) {
+      return `<div class="tom">Ingen statistikk ennå. Home Assistant skriver
+        døgnstatistikk én gang i timen, så det tar et døgn før første søyle kommer.</div>`;
+    }
+
+    const rader = h.rader;
+    const maks = Math.max(1, ...rader.map((r) => r.liter));
+    const sum = rader.reduce((a, r) => a + r.liter, 0);
+    const dagerMedVann = rader.filter((r) => r.liter > 0.5).length;
+    const snitt = dagerMedVann ? sum / dagerMedVann : 0;
+    const ki2 = this._ki() || {};
+    const pris = Number(ki2.pris_m3 || 0);
+    const iso = (d) => d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+
+    return `
+      <div class="maal">
+        <div class="rad">
+          <div><div class="stor">${this._litertekst(sum)}</div>
+            <div class="und">siste ${rader.length} døgn${pris ? ` · ${(sum / 1000 * pris).toFixed(2)} kr` : ""}</div></div>
+          <div style="text-align:right"><div class="stor" style="font-size:1.2em">${this._litertekst(snitt)}</div>
+            <div class="und">per vanningsdag</div></div>
+        </div>
+        <div class="und">${dagerMedVann} av ${rader.length} døgn med vanning</div>
+      </div>
+      <div class="maal">
+        <div class="und">Døgn for døgn</div>
+        <div class="histogram">${rader.map((r) => `
+          <div class="hs" title="${kiVaEsc(iso(r.dato))}: ${Math.round(r.liter)} L">
+            <i style="height:${Math.max(2, (r.liter / maks) * 100).toFixed(1)}%"
+               class="${r.liter > 0.5 ? "" : "tom"}"></i>
+          </div>`).join("")}</div>
+        <div class="histakse"><span>${kiVaEsc(iso(rader[0].dato))}</span>
+          <span>${kiVaEsc(iso(rader[rader.length - 1].dato))}</span></div>
       </div>`;
   }
 
@@ -1224,6 +1356,8 @@ class KiVanningCard extends HTMLElement {
     if (c.faner.includes("soner")) sett("soner", this._panelSoner());
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
     if (c.faner.includes("forbruk") && this._harFlyt()) sett("forbruk", this._panelForbruk());
+    // Historikk trenger bare statistikken, ikke en vannmåler – den vises uansett
+    if (c.faner.includes("historikk")) sett("historikk", this._panelHistorikk());
     /* innstillingene ligger i overlegget – hold det oppdatert hvis det er åpent */
     const lag = r.querySelector(".innlag .innhold");
     if (lag) { lag.innerHTML = this._panelInnstillinger(); this._koblInnstillinger(lag); }

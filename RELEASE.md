@@ -1,30 +1,31 @@
-# ki-cards 3.64.0
+# ki-cards 3.65.0
 
-## `ki-kamera-card` 1.11.0: rutenettet tilpasser seg bredden
+## `ki-vanning-card` 3.6.0: historikkfane
 
-Alle oppsettene var låst til to kolonner. På en bred skjerm ble hver celle over tusen
-piksler bred med fast radhøyde, og bildet beskåret hardt — og med seks eller sju kameraer
-ble radene så lave at det knapt var noe igjen å se.
+Ny fane **Historikk** med døgn for døgn over de siste 30 dagene. Søylediagram, totalen
+for perioden med kostnad, snittet per vanningsdag, og hvor mange av døgnene det faktisk
+ble vannet.
 
-**Rutenett-oppsettet regner nå ut kolonnetallet fra bredden.** Bredden deles på ønsket
-minstebredde per celle, begrenset av hvor mange kameraer du har:
+Tallene hentes fra **statistikk-API-et**, ikke fra tilstandshistorikken. Vanningssensorene
+er `total_increasing`, og Home Assistant fører ferdig utregnet endring per døgn på dem.
+Tilstandshistorikken måtte vi ellers summert selv, og den nullstilles ved omstart av HA.
 
-| Bredde | 5 kameraer | 7 kameraer |
-| --- | --- | --- |
-| 700 px | 1 | 1 |
-| 1000 px | 2 | 2 |
-| 1400 px | 3 | 3 |
-| 1900 px | 4 | 4 |
+Finnes ikke `change`-feltet — det kom i en nyere HA-versjon — regnes differansen mellom
+døgnsummene i stedet.
 
-To skruer: `min_bredde: 420` er minstebredden per celle, og `maks_kolonner: 4` taket.
-Vil du ha fem kameraer i bredden på en stor skjerm, sett `min_bredde: 320` og
-`maks_kolonner: 5`.
+Tre tilstander er dekket med en forklaring i stedet for et tomt kort: statistikken finnes
+ikke ennå (HA skriver døgnstatistikk én gang i timen, så første søyle tar et døgn),
+spørringen feiler, eller sensoren mangler `state_class`.
 
-Kortet tegner om når kolonnetallet endrer seg, ikke bare når det krysser smal/bred-grensen
-— før hang rutenettet igjen på gammelt antall til noe annet utløste en ny tegning.
+`historikk_dager: 30` styrer perioden, og `historikk_entitet` peker på en annen sensor om
+du vil. Fanen krever ikke vannmåler, bare integrasjonen.
 
-**Lufta mellom cellene** sto fast på 1 px, som ble påfallende tett. Standarden er nå 6 px,
-og `gap:` kan settes til et tall eller en CSS-verdi. `gap: 0` gir det gamle uttrykket.
+## Fordelingen fulgte ikke perioden
 
-De faste oppsettene — Mosaikk, Hovedkamera og Liste — er uendret. Vil du ha det adaptive,
-velg **Rutenett**.
+I Forbruk-fanen leste fordelingen per sone alltid `i_dag`, uansett om du hadde valgt Uke,
+M�ned eller År. Stolpene sto dermed stille når du byttet periode, og rekkefølgen — som
+sorteres på verdien — kunne vise en annen «største sone» enn periodetallene tilsa.
+
+Nå brukes tallet for perioden du har valgt, både til stolpene og til sorteringen. Oppgir
+integrasjonen bare dagstall for en sone, står det i overskriften i stedet for at kortet
+viser dagstall som om de var ukestall.
