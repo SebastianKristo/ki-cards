@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "2.6.0";
+const KI_PRO_VERSJON = "2.7.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -187,13 +187,26 @@ class KiKlimaProCard extends HTMLElement {
 
   setConfig(config) {
     this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true,
-      vis_fanenavn: true }, config || {});
+      vis_fanenavn: true, vis_hero: true }, config || {});
     this._fane = this._lesFane() || this._config.default_tab;
+    // Er fanen skjult — enten den huskede eller standardfanen — velger vi den første
+    // synlige med en gang, ikke først når hass kommer inn og _tegn() rydder opp.
+    const synlige = this._faner();
+    if (!synlige.some((f) => f.id === this._fane)) this._fane = synlige[0].id;
     this._bygd = false;
     if (this.shadowRoot) this.shadowRoot.innerHTML = "";
   }
 
   getCardSize() { return 20; }
+
+  /* Fanene som skal vises. `skjul_faner` tar bort de du ikke bruker — Tanker og
+     Avansert er diagnostikk de fleste ikke trenger stående framme. Minst én fane må
+     bli igjen, ellers ville kortet blitt umulig å navigere. */
+  _faner() {
+    const skjul = [].concat(this._config.skjul_faner || []);
+    const ut = FANER.filter((f) => !skjul.includes(f.id));
+    return ut.length ? ut : FANER;
+  }
 
   _lesFane() {
     if (this._config && this._config.remember_tab === false) return null;
@@ -430,7 +443,7 @@ class KiKlimaProCard extends HTMLElement {
       <ha-card><div class="wrap">
         ${this._config.title ? `<div class="tittel">${esc(this._config.title)}</div>` : ""}
         <div id="hero"></div>
-        <div class="faner ${this._config.vis_fanenavn === false ? "baretikon" : ""}">${FANER.map((f) => `
+        <div class="faner ${this._config.vis_fanenavn === false ? "baretikon" : ""}">${this._faner().map((f) => `
           <div class="fane" data-handling="fane" data-fane="${f.id}">
             <ha-icon icon="${f.icon}"></ha-icon><span>${f.navn}</span>
           </div>`).join("")}</div>
@@ -451,6 +464,8 @@ class KiKlimaProCard extends HTMLElement {
   _tegn() {
     if (!this._hass || !this._bygd) return;
     this._rot.querySelectorAll(".fane").forEach((el) => el.classList.toggle("aktiv", el.dataset.fane === this._fane));
+    // Er den valgte fanen skjult, faller vi tilbake til den første synlige
+    if (!this._faner().some((f) => f.id === this._fane)) this._fane = this._faner()[0].id;
     this._tegnHero();
     const ut = { oversikt: "_oversikt", soner: "_soner", energi: "_energi",
                  varmtvann: "_varmtvann", tanker: "_tanker", oppsett: "_oppsett",
@@ -503,6 +518,11 @@ class KiKlimaProCard extends HTMLElement {
   }
 
   _tegnHero() {
+    if (this._config.vis_hero === false) {
+      const h = this._rot.getElementById("hero");
+      if (h) h.style.display = "none";
+      return;
+    }
     const sone = this._s("sensor.ki_energi_status", "ukjent");
     const forklaring = this._a("sensor.ki_energi_status", "forklaring", "Venter på motoren …");
     const skygge = this._a("sensor.ki_energi_status", "skyggemodus", false);
@@ -1865,7 +1885,9 @@ class KiKlimaProCard extends HTMLElement {
       this._tegn();
     } else if (h === "hero") {
       this._heroApen = !this._heroApen;
-      this._tegnHero();
+      // Er den valgte fanen skjult, faller vi tilbake til den første synlige
+    if (!this._faner().some((f) => f.id === this._fane)) this._fane = this._faner()[0].id;
+    this._tegnHero();
     } else if (h === "mnd") {
       const m = Number(el.dataset.mnd);
       if (this._mndValg && this._mndValg.fraId === el.dataset.fra) {
@@ -2325,7 +2347,7 @@ class KiKlimaProCardEditor extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); }
   setConfig(config) {
     this._config = Object.assign({ default_tab: "oversikt", remember_tab: true,
-      vis_fanenavn: true }, config || {});
+      vis_fanenavn: true, vis_hero: true, skjul_faner: [] }, config || {});
     this._tegn();
   }
   set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; }
@@ -2338,10 +2360,16 @@ class KiKlimaProCardEditor extends HTMLElement {
           FANER.map((f) => ({ value: f.id, label: f.navn })) } } },
         { name: "remember_tab", selector: { boolean: {} } },
         { name: "vis_fanenavn", selector: { boolean: {} } },
+        { name: "vis_hero", selector: { boolean: {} } },
+        /* Skjul fanene du ikke bruker. Tanker og Avansert er diagnostikk de fleste
+           ikke trenger stående framme. */
+        { name: "skjul_faner", selector: { select: { multiple: true, mode: "list",
+          options: FANER.map((f) => ({ value: f.id, label: f.navn })) } } },
       ];
       this._form.computeLabel = (s) => ({ title: "Tittel (valgfri)",
         default_tab: "Standardfane", remember_tab: "Husk valgt fane",
-        vis_fanenavn: "Vis navn under faneikonene" }[s.name] || s.name);
+        vis_fanenavn: "Vis navn under faneikonene", vis_hero: "Vis toppfeltet",
+        skjul_faner: "Skjul disse fanene" }[s.name] || s.name);
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this.dispatchEvent(new CustomEvent("config-changed", {

@@ -22,7 +22,7 @@
  * intervall_dager: 14              # framskriv datoer når du ikke har kalenderentitet
  * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "2.3.0";
+const KI_AV_VERSJON = "2.3.1";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -293,6 +293,125 @@ class KiAvfallCard extends HTMLElement {
         <circle class="eksos" cx="88" cy="29" r="3.4" fill="currentColor" fill-opacity=".35"/>
       </g>
     </svg></div>`;
+  }
+
+  /* Alle kjente tømmedatoer, ikke bare den neste.
+   *
+   * Sensorene oppgir bare neste dato per fraksjon. En månedskalender trenger flere, og
+   * det finnes to ærlige kilder:
+   *
+   *   1. En kalenderentitet fra renovasjonsselskapet — da er datoene faktiske.
+   *   2. Framskriving fra intervallet. De fleste fraksjoner tømmes hver 14. eller 28.
+   *      dag, så neste dato pluss intervallet treffer som regel. Men det er et anslag,
+   *      og kortet sier det i klartekst under kalenderen.
+   */
+  _datoer(alle) {
+    const c = this._c;
+    const ut = [];
+    for (const h of (this._kalHendelser || [])) {
+      const treff = alle.find((f) => {
+        const n = String(h.summary || "").toLowerCase();
+        return n && String(f.navn).toLowerCase().split(" ").some((o) => o.length > 3 && n.includes(o));
+      });
+      ut.push({ dato: h.dato, navn: h.summary || (treff && treff.navn) || "Tømming",
+        farge: (treff && treff.farge) || "var(--gray600, #8a8a8d)", ekte: true });
+    }
+    if (ut.length) return ut;
+
+    const global = Number(c.intervall_dager) || 0;
+    const slutt = new Date();
+    slutt.setMonth(slutt.getMonth() + 4);
+    for (const f of alle) {
+      if (!f.dato) continue;
+      const iv = Number(f.intervall) || global;
+      let d = new Date(f.dato);
+      if (isNaN(d)) continue;
+      ut.push({ dato: new Date(d), navn: f.navn, farge: f.farge, ekte: true });
+      if (iv > 0) {
+        for (let i = 0; i < 20; i++) {
+          d = new Date(d.getTime() + iv * 864e5);
+          if (d > slutt) break;
+          ut.push({ dato: new Date(d), navn: f.navn, farge: f.farge, ekte: false });
+        }
+      }
+    }
+    return ut;
+  }
+
+  async _hentKalender() {
+    const c = this._c;
+    if (!c.kalender_entitet || !this._h || !this._h.callApi) return;
+    const fra = new Date(); fra.setMonth(fra.getMonth() - 1); fra.setHours(0, 0, 0, 0);
+    const til = new Date(); til.setMonth(til.getMonth() + 4);
+    try {
+      const svar = await this._h.callApi("GET",
+        `calendars/${c.kalender_entitet}?start=${encodeURIComponent(fra.toISOString())}` +
+        `&end=${encodeURIComponent(til.toISOString())}`);
+      this._kalHendelser = (svar || []).map((h) => {
+        const raa = (h.start && (h.start.dateTime || h.start.date)) || h.start;
+        const d = new Date(raa);
+        return isNaN(d) ? null : { dato: d, summary: h.summary };
+      }).filter(Boolean);
+    } catch (e) {
+      this._kalFeil = e && e.message ? e.message : String(e);
+      console.warn("ki-avfall-card: fikk ikke hentet kalenderen", e);
+    }
+    this._tegn();
+  }
+
+  _kalender(alle) {
+    const naa = new Date(); naa.setHours(0, 0, 0, 0);
+    const vist = new Date(naa.getFullYear(), naa.getMonth() + (this._mnd || 0), 1);
+    const start = new Date(vist);
+    start.setDate(1 - ((vist.getDay() + 6) % 7));        // mandag først
+
+    const datoer = this._datoer(alle);
+    const perDag = {};
+    for (const d of datoer) {
+      const n = new Date(d.dato); n.setHours(0, 0, 0, 0);
+      (perDag[n.toDateString()] = perDag[n.toDateString()] || []).push(d);
+    }
+
+    const ruter = [];
+    for (let i = 0; i < 42; i++) {
+      const dag = new Date(start); dag.setDate(start.getDate() + i);
+      const liste = perDag[dag.toDateString()] || [];
+      const utenfor = dag.getMonth() !== vist.getMonth();
+      ruter.push(`<div class="kdag ${utenfor ? "utenfor" : ""} ${liste.length ? "har" : ""}
+        ${dag.getTime() === naa.getTime() ? "idag" : ""}
+        ${this._valgtDag === dag.toDateString() ? "valgt" : ""}"
+        ${liste.length ? `data-dag="${dag.toDateString()}"` : ""}>${dag.getDate()}
+        ${liste.length ? `<span class="prikker">${liste.slice(0, 4).map((x) =>
+          `<i style="--p:${x.farge}"></i>`).join("")}</span>` : ""}</div>`);
+    }
+
+    const valgtNokkel = this._valgtDag || naa.toDateString();
+    const valgt = perDag[valgtNokkel] || [];
+    const dagTekst = new Date(valgtNokkel);
+    const anslatt = datoer.some((d) => !d.ekte);
+
+    return `<div class="kal">
+      <div class="kaltopp">
+        <button class="pil" data-mnd="-1" aria-label="Forrige måned"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="mnd">${vist.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</div>
+        <button class="pil" data-mnd="1" aria-label="Neste måned"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+      </div>
+      <div class="ukedager">${["M", "T", "O", "T", "F", "L", "S"].map((u) => `<span>${u}</span>`).join("")}</div>
+      <div class="kalrute">${ruter.join("")}</div>
+      <div class="valgtdag">${kiAvEsc(dagTekst.toLocaleDateString("nb-NO",
+        { weekday: "long", day: "numeric", month: "long" }))}${valgt.length ? "" : " · ingen tømming"}</div>
+      ${valgt.length ? `<div class="liste">${valgt.map((x) => `
+        <div class="rad" style="--f:${x.farge}">
+          <span class="ik"><ha-icon icon="mdi:trash-can-outline"></ha-icon></span>
+          <div class="tekst"><div class="navn">${kiAvEsc(x.navn)}</div>
+            <div class="nar">${x.ekte ? "Bekreftet dato" : "Anslag fra intervallet"}</div></div>
+        </div>`).join("")}</div>` : ""}
+      ${anslatt ? `<div class="anslag">Datoer utover den neste er anslått ut fra
+        intervallet du har satt, ikke hentet fra renovasjonsselskapet. Sett
+        <code>kalender_entitet</code> for faktiske datoer.</div>` : ""}
+      ${this._kalFeil ? `<div class="anslag">Fikk ikke hentet kalenderen: ${
+        kiAvEsc(this._kalFeil)}</div>` : ""}
+    </div>`;
   }
 
   _tegn() {

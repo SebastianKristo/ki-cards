@@ -1,22 +1,24 @@
-# ki-cards 3.72.0
+# ki-cards 3.75.0
 
-## `ki-avfall-card` 2.3.0
+## `ki-klima-pro-card` 2.7.0: mer i UI-editoren
 
-**Valget mellom Fraksjoner og Kalender** er nå den samme brede bryteren som Vekking/Søvn
-i søvnpopupen: `--gray200` bak, 75 px hjørner, 4 px luft, og den valgte halvdelen i
-`--active-small` med lys tekst. Teksten er 15 px i vekt 500, som de andre bryterne.
+Editoren hadde tittel, standardfane og «husk valgt fane». Nå også:
 
-Før var den en flat 20 px-boks med 12,5 px halvfet tekst og `--active-small` — samme
-farge, men en annen form enn resten av bundelen.
+* **Vis navn under faneikonene** — av gir bare ikoner, uansett skjermbredde. Valget kom i
+  3.71, men lå bare i YAML for dette kortet. Nå står det i editoren.
+* **Vis toppfeltet** — skjuler hero-feltet øverst hvis du vil ha et lavere kort.
+* **Skjul disse fanene** — flervalg over de sju fanene. Tanker og Avansert er diagnostikk
+  de fleste ikke trenger stående framme.
 
-**Fraksjonsradene** følger formen fra søvnpopupen: 24 px hjørner i stedet for 22, 72 px
-høyde, og et **nøytralt rundt ikonfelt** på 52 px med `rgba(250,251,252,.10)` bak — i
-stedet for en tonet flate i fraksjonens farge.
+Skjuler du fanen som er satt som standard, eller den kortet husket fra forrige gang,
+velges den første synlige med en gang — ikke først når neste tilstandsendring utløser en
+opptegning. Skjuler du alle, vises alle: et kort uten faner er umulig å navigere.
 
-Fargen ligger nå på selve ikonet. Fraksjonen er dermed like lett å kjenne igjen, men hver
-rad får ikke sin egen kulørte flate — det er det som fikk radene til å se ut som noe annet
-enn resten av dashbordet. Navnet er 16 px i vekt 500 og undertittelen 13 px, som i
-skjermbildet du sendte.
+Kontrollert i DOM: fanerada viser riktige faner, `vis_fanenavn: false` gir
+`faner baretikon`, og alle seks feltene har etiketter i editoren.
 
-Tømmes fraksjonen i dag, får raden fraksjonens farge og ikonfeltet et mørkt felt, så
-ikonet fortsatt leses.
+## Om teksten under faneikonene
+
+Den slås av med **«Vis navn under faneikonene»** i editoren, eller `vis_fanenavn: false`
+i YAML. Begge kortene — klima og vanning — skjuler den automatisk under 430 px fra før;
+valget gjelder brede skjermer.

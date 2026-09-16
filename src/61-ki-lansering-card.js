@@ -7,6 +7,7 @@
  * antall: 6                 # hvor mange i lista under heroen
  * visning: full             # full (hero + liste) | liste | hero | kalender
  * kalender: true            # vis knappen som bytter mellom liste og månedskalender
+ * detaljer: true            # trykk åpner detaljlag i kortet (false = rett til Sonarr/Radarr)
  * bursdag: true             # bursdagskort i samme sveip som neste lansering
  *   # eller: { kalender: calendar.birthdays, dager: 45 }
  *   # eller: { regex: bursdag, entities: [...] }
@@ -17,7 +18,7 @@ const KI_LANS_VERSJON = "1.4.1";
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
-  .rot { display:grid; gap:12px; max-width:100%; }
+  .rot { position:relative; display:grid; gap:12px; max-width:100%; }
 
   /* ---- hero med bakgrunnsbilde ---- */
   .hero { position:relative; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
@@ -100,6 +101,38 @@ const KI_LANS_STIL = `
     justify-content:center; padding:0 6px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
   .dag.film .antall { background:#ffd98a; }
   .valgtdag { font-size:13px; opacity:.6; padding:14px 4px 2px; text-transform:capitalize; }
+
+  /* ---- detaljlaget ----
+     Trykk på en rad åpnet Sonarr eller Radarr i ny fane. Men all informasjonen ligger
+     allerede i sensoren — sammendrag, rating, sjanger, lengde, bakgrunnsbilde — så den
+     vises her i stedet. Lenken er beholdt som en knapp for den som vil dit. */
+  .detalj { position:absolute; inset:0; z-index:9; border-radius:var(--ha-card-border-radius,24px);
+    overflow:hidden; background:#14121a; animation:la-detalj .22s var(--myk, ease); }
+  @keyframes la-detalj { from { opacity:0; transform:scale(.985) } to { opacity:1; transform:none } }
+  .detalj .bak { position:absolute; inset:0; background-size:cover; background-position:center top;
+    opacity:.5; }
+  .detalj .skygge { position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(20,18,26,.25) 0%, rgba(20,18,26,.88) 58%, #14121a 100%); }
+  .detalj .inn { position:relative; height:100%; overflow-y:auto; padding:16px;
+    display:grid; align-content:start; gap:12px; color:#fff; }
+  .detalj .topprad { display:flex; align-items:flex-start; gap:14px; }
+  .detalj .pl { width:86px; flex:none; aspect-ratio:2/3; border-radius:12px; background:#2a2534;
+    background-size:cover; background-position:center; box-shadow:0 6px 20px rgba(0,0,0,.5); }
+  .detalj h3 { margin:0; font-size:20px; font-weight:600; line-height:1.25; }
+  .detalj .und { font-size:13px; opacity:.8; margin-top:4px; line-height:1.45; }
+  .detalj .knagger { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .detalj .knagg { font-size:11.5px; font-weight:600; padding:4px 9px; border-radius:999px;
+    background:rgba(255,255,255,.14); white-space:nowrap; }
+  .detalj .tekst { font-size:13.5px; line-height:1.6; opacity:.88; }
+  .detalj .knapper { display:flex; gap:8px; flex-wrap:wrap; padding-top:4px; }
+  .detalj .dk { border:0; border-radius:75px; padding:10px 16px; font:inherit; font-size:13px;
+    font-weight:500; cursor:pointer; background:rgba(255,255,255,.14); color:#fff;
+    display:flex; align-items:center; gap:7px; --mdc-icon-size:18px; }
+  .detalj .dk.primar { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
+  .detalj .lukk { position:absolute; right:12px; top:12px; z-index:2; width:34px; height:34px;
+    border:0; border-radius:50%; background:rgba(0,0,0,.45); backdrop-filter:blur(6px);
+    color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    --mdc-icon-size:20px; }
 
   /* ---- sveip mellom hero-sidene ---- */
   .sveip { position:relative; overflow:hidden; touch-action:pan-y; }
@@ -220,8 +253,55 @@ class KiLanseringCard extends HTMLElement {
     return { kort: `${d.getDate()}. ${KI_LA_MND[d.getMonth()]}`, lang: `${d.getDate()}. ${KI_LA_MND[d.getMonth()]} kl. ${kl}` };
   }
   _apne(x) {
-    if (x.lenke) return window.open(x.lenke, "_blank", "noopener");
-    this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: x.kilde }, bubbles: true, composed: true }));
+    // `detaljer: false` gir den gamle oppførselen: rett til Sonarr eller Radarr
+    if (this._c.detaljer === false) {
+      if (x.lenke) return window.open(x.lenke, "_blank", "noopener");
+      return this.dispatchEvent(new CustomEvent("hass-more-info",
+        { detail: { entityId: x.kilde }, bubbles: true, composed: true }));
+    }
+    this._detalj = x;
+    this._tegn();
+  }
+
+  _detaljHtml(x) {
+    const n = this._naartekst(x.naar);
+    const knagger = [
+      x.type === "film" ? (x.kino ? "Kinopremiere" : "Film") : "Serie",
+      x.nummer,
+      x.lengde ? `${x.lengde} min` : "",
+      x.rating ? `★ ${x.rating}` : "",
+      x.studio,
+      ...String(x.sjanger || "").split(/[,/]/).map((g) => g.trim()).filter(Boolean).slice(0, 3),
+    ].filter(Boolean);
+
+    return `<div class="detalj">
+      ${x.bakgrunn ? `<div class="bak" style="background-image:url('${kiLaEsc(x.bakgrunn)}')"></div>` : ""}
+      <div class="skygge"></div>
+      <button class="lukk" data-lukk="1" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
+      <div class="inn">
+        <div class="topprad">
+          <div class="pl" style="${x.plakat ? `background-image:url('${kiLaEsc(x.plakat)}')` : ""}"></div>
+          <div style="min-width:0">
+            <h3>${kiLaEsc(x.tittel)}</h3>
+            ${x.episode ? `<div class="und">${kiLaEsc(x.episode)}</div>` : ""}
+            <div class="und">${kiLaEsc(n.lang)}</div>
+            <div class="knagger">${knagger.map((k) =>
+              `<span class="knagg">${kiLaEsc(k)}</span>`).join("")}</div>
+          </div>
+        </div>
+        ${x.sammendrag ? `<div class="tekst">${kiLaEsc(x.sammendrag)}</div>`
+          : `<div class="tekst" style="opacity:.55">Ingen beskrivelse fra ${
+              x.type === "film" ? "Radarr" : "Sonarr"}.</div>`}
+        <div class="knapper">
+          ${x.trailer ? `<button class="dk primar" data-url="${kiLaEsc(x.trailer)}">
+            <ha-icon icon="mdi:play"></ha-icon>Trailer</button>` : ""}
+          ${x.lenke ? `<button class="dk" data-url="${kiLaEsc(x.lenke)}">
+            <ha-icon icon="mdi:open-in-new"></ha-icon>${
+              x.type === "film" ? "Radarr" : "Sonarr"}</button>` : ""}
+          <button class="dk" data-lukk="1"><ha-icon icon="mdi:arrow-left"></ha-icon>Tilbake</button>
+        </div>
+      </div>
+    </div>`;
   }
 
   /* Sveip mellom hero-sidene, med retningslås så siden kan rulles som normalt */
@@ -473,6 +553,7 @@ class KiLanseringCard extends HTMLElement {
         </div></div>` : ""}
         ${this._visKal ? this._kalender(alle)
           : (sveip || (alle.length ? "" : `<div class="tom">Ingenting på vei akkurat nå.</div>`)) + liste}
+        ${this._detalj ? this._detaljHtml(this._detalj) : ""}
       </div>`;
 
     const visning = this._visKal ? "kalender" : this._fane;
@@ -482,6 +563,14 @@ class KiLanseringCard extends HTMLElement {
     }
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
+    // detaljlaget: lukk og lenkeknapper
+    for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
+      b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });
+    for (const b of this.shadowRoot.querySelectorAll(".detalj [data-url]"))
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.open(b.dataset.url, "_blank", "noopener");
+      });
     const r = this.shadowRoot;
     r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
       this._fane = b.dataset.f; this._visKal = false; this._forrige = null; this._tegn();

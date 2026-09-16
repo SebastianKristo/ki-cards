@@ -16,7 +16,7 @@
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.9.0";
+const KI_VANN_VERSJON = "3.10.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -63,7 +63,10 @@ const KI_VANN_STIL = `
   .scene .tekst { position:absolute; left:20px; right:20px; top:16px; z-index:3; pointer-events:none; }
   .scene .tittel { font-size:17px; font-weight:600; text-shadow:0 1px 10px rgba(0,0,0,.45); }
   .scene .under { font-size:13px; opacity:.85; margin-top:2px; text-shadow:0 1px 8px rgba(0,0,0,.45); }
-  .scene .ned { position:absolute; right:20px; top:14px; z-index:3; font-size:30px; font-weight:300;
+  /* Tannhjulet står i høyre hjørne (38 px bredt, 14 px fra kanten). Nedtellingen sto
+     på right:20px og lå dermed rett under det mens vanningen gikk. Den flyttes til
+     venstre for knappen: 14 + 38 + 10 = 62. */
+  .scene .ned { position:absolute; right:62px; top:14px; z-index:3; font-size:30px; font-weight:300;
     font-variant-numeric:tabular-nums; text-shadow:0 2px 12px rgba(0,0,0,.5); }
   .scene .bunn { position:absolute; left:20px; right:20px; bottom:14px; z-index:3; display:flex; align-items:center; gap:10px; }
   .scene .bunn .sp { flex:1; height:5px; border-radius:3px; background:rgba(255,255,255,.22); overflow:hidden; }
@@ -199,29 +202,41 @@ const KI_VANN_STIL = `
   .prog .t { grid-area:t; padding-right:14px; font-size:12px; opacity:.7; font-variant-numeric:tabular-nums; }
   .hint { font-size:11px; opacity:.55; padding:0 4px 4px; }
   /* ---- programkort ---- */
-  .pkort { background:var(--gray200); border-radius:20px; padding:14px 16px; display:grid; gap:10px;
+  /* Programflisen. Hadde 20 px hjørner, navnet og klokka i samme rad som bryteren, og
+     tre rader med brikker under — tett og uten et fast punkt for øyet. Nå: 24 px
+     hjørner, rundt ikonfelt til venstre som i resten av dashbordet, og klokka som det
+     store tallet med «når» under. */
+  .pkort { background:var(--gray200); border-radius:24px; padding:14px 16px; display:grid; gap:12px;
     position:relative; overflow:hidden; transition:background .3s; }
   .pkort.gaar { background:var(--blue,#6ec6ff); color:var(--black,#000); }
   .pkort.av { opacity:.55; }
-  .pkort .topp { display:grid; grid-template-columns:1fr min-content min-content; gap:10px; align-items:center; }
-  .pkort .navn { font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; min-width:0; }
-  .pkort .navn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .pkort .klokke { font-size:22px; font-weight:300; font-variant-numeric:tabular-nums; }
-  .pkort .naar { font-size:12px; opacity:.7; }
+  .pkort .topp { display:grid; grid-template-columns:52px 1fr auto auto; gap:12px; align-items:center; }
+  .pkort .pik { width:52px; height:52px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; --mdc-icon-size:26px; background:rgba(250,251,252,.10); }
+  .pkort.gaar .pik { background:rgba(0,0,0,.14); }
+  .pkort.gaar .pik ha-icon { animation:va-spinn 2.4s linear infinite; }
+  @keyframes va-spinn { to { transform:rotate(360deg) } }
+  .pkort .navn { font-size:16px; font-weight:500; display:flex; align-items:center; gap:8px;
+    min-width:0; flex-wrap:wrap; }
+  .pkort .navn span.n { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pkort .klokke { font-size:24px; font-weight:400; font-variant-numeric:tabular-nums;
+    letter-spacing:-.02em; line-height:1.1; }
+  .pkort .naar { font-size:12px; opacity:.6; }
   .merkelapp { font-size:10px; font-weight:700; letter-spacing:.04em; padding:3px 7px; border-radius:7px;
     background:rgba(0,0,0,.16); white-space:nowrap; }
   .dagsrad { display:flex; gap:4px; }
-  .dagsrad i { flex:1; text-align:center; font-size:10px; font-weight:700; font-style:normal; padding:4px 0;
-    border-radius:6px; background:rgba(255,255,255,.07); opacity:.4; }
+  .dagsrad i { flex:1; text-align:center; font-size:11px; font-weight:600; font-style:normal;
+    padding:6px 0; border-radius:999px; background:rgba(255,255,255,.07); opacity:.4; }
   .pkort.gaar .dagsrad i { background:rgba(0,0,0,.12); }
   .dagsrad i.pa { opacity:1; background:var(--gray1000); color:var(--gray100); }
   .pkort.gaar .dagsrad i.pa { background:var(--black,#000); color:#fff; }
   .sonebrikker { display:flex; flex-wrap:wrap; gap:6px; }
-  .sonebrikke { font-size:11px; font-weight:600; padding:4px 9px; border-radius:999px; background:rgba(255,255,255,.09); }
+  .sonebrikke { font-size:11.5px; font-weight:500; padding:5px 11px; border-radius:999px;
+    background:rgba(255,255,255,.09); }
   .pkort.gaar .sonebrikke { background:rgba(0,0,0,.16); }
   .sonebrikke.aktiv { background:var(--gray1000); color:var(--gray100); animation:va-blink 1.4s ease-in-out infinite; }
   .pknapper { display:grid; grid-template-columns:1fr 1fr min-content; gap:8px; align-items:center; }
-  .pk { border:0; border-radius:12px; padding:10px; font:inherit; font-size:12px; font-weight:600; cursor:pointer;
+  .pk { border:0; border-radius:75px; padding:10px; font:inherit; font-size:12.5px; font-weight:500; cursor:pointer;
     background:rgba(255,255,255,.09); color:inherit; display:flex; align-items:center; justify-content:center; gap:6px;
     --mdc-icon-size:18px; }
   .pkort.gaar .pk { background:rgba(0,0,0,.16); }
@@ -332,6 +347,38 @@ const KI_VANN_STIL = `
   .frad .tall { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
   .knagg { font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; background:var(--gray100); opacity:.7; }
   .periodefaner { display:flex; gap:6px; flex-wrap:wrap; }
+
+  /* ---- månedskalender ---- */
+  .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center;
+    gap:10px; padding:0 2px 10px; }
+  .kaltopp .mnd { text-align:center; font-size:16px; font-weight:600; text-transform:capitalize; }
+  .pil { border:0; background:none; color:var(--gray1000); width:36px; height:36px;
+    border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    --mdc-icon-size:24px; opacity:.7; }
+  .pil:active { transform:scale(.92); }
+  .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; padding-bottom:6px; }
+  .ukedager span { text-align:center; font-size:12px; font-weight:600; opacity:.45; }
+  .kalrute { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .kdag { position:relative; aspect-ratio:1; border-radius:50%; background:var(--gray200);
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+    transition:transform .14s var(--fjaer), background .2s; }
+  .kdag.utenfor { opacity:.25; background:transparent; }
+  /* faktisk vannet: fylt i blått. planlagt: bare en prikk. */
+  .kdag.vannet { background:color-mix(in srgb, var(--blue,#4aa3e0) 40%, var(--gray100));
+    font-weight:600; cursor:pointer; }
+  .kdag.planlagt { cursor:pointer; }
+  .kdag.planlagt::after { content:""; position:absolute; bottom:5px; left:50%;
+    transform:translateX(-50%); width:5px; height:5px; border-radius:50%;
+    background:var(--green,#5ad18b); }
+  .kdag.idag { outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; }
+  .kdag.valgt { transform:scale(1.06); }
+  .kaltegn { display:flex; gap:14px; font-size:11.5px; opacity:.55; padding:10px 4px 0;
+    flex-wrap:wrap; }
+  .kaltegn span { display:inline-flex; align-items:center; gap:6px; }
+  .kaltegn i { width:9px; height:9px; border-radius:50%; }
+  .kaltegn i.v { background:color-mix(in srgb, var(--blue,#4aa3e0) 55%, transparent); }
+  .kaltegn i.p { background:var(--green,#5ad18b); }
+  .valgtdag { font-size:13px; opacity:.6; padding:12px 4px 2px; text-transform:capitalize; }
 
   /* ---- historikk ---- */
   .histogram { display:flex; align-items:flex-end; gap:2px; height:120px; margin-top:8px; }
@@ -908,6 +955,86 @@ class KiVanningCard extends HTMLElement {
     }
   }
 
+  /* Månedskalender over vanning.
+   *
+   * To kilder, og de betyr ikke det samme:
+   *   · faktisk vannet — fra døgnstatistikken, altså målt forbruk den dagen
+   *   · planlagt — fra programmenes ukedager, framskrevet over måneden
+   *
+   * De vises ulikt: målte dager er fylt, planlagte har bare en prikk. Blander man dem,
+   * ser en plan ut som noe som har skjedd.
+   */
+  _manedskalender() {
+    const naa = new Date(); naa.setHours(0, 0, 0, 0);
+    const vist = new Date(naa.getFullYear(), naa.getMonth() + (this._mnd || 0), 1);
+    const start = new Date(vist);
+    start.setDate(1 - ((vist.getDay() + 6) % 7));
+
+    // målte dager
+    const malt = {};
+    for (const r of ((this._histData && this._histData.rader) || [])) {
+      if (r.liter > 0.5) {
+        const d = new Date(r.dato); d.setHours(0, 0, 0, 0);
+        malt[d.toDateString()] = (malt[d.toDateString()] || 0) + r.liter;
+      }
+    }
+
+    // planlagte ukedager fra programmene
+    const ki = this._ki() || {};
+    const oppsett = ki.program_historikk || [];
+    const dagNokkel = ["man", "tir", "ons", "tor", "fre", "lor", "son"];
+    const planlagt = {};
+    for (const prog of oppsett) {
+      if (prog.aktiv === false) continue;
+      const dager = prog.dager && prog.dager.length ? prog.dager : null;
+      if (!dager) continue;                       // intervallprogrammer kan vi ikke plassere
+      for (let i = 0; i < 42; i++) {
+        const d = new Date(start); d.setDate(start.getDate() + i);
+        if (d < naa) continue;                    // planen gjelder framover
+        if (!dager.includes(dagNokkel[(d.getDay() + 6) % 7])) continue;
+        (planlagt[d.toDateString()] = planlagt[d.toDateString()] || []).push(
+          { navn: prog.navn, tid: prog.tid });
+      }
+    }
+
+    const ruter = [];
+    for (let i = 0; i < 42; i++) {
+      const dag = new Date(start); dag.setDate(start.getDate() + i);
+      const n = dag.toDateString();
+      const utenfor = dag.getMonth() !== vist.getMonth();
+      const klasser = ["kdag"];
+      if (utenfor) klasser.push("utenfor");
+      if (malt[n]) klasser.push("vannet");
+      else if (planlagt[n]) klasser.push("planlagt");
+      if (dag.getTime() === naa.getTime()) klasser.push("idag");
+      if (this._valgtDag === n) klasser.push("valgt");
+      const klikkbar = malt[n] || planlagt[n];
+      ruter.push(`<div class="${klasser.join(" ")}" ${klikkbar ? `data-kdag="${n}"` : ""}
+        title="${malt[n] ? `${Math.round(malt[n])} L` : planlagt[n] ? "Planlagt" : ""}">${dag.getDate()}</div>`);
+    }
+
+    const valgtN = this._valgtDag || naa.toDateString();
+    const dagTekst = new Date(valgtN);
+    const vMalt = malt[valgtN], vPlan = planlagt[valgtN] || [];
+
+    return `<div class="maal">
+      <div class="kaltopp">
+        <button class="pil" data-kmnd="-1" aria-label="Forrige måned"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="mnd">${vist.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</div>
+        <button class="pil" data-kmnd="1" aria-label="Neste måned"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+      </div>
+      <div class="ukedager">${["M", "T", "O", "T", "F", "L", "S"].map((u) => `<span>${u}</span>`).join("")}</div>
+      <div class="kalrute">${ruter.join("")}</div>
+      <div class="kaltegn"><span><i class="v"></i>Vannet</span><span><i class="p"></i>Planlagt</span></div>
+      <div class="valgtdag">${kiVaEsc(dagTekst.toLocaleDateString("nb-NO",
+        { weekday: "long", day: "numeric", month: "long" }))}${
+        vMalt ? ` · ${this._litertekst(vMalt)}` : vPlan.length ? "" : " · ingen vanning"}</div>
+      ${vPlan.length ? `<div class="fordeling">${vPlan.map((x) =>
+        `<div class="frad"><div><div class="navn"><span>${kiVaEsc(x.navn)}</span>
+          <span class="knagg">planlagt${x.tid ? " kl. " + kiVaEsc(x.tid) : ""}</span></div></div></div>`).join("")}</div>` : ""}
+    </div>`;
+  }
+
   _panelHistorikk() {
     const ki = this._kiEntitet();
     if (!ki) return `<div class="tom">Installer <b>KI Vanning</b>-integrasjonen for historikk.</div>`;
@@ -938,6 +1065,7 @@ class KiVanningCard extends HTMLElement {
 
     const rader = h.rader;
     const maks = Math.max(1, ...rader.map((r) => r.liter));
+    const kal = this._manedskalender();
     const sum = rader.reduce((a, r) => a + r.liter, 0);
     const dagerMedVann = rader.filter((r) => r.liter > 0.5).length;
     const snitt = dagerMedVann ? sum / dagerMedVann : 0;
@@ -946,6 +1074,7 @@ class KiVanningCard extends HTMLElement {
     const iso = (d) => d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
 
     return `
+      ${kal}
       <div class="maal">
         <div class="rad">
           <div><div class="stor">${this._litertekst(sum)}</div>
@@ -1185,7 +1314,8 @@ class KiVanningCard extends HTMLElement {
       const liter = pl ? pl.estimat_liter : null;
       return `<div class="pkort ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
         <div class="topp">
-          <div class="navn"><span>${kiVaEsc(x.navn)}</span>
+          <span class="pik"><ha-icon icon="${gaar ? "mdi:sprinkler-variant" : "mdi:water-outline"}"></ha-icon></span>
+          <div class="navn"><span class="n">${kiVaEsc(x.navn)}</span>
             ${o.samtidig ? `<span class="merkelapp">Samtidig</span>` : ""}
             ${gaar ? `<span class="merkelapp">Kjører</span>` : ""}</div>
           <div style="text-align:right"><div class="klokke">${kiVaEsc(tid)}</div>
@@ -1414,6 +1544,14 @@ class KiVanningCard extends HTMLElement {
       if (type === "bryter") this._veksle(id);
       else if (type === "knapp") { if (navigator.vibrate) navigator.vibrate(10); this._h.callService("button", "press", { entity_id: id }); }
       else this._mer(id);
+    }));
+    r.querySelectorAll("[data-kmnd]").forEach((b) => b.addEventListener("click", () => {
+      this._mnd = (this._mnd || 0) + Number(b.dataset.kmnd);
+      this._valgtDag = null;
+      this._tegn();
+    }));
+    r.querySelectorAll("[data-kdag]").forEach((d) => d.addEventListener("click", () => {
+      this._valgtDag = d.dataset.kdag; this._tegn();
     }));
     r.querySelectorAll("[data-per]").forEach((b) => b.addEventListener("click", () => {
       this._periode = b.dataset.per; this._tegn();
