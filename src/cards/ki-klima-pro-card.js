@@ -380,7 +380,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_boolean.ki_dynamisk_grense", "input_boolean.ki_prediktiv_forvarming",
       "input_boolean.ki_laering_tau", "input_boolean.ki_solkompensasjon",
       "input_boolean.ki_nattsenk_okonomi", "input_boolean.ki_energi_varsler",
-      "input_boolean.ki_styr_gardiner", "input_boolean.ki_styr_hanklevarmer",
+      "input_boolean.ki_styr_gardiner", "input_boolean.ki_gardin_folg_sol", "input_boolean.ki_styr_hanklevarmer",
       "switch.hanklevarmer", "sensor.hanklevarmer_power",
       "input_number.ki_maks_time_kwh", "input_number.ki_mal_snitt_kwh",
       "input_number.ki_min_time_kwh", "input_number.ki_reserve_uregulert_kwh",
@@ -455,6 +455,20 @@ class KiKlimaProCard extends HTMLElement {
                  varmtvann: "_varmtvann", tanker: "_tanker", oppsett: "_oppsett",
                  avansert: "_avansert" }[this._fane];
     this._rot.getElementById("innhold").innerHTML = this[ut]();
+
+    /* Mange rader henter entiteten sin fra et attributt — berederbryteren er
+       `a("bryter", "switch.varmtvannsbereder")`, håndklevarmeren likeså. Har du en annen
+       entitet enn standardnavnet, sto den ikke i `_fulgt`, og da endret ikke signaturen
+       seg når du slo den av eller på: kortet tegnet ikke om, og bryteren ble stående i
+       gammel stilling til du gikk ut og inn igjen.
+       Vi plukker derfor opp entitetene fra det som faktisk er tegnet. */
+    let nye = 0;
+    this._rot.querySelectorAll("[data-entity]").forEach((el) => {
+      const id = el.dataset.entity;
+      if (id && id.includes(".") && !this._fulgt.has(id)) { this._fulgt.add(id); nye++; }
+    });
+    // Signaturen får ett ledd mer, så neste tilstandsendring treffer uansett
+    if (nye) this._sig = null;
     this._rot.querySelectorAll(".hode > span:first-child").forEach((sp) => {
       if (sp.querySelector("ha-icon")) return;
       const tittel = (sp.childNodes[0] && sp.childNodes[0].textContent || "").trim();

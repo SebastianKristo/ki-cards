@@ -1,25 +1,21 @@
-# ki-cards 3.68.0
+# ki-cards 3.69.0
 
-## `ki-vanning-card` 3.8.0: fanerada etter mønsteret fra klimakortet
+## `ki-klima-pro-card`: brytere med egen entitet oppdaterte ikke
 
-Rada lot seg ikke rulle. Årsaken var min egen konstruksjon: en skinne med
-`width: fit-content` sentrert inne i en flex-boks. Den overflyter i stedet for å krympe,
-og da hjelper ikke `overflow-x` heller — det er ingenting å rulle inni, for elementet er
-aldri smalere enn innholdet. Samme feil som ruterkortet hadde i 3.30.
+Slo du av eller på berederbryteren under Varmtvann, ble bryteren stående i gammel
+stilling til du lukket kortet og åpnet det igjen.
 
-`ki-klima-pro-card` løser det strukturelt, og det er en bedre løsning enn min:
+Kortet tegner bare om når signaturen endrer seg, og signaturen bygges av en fast liste
+over fulgte entiteter. Men mange rader henter entiteten sin fra et attributt — bereder­
+bryteren er `a("bryter", "switch.varmtvannsbereder")`, håndklevarmeren likeså. Bruker du
+standardnavnet, virker det; har du en annen entitet, sto den ikke i lista, og da endret
+ikke signaturen seg i det hele tatt når du trykket. Tjenestekallet gikk gjennom — det var
+bare visningen som ikke fulgte etter.
 
-* Rada fyller hele bredden og har sin egen `--gray200`-bakgrunn, i stedet for en tynn
-  ramme rundt en sentrert pillegruppe.
-* Fanene deler bredden med `flex: 1 0 auto`.
-* Ikonet står over teksten, tekst i 11,5 px.
-* **Under 430 px skjules teksten**, og ikonene deler bredden likt. Fem faner får dermed
-  plass på en mobil uten at noe må rulles i det hele tatt.
-* Valgt fane i `--active-small` med lys tekst, som bryterne ellers i bundelen.
+Etter hver opptegning plukkes nå entitetene opp fra det som faktisk er tegnet, og legges
+i den fulgte lista. Neste tilstandsendring treffer dermed uansett hvilken entitet du har
+konfigurert. Oppsamlingen settler seg selv: andre gang finnes de allerede.
 
-Ikonene måtte være til å skille fra hverandre siden de bærer fanen alene på mobil:
-vanndråpe for Nå, sprinkler for Soner, kalender for Programmer, søylediagram for Forbruk,
-tidslinje for Historikk. Hver fane har `title` og `aria-label` med hele navnet.
-
-Rullingen ligger igjen som sikkerhetsnett for de tilfellene der teksten vises og det
-likevel blir trangt — men i praksis skal den ikke trenges nå.
+Gardinbryteren `input_boolean.ki_gardin_folg_sol` var i tillegg den ene faste bryteren
+som manglet i lista, og hadde samme symptom. Nå er alle med, kontrollert mekanisk mot
+markupen.
