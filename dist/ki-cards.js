@@ -1,4 +1,4 @@
-/* ki-cards v3.75.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
+/* ki-cards v3.76.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.75.0";
+  KI.VERSION = "3.76.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17722,9 +17722,12 @@ class KiSikkerhetCard extends HTMLElement {
       this._alarm.setConfig({
         entity: this._c.entity,
         zones: this._c.zones,
-        hero: false,
         soner: this._c.soner !== false,   // soner: false gir bare modusknappene
         ...ekstra,
+        // hero står sist: sikkerhetskortet har sitt eget hus og sin egen statuslinje,
+        // så alarmkortets rosa statusfelt skal aldri vises her. Sto den før `...ekstra`,
+        // kunne en `hero`-nøkkel i `tastatur`-objektet overstyre den.
+        hero: false,
       });
       boks.appendChild(this._alarm);
     }
@@ -17876,7 +17879,7 @@ try {
  *     name: Verandadør
  *     battery: sensor.verandador_battery
  */
-const KI_SLIST_VERSJON = "1.0.0";
+const KI_SLIST_VERSJON = "1.1.0";
 
 const KI_SLIST_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -17936,7 +17939,9 @@ const KI_SLIST_STIL = `
   .pille.borte .navn { text-decoration:line-through; }
 
   .lavt { font-weight:700; }
-  .tom { font-size:13px; opacity:.6; padding:12px 6px; }
+  .tom { font-size:13px; opacity:.6; padding:12px 6px; line-height:1.5; }
+  .tom.mangler { padding:4px 6px 10px; font-size:12px; opacity:.5; }
+  .tom code { font-size:12px; opacity:.85; }
 
   @media (prefers-reduced-motion: reduce) {
     .pille, .merke, .merke ha-icon { animation:none !important; transition:none !important; }
@@ -18024,7 +18029,13 @@ class KiSensorListeCard extends HTMLElement {
 
   _rad(sone, i) {
     const st = this._h.states[i.entity];
-    if (!st) return "";
+    if (!st) {
+      // Entiteten finnes ikke i Home Assistant. Før ble raden stille droppet, og var
+      // alle borte sto det bare «Ingen sensorer å vise» — teknisk sant, men ubrukelig
+      // når årsaken er én skrivefeil eller en entitet som har byttet navn.
+      if (i.entity) this._mangler.push(i.entity);
+      return "";
+    }
     const s = st.state;
     const borte = s === "unavailable" || s === "unknown";
     const kind = sone.kind || "opening";
@@ -18055,8 +18066,24 @@ class KiSensorListeCard extends HTMLElement {
       </button>`;
   }
 
+  /* Meldingen når ingenting kan vises. Sier hva som mangler i stedet for bare at det
+     ikke er noe å vise. */
+  _tomtekst() {
+    const c = this._c;
+    if (this._mangler.length) {
+      return `Fant ingen av disse entitetene i Home Assistant: ${
+        KI_SLIST_ESC(this._mangler.join(", "))}. Sjekk om navnene stemmer.`;
+    }
+    // «ingen soner» kan ikke oppstå: setConfig kaster hvis verken zones eller items er satt
+    if (this._soner().every((z) => !(z.items || []).length)) {
+      return "Sonene er satt opp, men uten <code>items:</code>.";
+    }
+    return c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise.";
+  }
+
   _tegn() {
     const c = this._c;
+    this._mangler = [];
     const blokker = this._soner().map((z, zi) => {
       const rader = (z.items || []).map((i) => this._rad(z, i)).filter(Boolean).join("");
       if (!rader) return "";
@@ -18081,7 +18108,10 @@ class KiSensorListeCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${KI_SLIST_STIL}</style>
       <div class="rot" style="--kol:${c.kolonner === 1 ? 1 : 2}">
-        ${blokker || `<div class="tom">${c.bare_aktive ? "Alt er lukket og låst." : "Ingen sensorer å vise."}</div>`}
+        ${blokker || `<div class="tom">${this._tomtekst()}</div>`}
+        ${blokker && this._mangler.length ? `<div class="tom mangler">Fant ikke ${
+          this._mangler.length === 1 ? "entiteten" : "entitetene"}: ${
+          KI_SLIST_ESC(this._mangler.join(", "))}</div>` : ""}
       </div>`;
 
     for (const el of this.shadowRoot.querySelectorAll("[data-sone]"))

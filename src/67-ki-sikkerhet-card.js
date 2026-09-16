@@ -880,9 +880,12 @@ class KiSikkerhetCard extends HTMLElement {
       this._alarm.setConfig({
         entity: this._c.entity,
         zones: this._c.zones,
-        hero: false,
         soner: this._c.soner !== false,   // soner: false gir bare modusknappene
         ...ekstra,
+        // hero står sist: sikkerhetskortet har sitt eget hus og sin egen statuslinje,
+        // så alarmkortets rosa statusfelt skal aldri vises her. Sto den før `...ekstra`,
+        // kunne en `hero`-nøkkel i `tastatur`-objektet overstyre den.
+        hero: false,
       });
       boks.appendChild(this._alarm);
     }
