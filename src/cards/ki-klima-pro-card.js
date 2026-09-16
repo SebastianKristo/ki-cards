@@ -186,7 +186,8 @@ class KiKlimaProCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true }, config || {});
+    this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true,
+      vis_fanenavn: true }, config || {});
     this._fane = this._lesFane() || this._config.default_tab;
     this._bygd = false;
     if (this.shadowRoot) this.shadowRoot.innerHTML = "";
@@ -429,7 +430,7 @@ class KiKlimaProCard extends HTMLElement {
       <ha-card><div class="wrap">
         ${this._config.title ? `<div class="tittel">${esc(this._config.title)}</div>` : ""}
         <div id="hero"></div>
-        <div class="faner">${FANER.map((f) => `
+        <div class="faner ${this._config.vis_fanenavn === false ? "baretikon" : ""}">${FANER.map((f) => `
           <div class="fane" data-handling="fane" data-fane="${f.id}">
             <ha-icon icon="${f.icon}"></ha-icon><span>${f.navn}</span>
           </div>`).join("")}</div>
@@ -2002,6 +2003,9 @@ class KiKlimaProCard extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
       .faner::-webkit-scrollbar { display:none; }
+      /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
+      .faner.baretikon .fane span { display:none; }
+      .faner.baretikon .fane { flex:1; padding:10px 8px; }
       .underfaner { display:flex; gap:6px; margin:2px 0 10px; }
       .underfane { flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
         padding:9px 10px; border-radius:75px; font-size:13px; font-weight:600; cursor:pointer;
@@ -2320,7 +2324,8 @@ customElements.define("ki-klima-pro-card", KiKlimaProCard);
 class KiKlimaProCardEditor extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); }
   setConfig(config) {
-    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true }, config || {});
+    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true,
+      vis_fanenavn: true }, config || {});
     this._tegn();
   }
   set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; }
@@ -2332,9 +2337,11 @@ class KiKlimaProCardEditor extends HTMLElement {
         { name: "default_tab", selector: { select: { mode: "dropdown", options:
           FANER.map((f) => ({ value: f.id, label: f.navn })) } } },
         { name: "remember_tab", selector: { boolean: {} } },
+        { name: "vis_fanenavn", selector: { boolean: {} } },
       ];
       this._form.computeLabel = (s) => ({ title: "Tittel (valgfri)",
-        default_tab: "Standardfane", remember_tab: "Husk valgt fane" }[s.name] || s.name);
+        default_tab: "Standardfane", remember_tab: "Husk valgt fane",
+        vis_fanenavn: "Vis navn under faneikonene" }[s.name] || s.name);
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this.dispatchEvent(new CustomEvent("config-changed", {

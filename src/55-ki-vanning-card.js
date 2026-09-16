@@ -9,13 +9,14 @@
  * skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
  * faner: [naa, soner, programmer, forbruk, historikk, innstillinger]
  * historikk_dager: 30          # hvor langt tilbake historikkfanen viser
+ * vis_fanenavn: true           # navn under ikonene i fanerada
  * ki_vanning: sensor.ki_vanning_oversikt   # oppdages automatisk når integrasjonen er installert
  * hero: stor                       # stor (hagescene, 190 px) | smal (den gamle linja)
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.8.0";
+const KI_VANN_VERSJON = "3.9.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -156,6 +157,9 @@ const KI_VANN_STIL = `
     .fane span { display:none; }
     .fane { flex:1; padding:10px 8px; }
   }
+  /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
+  .faner.baretikon .fane span { display:none; }
+  .faner.baretikon .fane { flex:1; padding:10px 8px; }
 
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
@@ -424,7 +428,7 @@ class KiVanningCard extends HTMLElement {
   setConfig(c) {
     this._c = { varigheter: [5, 10, 15, 30, 60], skjul_ubrukte: true, navn_kort: true,
                 faner: ["naa", "soner", "programmer", "forbruk", "historikk", "innstillinger"],
-                historikk_dager: 30, ...(c || {}) };
+                historikk_dager: 30, vis_fanenavn: true, ...(c || {}) };
     this._periode = "i_dag";
     this._fane = this._c.faner[0]; this._bygget = false; this._tegn();
   }
@@ -746,7 +750,8 @@ class KiVanningCard extends HTMLElement {
             <span>${c.vinter ? "Vintermodus" : anleggPa ? "Anlegget på" : "Anlegget av"}</span></button>
         </div>
 
-        ${faner.length > 1 ? `<div class="faner" role="tablist">${faner.map((f) =>
+        ${faner.length > 1 ? `<div class="faner ${c.vis_fanenavn === false ? "baretikon" : ""}"
+          role="tablist">${faner.map((f) =>
           `<button class="fane ${f === this._fane ? "valgt" : ""}" role="tab" data-f="${f}"
                    title="${kiVaEsc(navn[f] || f)}" aria-label="${kiVaEsc(navn[f] || f)}">
             <ha-icon icon="${faneIkon[f] || "mdi:circle-small"}"></ha-icon>
@@ -1483,19 +1488,24 @@ class KiVanningCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { prefiks: "Prefiks (tomt = auto)", vinter: "Vintermodus-bryter", skjul_ubrukte: "Skjul ubrukte soner",
-        navn_kort: "Korte sonenavn", hero: "Toppkort", demo: "Demomodus (eksempeldata)" };
+        navn_kort: "Korte sonenavn", hero: "Toppkort", demo: "Demomodus (eksempeldata)",
+        vis_fanenavn: "Vis navn under faneikonene", historikk_dager: "Dager i historikkfanen" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
       this.appendChild(this._f);
     }
-    this._f.hass = this._h; this._f.data = this._c;
+    this._f.hass = this._h;
+    // standardverdier må med i data, ellers står bryteren av selv om navnene vises
+    this._f.data = { vis_fanenavn: true, historikk_dager: 30, ...this._c };
     this._f.schema = [
       { name: "prefiks", selector: { text: {} } },
       { name: "vinter", selector: { entity: { domain: ["input_boolean", "switch"] } } },
       { name: "skjul_ubrukte", selector: { boolean: {} } },
       { name: "hero", selector: { select: { mode: "dropdown", options: [
         { value: "stor", label: "Stor hagescene" }, { value: "smal", label: "Smal linje" }] } } },
+      { name: "vis_fanenavn", selector: { boolean: {} } },
+      { name: "historikk_dager", selector: { number: { min: 7, max: 180, mode: "box" } } },
       { name: "demo", selector: { boolean: {} } },
     ];
   }

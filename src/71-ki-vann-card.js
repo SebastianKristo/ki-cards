@@ -9,7 +9,7 @@
  * mal: 250                         # liter per dag du sikter mot (styrer bølgehøyden)
  * bakgrunn: none                   # standard: ingen egen bakgrunn
  */
-const KI_VN_VERSJON = "1.0.0";
+const KI_VN_VERSJON = "1.1.0";
 
 /* Kategoriene i den rekkefølgen de vises, med entitetssuffiks, ikon og farge.
    Fargene er tatt fra temaet, så kortet følger resten av dashbordet. */
@@ -69,12 +69,28 @@ const KI_VN_STIL = `
   .kr .n { font-size:11.5px; opacity:.55; }
 
   /* ---- fordelingen ---- */
-  .stolpe { display:flex; height:16px; border-radius:99px; overflow:hidden;
-    background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
-  .stolpe i { height:100%; width:var(--b,0%); transition:width .9s var(--myk);
-    background:var(--f); }
-  .stolpe i:first-child { border-radius:99px 0 0 99px; }
-  .stolpe i:last-child { border-radius:0 99px 99px 0; }
+  /* ---- fordelingsbåndet ----
+     Var én sammenhengende stolpe der segmentene gikk rett i hverandre. Med seks
+     kategorier i beslektede farger var det vanskelig å se hvor én slutter og den neste
+     begynner, og små andeler ble en stripe uten form.
+     Nå er hvert segment en egen avrundet bit med luft mellom, som en rad brikker — da
+     leser du antallet kategorier og de små får en synlig minstebredde. */
+  .baand { display:flex; gap:3px; height:14px; }
+  .baand i { flex:0 0 auto; width:var(--b,0%); min-width:8px; border-radius:99px;
+    background:var(--f); transition:width .9s var(--myk);
+    position:relative; overflow:hidden; }
+  /* et svakt lysstrøk over den største biten, så øyet finner den først */
+  .baand i.storst::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    animation:kiVnStrok 3.4s linear infinite; }
+  @keyframes kiVnStrok { from { transform:translateX(-100%) } to { transform:translateX(100%) } }
+
+  /* forklaringen under båndet: farge, navn og andel */
+  .nokler { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; opacity:.62; }
+  .nokler span { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .nokler i { width:8px; height:8px; border-radius:50%; background:var(--f); flex:none; }
+  .nokler b { font-weight:600; opacity:1; font-variant-numeric:tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { .baand i.storst::after { animation:none; } }
 
   .liste { display:grid; gap:6px; }
   .rad { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:18px;
@@ -203,8 +219,14 @@ class KiVannCard extends HTMLElement {
         </div>
 
         ${deler.length ? `
-        <div class="stolpe">${deler.map((k) =>
-          `<i style="--b:${(k.liter / sum * 100).toFixed(1)}%;--f:${k.farge}"></i>`).join("")}</div>
+        <div class="baand">${deler.map((k, i) =>
+          `<i class="${i === 0 ? "storst" : ""}"
+              style="--b:${(k.liter / sum * 100).toFixed(1)}%;--f:${k.farge}"
+              title="${kiVnEsc(k.navn)}: ${kiVnNf(k.liter, 0)} L"></i>`).join("")}</div>
+        <div class="nokler">${deler.slice(0, 4).map((k) =>
+          `<span style="--f:${k.farge}"><i></i>${kiVnEsc(k.navn)}
+            <b>${(k.liter / sum * 100).toFixed(0)} %</b></span>`).join("")}${
+          deler.length > 4 ? `<span>+ ${deler.length - 4} til</span>` : ""}</div>
 
         <div class="liste">${deler.map((k) => `
           <div class="rad" style="--f:${k.farge}" data-mer="${this._id(`${k.id}_i_dag`)}">

@@ -1,4 +1,4 @@
-/* ki-cards v3.70.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
+/* ki-cards v3.71.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.70.0";
+  KI.VERSION = "3.71.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -10019,13 +10019,14 @@ try {
  * skjul_ubrukte: true               # skjuler soner uten navn (S10–S16)
  * faner: [naa, soner, programmer, forbruk, historikk, innstillinger]
  * historikk_dager: 30          # hvor langt tilbake historikkfanen viser
+ * vis_fanenavn: true           # navn under ikonene i fanerada
  * ki_vanning: sensor.ki_vanning_oversikt   # oppdages automatisk når integrasjonen er installert
  * hero: stor                       # stor (hagescene, 190 px) | smal (den gamle linja)
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
  */
-const KI_VANN_VERSJON = "3.8.0";
+const KI_VANN_VERSJON = "3.9.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -10166,6 +10167,9 @@ const KI_VANN_STIL = `
     .fane span { display:none; }
     .fane { flex:1; padding:10px 8px; }
   }
+  /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
+  .faner.baretikon .fane span { display:none; }
+  .faner.baretikon .fane { flex:1; padding:10px 8px; }
 
   .panel { display:none; min-width:0; max-width:100%; } .panel.valgt { display:grid; gap:10px; }
 
@@ -10434,7 +10438,7 @@ class KiVanningCard extends HTMLElement {
   setConfig(c) {
     this._c = { varigheter: [5, 10, 15, 30, 60], skjul_ubrukte: true, navn_kort: true,
                 faner: ["naa", "soner", "programmer", "forbruk", "historikk", "innstillinger"],
-                historikk_dager: 30, ...(c || {}) };
+                historikk_dager: 30, vis_fanenavn: true, ...(c || {}) };
     this._periode = "i_dag";
     this._fane = this._c.faner[0]; this._bygget = false; this._tegn();
   }
@@ -10756,7 +10760,8 @@ class KiVanningCard extends HTMLElement {
             <span>${c.vinter ? "Vintermodus" : anleggPa ? "Anlegget på" : "Anlegget av"}</span></button>
         </div>
 
-        ${faner.length > 1 ? `<div class="faner" role="tablist">${faner.map((f) =>
+        ${faner.length > 1 ? `<div class="faner ${c.vis_fanenavn === false ? "baretikon" : ""}"
+          role="tablist">${faner.map((f) =>
           `<button class="fane ${f === this._fane ? "valgt" : ""}" role="tab" data-f="${f}"
                    title="${kiVaEsc(navn[f] || f)}" aria-label="${kiVaEsc(navn[f] || f)}">
             <ha-icon icon="${faneIkon[f] || "mdi:circle-small"}"></ha-icon>
@@ -11493,19 +11498,24 @@ class KiVanningCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { prefiks: "Prefiks (tomt = auto)", vinter: "Vintermodus-bryter", skjul_ubrukte: "Skjul ubrukte soner",
-        navn_kort: "Korte sonenavn", hero: "Toppkort", demo: "Demomodus (eksempeldata)" };
+        navn_kort: "Korte sonenavn", hero: "Toppkort", demo: "Demomodus (eksempeldata)",
+        vis_fanenavn: "Vis navn under faneikonene", historikk_dager: "Dager i historikkfanen" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
       this.appendChild(this._f);
     }
-    this._f.hass = this._h; this._f.data = this._c;
+    this._f.hass = this._h;
+    // standardverdier må med i data, ellers står bryteren av selv om navnene vises
+    this._f.data = { vis_fanenavn: true, historikk_dager: 30, ...this._c };
     this._f.schema = [
       { name: "prefiks", selector: { text: {} } },
       { name: "vinter", selector: { entity: { domain: ["input_boolean", "switch"] } } },
       { name: "skjul_ubrukte", selector: { boolean: {} } },
       { name: "hero", selector: { select: { mode: "dropdown", options: [
         { value: "stor", label: "Stor hagescene" }, { value: "smal", label: "Smal linje" }] } } },
+      { name: "vis_fanenavn", selector: { boolean: {} } },
+      { name: "historikk_dager", selector: { number: { min: 7, max: 180, mode: "box" } } },
       { name: "demo", selector: { boolean: {} } },
     ];
   }
@@ -18883,7 +18893,7 @@ try {
  * mal: 250                         # liter per dag du sikter mot (styrer bølgehøyden)
  * bakgrunn: none                   # standard: ingen egen bakgrunn
  */
-const KI_VN_VERSJON = "1.0.0";
+const KI_VN_VERSJON = "1.1.0";
 
 /* Kategoriene i den rekkefølgen de vises, med entitetssuffiks, ikon og farge.
    Fargene er tatt fra temaet, så kortet følger resten av dashbordet. */
@@ -18943,12 +18953,28 @@ const KI_VN_STIL = `
   .kr .n { font-size:11.5px; opacity:.55; }
 
   /* ---- fordelingen ---- */
-  .stolpe { display:flex; height:16px; border-radius:99px; overflow:hidden;
-    background:color-mix(in srgb, var(--gray1000) 10%, transparent); }
-  .stolpe i { height:100%; width:var(--b,0%); transition:width .9s var(--myk);
-    background:var(--f); }
-  .stolpe i:first-child { border-radius:99px 0 0 99px; }
-  .stolpe i:last-child { border-radius:0 99px 99px 0; }
+  /* ---- fordelingsbåndet ----
+     Var én sammenhengende stolpe der segmentene gikk rett i hverandre. Med seks
+     kategorier i beslektede farger var det vanskelig å se hvor én slutter og den neste
+     begynner, og små andeler ble en stripe uten form.
+     Nå er hvert segment en egen avrundet bit med luft mellom, som en rad brikker — da
+     leser du antallet kategorier og de små får en synlig minstebredde. */
+  .baand { display:flex; gap:3px; height:14px; }
+  .baand i { flex:0 0 auto; width:var(--b,0%); min-width:8px; border-radius:99px;
+    background:var(--f); transition:width .9s var(--myk);
+    position:relative; overflow:hidden; }
+  /* et svakt lysstrøk over den største biten, så øyet finner den først */
+  .baand i.storst::after { content:""; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    animation:kiVnStrok 3.4s linear infinite; }
+  @keyframes kiVnStrok { from { transform:translateX(-100%) } to { transform:translateX(100%) } }
+
+  /* forklaringen under båndet: farge, navn og andel */
+  .nokler { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; opacity:.62; }
+  .nokler span { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .nokler i { width:8px; height:8px; border-radius:50%; background:var(--f); flex:none; }
+  .nokler b { font-weight:600; opacity:1; font-variant-numeric:tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { .baand i.storst::after { animation:none; } }
 
   .liste { display:grid; gap:6px; }
   .rad { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:18px;
@@ -19077,8 +19103,14 @@ class KiVannCard extends HTMLElement {
         </div>
 
         ${deler.length ? `
-        <div class="stolpe">${deler.map((k) =>
-          `<i style="--b:${(k.liter / sum * 100).toFixed(1)}%;--f:${k.farge}"></i>`).join("")}</div>
+        <div class="baand">${deler.map((k, i) =>
+          `<i class="${i === 0 ? "storst" : ""}"
+              style="--b:${(k.liter / sum * 100).toFixed(1)}%;--f:${k.farge}"
+              title="${kiVnEsc(k.navn)}: ${kiVnNf(k.liter, 0)} L"></i>`).join("")}</div>
+        <div class="nokler">${deler.slice(0, 4).map((k) =>
+          `<span style="--f:${k.farge}"><i></i>${kiVnEsc(k.navn)}
+            <b>${(k.liter / sum * 100).toFixed(0)} %</b></span>`).join("")}${
+          deler.length > 4 ? `<span>+ ${deler.length - 4} til</span>` : ""}</div>
 
         <div class="liste">${deler.map((k) => `
           <div class="rad" style="--f:${k.farge}" data-mer="${this._id(`${k.id}_i_dag`)}">
@@ -19137,7 +19169,7 @@ try {
  * intervall_dager: 14              # framskriv datoer når du ikke har kalenderentitet
  * hoyde: 150                       # min-høyde på heroen i px
  */
-const KI_AV_VERSJON = "2.1.0";
+const KI_AV_VERSJON = "2.2.0";
 
 /* Fraksjonene kjennes igjen på navnet. Fargene følger de norske
    sorteringsfargene: papir blått, plast lilla, glass og metall grønt, rest grått. */
@@ -19160,36 +19192,36 @@ const KI_AV_STIL = `
      fraksjonsnavnet i en egen kolonne til høyre og «Deretter»-linja under det; på en
      mobil ble kolonnen så smal at teksten rant inn over nedtellingen. */
   .hero { position:relative; overflow:hidden; isolation:isolate; border-radius:24px;
-    background:var(--gray200); padding:16px 18px 0;
+    background:var(--gray200); padding:13px 16px 0;
     display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px;
     align-items:start; cursor:pointer; transition:background .5s var(--myk), color .3s; }
   .hero.snart { background:color-mix(in srgb, var(--f) 26%, var(--gray200)); }
   .hero.idag { background:var(--f); color:var(--black,#1b1b1b); }
 
-  .hero .ik { width:48px; height:48px; border-radius:50%; flex:none; display:flex;
-    align-items:center; justify-content:center; --mdc-icon-size:25px;
+  .hero .ik { width:42px; height:42px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:22px;
     background:rgba(250,251,252,.12); }
   .hero.idag .ik { background:rgba(0,0,0,.14); }
 
-  .merke { font-size:12.5px; font-weight:600; opacity:.7; letter-spacing:.01em; }
-  .frak { font-size:17px; font-weight:700; letter-spacing:-.01em; margin-top:2px;
+  .merke { font-size:12px; font-weight:600; opacity:.7; letter-spacing:.01em; }
+  .frak { font-size:16px; font-weight:700; letter-spacing:-.01em; margin-top:1px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* Nedtellingen skal aldri brekke. «I morgen» er bredere enn «5», så størrelsen
      følger bredden i stedet for å være fast. */
-  .stor { font-size:clamp(28px, 9vw, 42px); font-weight:600; line-height:1.05;
-    letter-spacing:-.035em; white-space:nowrap; margin-top:8px;
+  .stor { font-size:clamp(25px, 7.5vw, 34px); font-weight:600; line-height:1.05;
+    letter-spacing:-.035em; white-space:nowrap; margin-top:5px;
     font-variant-numeric:tabular-nums; }
   .stor small { font-size:.42em; font-weight:500; opacity:.62; margin-left:7px;
     letter-spacing:0; }
   .hero.idag .stor { animation:kiAvPuls 2.6s ease-in-out infinite; transform-origin:left center; }
   @keyframes kiAvPuls { 0%,100% { transform:scale(1) } 50% { transform:scale(1.03) } }
-  .dato { font-size:13px; opacity:.66; margin-top:4px; white-space:nowrap;
+  .dato { font-size:12.5px; opacity:.66; margin-top:3px; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; }
   .etter { font-size:12.5px; opacity:.55; margin-top:6px; line-height:1.4; }
 
   /* Scenen ligger som et bånd nederst i heroen, i full bredde. Teksten over har
      bunnpadding, så de aldri overlapper — før lå bøtta oppå datoen. */
-  .scene { grid-column:1 / -1; position:relative; height:58px; margin:10px -18px 0;
+  .scene { grid-column:1 / -1; position:relative; height:42px; margin:6px -16px 0;
     pointer-events:none; opacity:.4; }
   .hero.idag .scene { opacity:1; }
   .hero.snart .scene { opacity:.62; }
@@ -19376,150 +19408,29 @@ class KiAvfallCard extends HTMLElement {
     return ut.sort((x, y) => (x.dager ?? 9999) - (y.dager ?? 9999));
   }
 
+  /* Scenen er tegnet for et 42 px høyt bånd. Beholdt jeg den gamle viewBoxen på 58 og
+     bare krympet båndet, ville `slice` klippet bort toppen — altså lokket på bøtta. */
   _scene(farge, mork) {
     const strek = mork ? "rgba(0,0,0,.45)" : farge;
-    return `<div class="scene"><svg viewBox="0 0 340 58" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-      <line x1="0" y1="52" x2="340" y2="52" stroke="currentColor" stroke-opacity=".22" stroke-width="2"/>
-      <!-- bøtta, med lokk som vipper opp når den tømmes -->
+    return `<div class="scene"><svg viewBox="0 0 340 42" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <line x1="0" y1="38" x2="340" y2="38" stroke="currentColor" stroke-opacity=".22" stroke-width="2"/>
       <g class="botte">
-        <rect x="22" y="22" width="26" height="30" rx="4" fill="${strek}"/>
-        <path d="M28 30 V46 M35 30 V46 M42 30 V46" stroke="rgba(0,0,0,.2)" stroke-width="2"/>
-        <g class="lokk"><rect x="19" y="16" width="32" height="7" rx="3.5" fill="${strek}"/></g>
+        <rect x="22" y="16" width="23" height="22" rx="3.5" fill="${strek}"/>
+        <path d="M27.5 22 V34 M33.5 22 V34 M39.5 22 V34" stroke="rgba(0,0,0,.2)" stroke-width="1.8"/>
+        <g class="lokk"><rect x="19.5" y="11" width="28" height="6" rx="3" fill="${strek}"/></g>
       </g>
-      <!-- søppelbilen -->
       <g class="bil">
-        <rect x="96" y="16" width="86" height="28" rx="5" fill="currentColor" fill-opacity=".5"/>
-        <rect x="102" y="21" width="74" height="9" rx="2" fill="rgba(0,0,0,.12)"/>
-        <path d="M182 24 h24 l11 13 v7 h-35 z" fill="currentColor" fill-opacity=".68"/>
-        <rect x="187" y="27" width="15" height="10" rx="2" fill="rgba(255,255,255,.6)"/>
-        <circle cx="94" cy="30" r="3" fill="currentColor" fill-opacity=".5"/>
-        <circle class="hjul" cx="118" cy="48" r="6" fill="#1b1b1e"/>
-        <circle class="hjul" cx="166" cy="48" r="6" fill="#1b1b1e"/>
-        <circle class="hjul" cx="202" cy="48" r="6" fill="#1b1b1e"/>
-        <circle class="eksos" cx="92" cy="40" r="4" fill="currentColor" fill-opacity=".35"/>
+        <rect x="92" y="11" width="78" height="21" rx="4.5" fill="currentColor" fill-opacity=".5"/>
+        <rect x="97" y="15" width="68" height="7" rx="2" fill="rgba(0,0,0,.12)"/>
+        <path d="M170 18 h22 l10 10 v4 h-32 z" fill="currentColor" fill-opacity=".68"/>
+        <rect x="174" y="20" width="13" height="8" rx="2" fill="rgba(255,255,255,.6)"/>
+        <circle cx="90" cy="22" r="2.6" fill="currentColor" fill-opacity=".5"/>
+        <circle class="hjul" cx="112" cy="35" r="5" fill="#1b1b1e"/>
+        <circle class="hjul" cx="156" cy="35" r="5" fill="#1b1b1e"/>
+        <circle class="hjul" cx="190" cy="35" r="5" fill="#1b1b1e"/>
+        <circle class="eksos" cx="88" cy="29" r="3.4" fill="currentColor" fill-opacity=".35"/>
       </g>
     </svg></div>`;
-  }
-
-  /* Alle kjente tømmedatoer, ikke bare den neste.
-   *
-   * Sensorene oppgir bare neste dato per fraksjon. En månedskalender trenger flere, og
-   * det finnes to ærlige kilder:
-   *
-   *   1. En kalenderentitet fra renovasjonsselskapet — da er datoene faktiske.
-   *   2. Framskriving fra intervallet. De fleste fraksjoner tømmes hver 14. eller 28.
-   *      dag, så neste dato pluss intervallet treffer som regel. Men det er et anslag,
-   *      og kortet sier det i klartekst under kalenderen.
-   */
-  _datoer(alle) {
-    const c = this._c;
-    const ut = [];
-    // 1) kalenderentitet
-    for (const h of (this._kalHendelser || [])) {
-      const treff = alle.find((f) => {
-        const n = String(h.summary || "").toLowerCase();
-        return n && String(f.navn).toLowerCase().split(" ").some((o) => o.length > 3 && n.includes(o));
-      });
-      ut.push({ dato: h.dato, navn: h.summary || (treff && treff.navn) || "Tømming",
-        farge: (treff && treff.farge) || "var(--gray600, #8a8a8d)", ekte: true });
-    }
-    if (ut.length) return ut;
-
-    // 2) neste dato, og framskriving hvis et intervall er oppgitt
-    const global = Number(c.intervall_dager) || 0;
-    const slutt = new Date();
-    slutt.setMonth(slutt.getMonth() + 4);
-    for (const f of alle) {
-      if (!f.dato) continue;
-      const iv = Number(f.intervall) || global;
-      let d = new Date(f.dato);
-      if (isNaN(d)) continue;
-      ut.push({ dato: new Date(d), navn: f.navn, farge: f.farge, ekte: true });
-      if (iv > 0) {
-        for (let i = 0; i < 20; i++) {
-          d = new Date(d.getTime() + iv * 864e5);
-          if (d > slutt) break;
-          ut.push({ dato: new Date(d), navn: f.navn, farge: f.farge, ekte: false });
-        }
-      }
-    }
-    return ut;
-  }
-
-  async _hentKalender() {
-    const c = this._c;
-    if (!c.kalender_entitet || !this._h || !this._h.callApi) return;
-    const fra = new Date(); fra.setMonth(fra.getMonth() - 1); fra.setHours(0, 0, 0, 0);
-    const til = new Date(); til.setMonth(til.getMonth() + 4);
-    try {
-      const svar = await this._h.callApi("GET",
-        `calendars/${c.kalender_entitet}?start=${encodeURIComponent(fra.toISOString())}` +
-        `&end=${encodeURIComponent(til.toISOString())}`);
-      this._kalHendelser = (svar || []).map((h) => {
-        const raa = (h.start && (h.start.dateTime || h.start.date)) || h.start;
-        const d = new Date(raa);
-        return isNaN(d) ? null : { dato: d, summary: h.summary };
-      }).filter(Boolean);
-    } catch (e) {
-      this._kalFeil = e && e.message ? e.message : String(e);
-      console.warn("ki-avfall-card: fikk ikke hentet kalenderen", e);
-    }
-    this._tegn();
-  }
-
-  _kalender(alle) {
-    const naa = new Date(); naa.setHours(0, 0, 0, 0);
-    const vist = new Date(naa.getFullYear(), naa.getMonth() + (this._mnd || 0), 1);
-    const start = new Date(vist);
-    start.setDate(1 - ((vist.getDay() + 6) % 7));        // mandag først
-
-    const datoer = this._datoer(alle);
-    const perDag = {};
-    for (const d of datoer) {
-      const n = new Date(d.dato); n.setHours(0, 0, 0, 0);
-      (perDag[n.toDateString()] = perDag[n.toDateString()] || []).push(d);
-    }
-
-    const ruter = [];
-    for (let i = 0; i < 42; i++) {
-      const dag = new Date(start); dag.setDate(start.getDate() + i);
-      const liste = perDag[dag.toDateString()] || [];
-      const utenfor = dag.getMonth() !== vist.getMonth();
-      ruter.push(`<div class="kdag ${utenfor ? "utenfor" : ""} ${liste.length ? "har" : ""}
-        ${dag.getTime() === naa.getTime() ? "idag" : ""}
-        ${this._valgtDag === dag.toDateString() ? "valgt" : ""}"
-        ${liste.length ? `data-dag="${dag.toDateString()}"` : ""}>${dag.getDate()}
-        ${liste.length ? `<span class="prikker">${liste.slice(0, 4).map((x) =>
-          `<i style="--p:${x.farge}"></i>`).join("")}</span>` : ""}</div>`);
-    }
-
-    const valgtNokkel = this._valgtDag || naa.toDateString();
-    const valgt = perDag[valgtNokkel] || [];
-    const dagTekst = new Date(valgtNokkel);
-    const anslatt = datoer.some((d) => !d.ekte);
-
-    return `<div class="kal">
-      <div class="kaltopp">
-        <button class="pil" data-mnd="-1" aria-label="Forrige måned"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-        <div class="mnd">${vist.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</div>
-        <button class="pil" data-mnd="1" aria-label="Neste måned"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-      </div>
-      <div class="ukedager">${["M", "T", "O", "T", "F", "L", "S"].map((u) => `<span>${u}</span>`).join("")}</div>
-      <div class="kalrute">${ruter.join("")}</div>
-      <div class="valgtdag">${kiAvEsc(dagTekst.toLocaleDateString("nb-NO",
-        { weekday: "long", day: "numeric", month: "long" }))}${valgt.length ? "" : " · ingen tømming"}</div>
-      ${valgt.length ? `<div class="liste">${valgt.map((x) => `
-        <div class="rad" style="--f:${x.farge}">
-          <span class="ik"><ha-icon icon="mdi:trash-can-outline"></ha-icon></span>
-          <div class="tekst"><div class="navn">${kiAvEsc(x.navn)}</div>
-            <div class="nar">${x.ekte ? "Bekreftet dato" : "Anslag fra intervallet"}</div></div>
-        </div>`).join("")}</div>` : ""}
-      ${anslatt ? `<div class="anslag">Datoer utover den neste er anslått ut fra
-        intervallet du har satt, ikke hentet fra renovasjonsselskapet. Sett
-        <code>kalender_entitet</code> for faktiske datoer.</div>` : ""}
-      ${this._kalFeil ? `<div class="anslag">Fikk ikke hentet kalenderen: ${
-        kiAvEsc(this._kalFeil)}</div>` : ""}
-    </div>`;
   }
 
   _tegn() {
@@ -30387,7 +30298,8 @@ class KiKlimaProCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true }, config || {});
+    this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true,
+      vis_fanenavn: true }, config || {});
     this._fane = this._lesFane() || this._config.default_tab;
     this._bygd = false;
     if (this.shadowRoot) this.shadowRoot.innerHTML = "";
@@ -30630,7 +30542,7 @@ class KiKlimaProCard extends HTMLElement {
       <ha-card><div class="wrap">
         ${this._config.title ? `<div class="tittel">${esc(this._config.title)}</div>` : ""}
         <div id="hero"></div>
-        <div class="faner">${FANER.map((f) => `
+        <div class="faner ${this._config.vis_fanenavn === false ? "baretikon" : ""}">${FANER.map((f) => `
           <div class="fane" data-handling="fane" data-fane="${f.id}">
             <ha-icon icon="${f.icon}"></ha-icon><span>${f.navn}</span>
           </div>`).join("")}</div>
@@ -32203,6 +32115,9 @@ class KiKlimaProCard extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
       .faner::-webkit-scrollbar { display:none; }
+      /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
+      .faner.baretikon .fane span { display:none; }
+      .faner.baretikon .fane { flex:1; padding:10px 8px; }
       .underfaner { display:flex; gap:6px; margin:2px 0 10px; }
       .underfane { flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
         padding:9px 10px; border-radius:75px; font-size:13px; font-weight:600; cursor:pointer;
@@ -32521,7 +32436,8 @@ window.KI.define("ki-klima-pro-card", KiKlimaProCard);
 class KiKlimaProCardEditor extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); }
   setConfig(config) {
-    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true }, config || {});
+    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true,
+      vis_fanenavn: true }, config || {});
     this._tegn();
   }
   set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; }
@@ -32533,9 +32449,11 @@ class KiKlimaProCardEditor extends HTMLElement {
         { name: "default_tab", selector: { select: { mode: "dropdown", options:
           FANER.map((f) => ({ value: f.id, label: f.navn })) } } },
         { name: "remember_tab", selector: { boolean: {} } },
+        { name: "vis_fanenavn", selector: { boolean: {} } },
       ];
       this._form.computeLabel = (s) => ({ title: "Tittel (valgfri)",
-        default_tab: "Standardfane", remember_tab: "Husk valgt fane" }[s.name] || s.name);
+        default_tab: "Standardfane", remember_tab: "Husk valgt fane",
+        vis_fanenavn: "Vis navn under faneikonene" }[s.name] || s.name);
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this.dispatchEvent(new CustomEvent("config-changed", {
