@@ -1,40 +1,30 @@
-# ki-cards 3.63.0
+# ki-cards 3.64.0
 
-## `ki-k2-scene-card` 1.1.0: skrivehodet følger emnet
+## `ki-kamera-card` 1.11.0: rutenettet tilpasser seg bredden
 
-Kommentaren i koden sa at hodet «stiger med laget», og `dyseY` ble regnet ut på linje 174
-— men verdien ble aldri brukt noe sted. Hodet sto i fast høyde mens emnet vokste oppover,
-så ved høy framdrift stakk dysa ned inni emnet.
+Alle oppsettene var låst til to kolonner. På en bred skjerm ble hver celle over tusen
+piksler bred med fast radhøyde, og bildet beskåret hardt — og med seks eller sju kameraer
+ble radene så lave at det knapt var noe igjen å se.
 
-Hodet senkes nå til platen ved start og stiger med emnet, slik at dysespissen ligger to
-piksler over øverste lag hele veien. Er printeren av, parkeres hodet øverst i stedet for
-å stå nede ved platen som om den er midt i en jobb.
+**Rutenett-oppsettet regner nå ut kolonnetallet fra bredden.** Bredden deles på ønsket
+minstebredde per celle, begrenset av hvor mange kameraer du har:
 
-Geometrien er kontrollert i alle fire tilstandene: dysa er over emnet, og hodet holder seg
-innenfor kabinettet.
+| Bredde | 5 kameraer | 7 kameraer |
+| --- | --- | --- |
+| 700 px | 1 | 1 |
+| 1000 px | 2 | 2 |
+| 1400 px | 3 | 3 |
+| 1900 px | 4 | 4 |
 
-## Resten av scenen
+To skruer: `min_bredde: 420` er minstebredden per celle, og `maks_kolonner: 4` taket.
+Vil du ha fem kameraer i bredden på en stor skjerm, sett `min_bredde: 320` og
+`maks_kolonner: 5`.
 
-**Lagstriper.** Emnet var en glatt boks. Nå tegnes en linje per fjerde piksel, så det ser
-printet ut i stedet for støpt. Antallet vokser med framdriften.
+Kortet tegner om når kolonnetallet endrer seg, ikke bare når det krysser smal/bred-grensen
+— før hang rutenettet igjen på gammelt antall til noe annet utløste en ny tegning.
 
-**Øverste lag lyser.** En tynn varm stripe på toppen av emnet, som pulserer mens den
-skriver — det er der plasten nettopp ble lagt.
+**Lufta mellom cellene** sto fast på 1 px, som ble påfallende tett. Standarden er nå 6 px,
+og `gap:` kan settes til et tall eller en CSS-verdi. `gap: 0` gir det gamle uttrykket.
 
-**Dysa glør** når den er varm, med uskarp kant.
-
-**Kammerlyset** slås på mens den skriver og dempes når den er ferdig.
-
-**Hodet svinger som en portal.** Den gamle bevegelsen var en ren fram-og-tilbake og så ut
-som en metronom. Nå går den litt forbi ytterkanten og hviler et øyeblikk i enden av
-sveipet.
-
-**Vifta går dobbelt så fort når det er varmt**, slik den gjør i virkeligheten.
-
-**Framdriftslinja** har fått et lysstrøk som går over mens den skriver.
-
-Plasttråden legges nå ut rett under dysa i stedet for å strekke seg ned til platen — med
-hodet i riktig høyde er det bare et par piksler mellom dyse og emne, og en lang tråd der
-ga ingen mening.
-
-Alt slås av med `prefers-reduced-motion`.
+De faste oppsettene — Mosaikk, Hovedkamera og Liste — er uendret. Vil du ha det adaptive,
+velg **Rutenett**.

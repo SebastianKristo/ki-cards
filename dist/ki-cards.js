@@ -1,4 +1,4 @@
-/* ki-cards v3.63.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-15 */
+/* ki-cards v3.64.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.63.0";
+  KI.VERSION = "3.64.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26832,7 +26832,7 @@ try {
  * JavaScript Module: /local/ki-kamera-card.js
  */
 
-const KI_KAMERA_VERSION = "1.10.0";
+const KI_KAMERA_VERSION = "1.11.0";
 
 console.info(
   `%c KI-KAMERA-CARD %c ${KI_KAMERA_VERSION} `,
@@ -26877,6 +26877,7 @@ const OPPSETT = {
     kolonner: "1fr 1fr",
     celleRatio: "16 / 9",
     auto: true,
+    adaptiv: true,      // kolonnetallet følger bredden, se _kolonnetall()
   },
   liste: {
     navn: "Liste",
@@ -27151,6 +27152,32 @@ class KiKameraCard extends HTMLElement {
     return STANDARD_KONFIG();
   }
 
+  /* Hvor mange kolonner rutenettet skal ha.
+   *
+   * Alle oppsettene var låst til to kolonner. På en bred skjerm ble hver celle da over
+   * tusen piksler bred med fast radhøyde, og bildet beskåret hardt — og med seks eller
+   * sju kameraer ble radene så lave at det knapt var noe igjen å se.
+   *
+   * Nå deles bredden på ønsket minstebredde per celle, begrenset av `maks_kolonner` og
+   * av hvor mange kameraer som faktisk finnes.
+   */
+  _kolonnetall(antall) {
+    const c = this._config || {};
+    const bredde = this.clientWidth || this.offsetWidth || 0;
+    const min = Number(c.min_bredde) || 420;
+    const maks = Math.max(1, Number(c.maks_kolonner) || 4);
+    if (!bredde) return Math.min(2, Math.max(1, antall));
+    const passer = Math.max(1, Math.floor(bredde / min));
+    return Math.max(1, Math.min(maks, passer, Math.max(1, antall)));
+  }
+
+  /* Luft mellom cellene. Sto fast på 1 px, som ble påfallende tett. */
+  _gap() {
+    const g = (this._config || {}).gap;
+    if (g === undefined || g === null || g === "") return "6px";
+    return /^-?\d+(\.\d+)?$/.test(String(g).trim()) ? `${parseFloat(g)}px` : String(g);
+  }
+
   setConfig(config) {
     this._config = JSON.parse(JSON.stringify(config));
     if (!this._config.cameras) this._config.cameras = [];
@@ -27159,6 +27186,7 @@ class KiKameraCard extends HTMLElement {
     // godtar alt som begynner med et tall, så «0 14px» ble tolket som 0.
     const luft = this._config.luft;
     const rentTall = /^-?\d+(\.\d+)?$/.test(String(luft).trim());
+    this.style.setProperty("--ki-kam-gap", this._gap());
     this.style.setProperty("--ki-kam-luft",
       luft === undefined || luft === null || luft === "" ? "0px"
         : (rentTall ? `${parseFloat(luft)}px` : String(luft)));
@@ -27221,8 +27249,12 @@ class KiKameraCard extends HTMLElement {
       this._obs = new ResizeObserver((e) => {
         const b = e[0] ? e[0].contentRect.width : 0;
         const bred = b >= (this._config.fill_breakpoint || 700);
-        if (bred === this._bred) return;
+        // Kolonnetallet kan endre seg uten at smal/bred gjør det — da må rutenettet
+        // likevel tegnes på nytt, ellers henger det igjen på gammelt antall.
+        const kol = this._kolonnetall((this._config.cameras || []).length);
+        if (bred === this._bred && kol === this._kolFor) return;
         this._bred = bred;
+        this._kolFor = kol;
         if (this._valgt === "alle") {
           this._montertNoekkel = null;
           this._visInnhold();
@@ -27623,10 +27655,16 @@ class KiKameraCard extends HTMLElement {
 
     const vert = document.createElement("div");
     vert.className = "rutenett" + (fyll ? " fyll" : "");
-    vert.style.gridTemplateColumns = preset.kolonner;
+    const kolonner = preset.adaptiv
+      ? this._kolonnetall(kameraer.length)
+      : preset.kolonner.split(" ").length;
+    vert.style.gridTemplateColumns = preset.adaptiv
+      ? `repeat(${kolonner}, minmax(0, 1fr))`
+      : preset.kolonner;
+    vert.style.gap = this._gap();
 
     if (fyll && preset.auto) {
-      const rader = Math.ceil(kameraer.length / preset.kolonner.split(" ").length);
+      const rader = Math.ceil(kameraer.length / kolonner);
       vert.style.gridTemplateRows = `repeat(${rader}, minmax(0, 1fr))`;
       vert.style.height = `calc(100vh - ${avstand}px)`;
       vert.style.height = `calc(100dvh - ${avstand}px)`;
@@ -27940,7 +27978,7 @@ KiKameraCard.styles = `
     cursor: pointer;
     width: auto; min-width: 38px;
     padding: 0 6px 0 8px;
-    gap: 1px;
+    gap: var(--ki-kam-gap, 6px);
     border-radius: 19px;
     transition: background .18s ease;
   }
