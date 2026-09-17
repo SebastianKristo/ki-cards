@@ -1,37 +1,40 @@
-# ki-cards 3.87.0
+# ki-cards 3.88.0
 
-## Nytt kort: `ki-rack-card` — fliser, med detaljene bak et trykk
+## `ki-rack-card` finner enhetene selv
 
-De forrige rundene gjorde kortene lavere. Det var å behandle symptomet: problemet er
-**prinsippet**, ikke høyden. Et fullbreddekort per enhet stablet nedover blir rulling
-uansett hvor lavt hvert kort er — seks nettverksenheter er seks skjermhøyder.
+`oppdag: unifi | pve_ct | pve_vm`. Ingen liste å vedlikeholde — setter du opp en ny
+container eller bytter et aksesspunkt, er den der ved neste oppdatering.
 
-`ki-rack-card` legger enhetene som fliser i et rutenett, to per rad, med fire
-opplysninger hver: ikon, navn, statusprikk, ett stort tall og én liten linje. Hele parken
-er på én skjerm.
+**UniFi** kjennes igjen på **par av en `device_tracker` og en «uptime»-sensor med samme
+slug**, ikke på et navnemønster. Et mønster ville brutt så snart du døper om noe, og
+telefonene dine ville blitt nettverksutstyr.
 
-**Trykker du på en flis, glir detaljene inn over rutenettet** i stedet for å ligge under
-det, med en «Alle enhetene»-knapp tilbake. Da ser du én enhet av gangen og har ingenting å
-bla forbi. Detaljene er `ki-enhet-card` som før, så alt innholdet er med — og `under:`
-legger flere kort under detaljene, som PoE-portene på Treets.
+Oppdagelsen løser tre ting jeg før måtte skrive inn manuelt:
 
-Uten svar vises som oransje prikk og «Uten svar», ikke som nede — vi vet ikke, og det skal
-se annerledes ut.
+* **`_2`-etterfikset** på Dream Machine Pro finnes ved å se hvilken sensor som faktisk
+  eksisterer — `sensor.x_uptime_2` eller `sensor.x_uptime`.
+* **Portene telles** ved å gå oppover til `button.x_port_N_power_cycle` slutter å finnes,
+  så Treets får sine 16 uten at tallet står noe sted.
+* **LED, firmware, temperatur og latens** tas med bare der entitetene finnes.
 
-Heltall blir heltall: «0 klienter», ikke «0,0 klienter».
+Figuren gjettes fra navnet: Dream/UDM/gateway blir ruter, USW/Flex blir switch, U6/U7/Lite
+blir aksesspunkt. Ruter først i lista, så switcher, så AP.
+
+**Proxmox Extended Sensors**: alt som har en `_status`-sensor under prefikset. Knappene
+tas med bare der de finnes, så en container uten «reset» får ikke en død knapp — og
+tjenestenavnet i knappen utledes fra id-en, som dekker `speedtest_tracker_104` og
+`haos_18_2_115`.
+
+`overstyr:` retter navn eller ikon per enhet, eller skjuler den med `skjul: true`.
+
+### En feil oppdagelsen avdekket
+
+Knappene het enhetens navn — «Dispatcharr / Dispatcharr / Dispatcharr» i stedet for
+«Start / Stopp / Restart». Løkkevariabelen het `navn`, og det skygget over enhetens
+`navn` i samme funksjon. Den heter `kNavn` nå.
 
 ## Server-popupen
 
-**Nettverk** er fra sju kort til fire: statuskort, ett flisrutenett med alle seks
-enhetene, og Wi-Fi. Før var det tre enhetskort med hver sin seksjonsoverskrift.
-
-**Proxmox** har to flisrutenett — tolv containere og maskiner som fliser i stedet for tolv
-nøstede faner. CPU på flisen, RAM under, alle knappene bak trykket.
-
-Entitetsnavnene er kontrollert for de skjeve tilfellene:
-`button.3_ct_speedtest_tracker_104_stop_speedtest_tracker` og
-`button.4_vm_haos_18_2_115_reset_haos_18_2`.
-
-YAML-en er generert som data og skrevet av yaml-biblioteket, ikke satt sammen som tekst.
-Første forsøk regnet innrykket manuelt og la enhetene på feil nivå, så halve fanen ble
-tolket som tomme kort.
+Nettverk og Proxmox er nå rene oppdagelseskort: tre linjer YAML i stedet for de 400 som
+listet seks nettverksenheter og tolv Proxmox-enheter med alle entitetsnavn. Popupen er fra
+1659 til 734 linjer.

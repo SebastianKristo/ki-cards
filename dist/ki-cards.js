@@ -1,4 +1,4 @@
-/* ki-cards v3.87.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
+/* ki-cards v3.88.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.87.0";
+  KI.VERSION = "3.88.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -21625,6 +21625,10 @@ try {
  * i stedet for å ligge under det. Da ser du én enhet av gangen, og ingenting å bla forbi.
  *
  * type: custom:ki-rack-card
+ * oppdag: unifi            # unifi | pve_ct | pve_vm — finner enhetene selv
+ * overstyr:                # valgfrie rettelser på det som ble funnet
+ *   treets_usw_24_poe: { navn: Treets, ikon: mdi:switch }
+ *   posten_u7_lite: { skjul: true }
  * kolonner: 2
  * enheter:
  *   - navn: Dream Machine Pro
@@ -21703,10 +21707,10 @@ class KiRackCard extends HTMLElement {
   getCardSize() { return 8; }
 
   setConfig(c) {
-    if (!c || !Array.isArray(c.enheter) || !c.enheter.length) {
-      throw new Error("ki-rack-card: 'enheter' må være en liste med minst én enhet");
+    if (!c || (!c.oppdag && (!Array.isArray(c.enheter) || !c.enheter.length))) {
+      throw new Error("ki-rack-card: sett 'oppdag' eller en liste i 'enheter'");
     }
-    this._c = { kolonner: 2, tittel: "", ...c };
+    this._c = { kolonner: 2, tittel: "", overstyr: {}, ...c };
     this._apen = null;
     this._bygget = false;
   }
@@ -21720,6 +21724,193 @@ class KiRackCard extends HTMLElement {
   }
 
   _st(id) { return id && this._h ? this._h.states[id] : null; }
+
+  /* Enhetene: enten oppdaget fra integrasjonen, eller lista i konfigurasjonen.
+     Oppdagelsen bygges om hver gang entitetene endrer seg i antall, ikke ved hver
+     tilstandsendring — ellers ville kortet bygget seg på nytt hvert sekund. */
+  _enheter() {
+    const c = this._c;
+    if (!c.oppdag) return c.enheter || [];
+    const n = this._h ? Object.keys(this._h.states).length : 0;
+    if (this._oppdaget && this._antall === n) return this._oppdaget;
+    this._antall = n;
+    const funnet = c.oppdag === "unifi" ? this._oppdagUnifi()
+      : c.oppdag === "pve_ct" ? this._oppdagPve("ct")
+      : c.oppdag === "pve_vm" ? this._oppdagPve("vm")
+      : [];
+    // Egne oppføringer i `enheter` legges etter de oppdagede
+    this._oppdaget = [...funnet, ...(c.enheter || [])];
+    return this._oppdaget;
+  }
+
+  /* Navnet integrasjonen har gitt entiteten, uten sensornavnet bak. «Treets USW-24-PoE
+     Uptime» blir «Treets USW-24-PoE». */
+  _rentNavn(st, hale) {
+    let n = (st.attributes && st.attributes.friendly_name) || "";
+    for (const h of [].concat(hale)) {
+      n = n.replace(new RegExp(`\\s*${h}\\s*$`, "i"), "");
+    }
+    return n.trim();
+  }
+
+  /* UniFi: hver enhet har en device_tracker og en «uptime»-sensor med samme slug.
+     Det er den paringen vi leter etter — ikke et navnemønster, som ville brutt så
+     snart du døper om noe. */
+  _oppdagUnifi() {
+    const S = this._h.states;
+    const ut = [];
+    for (const id of Object.keys(S)) {
+      if (!id.startsWith("device_tracker.")) continue;
+      const slug = id.slice("device_tracker.".length);
+      // `_2` bak sensorene: Dream Machine Pro har det, de andre ikke. Vi ser hvilken
+      // som finnes i stedet for å gjette.
+      const ett = S[`sensor.${slug}_uptime_2`] ? "_2"
+        : S[`sensor.${slug}_uptime`] ? "" : null;
+      if (ett === null) continue;
+      const cpu = S[`sensor.${slug}_cpu_utilisation${ett}`] ? `_cpu_utilisation${ett}` : null;
+      if (!cpu) continue;
+
+      const navn = this._rentNavn(S[`sensor.${slug}_uptime${ett}`], ["Uptime", "Oppetid"])
+        || slug.replace(/_/g, " ");
+      const lav = `${navn} ${slug}`.toLowerCase();
+      const figur = /dream|udm|gateway|udr/.test(lav) ? "ruter"
+        : /usw|switch|flex/.test(lav) ? "switch"
+        : /u[67]|uap|ap |access|lite|lr|pro xg|mesh/.test(lav) ? "ap" : "boks";
+      const ikon = { ruter: "mdi:router-network", switch: "mdi:switch",
+        ap: "mdi:access-point", boks: "mdi:cube-outline" }[figur];
+
+      // Portene telles: så mange som finnes, ikke et tall vi har skrevet inn
+      let porter = 0;
+      while (S[`button.${slug}_port_${porter + 1}_power_cycle`]) porter++;
+
+      ut.push({ slug, navn, ikon, figur, ett, led: !!S[`light.${slug}_led`], porter });
+    }
+    ut.sort((a, b) => {
+      const r = { ruter: 0, switch: 1, ap: 2, boks: 3 };
+      return (r[a.figur] - r[b.figur]) || a.navn.localeCompare(b.navn, "nb");
+    });
+    return ut.map((e) => this._unifiFlis(e)).filter(Boolean);
+  }
+
+  _unifiFlis(e) {
+    const o = (this._c.overstyr || {})[e.slug] || {};
+    if (o.skjul) return null;
+    const navn = o.navn || e.navn;
+    const slug = e.slug, ett = e.ett;
+    const S = this._h.states;
+    const har = (id) => !!S[id];
+
+    const maal = [
+      { navn: "CPU", entity: `sensor.${slug}_cpu_utilisation${ett}`, enhet: "%" },
+    ];
+    if (har(`sensor.${slug}_memory_utilisation${ett}`)) {
+      maal.push({ navn: "Minne", entity: `sensor.${slug}_memory_utilisation${ett}`, enhet: "%" });
+    }
+    if (har(`sensor.${slug}_cpu_temperature${ett}`)) {
+      maal.push({ navn: "Temp", entity: `sensor.${slug}_cpu_temperature${ett}`,
+        enhet: "°", maks: 90, gul: 60, rod: 75 });
+    }
+    const info = [];
+    for (const [n, f] of [["Google", "google"], ["Cloudflare", "cloudflare"],
+      ["Microsoft", "microsoft"]]) {
+      if (har(`sensor.${slug}_${f}_wan_latency`)) {
+        info.push({ navn: n, entity: `sensor.${slug}_${f}_wan_latency`,
+          enhet: " ms", varsel_over: 80 });
+      }
+    }
+    for (const [n, f, ekstra] of [["Local temp", "local_temperature", { enhet: " °C", varsel_over: 70 }],
+      ["Klienter", "clients", { enhet: "" }], ["Tilstand", "state", {}],
+      ["Uplink MAC", "uplink_mac", {}], ["IP", "ip", {}]]) {
+      if (har(`sensor.${slug}_${f}`)) info.push({ navn: n, entity: `sensor.${slug}_${f}`, ...ekstra });
+    }
+    const knapper = [];
+    if (har(`button.${slug}_restart`)) {
+      knapper.push({ navn: "Restart", entity: `button.${slug}_restart`, ikon: "mdi:restart",
+        farge: "var(--orange)", bekreft: `Restarte ${navn}?` });
+    }
+    if (e.led) knapper.push({ navn: "LED", entity: `light.${slug}_led`, ikon: "mdi:led-outline" });
+
+    const flis = {
+      navn, ikon: o.ikon || e.ikon, status: `device_tracker.${slug}`, status_pa: ["home"],
+      tall: har(`sensor.${slug}_clients`) ? `sensor.${slug}_clients` : null,
+      tall_enhet: " klienter", tall_desimaler: 0,
+      nokkel: `sensor.${slug}_cpu_utilisation${ett}`, nokkel_enhet: " % CPU",
+      detalj: { navn, figur: o.figur || e.figur, status: `device_tracker.${slug}`,
+        oppetid: `sensor.${slug}_uptime${ett}`,
+        ...(har(`update.${slug}_firmware`) ? { oppdatering: `update.${slug}_firmware` } : {}),
+        maalinger: maal, info, knapper },
+    };
+    if (e.porter) {
+      flis.under = [{ type: "custom:ki-porter-card", tittel: "Porter (strømsykling)",
+        prefiks: `button.${slug}_port_`, etterfiks: "_power_cycle",
+        antall: e.porter, kolonner: 4, bekreft: "Strømsykle {port}?" }];
+    }
+    return flis;
+  }
+
+  /* Proxmox Extended Sensors: containere heter `sensor.3_ct_<id>_status`, maskinene
+     `sensor.4_vm_<id>_status`. Tjenestenavnet i knappene er id-en uten nummeret bak,
+     men vi sjekker at knappen finnes før vi tar den med. */
+  _oppdagPve(slag) {
+    const S = this._h.states;
+    const c = this._c;
+    const pre = slag === "ct" ? (c.prefiks_sensor || "sensor.3_ct_")
+      : (c.prefiks_sensor || "sensor.4_vm_");
+    const preB = slag === "ct" ? (c.prefiks_knapp || "button.3_ct_")
+      : (c.prefiks_knapp || "button.4_vm_");
+    const ut = [];
+    for (const id of Object.keys(S)) {
+      if (!id.startsWith(pre) || !id.endsWith("_status")) continue;
+      const eid = id.slice(pre.length, id.length - "_status".length);
+      if (!eid) continue;
+      const o = (c.overstyr || {})[eid] || {};
+      if (o.skjul) continue;
+      const navn = o.navn || this._rentNavn(S[id], ["Status"]) || eid.replace(/_/g, " ");
+      const tj = eid.replace(/_\d+$/, "");
+      const har = (x) => !!S[x];
+
+      const info = [];
+      for (const [n, f] of [["RAM brukt", "ram_used"], ["RAM totalt", "ram_total"],
+        ["Disk brukt", "disk_used"], ["Disk totalt", "disk_total"],
+        ["Nett RX", "network_rx"], ["Nett TX", "network_tx"]]) {
+        if (har(`${pre}${eid}_${f}`)) info.push({ navn: n, entity: `${pre}${eid}_${f}` });
+      }
+      const knapper = [];
+      /* `kNavn`, ikke `navn`: den ytre `navn` er enhetens navn, og skygget over
+         løkkevariabelen — alle knappene het «Dispatcharr». */
+      for (const [kNavn, f, ikon, farge, bekreft] of [
+        ["Start", "start", "mdi:play", "var(--green)", null],
+        ["Stopp", "stop", "mdi:stop", null, `Stoppe ${navn}?`],
+        ["Restart", "reboot", "mdi:restart", "var(--orange)", `Restarte ${navn}?`],
+        ["Pause", "pause", "mdi:pause", null, null],
+        ["Fortsett", "resume", "mdi:play-pause", null, null],
+        ["Dvale", "hibernate", "mdi:moon-waning-crescent", null, null],
+        ["Av", "shutdown", "mdi:power", "var(--red)", `Slå av ${navn}?`],
+        ["Reset", "reset", "mdi:restart-alert", "var(--red)",
+          `Tvangsreset av ${navn}? Kan gi datatap.`],
+      ]) {
+        const b = `${preB}${eid}_${f}_${tj}`;
+        if (!har(b)) continue;
+        knapper.push({ navn: kNavn, entity: b, ikon, ...(farge ? { farge } : {}),
+          ...(bekreft ? { bekreft } : {}) });
+      }
+      ut.push({
+        navn, ikon: o.ikon || (slag === "vm" ? "mdi:desktop-tower" : "mdi:cube-outline"),
+        status: id, status_pa: ["running"],
+        ...(har(`${pre}${eid}_cpu_usage`)
+          ? { tall: `${pre}${eid}_cpu_usage`, tall_enhet: " % CPU" } : {}),
+        ...(har(`${pre}${eid}_ram_used`)
+          ? { nokkel: `${pre}${eid}_ram_used`, nokkel_enhet: " RAM" } : {}),
+        detalj: { navn, figur: "boks", status: id, status_pa: ["running"],
+          tekst_pa: "Kjører", tekst_av: "Stoppet",
+          ...(har(`${pre}${eid}_uptime`) ? { oppetid: `${pre}${eid}_uptime` } : {}),
+          maalinger: har(`${pre}${eid}_cpu_usage`)
+            ? [{ navn: "CPU", entity: `${pre}${eid}_cpu_usage`, enhet: "%" }] : [],
+          info, knapper },
+      });
+    }
+    return ut.sort((a, b) => a.navn.localeCompare(b.navn, "nb"));
+  }
 
   /* Tilstanden til én enhet: oppe, nede eller uten svar. Uten svar er noe annet enn
      nede — vi vet ikke, og det skal se annerledes ut. */
@@ -21759,7 +21950,7 @@ class KiRackCard extends HTMLElement {
       // sin egen tilstand hver gang en sensor tikker.
       if (this._sistApen !== this._apen) {
         this._sistApen = this._apen;
-        const e = c.enheter[this._apen];
+        const e = this._enheter()[this._apen];
         rot.innerHTML = `<div class="lag">
           <button class="tilbake" data-tilbake="1">
             <ha-icon icon="mdi:chevron-left"></ha-icon><span>Alle ${
@@ -21796,16 +21987,17 @@ class KiRackCard extends HTMLElement {
     }
 
     this._sistApen = undefined;
-    const tilst = c.enheter.map((e) => this._tilstand(e));
+    const enheter = this._enheter();
+    const tilst = enheter.map((e) => this._tilstand(e));
     const oppe = tilst.filter((t) => t === "oppe").length;
 
     rot.innerHTML = `
       ${c.tittel ? `<div class="topprad">
         <span class="t">${kiRaEsc(c.tittel)}</span>
-        <span class="s">${oppe} av ${c.enheter.length} oppe</span>
+        <span class="s">${oppe} av ${enheter.length} oppe</span>
       </div>` : ""}
       <div class="rutenett" style="--kol:${Math.max(1, Math.min(3, Number(c.kolonner) || 2))}">
-        ${c.enheter.map((e, i) => {
+        ${enheter.map((e, i) => {
           const t = tilst[i];
           const stor = this._verdi(e.tall, e.tall_enhet, e.tall_desimaler);
           const liten = this._verdi(e.nokkel, e.nokkel_enhet, e.nokkel_desimaler);
