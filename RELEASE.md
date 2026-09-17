@@ -1,24 +1,46 @@
-# ki-cards 3.79.1
+# ki-cards 3.80.0
 
-## Etasjenedtrekket per rom var tomt
+## Nytt kort: `ki-nedlasting-card`
 
-Feltet i 3.79.0 viste bare «Som i Home Assistant» — ingen etasjer å velge.
+qBittorrent i KI-formspråket, med animert overføring og historikk.
 
-Valgene ble bygget ved å lese `etasje_id` fra rommene på nytt, på egen hånd. Det gir
-samme liste som gruppene når attributtene er som forventet, men det er et **annet
-kodeløp** enn grupperingen editoren viser. Er lista tom mens gruppene finnes, har du
-ingen måte å se hvorfor — og jeg klarte ikke å gjenskape det her.
+```yaml
+type: custom:ki-nedlasting-card
+prefiks: sensor.qbittorrent_
+bryter: switch.qbittorrent_alternative_speed
+container: switch.d_day_darling_container_binhex_qbittorrentvpn
+oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
+historikk_dager: 30
+```
 
-Valgene bygges nå fra `_floors()`, altså nøyaktig de gruppene editoren alt viser, pluss
-nøklene i `etasje_innstillinger`. Da kan nedtrekket ikke være tommere enn gruppene du
-ser på skjermen. En etasje du har gitt navn eller rekkefølge er med selv om ingen rom står
-i den akkurat nå — nyttig nettopp når du skal flytte det første rommet dit.
+**Heroen** viser tilstanden i klartekst — «Laster ned», «Deler», «Laster og deler»,
+«Hviler» — med ned- og oppfart side om side. Nederst går data gjennom et rør: pakkene
+renner mot høyre når den laster ned, mot venstre når den deler, og **farten på
+animasjonen følger den faktiske farten**. `maks_fart` er MB/s som gir full hastighet.
+Hviler den, står røret stille og dempet.
 
-To ting til, som testene viste:
+**Tilkoblingen** har sin egen brikke. «Bak brannmur» blir oransje og «Frakoblet» rød —
+uten åpen port får du nesten ingen fart, og det er ikke synlig noe annet sted i
+dashbordet.
 
-* En etasje uten navn het før nøkkelen sin. «forste_etasje» vises nå som «Forste etasje».
-* «Uten etasje» arvet navnet til det første rommet uten etasje, så gruppa kunne hete
-  «Kjeller». Den heter nå alltid «Uten etasje».
+**Køen** står som fliser: aktive, pauset, uten trafikk, feilet og totalt. Feilede
+torrenter får rød flis når tallet er over null.
 
-Tre oppsett er kontrollert: ditt med navngitte etasjer, et der Home Assistant ikke har
-etasjer i det hele tatt, og et uten `etasje_innstillinger`.
+**Totalene** viser ned og opp som et delt bånd med forholdet mellom dem. Integrasjonen
+oppgir TiB, og «0,004 TiB» sier ingenting — kortet regner om til MiB, GiB eller TiB
+etter hva som er lesbart.
+
+**Historikken** er et søylediagram per døgn, hentet fra statistikken. «All-time download»
+er `total_increasing`, så Home Assistant har ferdig utregnet endring per døgn; mangler
+`change`-feltet, regnes differansen mellom døgnsummene. Tre tomme tilstander er dekket med
+forklaring i stedet for et tomt felt.
+
+Nederst knapper for sparefart og containeren. Er containeren stoppet, blir knappen rød og
+sier det. Finnes en ny versjon, dukker det opp en knapp til.
+
+## `examples/server-nedlasting-fane.yaml`
+
+Nedlasting-fane til server-popupen, klar til å limes inn i `tabs:` på øverste nivå. Med
+kortet, et varsel når VPN-porten ikke er åpen, og containerne i nedlastingskjeden i
+rekkefølgen de brukes: Prowlarr, Flaresolverr, Sonarr, Radarr, Readarr, Bazarr, Seerr,
+qBittorrent.

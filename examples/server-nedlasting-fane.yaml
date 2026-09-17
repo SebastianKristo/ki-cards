@@ -1,0 +1,86 @@
+# Nedlasting-fane til server-popupen.
+#
+# Lim inn hele blokka under i `tabs:` på ØVERSTE nivå i `custom:ki-tabs-card` —
+# altså på linje med «- title: Nettverk» og «- title: Unraid». Innrykket her (seks
+# mellomrom før bindestreken) stemmer med det.
+#
+# Kortet leser qBittorrent-sensorene, containerbryteren og oppdateringsentiteten.
+# Historikken hentes fra døgnstatistikken til «All-time download», som er
+# total_increasing — derfor finnes ferdig utregnet endring per døgn.
+
+      - title: Nedlasting
+        cards:
+          # Advarsel når qBittorrent står bak brannmur. Uten åpen port får du
+          # nesten ingen fart, og det er ikke synlig noe annet sted.
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.qbittorrent_connection_status
+                state_not: connected
+              - condition: state
+                entity: sensor.qbittorrent_connection_status
+                state_not: unavailable
+            card:
+              type: custom:ki-sensor-card
+              storrelse: liten
+              entity: sensor.qbittorrent_connection_status
+              navn: Tilkobling
+              ikon: mdi:shield-alert-outline
+              verdi: VPN-porten er ikke åpen
+              bakgrunn: var(--orange)
+              tekstfarge: var(--black)
+              animasjon: puls
+
+          - type: custom:ki-nedlasting-card
+            prefiks: sensor.qbittorrent_
+            bryter: switch.qbittorrent_alternative_speed
+            container: switch.d_day_darling_container_binhex_qbittorrentvpn
+            oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
+            historikk_dager: 30
+            maks_fart: 12
+
+          - type: custom:gap-card
+            height: 6
+          - type: custom:ki-section-card
+            title: Tjenestene rundt
+
+          # Containerne som utgjør nedlastingskjeden, i rekkefølgen de brukes
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_prowlarr
+                name: Prowlarr
+                icon: mdi:magnify
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_flaresolverr
+                name: Flaresolverr
+                icon: mdi:shield-key-outline
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_sonarr
+                name: Sonarr
+                icon: mdi:television-classic
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_radarr
+                name: Radarr
+                icon: mdi:movie-open-outline
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_readarr
+                name: Readarr
+                icon: mdi:book-open-page-variant-outline
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_bazarr
+                name: Bazarr
+                icon: mdi:subtitles-outline
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_seerr
+                name: Seerr
+                icon: mdi:playlist-plus
+              - type: custom:ki-toggle-card
+                entity: switch.d_day_darling_container_binhex_qbittorrentvpn
+                name: qBittorrent VPN
+                icon: mdi:download-network-outline
+
+          - type: custom:gap-card
+            height: 36
