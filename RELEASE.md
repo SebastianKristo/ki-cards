@@ -1,40 +1,40 @@
-# ki-cards 3.88.0
+# ki-cards 3.89.0
 
-## `ki-rack-card` finner enhetene selv
+## Containere som kjørte ble vist som nede i rødt
 
-`oppdag: unifi | pve_ct | pve_vm`. Ingen liste å vedlikeholde — setter du opp en ny
-container eller bytter et aksesspunkt, er den der ved neste oppdatering.
+`ki-rack-card` sammenlignet tilstanden ordrett mot `"running"`, og oppdagelsen låste
+`status_pa` til nettopp den verdien. Proxmox Extended Sensors oppgir «running» for noen
+containere og «online», «on» eller «Running» for andre — og alt som ikke var akkurat
+`running` ble rødt.
 
-**UniFi** kjennes igjen på **par av en `device_tracker` og en «uptime»-sensor med samme
-slug**, ikke på et navnemønster. Et mønster ville brutt så snart du døper om noe, og
-telefonene dine ville blitt nettverksutstyr.
+Sammenligningen er nå uten hensyn til store og små bokstaver, og standardlista dekker
+`running`, `online`, `on`, `started`, `active`, `up` og `ok`. Oppdagelsen setter ikke
+lenger `status_pa` i det hele tatt, så standardlista gjelder.
 
-Oppdagelsen løser tre ting jeg før måtte skrive inn manuelt:
+**Og en tilstand vi ikke kjenner igjen** — verken en «på»- eller en kjent «av»-verdi —
+vises nå som uten svar, ikke som nede. Et falskt rødt kort er verre enn et spørsmålstegn.
+Testet mot fjorten skrivemåter.
 
-* **`_2`-etterfikset** på Dream Machine Pro finnes ved å se hvilken sensor som faktisk
-  eksisterer — `sensor.x_uptime_2` eller `sensor.x_uptime`.
-* **Portene telles** ved å gå oppover til `button.x_port_N_power_cycle` slutter å finnes,
-  så Treets får sine 16 uten at tallet står noe sted.
-* **LED, firmware, temperatur og latens** tas med bare der entitetene finnes.
+## Unraid-fanen: fliser som navigasjon
 
-Figuren gjettes fra navnet: Dream/UDM/gateway blir ruter, USW/Flex blir switch, U6/U7/Lite
-blir aksesspunkt. Ruter først i lista, så switcher, så AP.
+Fanen hadde fem seksjoner under hverandre og var den siste som krevde rulling. Nå er den
+fem fliser: **Array, Containere, Disker, Delinger, Virtuelle maskiner**. Hver flis viser
+det ene tallet som sier om delen har det bra, og åpner sin egen del over rutenettet.
 
-**Proxmox Extended Sensors**: alt som har en `_status`-sensor under prefikset. Knappene
-tas med bare der de finnes, så en container uten «reset» får ikke en død knapp — og
-tjenestenavnet i knappen utledes fra id-en, som dekker `speedtest_tracker_104` og
-`haos_18_2_115`.
+Fanen er fra atten kort til fem.
 
-`overstyr:` retter navn eller ikon per enhet, eller skjuler den med `skjul: true`.
+`kort:` er nytt i `ki-rack-card`: en flis kan åpne en vilkårlig liste kort, ikke bare en
+enhet. Det er dette som gjør flisene brukbare som navigasjon.
 
-### En feil oppdagelsen avdekket
+### To feil det avdekket
 
-Knappene het enhetens navn — «Dispatcharr / Dispatcharr / Dispatcharr» i stedet for
-«Start / Stopp / Restart». Løkkevariabelen het `navn`, og det skygget over enhetens
-`navn` i samme funksjon. Den heter `kNavn` nå.
+**Innebygde Home Assistant-kort kunne ikke lages.** `grid`, `conditional` og `entities`
+heter noe annet internt, og `document.createElement("grid")` gir ingenting. VM-flisen
+åpnet derfor en tom seksjon. Egendefinerte kort lages direkte, resten gjennom
+`loadCardHelpers()`, som er måten HA gjør det selv.
 
-## Server-popupen
+**Disker-flisen viste «off paritet».** En rå tilstand som undertekst sier ingenting.
+Paritetshelsen er nå flisens *status* — «off» betyr frisk i Unraid — og underteksten viser
+hvor mye av array-en som er brukt.
 
-Nettverk og Proxmox er nå rene oppdagelseskort: tre linjer YAML i stedet for de 400 som
-listet seks nettverksenheter og tolv Proxmox-enheter med alle entitetsnavn. Popupen er fra
-1659 til 734 linjer.
+Fliser uten statusentitet er ren navigasjon, og får en pil i stedet for en farget prikk.

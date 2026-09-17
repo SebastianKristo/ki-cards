@@ -299,174 +299,244 @@ cards:
 
             - type: custom:gap-card
               height: 10
-            - type: custom:ki-section-card
-              title: Virtuelle maskiner
-            - type: grid
-              columns: 2
-              square: false
-              cards:
-                - type: custom:ki-toggle-card
-                  entity: switch.d_day_darling_vm_home_assistant
-                  name: Home Assistant
-                  icon: mdi:home-assistant
-                - type: custom:ki-toggle-card
-                  entity: switch.d_day_darling_vm_home_assistantny
-                  name: Home Assistant Ny
-                  icon: mdi:home-assistant
 
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Containere
-            - type: custom:ki-container-card
-              prefiks: switch.d_day_darling_container_
-              oppdateringer: sensor.d_day_darling_container_updates_available
-              navn_kort:
-                adguard_home: AdGuard Home
-                binhex_jellyfin: Jellyfin
-                binhex_minecraftserver: Minecraft
-                binhex_official_metube: MeTube
-                binhex_plexpass: Plex
-                binhex_prowlarr: Prowlarr (binhex)
-                binhex_qbittorrentvpn: qBittorrent VPN
-                binhex_radarr: Radarr
-                binhex_readarr: Readarr
-                binhex_seerr: Seerr
-                binhex_sonarr: Sonarr
-                cloudflare_ddns: Cloudflare DDNS
-                cloudflaredtunnel: Cloudflared
-                glance_1: Glance
-                homeassistant_inabox: HA in a box
-                immich_machine_learning: Immich ML
-                immich_postgres: Immich DB
-                immich_redis: Immich Redis
-                immich_server: Immich
-                jellyfin_rewind: Jellyfin Rewind
-                jellyplex_watched: Jellyplex
-                lyrionmusicserver: Lyrion
-                portainerce: Portainer
-                silo_postgresql: Silo DB
-                speedtest_by_openspeedtest: OpenSpeedTest
-                speedtest_tracker: Speedtest Tracker
-                uptimekuma: Uptime Kuma
-              grupper:
-                - navn: Media
-                  ikon: mdi:play-circle-outline
-                  containere: [binhex_plexpass, binhex_jellyfin, jellyfin_rewind,
-                    jellyplex_watched, lyrionmusicserver, navidrome, subwave, podgrab,
-                    binhex_official_metube]
-                - navn: Nedlasting
-                  ikon: mdi:download-network-outline
-                  containere: [binhex_qbittorrentvpn, binhex_sonarr, binhex_radarr,
-                    binhex_readarr, bazarr, binhex_seerr, prowlarr, binhex_prowlarr,
-                    flaresolverr]
-                - navn: Bilder og filer
-                  ikon: mdi:image-multiple-outline
-                  containere: [immich_server, immich_machine_learning, immich_postgres,
-                    immich_redis, cloudreve, minio, silo, silo_postgresql]
-                - navn: Nettverk
-                  ikon: mdi:lan
-                  containere: [adguard_home, cloudflare_ddns, cloudflaredtunnel, iperf3,
-                    speedtest_by_openspeedtest, speedtest_tracker]
-                - navn: Smarthus
-                  ikon: mdi:home-automation
-                  containere: [esphome, frigate, homeassistant_inabox, tofa]
-                - navn: Drift
-                  ikon: mdi:tools
-                  containere: [portainerce, uptimekuma, homarr, glance_1, redis, yubal,
-                    binhex_minecraftserver]
+            # De fem delene som fliser i stedet for fem seksjoner under hverandre.
+            # Array, containere, disker, delinger og maskinene — hver åpner sin egen
+            # del over rutenettet. Flisen viser det ene tallet som sier om delen har
+            # det bra; resten venter bak trykket.
+            - type: custom:ki-rack-card
+              tittel: Unraid
+              kolonner: 2
+              enheter:
+              - navn: Array
+                ikon: mdi:harddisk-plus
+                status: binary_sensor.d_day_darling_array_started
+                tall: sensor.d_day_darling_array_usage
+                tall_enhet: ' % brukt'
+                tall_desimaler: 0
+                nokkel: sensor.d_day_darling_array_state
+                nokkel_enhet: ''
+                detalj:
+                  navn: D-Day Darling
+                  figur: server
+                  status: binary_sensor.d_day_darling_array_started
+                  status_pa:
+                  - 'on'
+                  tekst_pa: Array startet
+                  tekst_av: Array stoppet
+                  oppetid: sensor.d_day_darling_up_since
+                  maalinger:
+                  - navn: CPU
+                    entity: sensor.d_day_darling_cpu_usage
+                    enhet: '%'
+                  - navn: RAM
+                    entity: sensor.d_day_darling_ram_usage
+                    enhet: '%'
+                  - navn: Array
+                    entity: sensor.d_day_darling_array_usage
+                    enhet: '%'
+                  - navn: Temp
+                    entity: sensor.d_day_darling_cpu_temperature
+                    enhet: °
+                    maks: 90
+                    gul: 65
+                    rod: 80
+                  info:
+                  - navn: Array
+                    entity: sensor.d_day_darling_array_state
+                  - navn: RAM brukt
+                    entity: sensor.d_day_darling_ram_used
+                  - navn: CPU-effekt
+                    entity: sensor.d_day_darling_cpu_power
+                  - navn: Unraid
+                    entity: sensor.d_day_darling_unraid_version
+                  - navn: Nettverk
+                    entity: sensor.d_day_darling_network_access
+                  - navn: Mover
+                    entity: binary_sensor.d_day_darling_mover_active
+                    tekst:
+                      'on': Kjører
+                      'off': Hviler
+                  - navn: Siste paritetssjekk
+                    entity: sensor.d_day_darling_last_parity_check
+                  - navn: br0 inn
+                    entity: sensor.d_day_darling_network_br0_inbound
+                  - navn: br0 ut
+                    entity: sensor.d_day_darling_network_br0_outbound
+                  - navn: br0 IP
+                    entity: sensor.d_day_darling_network_br0_ip_address
+                  knapper:
+                  - navn: Se etter oppdateringer
+                    entity: button.d_day_darling_check_container_updates
+                    ikon: mdi:cloud-download
+              - navn: Containere
+                ikon: mdi:docker
+                tall: sensor.d_day_darling_docker_total_cpu
+                tall_enhet: ' % CPU'
+                nokkel: sensor.d_day_darling_container_updates_available
+                nokkel_enhet: ' oppdateringer'
+                nokkel_desimaler: 0
+                kort:
+                - type: custom:ki-section-card
+                  title: Containere
+                - type: custom:ki-container-card
+                  prefiks: switch.d_day_darling_container_
+                  oppdateringer: sensor.d_day_darling_container_updates_available
+                  navn_kort:
+                    adguard_home: AdGuard Home
+                    binhex_jellyfin: Jellyfin
+                    binhex_minecraftserver: Minecraft
+                    binhex_official_metube: MeTube
+                    binhex_plexpass: Plex
+                    binhex_prowlarr: Prowlarr (binhex)
+                    binhex_qbittorrentvpn: qBittorrent VPN
+                    binhex_radarr: Radarr
+                    binhex_readarr: Readarr
+                    binhex_seerr: Seerr
+                    binhex_sonarr: Sonarr
+                    cloudflare_ddns: Cloudflare DDNS
+                    cloudflaredtunnel: Cloudflared
+                    glance_1: Glance
+                    homeassistant_inabox: HA in a box
+                    immich_machine_learning: Immich ML
+                    immich_postgres: Immich DB
+                    immich_redis: Immich Redis
+                    immich_server: Immich
+                    jellyfin_rewind: Jellyfin Rewind
+                    jellyplex_watched: Jellyplex
+                    lyrionmusicserver: Lyrion
+                    portainerce: Portainer
+                    silo_postgresql: Silo DB
+                    speedtest_by_openspeedtest: OpenSpeedTest
+                    speedtest_tracker: Speedtest Tracker
+                    uptimekuma: Uptime Kuma
+                  grupper:
+                  - navn: Media
+                    ikon: mdi:play-circle-outline
+                    containere:
+                    - binhex_plexpass
+                    - binhex_jellyfin
+                    - jellyfin_rewind
+                    - jellyplex_watched
+                    - lyrionmusicserver
+                    - navidrome
+                    - subwave
+                    - podgrab
+                    - binhex_official_metube
+                  - navn: Nedlasting
+                    ikon: mdi:download-network-outline
+                    containere:
+                    - binhex_qbittorrentvpn
+                    - binhex_sonarr
+                    - binhex_radarr
+                    - binhex_readarr
+                    - bazarr
+                    - binhex_seerr
+                    - prowlarr
+                    - binhex_prowlarr
+                    - flaresolverr
+                  - navn: Bilder og filer
+                    ikon: mdi:image-multiple-outline
+                    containere:
+                    - immich_server
+                    - immich_machine_learning
+                    - immich_postgres
+                    - immich_redis
+                    - cloudreve
+                    - minio
+                    - silo
+                    - silo_postgresql
+                  - navn: Nettverk
+                    ikon: mdi:lan
+                    containere:
+                    - adguard_home
+                    - cloudflare_ddns
+                    - cloudflaredtunnel
+                    - iperf3
+                    - speedtest_by_openspeedtest
+                    - speedtest_tracker
+                  - navn: Smarthus
+                    ikon: mdi:home-automation
+                    containere:
+                    - esphome
+                    - frigate
+                    - homeassistant_inabox
+                    - tofa
+                  - navn: Drift
+                    ikon: mdi:tools
+                    containere:
+                    - portainerce
+                    - uptimekuma
+                    - homarr
+                    - glance_1
+                    - redis
+                    - yubal
+                    - binhex_minecraftserver
+              - navn: Disker
+                ikon: mdi:harddisk
+                # Paritetsdisken er den ene tilstanden som betyr noe her: er den frisk,
+                # er array-en trygg. «off» betyr frisk i Unraid.
+                status: binary_sensor.d_day_darling_disk_parity_health
+                status_pa: ['off']
+                tall: sensor.d_day_darling_disk_disk1_usage
+                tall_enhet: ' % på disk 1'
+                tall_desimaler: 0
+                nokkel: sensor.d_day_darling_array_usage
+                nokkel_enhet: ' % av array-en brukt'
+                nokkel_desimaler: 0
+                kort:
+                - type: custom:ki-section-card
+                  title: Disker
+                - type: custom:ki-bruk-card
+                  ikon: mdi:harddisk
+                  prefiks: sensor.d_day_darling_disk_
+                  etterfiks: _usage
+                  helse: binary_sensor.d_day_darling_disk_{navn}_health
+                  helse_ok: 'off'
+                  terskel_gul: 80
+                  terskel_rod: 92
+                  navn_kort:
+                    disk1: Disk 1
+                    disk2: Disk 2
+                    disk3: Disk 3
+                    disk4: Disk 4
+                    cach: Cache
+              - navn: Delinger
+                ikon: mdi:folder-network-outline
+                tall: sensor.d_day_darling_share_media_usage
+                tall_enhet: ' % på media'
+                tall_desimaler: 0
+                kort:
+                - type: custom:ki-section-card
+                  title: Delinger
+                - type: custom:ki-bruk-card
+                  ikon: mdi:folder-outline
+                  prefiks: sensor.d_day_darling_share_
+                  etterfiks: _usage
+                  navn_kort:
+                    aoosar_x_linux: Aoosar X Linux
+                    appdata: Appdata
+                    isos: Isos
+                    nextcloud: Nextcloud
+              - navn: Virtuelle maskiner
+                ikon: mdi:desktop-tower
+                status: switch.d_day_darling_vm_home_assistant
+                kort:
+                - type: custom:ki-section-card
+                  title: Virtuelle maskiner
+                - type: grid
+                  columns: 2
+                  square: false
+                  cards:
+                  - type: custom:ki-toggle-card
+                    entity: switch.d_day_darling_vm_home_assistant
+                    name: Home Assistant
+                    icon: mdi:home-assistant
+                  - type: custom:ki-toggle-card
+                    entity: switch.d_day_darling_vm_home_assistantny
+                    name: Home Assistant Ny
+                    icon: mdi:home-assistant
 
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Disker
-            - type: custom:ki-bruk-card
-              ikon: mdi:harddisk
-              prefiks: sensor.d_day_darling_disk_
-              etterfiks: _usage
-              helse: binary_sensor.d_day_darling_disk_{navn}_health
-              helse_ok: 'off'
-              terskel_gul: 80
-              terskel_rod: 92
-              navn_kort:
-                disk1: Disk 1
-                disk2: Disk 2
-                disk3: Disk 3
-                disk4: Disk 4
-                cach: Cache
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Delinger
-            - type: custom:ki-bruk-card
-              ikon: mdi:folder-outline
-              prefiks: sensor.d_day_darling_share_
-              etterfiks: _usage
-              navn_kort:
-                aoosar_x_linux: Aoosar X Linux
-                appdata: Appdata
-                isos: Isos
-                nextcloud: Nextcloud
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Detaljer
-            - type: custom:ki-enhet-card
-              navn: D-Day Darling
-              figur: server
-              status: binary_sensor.d_day_darling_array_started
-              status_pa: ['on']
-              tekst_pa: Array startet
-              tekst_av: Array stoppet
-              oppetid: sensor.d_day_darling_up_since
-              maalinger:
-                - navn: CPU
-                  entity: sensor.d_day_darling_cpu_usage
-                  enhet: '%'
-                - navn: RAM
-                  entity: sensor.d_day_darling_ram_usage
-                  enhet: '%'
-                - navn: Array
-                  entity: sensor.d_day_darling_array_usage
-                  enhet: '%'
-                - navn: Temp
-                  entity: sensor.d_day_darling_cpu_temperature
-                  enhet: °
-                  maks: 90
-                  gul: 65
-                  rod: 80
-              info:
-                - navn: Array
-                  entity: sensor.d_day_darling_array_state
-                - navn: RAM brukt
-                  entity: sensor.d_day_darling_ram_used
-                - navn: CPU-effekt
-                  entity: sensor.d_day_darling_cpu_power
-                - navn: Unraid
-                  entity: sensor.d_day_darling_unraid_version
-                - navn: Nettverk
-                  entity: sensor.d_day_darling_network_access
-                - navn: Mover
-                  entity: binary_sensor.d_day_darling_mover_active
-                  tekst: { 'on': Kjører, 'off': Hviler }
-                - navn: Docker CPU
-                  entity: sensor.d_day_darling_docker_total_cpu
-                  enhet: ' %'
-                - navn: Docker RAM
-                  entity: sensor.d_day_darling_docker_total_memory
-                  enhet: ' %'
-                - navn: br0 inn
-                  entity: sensor.d_day_darling_network_br0_inbound
-                - navn: br0 ut
-                  entity: sensor.d_day_darling_network_br0_outbound
-                - navn: br0 IP
-                  entity: sensor.d_day_darling_network_br0_ip_address
-              knapper:
-                - navn: Se etter oppdateringer
-                  entity: button.d_day_darling_check_container_updates
-                  ikon: mdi:cloud-download
             - type: custom:gap-card
               height: 36
 

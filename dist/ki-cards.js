@@ -1,4 +1,4 @@
-/* ki-cards v3.88.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
+/* ki-cards v3.89.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.88.0";
+  KI.VERSION = "3.89.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -21669,6 +21669,10 @@ const KI_RACK_STIL = `
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .flis .prikk { width:9px; height:9px; border-radius:50%; flex:none;
     background:var(--green,#5ad18b); }
+  /* Navigasjonsfliser har ingen tilstand: prikken byttes mot en pil */
+  .flis.nøytral .prikk { background:none; }
+  .flis.nøytral .prikk::after { content:"›"; display:block; font-size:19px;
+    line-height:9px; opacity:.4; margin-top:-5px; }
   .flis.nede { background:color-mix(in srgb, var(--red,#e5706b) 30%, var(--gray200)); }
   .flis.nede .prikk { background:var(--red,#e5706b); }
   .flis.borte .prikk { background:var(--orange,#f0a952); }
@@ -21896,12 +21900,16 @@ class KiRackCard extends HTMLElement {
       }
       ut.push({
         navn, ikon: o.ikon || (slag === "vm" ? "mdi:desktop-tower" : "mdi:cube-outline"),
-        status: id, status_pa: ["running"],
+        /* Ingen `status_pa` her: standardlista dekker «running», «online», «on» og
+           «started». Første utgave låste den til «running», og containere som melder
+           «online» ble vist som nede i rødt selv om de kjørte. */
+        status: id,
         ...(har(`${pre}${eid}_cpu_usage`)
           ? { tall: `${pre}${eid}_cpu_usage`, tall_enhet: " % CPU" } : {}),
         ...(har(`${pre}${eid}_ram_used`)
           ? { nokkel: `${pre}${eid}_ram_used`, nokkel_enhet: " RAM" } : {}),
-        detalj: { navn, figur: "boks", status: id, status_pa: ["running"],
+        detalj: { navn, figur: "boks", status: id,
+          status_pa: ["running", "Running", "RUNNING", "online", "Online", "on", "started"],
           tekst_pa: "Kjører", tekst_av: "Stoppet",
           ...(har(`${pre}${eid}_uptime`) ? { oppetid: `${pre}${eid}_uptime` } : {}),
           maalinger: har(`${pre}${eid}_cpu_usage`)
@@ -21915,10 +21923,25 @@ class KiRackCard extends HTMLElement {
   /* Tilstanden til én enhet: oppe, nede eller uten svar. Uten svar er noe annet enn
      nede — vi vet ikke, og det skal se annerledes ut. */
   _tilstand(e) {
+    /* En flis uten statusentitet er ren navigasjon — «Disker», «Delinger». Den har
+       ingen tilstand, og prikken skal ikke være rød eller grønn. */
+    if (!e.status) return "nøytral";
     const st = this._st(e.status);
     if (!st || ["unavailable", "unknown", ""].includes(st.state)) return "borte";
-    const paa = [].concat(e.status_pa || ["home", "on", "running", "online"]).map(String);
-    return paa.includes(String(st.state)) ? "oppe" : "nede";
+    /* Sammenligningen er uten hensyn til store og små bokstaver, og lista dekker
+       synonymene integrasjonene bruker. Proxmox Extended Sensors oppgir «running» for
+       noen containere og «Running» eller «online» for andre, og en ordrett
+       sammenligning mot «running» gjorde de andre røde selv om de kjørte. */
+    const std = ["home", "on", "running", "online", "active", "started", "up", "ok"];
+    const paa = [].concat(e.status_pa || std).map((x) => String(x).toLowerCase());
+    const naa = String(st.state).toLowerCase();
+    if (paa.includes(naa)) return "oppe";
+    /* Er tilstanden noe vi ikke kjenner igjen i det hele tatt — verken «på» eller en
+       kjent «av»-verdi — er det tryggere å vise den som uten svar enn som nede. Et
+       falskt rødt kort er verre enn et spørsmålstegn. */
+    const av = ["not_home", "off", "stopped", "offline", "inactive", "idle", "down",
+      "paused", "suspended", "prelaunch", "hibernated"];
+    return av.includes(naa) ? "nede" : "borte";
   }
 
   _verdi(id, enhet, desimaler) {
@@ -21933,6 +21956,41 @@ class KiRackCard extends HTMLElement {
       : Number.isInteger(v) ? 0 : (Math.abs(v) < 10 ? 1 : 0);
     return { tekst: v.toLocaleString("nb-NO",
       { minimumFractionDigits: d, maximumFractionDigits: d }), enhet: enhet || "" };
+  }
+
+  /* Bygger en liste kort inn i en boks.
+   *
+   * Innebygde Home Assistant-kort — `grid`, `conditional`, `entities` — kan ikke lages
+   * med `document.createElement("grid")`; de heter noe annet internt og finnes bare via
+   * HAs egen korthjelper. Første utgave brukte tagnavnet for alt, og da ble et `grid`
+   * stille droppet. Egendefinerte kort lages direkte, resten gjennom hjelperen.
+   */
+  async _lagKort(liste, boks) {
+    let hjelper = null;
+    const trengerHjelper = liste.some((k) => !String(k.type || "").startsWith("custom:"));
+    if (trengerHjelper && window.loadCardHelpers) {
+      try { hjelper = await window.loadCardHelpers(); } catch (e) { hjelper = null; }
+    }
+    for (const k of liste) {
+      let el = null;
+      const type = String(k.type || "");
+      if (type.startsWith("custom:")) {
+        const tag = type.slice("custom:".length);
+        if (customElements.get(tag)) { el = document.createElement(tag); el.setConfig(k); }
+      } else if (hjelper) {
+        try { el = hjelper.createCardElement(k); } catch (e) { el = null; }
+      }
+      if (!el) {
+        const d = document.createElement("div");
+        d.className = "tom";
+        d.textContent = `Fikk ikke laget kortet ${k.type || "(uten type)"}.`;
+        boks.appendChild(d);
+        continue;
+      }
+      boks.appendChild(el);
+      this._barn.push(el);
+      if (this._h) el.hass = this._h;
+    }
   }
 
   _bygg() {
@@ -21962,7 +22020,13 @@ class KiRackCard extends HTMLElement {
         });
         const boks = rot.querySelector(".innhold");
         this._detalj = null;
-        if (e && e.detalj && customElements.get("ki-enhet-card")) {
+        this._barn = [];
+        /* `kort:` lar en flis åpne hva som helst — en seksjon med flere kort, ikke bare
+           en enhet. Det er dette som gjør flisene brukbare som navigasjon: Unraid-fanen
+           blir fem fliser der hver åpner sin egen del. */
+        if (e && Array.isArray(e.kort) && e.kort.length) {
+          this._lagKort(e.kort, boks);
+        } else if (e && e.detalj && customElements.get("ki-enhet-card")) {
           const k = document.createElement("ki-enhet-card");
           k.setConfig({ type: "custom:ki-enhet-card", ...e.detalj });
           boks.appendChild(k);
@@ -21980,9 +22044,7 @@ class KiRackCard extends HTMLElement {
         }
       }
       if (this._detalj) this._detalj.hass = this._h;
-      for (const el of this.shadowRoot.querySelectorAll(".innhold > *")) {
-        if (el !== this._detalj && el.setConfig) el.hass = this._h;
-      }
+      for (const k of (this._barn || [])) { if (k !== this._detalj) k.hass = this._h; }
       return;
     }
 
