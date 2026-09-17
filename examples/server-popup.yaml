@@ -140,46 +140,42 @@ cards:
             - type: custom:gap-card
               height: 10
             - type: custom:ki-section-card
-              title: Ruter
+              title: Enhetene
+
+            # Alle seks enhetene i én velger i stedet for tre kort med hver sin
+            # seksjon. Før måtte du rulle gjennom ruter, tre switcher og to AP-er
+            # etter hverandre; nå bytter du med ett trykk.
+            #
+            # Ikonet foran navnet sier hva det er, siden de ikke lenger er delt i
+            # grupper: kjegle for ruter, switch for switch, antenne for AP.
             - type: custom:ki-unifi-card
-              figur: ruter
               enheter:
                 - navn: Dream Machine Pro
                   slug: oslo_dream_machine_pro
+                  figur: ruter
                   etterfiks: '_2'
                   latens:
                     - { navn: Google, felt: google }
                     - { navn: Cloudflare, felt: cloudflare }
                     - { navn: Microsoft, felt: microsoft }
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Switcher
-            - type: custom:ki-unifi-card
-              figur: switch
-              enheter:
                 - navn: Treets
                   slug: treets_usw_24_poe
+                  figur: switch
                   porter: 16
                 - navn: Veien
                   slug: veien_usw_24_g2
+                  figur: switch
                 - navn: Spisebord
                   slug: spisebord_usw_flex_mini
+                  figur: switch
                   led: true
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Aksesspunkt
-            - type: custom:ki-unifi-card
-              figur: ap
-              enheter:
                 - navn: Fuglen
                   slug: fuglen_u7_pro_xg
+                  figur: ap
                   led: true
                 - navn: Posten
                   slug: posten_u7_lite
+                  figur: ap
                   led: true
 
             - type: custom:gap-card

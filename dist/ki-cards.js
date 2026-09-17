@@ -1,4 +1,4 @@
-/* ki-cards v3.84.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
+/* ki-cards v3.85.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.84.0";
+  KI.VERSION = "3.85.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4573,7 +4573,9 @@ const KI_ENHET_STIL = `
   [tabindex]:focus-visible { outline:2px solid var(--active-big,#ee95ff); outline-offset:2px; }
 
   /* ---- hero ---- */
-  .hero { position:relative; height:180px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
+  /* Heroen var 180 px høy med figuren i full størrelse. Med seks enheter i én fane
+     ble det bare rulling. 132 px holder for navn, status og målerne. */
+  .hero { position:relative; height:132px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
     padding:18px 20px; display:grid; grid-template-columns:1fr 42%; grid-template-rows:min-content 1fr min-content;
     grid-template-areas:"navn figur" "tom figur" "maal figur"; color:var(--gray1000); cursor:pointer;
     background:var(--gray200); transition:background .6s var(--myk), color .4s; }
@@ -4593,15 +4595,18 @@ const KI_ENHET_STIL = `
   .under b { font-weight:600; opacity:.9; }
 
   /* målere */
-  .maal { grid-area:maal; display:flex; gap:14px; align-items:flex-end; }
-  .ring { position:relative; width:56px; text-align:center; }
-  .ring svg { width:52px; height:52px; display:block; margin:0 auto; transform:rotate(-90deg); }
+  .maal { grid-area:maal; display:flex; gap:12px; align-items:flex-end; }
+  .ring { position:relative; width:48px; text-align:center; }
+  .ring svg { width:44px; height:44px; display:block; margin:0 auto; transform:rotate(-90deg); }
   .ring .spor { fill:none; stroke:currentColor; stroke-opacity:.14; stroke-width:5; }
   .ring .bue { fill:none; stroke:var(--ring, var(--active-big,#ee95ff)); stroke-width:5; stroke-linecap:round;
     transition:stroke-dashoffset 1.2s var(--myk), stroke 1s ease; }
-  .ring .tall { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;
+  .ring .tall { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;
     margin-top:-2px; }
-  .ring .lab { font-size:11px; opacity:.55; margin-top:2px; white-space:nowrap; }
+  .ring .lab { font-size:10.5px; opacity:.55; margin-top:1px; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  /* Målerringen sitter på bunnlinja; uten dette flyter den når heroen er lav */
+  .hero { align-items:end; }
 
   /* figurer */
   .figur { grid-area:figur; position:relative; margin:-18px -20px -18px 0; }
@@ -4658,6 +4663,16 @@ const KI_ENHET_STIL = `
   .mini .bnd { fill:currentColor; opacity:.14; } .mini .bnd.f { opacity:.55; }
 
   /* ---- info som fliser (info_stil: fliser) ---- */
+  /* Info-lista er lukket som standard. Den er den lengste delen av kortet, og den
+     leses bare når noe er galt — «ett om gangen» gjelder her også. */
+  .detaljer { display:grid; gap:8px; }
+  .dhode { display:flex; align-items:center; gap:10px; padding:2px 6px; cursor:pointer;
+    --mdc-icon-size:18px; color:var(--gray1000); }
+  .dhode .dn { flex:1; min-width:0; font-size:13.5px; font-weight:600; }
+  .dhode .dt { font-size:12px; opacity:.5; }
+  .dhode ha-icon.pil { opacity:.5; transition:transform .2s cubic-bezier(.2,.8,.2,1); }
+  .detaljer.lukket .dhode ha-icon.pil { transform:rotate(-90deg); }
+  .detaljer.lukket .info, .detaljer.lukket .panel { display:none; }
   .info { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; }
   .ifl { background:var(--gray200); border-radius:18px; padding:12px 14px; min-width:0; }
   .ifl .n { font-size:12px; font-weight:500; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -4896,7 +4911,15 @@ class KiEnhetCard extends HTMLElement {
           <div class="figur">${KI_ENHET_FIGUR[c.figur] || KI_ENHET_FIGUR.server}</div>
         </div>
 
-        ${(this._info.length || this._graf) && this._stil === "rader" ? `<div class="panel" ${this._graf && this._graf.farge ? `style="--graf:${kiEnhetEsc(this._graf.farge)}"` : ""}>
+        ${(this._info.length || this._graf) && this._stil === "rader" ? `<div class="detaljer ${
+          c.info_apen === true ? "" : "lukket"}">
+          <div class="dhode" data-detaljer="1">
+            <ha-icon icon="mdi:information-outline"></ha-icon>
+            <span class="dn">Detaljer</span>
+            <span class="dt">${this._info.length}</span>
+            <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+          </div>
+          <div class="panel" ${this._graf && this._graf.farge ? `style="--graf:${kiEnhetEsc(this._graf.farge)}"` : ""}>
           ${this._graf ? `<div class="stor" data-info="graf"><div class="topp"><div class="sverdi">–</div>
             <div class="snavn">${kiEnhetEsc(this._graf.navn || "")}${this._graf.navn ? " · " : ""}siste ${this._timer} t</div></div>
             <svg viewBox="0 0 320 70" preserveAspectRatio="none"></svg></div>` : ""}
@@ -4907,8 +4930,18 @@ class KiEnhetCard extends HTMLElement {
               ${graf ? `<div class="mini" data-mini="${i}"></div>` : ""}
               <div class="rv">–</div></div>`;
           }).join("")}
-        </div>` : this._info.length ? `<div class="info">${this._info.map((x, i) =>
-          `<div class="ifl ${x.entity ? "trykk" : ""}" data-info="${i}"><div class="n">${kiEnhetEsc(x.navn || "")}</div><div class="v">–</div></div>`).join("")}</div>` : ""}
+          </div>
+        </div>` : this._info.length ? `<div class="detaljer ${
+          c.info_apen === true ? "" : "lukket"}">
+          <div class="dhode" data-detaljer="1">
+            <ha-icon icon="mdi:information-outline"></ha-icon>
+            <span class="dn">Detaljer</span>
+            <span class="dt">${this._info.length}</span>
+            <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+          </div>
+          <div class="info">${this._info.map((x, i) =>
+            `<div class="ifl ${x.entity ? "trykk" : ""}" data-info="${i}"><div class="n">${kiEnhetEsc(x.navn || "")}</div><div class="v">–</div></div>`).join("")}</div>
+        </div>` : ""}
 
         ${this._kn.length ? `<div class="knapper">${this._kn.map((k, i) =>
           `<button class="kn" data-kn="${i}" style="${k.farge ? `--kn-farge:${kiEnhetEsc(k.farge)}` : ""}">
@@ -4925,6 +4958,16 @@ class KiEnhetCard extends HTMLElement {
     r.querySelectorAll("[data-info]").forEach((el) => el.addEventListener("click", () =>
       this._mer(el.dataset.info === "graf" ? (this._graf || {}).entity : (this._info[+el.dataset.info] || {}).entity)));
     r.querySelectorAll("[data-kn]").forEach((el) => el.addEventListener("click", () => this._trykk(this._kn[+el.dataset.kn])));
+    /* Detaljer åpnes og lukkes. Valget huskes i kortet, ikke i konfigurasjonen —
+       neste gang du åpner popupen er den lukket igjen, som den skal være. */
+    const dh = r.querySelector("[data-detaljer]");
+    if (dh) {
+      dh.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const boks = dh.closest(".detaljer");
+        if (boks) boks.classList.toggle("lukket");
+      });
+    }
     this._O = O; this._bygget = true;
   }
 

@@ -1,44 +1,32 @@
-# ki-cards 3.84.0
+# ki-cards 3.85.0
 
-## Nytt kort: `ki-status-card`
+## `ki-enhet-card`: kortet er halvert i høyde
 
-Toppkortet i hver fane, i samme form som heroen i søvn- og klimakortet: rundt ikonfelt, én
-linje som sier hvordan det står, og nøkkeltallene under.
+Det var kortet som skapte rullingen. Med seks nettverksenheter etter hverandre ble det
+bare lange kort å bla forbi.
 
-```yaml
-type: custom:ki-status-card
-navn: Unraid
-ok_tekst: Alt friskt
-sjekker:
-  - { entity: binary_sensor.parity_valid, ok: 'on', feil: Pariteten er ugyldig, alvor: rod }
-  - { entity: sensor.varsler, over: 0, feil: '{verdi} varsler' }
-tall:
-  - { navn: CPU, entity: sensor.cpu, enhet: ' %', desimaler: 0 }
-```
+**Heroen er ned fra 180 til 132 px.** Målerringene er 48 px i stedet for 56, og etikettene
+under dem klippes med ellipse i stedet for å presse kortet bredere.
 
-Kortet gjør sjekkene og sier hva som feiler — og bare da. Én feil får hele linja
-(«Pariteten er ugyldig»), flere blir oppsummert med detaljene under («3 ting krever
-oppmerksomhet»). Kortet blir oransje ved advarsel og rødt ved `alvor: rod`, der ikonet
-også pulserer.
+**Detaljlista er lukket.** Den er den lengste delen av kortet, og den leses bare når noe er
+galt. Nå står den bak «Detaljer» med antall felt og en pil — trykk for å åpne. `info_apen:
+true` åpner den fra start hvis du vil ha den gamle oppførselen.
 
-To ting jeg passet på. **Utilgjengelige entiteter regnes ikke som feil** — vi vet rett og
-slett ikke, og et falskt rødt kort er verre enn ingenting. Og tallene krever at hele
-strengen er et tall: `parseFloat` godtok «7.2.1-beta» som 7,2, så et versjonsnummer ble
-vist som et måltall.
+Valget huskes i kortet, ikke i konfigurasjonen: neste gang du åpner popupen er den lukket
+igjen, som den skal være.
 
-## Server-popupen bygget om
+En felle underveis: kortet har to måter å vise info på, `.info`-fliser og `.panel`-rader,
+og det er radene som faktisk brukes. Første forsøk pakket inn fliskoden, altså grenen som
+ikke er i bruk, og da skjedde ingenting. Begge er nå dekket.
 
-Fire faner uten nøsting: **Nettverk, Unraid, Proxmox, Nedlasting**. Den gamle hadde tre
-nivåer faner og tolv underfaner.
+## Server-popupen: Nettverk-fanen
 
-Hver fane er bygget i den rekkefølgen den brukes:
+De tre `ki-unifi-card`-blokkene med hver sin seksjon — Ruter, Switcher, Aksesspunkt — er
+slått sammen til **ett kort med alle seks enhetene i velgeren**. Før måtte du rulle gjennom
+dem etter hverandre; nå bytter du med ett trykk.
 
-1. **Statuskort** — er alt friskt, og hva feiler om noe gjør det. 7 til 12 sjekker per
-   fane, pluss fire nøkkeltall.
-2. **Handlinger** — velgere, brytere og containerlista.
-3. **Detaljer** — alle tallene, under en «Detaljer»-seksjon nederst.
+`figur` settes per enhet i stedet for på kortet, så ikonet fortsatt sier hva det er når de
+ikke lenger er delt i grupper.
 
-Paritetssjekkens fem tall vises bare mens den kjører. Resten av tiden er de støy.
-
-Alt innholdet fra den gamle popupen er med. 114 entiteter, alle fra din egen
-konfigurasjon — ingen er oppdiktet, og prefiksene kortene søker på er kontrollert.
+Fanen er fra fjorten kort til åtte, og med det lavere enhetskortet er den nå omtrent en
+tredel så høy.
