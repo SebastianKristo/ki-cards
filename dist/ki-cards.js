@@ -1,4 +1,4 @@
-/* ki-cards v3.85.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
+/* ki-cards v3.87.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.85.0";
+  KI.VERSION = "3.87.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4575,13 +4575,23 @@ const KI_ENHET_STIL = `
   /* ---- hero ---- */
   /* Heroen var 180 px høy med figuren i full størrelse. Med seks enheter i én fane
      ble det bare rulling. 132 px holder for navn, status og målerne. */
-  .hero { position:relative; height:132px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate;
+  /* Nytt oppsett: rundt ikonfelt til venstre, navn og status på én linje, oppetiden
+     under, og målingene som fliser — samme form som statuskortet. Ringene og
+     SVG-figuren var det gamle formspråket, og de tok mesteparten av høyden. */
+  .hero { position:relative; border-radius:24px; padding:14px 16px; isolation:isolate;
     padding:18px 20px; display:grid; grid-template-columns:1fr 42%; grid-template-rows:min-content 1fr min-content;
-    grid-template-areas:"navn figur" "tom figur" "maal figur"; color:var(--gray1000); cursor:pointer;
+    display:grid; grid-template-columns:auto minmax(0,1fr);
+    grid-template-areas:"ikon navn" "ikon tom" "maal maal";
+    gap:4px 13px; align-items:center; color:var(--gray1000); cursor:pointer;
     background:var(--gray200); transition:background .6s var(--myk), color .4s; }
-  .hero.oppe { background:radial-gradient(85% 120% at 88% 115%, rgba(126,224,129,.16) 0%, transparent 62%), var(--gray200); }
-  .hero.nede { background:radial-gradient(85% 120% at 88% 115%, rgba(232,101,122,.22) 0%, transparent 62%), var(--gray200); }
-  .navn { grid-area:navn; display:flex; align-items:center; gap:8px; row-gap:2px; flex-wrap:wrap; min-width:0; }
+  .hero.oppe { background:var(--gray200); }
+  .hero.nede { background:var(--red,#e8657a); color:var(--black,#1b1b1b); }
+  .enh-ik { grid-area:ikon; width:48px; height:48px; border-radius:50%; flex:none;
+    display:flex; align-items:center; justify-content:center; --mdc-icon-size:25px;
+    background:rgba(250,251,252,.10); align-self:start; }
+  .hero.nede .enh-ik { background:rgba(0,0,0,.14); }
+  .navn { grid-area:navn; align-self:end; display:flex; align-items:center; gap:8px;
+    row-gap:2px; flex-wrap:wrap; min-width:0; }
   .navn h3 { margin:0; font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
   .pille { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; flex:none;
     font-size:12px; font-weight:600; background:var(--gray100); }
@@ -4590,26 +4600,38 @@ const KI_ENHET_STIL = `
   .pille i { width:7px; height:7px; border-radius:50%; background:currentColor; }
   .pille.oppe i { animation:hjerte 2.4s ease-in-out infinite; }
   @keyframes hjerte { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.5); opacity:.5; } }
-  .under { grid-area:tom; align-self:center; font-size:13px; opacity:.62; line-height:1.4; min-width:0;
+  .under { grid-area:tom; align-self:start; font-size:12.5px; opacity:.62; line-height:1.4; min-width:0;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .under b { font-weight:600; opacity:.9; }
 
   /* målere */
-  .maal { grid-area:maal; display:flex; gap:12px; align-items:flex-end; }
-  .ring { position:relative; width:48px; text-align:center; }
-  .ring svg { width:44px; height:44px; display:block; margin:0 auto; transform:rotate(-90deg); }
+  .maal { grid-area:maal; display:grid; gap:8px; margin-top:12px;
+    grid-template-columns:repeat(var(--maalkol,3),minmax(0,1fr)); }
+  .ring { background:rgba(250,251,252,.08); border-radius:18px; padding:9px 8px;
+    text-align:center; min-width:0; }
+  .hero.nede .ring { background:rgba(0,0,0,.10); }
+  /* Ringen er byttet mot en stolpe under tallet — den leses raskere, og tar under
+     halvparten av høyden. */
+  .ring svg { display:none; }
+  .ring .stolpe { height:4px; border-radius:99px; margin-top:6px;
+    background:color-mix(in srgb, currentColor 16%, transparent); overflow:hidden; }
+  .ring .stolpe i { display:block; height:100%; border-radius:99px;
+    background:var(--ring, var(--active-big,#ee95ff));
+    transition:width .8s cubic-bezier(.2,.8,.2,1); }
   .ring .spor { fill:none; stroke:currentColor; stroke-opacity:.14; stroke-width:5; }
   .ring .bue { fill:none; stroke:var(--ring, var(--active-big,#ee95ff)); stroke-width:5; stroke-linecap:round;
     transition:stroke-dashoffset 1.2s var(--myk), stroke 1s ease; }
-  .ring .tall { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;
+  .ring .tall { font-size:19px; font-weight:600; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap;
     margin-top:-2px; }
-  .ring .lab { font-size:10.5px; opacity:.55; margin-top:1px; white-space:nowrap;
+  .ring .lab { font-size:11px; opacity:.55; margin-top:1px; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; }
-  /* Målerringen sitter på bunnlinja; uten dette flyter den når heroen er lav */
-  .hero { align-items:end; }
 
   /* figurer */
-  .figur { grid-area:figur; position:relative; margin:-18px -20px -18px 0; }
+  /* Figuren er tatt bort. Den fylte høyre halvdel av kortet og sa bare hva slags
+     enhet det er — det gjør ikonet i feltet nå. */
+  .figur { display:none; }
   .figur svg { position:absolute; inset:0; width:100%; height:100%; }
   .hero.nede .figur { filter:grayscale(.65); opacity:.8; }
   .boks2 { fill:currentColor; opacity:.14; }
@@ -4698,6 +4720,40 @@ const kiEnhetEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&am
 const KI_ENHET_OPPE = ["home", "on", "online", "running", "started", "ok", "aktiv", "connected"];
 
 /* Figurer: felles ramme 120x120, tegnes med currentColor */
+/* UniFi-sensorene for oppetid er tidsstempler (device_class: timestamp), ikke sekunder.
+   Kortet skrev tilstanden rått, så det sto «Oppetid 2026-09-12T22:29:29+00:00» — en
+   ISO-streng er ikke noe man leser. Her regnes den om til tid siden.
+   Er verdien et tall, tolkes den som sekunder, slik andre integrasjoner oppgir det. */
+function kiEnhetOppetid(st) {
+  const raa = String(st.state).trim();
+  const enhet = (st.attributes && st.attributes.unit_of_measurement) || "";
+  const kl = (st.attributes && st.attributes.device_class) || "";
+
+  let sek = null;
+  if (/^-?\d+(\.\d+)?$/.test(raa) && kl !== "timestamp") {
+    const n = parseFloat(raa);
+    sek = /min/i.test(enhet) ? n * 60 : /^h|time/i.test(enhet) ? n * 3600
+      : /dag|day/i.test(enhet) ? n * 86400 : n;
+  } else {
+    const d = new Date(raa);
+    if (!isNaN(d)) sek = (Date.now() - d.getTime()) / 1000;
+  }
+  if (sek === null || sek < 0) return raa.length > 18 ? raa.slice(0, 17) + "…" : raa;
+
+  const dager = Math.floor(sek / 86400);
+  const timer = Math.floor((sek % 86400) / 3600);
+  const min = Math.floor((sek % 3600) / 60);
+  if (dager >= 1) return `${dager} ${dager === 1 ? "døgn" : "døgn"}${timer ? ` ${timer} t` : ""}`;
+  if (timer >= 1) return `${timer} t${min ? ` ${min} min` : ""}`;
+  return `${Math.max(1, min)} min`;
+}
+
+/* Ikonet erstatter figuren. Ett per figurtype, så kortet fortsatt sier hva enheten er. */
+const KI_ENHET_IKON = {
+  ruter: "mdi:router-network", switch: "mdi:switch", ap: "mdi:access-point",
+  server: "mdi:server", boks: "mdi:cube-outline",
+};
+
 const KI_ENHET_FIGUR = {
   ruter: `<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <g><path class="bolge" d="M44 34a22 22 0 0 1 32 0" transform-origin="60 46"/>
@@ -4904,11 +4960,12 @@ class KiEnhetCard extends HTMLElement {
         <div class="hero" role="button" tabindex="0">
           <div class="navn"><h3>${kiEnhetEsc(c.navn)}</h3><span class="pille"><i></i><span class="ptekst"></span></span></div>
           <div class="under"></div>
-          <div class="maal">${this._maal.map((m, i) => `<div class="ring" data-ring="${i}">
-            <svg viewBox="0 0 52 52"><circle class="spor" cx="26" cy="26" r="${R}"/>
-              <circle class="bue" cx="26" cy="26" r="${R}" stroke-dasharray="${O.toFixed(1)}" stroke-dashoffset="${O.toFixed(1)}"/></svg>
-            <div class="tall">–</div><div class="lab">${kiEnhetEsc(m.navn || "")}</div></div>`).join("")}</div>
-          <div class="figur">${KI_ENHET_FIGUR[c.figur] || KI_ENHET_FIGUR.server}</div>
+          <div class="maal" style="--maalkol:${Math.max(1, Math.min(4, this._maal.length))}">${
+            this._maal.map((m, i) => `<div class="ring" data-ring="${i}">
+            <div class="tall">–</div><div class="lab">${kiEnhetEsc(m.navn || "")}</div>
+            <div class="stolpe"><i style="width:0%"></i></div></div>`).join("")}</div>
+          <span class="enh-ik"><ha-icon icon="${kiEnhetEsc(
+            c.ikon || KI_ENHET_IKON[c.figur] || "mdi:server")}"></ha-icon></span>
         </div>
 
         ${(this._info.length || this._graf) && this._stil === "rader" ? `<div class="detaljer ${
@@ -4985,7 +5042,7 @@ class KiEnhetCard extends HTMLElement {
 
     /* undertekst: oppetid, oppdatering og valgfri egen tekst */
     const bit = [];
-    if (c.oppetid) { const o = this._st(c.oppetid); if (o && !["unavailable", "unknown"].includes(o.state)) bit.push(`Oppetid <b>${kiEnhetEsc(o.state)}</b>`); }
+    if (c.oppetid) { const o = this._st(c.oppetid); if (o && !["unavailable", "unknown"].includes(o.state)) bit.push(`Oppe <b>${kiEnhetEsc(kiEnhetOppetid(o))}</b>`); }
     if (c.undertekst) bit.push(kiEnhetEsc(c.undertekst));
     const opp = this._st(c.oppdatering);
     if (opp) bit.push(opp.state === "on" ? "Ny fastvare" : "Oppdatert");
@@ -4998,9 +5055,13 @@ class KiEnhetCard extends HTMLElement {
       const v = this._tall(m.entity);
       const maks = m.maks ?? 100, min = m.min ?? 0;
       const pst = v === null ? 0 : Math.min(100, Math.max(0, ((v - min) / (maks - min)) * 100));
-      const bue = el.querySelector(".bue");
-      bue.style.strokeDashoffset = (this._O * (1 - (oppe ? pst : 0) / 100)).toFixed(1);
-      bue.style.setProperty("--ring", this._farge(m, pst));
+      /* Stolpen erstatter buen. Fargen er den samme funksjonen som før — grønn,
+         gul eller rød etter tersklene på målingen. */
+      const fyll = el.querySelector(".stolpe i");
+      if (fyll) {
+        fyll.style.width = `${(oppe ? pst : 0).toFixed(1)}%`;
+        fyll.style.setProperty("--ring", this._farge(m, pst));
+      }
       const tekst = v === null ? "–" : (m.desimaler !== undefined ? v.toFixed(m.desimaler) : Math.round(v)) + (m.enhet ?? "");
       const tl = el.querySelector(".tall"); if (tl.textContent !== tekst) tl.textContent = tekst;
     });
@@ -21550,6 +21611,235 @@ if (!window.customCards.some((k) => k.type === "ki-status-card"))
     description: "Er alt friskt? Sjekker flere sensorer og sier det i klartekst",
     preview: true });
 } catch (e) { console.error("ki-cards: 78-ki-status-card feilet", e); }
+
+/* ===== 79-ki-rack-card ===== */
+try {
+/* ki-rack-card – enhetene som fliser, detaljene bak et trykk.
+ *
+ * Problemet med alle de forrige forsøkene var prinsippet, ikke høyden: et fullbreddekort
+ * per enhet stablet nedover blir rulling uansett hvor lavt hvert kort er. Seks
+ * nettverksenheter er seks skjermhøyder.
+ *
+ * Her ligger enhetene som fliser i et rutenett — to per rad, fire linjer tekst hver — så
+ * hele parken er på én skjerm. Trykker du på en flis, glir detaljene inn over rutenettet
+ * i stedet for å ligge under det. Da ser du én enhet av gangen, og ingenting å bla forbi.
+ *
+ * type: custom:ki-rack-card
+ * kolonner: 2
+ * enheter:
+ *   - navn: Dream Machine Pro
+ *     ikon: mdi:router-network
+ *     status: device_tracker.oslo_dream_machine_pro
+ *     status_pa: [home]
+ *     tall: sensor.oslo_dream_machine_pro_clients      # tallet på flisen
+ *     tall_enhet: ' klienter'
+ *     nokkel: sensor.oslo_dream_machine_pro_cpu_utilisation_2   # liten linje under
+ *     nokkel_enhet: '% CPU'
+ *     detalj:                                          # konfig til ki-enhet-card
+ *       navn: Dream Machine Pro
+ *       figur: ruter
+ *       ...
+ */
+const KI_RACK_VERSJON = "1.0.0";
+
+const KI_RACK_STIL = `
+  :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .rot { position:relative; display:grid; gap:8px; color:var(--gray1000); }
+
+  .rutenett { display:grid; gap:8px;
+    grid-template-columns:repeat(var(--kol,2),minmax(0,1fr)); }
+
+  /* Flisen: ikon i farget felt, navn, ett stort tall, én liten linje. Fire opplysninger
+     er nok til å se om enheten har det bra — resten venter bak trykket. */
+  .flis { position:relative; background:var(--gray200); border-radius:24px;
+    padding:12px 14px; border:0; color:inherit; font:inherit; text-align:left;
+    cursor:pointer; display:grid; gap:2px; min-width:0;
+    transition:background .2s, transform .12s var(--myk); }
+  .flis:active { transform:scale(.985); }
+  .flis .topp { display:flex; align-items:center; gap:10px; }
+  .flis .ik { width:38px; height:38px; border-radius:50%; flex:none; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:20px;
+    background:rgba(250,251,252,.10); }
+  .flis .n { flex:1; min-width:0; font-size:13.5px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .flis .prikk { width:9px; height:9px; border-radius:50%; flex:none;
+    background:var(--green,#5ad18b); }
+  .flis.nede { background:color-mix(in srgb, var(--red,#e5706b) 30%, var(--gray200)); }
+  .flis.nede .prikk { background:var(--red,#e5706b); }
+  .flis.borte .prikk { background:var(--orange,#f0a952); }
+  .flis .stor { font-size:22px; font-weight:600; letter-spacing:-.02em; margin-top:6px;
+    font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .flis .stor small { font-size:12px; font-weight:500; opacity:.55; margin-left:4px; }
+  .flis .liten { font-size:11.5px; opacity:.55; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+
+  /* Detaljlaget. Dekker rutenettet i stedet for å ligge under det — det er dette som
+     fjerner rullingen. */
+  .lag { display:grid; gap:8px; animation:kiRaInn .2s var(--myk); }
+  @keyframes kiRaInn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+  .tilbake { display:flex; align-items:center; gap:8px; border:0; background:var(--gray200);
+    color:var(--gray1000); font:inherit; font-size:13.5px; font-weight:500;
+    padding:10px 16px 10px 12px; border-radius:75px; cursor:pointer; width:fit-content;
+    max-width:100%; --mdc-icon-size:19px; }
+  .tilbake span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .topprad { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    padding:0 6px 2px; }
+  .topprad .t { font-size:14px; font-weight:600; }
+  .topprad .s { font-size:12px; opacity:.55; }
+  .tom { font-size:13.5px; opacity:.65; padding:14px 16px; line-height:1.55;
+    background:var(--gray200); border-radius:24px; }
+  @media (prefers-reduced-motion: reduce) { .lag { animation:none; } .flis { transition:none; } }
+`;
+
+const kiRaEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+class KiRackCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._apen = null; }
+  static getStubConfig() { return { enheter: [] }; }
+  getCardSize() { return 8; }
+
+  setConfig(c) {
+    if (!c || !Array.isArray(c.enheter) || !c.enheter.length) {
+      throw new Error("ki-rack-card: 'enheter' må være en liste med minst én enhet");
+    }
+    this._c = { kolonner: 2, tittel: "", ...c };
+    this._apen = null;
+    this._bygget = false;
+  }
+
+  set hass(h) {
+    this._h = h;
+    if (!this._c) return;
+    if (!this._bygget) this._bygg();
+    this._oppdater();
+    if (this._detalj) this._detalj.hass = h;
+  }
+
+  _st(id) { return id && this._h ? this._h.states[id] : null; }
+
+  /* Tilstanden til én enhet: oppe, nede eller uten svar. Uten svar er noe annet enn
+     nede — vi vet ikke, og det skal se annerledes ut. */
+  _tilstand(e) {
+    const st = this._st(e.status);
+    if (!st || ["unavailable", "unknown", ""].includes(st.state)) return "borte";
+    const paa = [].concat(e.status_pa || ["home", "on", "running", "online"]).map(String);
+    return paa.includes(String(st.state)) ? "oppe" : "nede";
+  }
+
+  _verdi(id, enhet, desimaler) {
+    const st = this._st(id);
+    if (!st || ["unavailable", "unknown", ""].includes(st.state)) return null;
+    const rentTall = /^-?\d+([.,]\d+)?$/.test(st.state.trim());
+    if (!rentTall) return { tekst: st.state, enhet: enhet || "" };
+    const v = parseFloat(String(st.state).replace(",", "."));
+    /* Et heltall skal bli et heltall. «0,0 klienter» og «23,0 torrenter» er feil —
+       desimaler hører bare til verdier som faktisk har dem. */
+    const d = desimaler !== undefined ? Number(desimaler)
+      : Number.isInteger(v) ? 0 : (Math.abs(v) < 10 ? 1 : 0);
+    return { tekst: v.toLocaleString("nb-NO",
+      { minimumFractionDigits: d, maximumFractionDigits: d }), enhet: enhet || "" };
+  }
+
+  _bygg() {
+    this.shadowRoot.innerHTML = `<style>${KI_RACK_STIL}</style><div class="rot"></div>`;
+    this._bygget = true;
+    this._sistApen = undefined;
+  }
+
+  _oppdater() {
+    const c = this._c;
+    const rot = this.shadowRoot.querySelector(".rot");
+
+    if (this._apen !== null) {
+      // Detaljvisningen bygges bare når valget endrer seg, ellers mister ki-enhet-card
+      // sin egen tilstand hver gang en sensor tikker.
+      if (this._sistApen !== this._apen) {
+        this._sistApen = this._apen;
+        const e = c.enheter[this._apen];
+        rot.innerHTML = `<div class="lag">
+          <button class="tilbake" data-tilbake="1">
+            <ha-icon icon="mdi:chevron-left"></ha-icon><span>Alle ${
+              kiRaEsc(c.tittel || "enheter")}</span></button>
+          <div class="innhold"></div>
+        </div>`;
+        rot.querySelector("[data-tilbake]").addEventListener("click", () => {
+          this._apen = null; this._detalj = null; this._oppdater();
+        });
+        const boks = rot.querySelector(".innhold");
+        this._detalj = null;
+        if (e && e.detalj && customElements.get("ki-enhet-card")) {
+          const k = document.createElement("ki-enhet-card");
+          k.setConfig({ type: "custom:ki-enhet-card", ...e.detalj });
+          boks.appendChild(k);
+          this._detalj = k;
+          for (const ekstra of (e.under || [])) {
+            const t = ekstra.type && String(ekstra.type).replace(/^custom:/, "");
+            if (!t || !customElements.get(t)) continue;
+            const el = document.createElement(t);
+            el.setConfig(ekstra);
+            boks.appendChild(el);
+          }
+        } else {
+          boks.innerHTML = `<div class="tom">Ingen detaljer satt opp for denne
+            enheten.</div>`;
+        }
+      }
+      if (this._detalj) this._detalj.hass = this._h;
+      for (const el of this.shadowRoot.querySelectorAll(".innhold > *")) {
+        if (el !== this._detalj && el.setConfig) el.hass = this._h;
+      }
+      return;
+    }
+
+    this._sistApen = undefined;
+    const tilst = c.enheter.map((e) => this._tilstand(e));
+    const oppe = tilst.filter((t) => t === "oppe").length;
+
+    rot.innerHTML = `
+      ${c.tittel ? `<div class="topprad">
+        <span class="t">${kiRaEsc(c.tittel)}</span>
+        <span class="s">${oppe} av ${c.enheter.length} oppe</span>
+      </div>` : ""}
+      <div class="rutenett" style="--kol:${Math.max(1, Math.min(3, Number(c.kolonner) || 2))}">
+        ${c.enheter.map((e, i) => {
+          const t = tilst[i];
+          const stor = this._verdi(e.tall, e.tall_enhet, e.tall_desimaler);
+          const liten = this._verdi(e.nokkel, e.nokkel_enhet, e.nokkel_desimaler);
+          return `<button class="flis ${t === "oppe" ? "" : t}" data-i="${i}">
+            <div class="topp">
+              <span class="ik"><ha-icon icon="${kiRaEsc(e.ikon || "mdi:server")}"></ha-icon></span>
+              <span class="n">${kiRaEsc(e.navn)}</span>
+              <span class="prikk"></span>
+            </div>
+            <div class="stor">${stor ? `${kiRaEsc(stor.tekst)}${
+              stor.enhet ? `<small>${kiRaEsc(stor.enhet)}</small>` : ""}`
+              : t === "borte" ? "Uten svar" : t === "nede" ? "Nede" : "–"}</div>
+            <div class="liten">${liten ? `${kiRaEsc(liten.tekst)}${kiRaEsc(liten.enhet)}`
+              : "&nbsp;"}</div>
+          </button>`;
+        }).join("")}
+      </div>`;
+
+    for (const b of rot.querySelectorAll("[data-i]")) {
+      b.addEventListener("click", () => {
+        this._apen = Number(b.dataset.i);
+        this._oppdater();
+      });
+    }
+  }
+}
+
+window.KI.define("ki-rack-card", KiRackCard);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-rack-card"))
+  window.customCards.push({ type: "ki-rack-card", name: "KI Rack",
+    description: "Enheter som fliser, med detaljene bak et trykk", preview: false });
+} catch (e) { console.error("ki-cards: 79-ki-rack-card feilet", e); }
 
 /* ===== family-status-card ===== */
 window.KI.lit((LitElement, html, css) => {

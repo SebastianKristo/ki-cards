@@ -1,32 +1,37 @@
-# ki-cards 3.85.0
+# ki-cards 3.87.0
 
-## `ki-enhet-card`: kortet er halvert i høyde
+## Nytt kort: `ki-rack-card` — fliser, med detaljene bak et trykk
 
-Det var kortet som skapte rullingen. Med seks nettverksenheter etter hverandre ble det
-bare lange kort å bla forbi.
+De forrige rundene gjorde kortene lavere. Det var å behandle symptomet: problemet er
+**prinsippet**, ikke høyden. Et fullbreddekort per enhet stablet nedover blir rulling
+uansett hvor lavt hvert kort er — seks nettverksenheter er seks skjermhøyder.
 
-**Heroen er ned fra 180 til 132 px.** Målerringene er 48 px i stedet for 56, og etikettene
-under dem klippes med ellipse i stedet for å presse kortet bredere.
+`ki-rack-card` legger enhetene som fliser i et rutenett, to per rad, med fire
+opplysninger hver: ikon, navn, statusprikk, ett stort tall og én liten linje. Hele parken
+er på én skjerm.
 
-**Detaljlista er lukket.** Den er den lengste delen av kortet, og den leses bare når noe er
-galt. Nå står den bak «Detaljer» med antall felt og en pil — trykk for å åpne. `info_apen:
-true` åpner den fra start hvis du vil ha den gamle oppførselen.
+**Trykker du på en flis, glir detaljene inn over rutenettet** i stedet for å ligge under
+det, med en «Alle enhetene»-knapp tilbake. Da ser du én enhet av gangen og har ingenting å
+bla forbi. Detaljene er `ki-enhet-card` som før, så alt innholdet er med — og `under:`
+legger flere kort under detaljene, som PoE-portene på Treets.
 
-Valget huskes i kortet, ikke i konfigurasjonen: neste gang du åpner popupen er den lukket
-igjen, som den skal være.
+Uten svar vises som oransje prikk og «Uten svar», ikke som nede — vi vet ikke, og det skal
+se annerledes ut.
 
-En felle underveis: kortet har to måter å vise info på, `.info`-fliser og `.panel`-rader,
-og det er radene som faktisk brukes. Første forsøk pakket inn fliskoden, altså grenen som
-ikke er i bruk, og da skjedde ingenting. Begge er nå dekket.
+Heltall blir heltall: «0 klienter», ikke «0,0 klienter».
 
-## Server-popupen: Nettverk-fanen
+## Server-popupen
 
-De tre `ki-unifi-card`-blokkene med hver sin seksjon — Ruter, Switcher, Aksesspunkt — er
-slått sammen til **ett kort med alle seks enhetene i velgeren**. Før måtte du rulle gjennom
-dem etter hverandre; nå bytter du med ett trykk.
+**Nettverk** er fra sju kort til fire: statuskort, ett flisrutenett med alle seks
+enhetene, og Wi-Fi. Før var det tre enhetskort med hver sin seksjonsoverskrift.
 
-`figur` settes per enhet i stedet for på kortet, så ikonet fortsatt sier hva det er når de
-ikke lenger er delt i grupper.
+**Proxmox** har to flisrutenett — tolv containere og maskiner som fliser i stedet for tolv
+nøstede faner. CPU på flisen, RAM under, alle knappene bak trykket.
 
-Fanen er fra fjorten kort til åtte, og med det lavere enhetskortet er den nå omtrent en
-tredel så høy.
+Entitetsnavnene er kontrollert for de skjeve tilfellene:
+`button.3_ct_speedtest_tracker_104_stop_speedtest_tracker` og
+`button.4_vm_haos_18_2_115_reset_haos_18_2`.
+
+YAML-en er generert som data og skrevet av yaml-biblioteket, ikke satt sammen som tekst.
+Første forsøk regnet innrykket manuelt og la enhetene på feil nivå, så halve fanen ble
+tolket som tomme kort.
