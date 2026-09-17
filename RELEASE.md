@@ -1,24 +1,21 @@
-# ki-cards 3.78.0
+# ki-cards 3.79.0
 
-## `ki-prosa-card` 2.13.0: låse-pillen bruker vanlig stil
+## `ki-hjem-card`: etasje per rom i editoren
 
-Pillen i «Lås alle dørene» hadde den rosa-oransje gradienten, mens alle de andre pillene
-i kortet er hvite på mørk bakgrunn. Låsing er en rutinehandling, og fargen betydde
-ingenting — den gjorde bare denne ene pillen annerledes.
+Overstyringen `rom.<id>.etasje` fantes i kortet fra før, men bare i YAML. Nå er den et
+nedtrekk under hvert rom i UI-editoren, med etasjene som faktisk finnes:
 
-Den innebygde profilen setter nå `stil: vanlig` for `laser`, så den matcher resten.
+* **Som i Home Assistant** — standard. Rommet følger områdets egen etasje, og ingenting
+  lagres i konfigurasjonen.
+* Etasjene fra rommene dine, sortert etter nivå, med navnet fra
+  `etasje_innstillinger` hvis du har gitt dem et eget — så «2. etasje» vises som «2. etg»
+  når det er det du kaller den.
+* **Uten etasje**, for rom som ikke er lagt i en etasje i Home Assistant.
 
-**Bursdag beholder gradienten.** Der markerer den noe, og pillen er ment å skille seg ut
-den dagen den vises.
+Valgene leses fra rommenes egne attributter, ikke fra etasjeregisteret, slik resten av
+kortet gjør. Da stemmer nøklene med det `etasjeFor()` sammenligner mot — hadde jeg brukt
+registeret, kunne en id matchet på papiret uten å treffe.
 
-Vil du ha gradienten tilbake på låsene:
-
-```yaml
-type: custom:ki-prosa-card
-profil: stromstad
-laser:
-  stil: gradient
-```
-
-Stilene er `vanlig`, `varsel` (rød og pulserende), `gradient` og `glans` — de to siste kan
-kombineres, som bursdagspillen gjør.
+Setter du feltet tilbake til «Som i Home Assistant», fjernes nøkkelen fra
+konfigurasjonen. Rommets øvrige innstillinger — ikon, rekkefølge, plassering — står
+urørt; kontrollert med test.

@@ -1,4 +1,4 @@
-/* ki-cards v3.78.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-16 */
+/* ki-cards v3.79.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.78.0";
+  KI.VERSION = "3.79.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -9503,6 +9503,9 @@ try {
     valg: (vei, etikett, options, standard) => ({ vei, etikett,
       selector: { select: { mode: 'dropdown', options } },
       les: (cfg) => les(cfg, vei) || standard,
+      /* Standardverdien lagres som ingenting. For etasjefeltet er standarden «__ha»,
+         altså «følg området» — og da skal nøkkelen ut av konfigurasjonen, ikke settes
+         til strengen «__ha». */
       skriv: (cfg, v) => skriv(cfg, vei, v === standard ? undefined : v) }),
     /* Bryter der «på» er standard og lagres som ingenting. `nei` er verdien som
        skrives når den slås av — `false` for hjem/etasjer, `true` for rom.skjul. */
@@ -9602,6 +9605,11 @@ try {
               F.ikon(`rom.${r}.ikon`, 'Ikon (tomt = rommets ikon i HA)'),
               F.ent(`rom.${r}.temperatur`, 'Temperatursensor', 'sensor'),
               F.ent(`rom.${r}.fuktighet`, 'Fuktighetssensor', 'sensor'),
+              /* Etasjen rommet vises under. Overstyringen `rom.<id>.etasje` fantes i
+                 kortet fra før, men bare i YAML — nå er den et nedtrekk med etasjene som
+                 faktisk finnes, pluss «Uten etasje». «Som i Home Assistant» lagrer
+                 ingenting, så rommet følger områdets egen etasje. */
+              F.valg(`rom.${r}.etasje`, 'Etasje', this._etasjeValg(), '__ha'),
               F.valg(`rom.${r}.size`, 'Størrelse', [
                 { value: 'big', label: 'Stor med klimaknapp' }, { value: 'big_plain', label: 'Stor uten' },
                 { value: 'small', label: 'Medium' }, { value: 'row', label: 'Liten rad' }], 'big'),
@@ -9899,6 +9907,28 @@ try {
         knapper.appendChild(gruppe);
       }
       b.innhold.appendChild(knapper);
+    }
+
+    /* Etasjene som finnes, til nedtrekket per rom. Vi leser dem fra rommenes egne
+       attributter i stedet for fra etasjeregisteret, slik resten av kortet gjør — da
+       stemmer nøklene med det `etasjeFor()` sammenligner mot. */
+    _etasjeValg() {
+      const sett = new Map();
+      for (const st of allOversikt(this._hass)) {
+        const a = st.attributes;
+        const id = a.etasje_id || '__uten';
+        if (!sett.has(id)) {
+          sett.set(id, { niva: a.etasje_niva ?? 999,
+            label: a.etasje || (id === '__uten' ? 'Uten etasje' : id) });
+        }
+      }
+      const ut = [...sett.entries()]
+        .sort((x, y) => x[1].niva - y[1].niva)
+        .map(([value, v]) => ({ value, label: v.label }));
+      // Navn fra etasje_innstillinger vinner, slik de gjør ellers i kortet
+      const ei = (this._config || {}).etasje_innstillinger || {};
+      for (const o of ut) if (ei[o.value] && ei[o.value].navn) o.label = ei[o.value].navn;
+      return [{ value: '__ha', label: 'Som i Home Assistant' }, ...ut];
     }
 
     _floors() {
