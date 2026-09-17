@@ -834,25 +834,39 @@
       b.innhold.appendChild(knapper);
     }
 
-    /* Etasjene som finnes, til nedtrekket per rom. Vi leser dem fra rommenes egne
-       attributter i stedet for fra etasjeregisteret, slik resten av kortet gjør — da
-       stemmer nøklene med det `etasjeFor()` sammenligner mot. */
+    /* Etasjene til nedtrekket per rom.
+     *
+     * Bygges fra `_floors()` — nøyaktig de gruppene editoren alt viser — pluss nøklene
+     * i `etasje_innstillinger`, slik at en etasje du har gitt navn eller rekkefølge også
+     * er der selv om ingen rom står i den akkurat nå.
+     *
+     * Første utgave leste `etasje_id` fra rommene på egen hånd. Det ga samme liste når
+     * attributtene er som forventet, men er et annet kodeløp enn gruppene: er lista tom
+     * mens gruppene finnes, har du ingen måte å se hvorfor. Nå er det umulig at de er
+     * uenige.
+     */
     _etasjeValg() {
       const sett = new Map();
-      for (const st of allOversikt(this._hass)) {
-        const a = st.attributes;
-        const id = a.etasje_id || '__uten';
-        if (!sett.has(id)) {
-          sett.set(id, { niva: a.etasje_niva ?? 999,
-            label: a.etasje || (id === '__uten' ? 'Uten etasje' : id) });
-        }
+      for (const f of this._floors()) {
+        sett.set(String(f.key), { niva: f.niva ?? 999, label: f.navn || String(f.key) });
       }
+      const ei = (this._config || {}).etasje_innstillinger || {};
+      for (const [k, v] of Object.entries(ei)) {
+        const naa = sett.get(k) || { niva: 999, label: k };
+        sett.set(k, { niva: (v && v.rekkefolge) ?? naa.niva, label: (v && v.navn) || naa.label });
+      }
+      /* «forste_etasje» blir «Forste etasje» når ingen har gitt den et navn — en rå
+         nøkkel i et nedtrekk er ikke til å forstå. Og `__uten` heter alltid «Uten
+         etasje»: `_floors()` gir den navnet til det første rommet uten etasje, som blir
+         direkte misvisende. */
+      const pynt = (k) => String(k).replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
       const ut = [...sett.entries()]
         .sort((x, y) => x[1].niva - y[1].niva)
-        .map(([value, v]) => ({ value, label: v.label }));
-      // Navn fra etasje_innstillinger vinner, slik de gjør ellers i kortet
-      const ei = (this._config || {}).etasje_innstillinger || {};
-      for (const o of ut) if (ei[o.value] && ei[o.value].navn) o.label = ei[o.value].navn;
+        .map(([value, v]) => ({
+          value,
+          label: value === '__uten' ? 'Uten etasje'
+            : (v.label && v.label !== value && v.label !== 'Rom' ? v.label : pynt(value)),
+        }));
       return [{ value: '__ha', label: 'Som i Home Assistant' }, ...ut];
     }
 

@@ -1,21 +1,24 @@
-# ki-cards 3.79.0
+# ki-cards 3.79.1
 
-## `ki-hjem-card`: etasje per rom i editoren
+## Etasjenedtrekket per rom var tomt
 
-Overstyringen `rom.<id>.etasje` fantes i kortet fra før, men bare i YAML. Nå er den et
-nedtrekk under hvert rom i UI-editoren, med etasjene som faktisk finnes:
+Feltet i 3.79.0 viste bare «Som i Home Assistant» — ingen etasjer å velge.
 
-* **Som i Home Assistant** — standard. Rommet følger områdets egen etasje, og ingenting
-  lagres i konfigurasjonen.
-* Etasjene fra rommene dine, sortert etter nivå, med navnet fra
-  `etasje_innstillinger` hvis du har gitt dem et eget — så «2. etasje» vises som «2. etg»
-  når det er det du kaller den.
-* **Uten etasje**, for rom som ikke er lagt i en etasje i Home Assistant.
+Valgene ble bygget ved å lese `etasje_id` fra rommene på nytt, på egen hånd. Det gir
+samme liste som gruppene når attributtene er som forventet, men det er et **annet
+kodeløp** enn grupperingen editoren viser. Er lista tom mens gruppene finnes, har du
+ingen måte å se hvorfor — og jeg klarte ikke å gjenskape det her.
 
-Valgene leses fra rommenes egne attributter, ikke fra etasjeregisteret, slik resten av
-kortet gjør. Da stemmer nøklene med det `etasjeFor()` sammenligner mot — hadde jeg brukt
-registeret, kunne en id matchet på papiret uten å treffe.
+Valgene bygges nå fra `_floors()`, altså nøyaktig de gruppene editoren alt viser, pluss
+nøklene i `etasje_innstillinger`. Da kan nedtrekket ikke være tommere enn gruppene du
+ser på skjermen. En etasje du har gitt navn eller rekkefølge er med selv om ingen rom står
+i den akkurat nå — nyttig nettopp når du skal flytte det første rommet dit.
 
-Setter du feltet tilbake til «Som i Home Assistant», fjernes nøkkelen fra
-konfigurasjonen. Rommets øvrige innstillinger — ikon, rekkefølge, plassering — står
-urørt; kontrollert med test.
+To ting til, som testene viste:
+
+* En etasje uten navn het før nøkkelen sin. «forste_etasje» vises nå som «Forste etasje».
+* «Uten etasje» arvet navnet til det første rommet uten etasje, så gruppa kunne hete
+  «Kjeller». Den heter nå alltid «Uten etasje».
+
+Tre oppsett er kontrollert: ditt med navngitte etasjer, et der Home Assistant ikke har
+etasjer i det hele tatt, og et uten `etasje_innstillinger`.
