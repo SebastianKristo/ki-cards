@@ -1,0 +1,188 @@
+# Erstatninger for tre faner i server-popupen.
+#
+# Innrykket her er fra `- title:` og ned, altså slik fanene ligger i din popup. Bytt ut
+# den tilsvarende fanen med blokka under.
+#
+#   1. Docker            43 brytere i én flat liste  ->  ki-container-card
+#   2. Proxmox/Containere 11 nøstede faner, 600 linjer -> ki-pve-card
+#   3. Proxmox/VM         2 nøstede faner, 90 linjer  -> ki-pve-card
+#
+# Til sammen går de tre fra rundt 950 linjer til 90. Ingen entitetsnavn er endret.
+
+# ============================================================ 1. Unraid / Docker
+- title: Docker
+  cards:
+    - type: custom:ki-enhet-card
+      navn: Docker
+      figur: boks
+      undertekst: Containere på Unraid
+      maalinger:
+        - navn: CPU
+          entity: sensor.d_day_darling_docker_total_cpu
+          enhet: '%'
+        - navn: RAM
+          entity: sensor.d_day_darling_docker_total_memory
+          enhet: '%'
+      info:
+        - navn: RAM brukt
+          entity: sensor.d_day_darling_docker_total_memory_used
+        - navn: Oppdateringer
+          entity: sensor.d_day_darling_container_updates_available
+          enhet: ''
+          varsel_over: 0
+      knapper:
+        - navn: Se etter oppdateringer
+          entity: button.d_day_darling_check_container_updates
+          ikon: mdi:cloud-download
+    - type: custom:gap-card
+      height: 6
+
+    # Containerne finnes ut fra prefikset, så en ny container på Unraid dukker opp av
+    # seg selv. Kort trykk starter og stopper, langt trykk åpner more-info.
+    - type: custom:ki-container-card
+      prefiks: switch.d_day_darling_container_
+      oppdateringer: sensor.d_day_darling_container_updates_available
+      navn_kort:
+        adguard_home: AdGuard Home
+        binhex_jellyfin: Jellyfin
+        binhex_minecraftserver: Minecraft
+        binhex_official_metube: MeTube
+        binhex_plexpass: Plex
+        binhex_prowlarr: Prowlarr (binhex)
+        binhex_qbittorrentvpn: qBittorrent VPN
+        binhex_radarr: Radarr
+        binhex_readarr: Readarr
+        binhex_seerr: Seerr
+        binhex_sonarr: Sonarr
+        cloudflare_ddns: Cloudflare DDNS
+        cloudflaredtunnel: Cloudflared
+        glance_1: Glance
+        homeassistant_inabox: HA in a box
+        immich_machine_learning: Immich ML
+        immich_postgres: Immich DB
+        immich_redis: Immich Redis
+        immich_server: Immich
+        jellyfin_rewind: Jellyfin Rewind
+        jellyplex_watched: Jellyplex
+        lyrionmusicserver: Lyrion
+        portainerce: Portainer
+        silo_postgresql: Silo DB
+        speedtest_by_openspeedtest: OpenSpeedTest
+        speedtest_tracker: Speedtest Tracker
+        uptimekuma: Uptime Kuma
+      grupper:
+        - navn: Media
+          ikon: mdi:play-circle-outline
+          containere:
+            - binhex_plexpass
+            - binhex_jellyfin
+            - jellyfin_rewind
+            - jellyplex_watched
+            - lyrionmusicserver
+            - navidrome
+            - subwave
+            - podgrab
+            - binhex_official_metube
+        - navn: Spill
+          ikon: mdi:gamepad-variant-outline
+          containere:
+            - binhex_minecraftserver
+        - navn: Nedlasting
+          ikon: mdi:download-network-outline
+          containere:
+            - binhex_qbittorrentvpn
+            - binhex_sonarr
+            - binhex_radarr
+            - binhex_readarr
+            - bazarr
+            - binhex_seerr
+            - prowlarr
+            - binhex_prowlarr
+            - flaresolverr
+        - navn: Bilder og filer
+          ikon: mdi:image-multiple-outline
+          containere:
+            - immich_server
+            - immich_machine_learning
+            - immich_postgres
+            - immich_redis
+            - cloudreve
+            - minio
+            - silo
+            - silo_postgresql
+        - navn: Nettverk
+          ikon: mdi:lan
+          containere:
+            - adguard_home
+            - cloudflare_ddns
+            - cloudflaredtunnel
+            - iperf3
+            - speedtest_by_openspeedtest
+            - speedtest_tracker
+        - navn: Smarthus
+          ikon: mdi:home-automation
+          containere:
+            - esphome
+            - frigate
+            - homeassistant_inabox
+            - tofa
+        - navn: Drift
+          ikon: mdi:tools
+          containere:
+            - portainerce
+            - uptimekuma
+            - homarr
+            - glance_1
+            - redis
+            - yubal
+      resten: Annet
+    - type: custom:gap-card
+      height: 36
+
+# ============================================================ 2. Proxmox / Containere
+- title: Containere
+  cards:
+    # Velgeren viser alle elleve med en prikk for om de kjører, så du ser hele parken
+    # uten å åpne én fane av gangen. Kortet under er det samme ki-enhet-card som før.
+    - type: custom:ki-pve-card
+      mal: ct
+      prefiks_sensor: sensor.3_ct_
+      prefiks_knapp: button.3_ct_
+      enheter:
+        - navn: Dispatcharr
+          id: dispatcharr_100
+        - navn: Radio
+          id: radio_102
+        - navn: Tunarr
+          id: tunarr_103
+        - navn: Speedtest
+          id: speedtest_tracker_104
+        - navn: Zigbee2MQTT
+          id: zigbee2mqtt_105
+        - navn: n8n
+          id: n8n_107
+        - navn: Pi-hole
+          id: pihole_108
+        - navn: Yubal
+          id: yubal_110
+        - navn: HomeBridge
+          id: homebridge_112
+        - navn: RustFS
+          id: rustfs_113
+    - type: custom:gap-card
+      height: 36
+
+# ============================================================ 3. Proxmox / VM
+- title: VM
+  cards:
+    - type: custom:ki-pve-card
+      mal: vm
+      prefiks_sensor: sensor.4_vm_
+      prefiks_knapp: button.4_vm_
+      enheter:
+        - navn: HAOS 18.2
+          id: haos_18_2_115
+        - navn: Servarr
+          id: servarr_117
+    - type: custom:gap-card
+      height: 36

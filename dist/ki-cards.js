@@ -1,4 +1,4 @@
-/* ki-cards v3.80.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
+/* ki-cards v3.83.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-17 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.80.0";
+  KI.VERSION = "3.83.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -20013,8 +20013,10 @@ try {
  * oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
  * historikk_dager: 30                 # 0 slår av historikkdelen
  * maks_fart: 12                       # MB/s som fyller søylen helt
+ * animasjon: graf                     # graf (standard) | ror
+ * graf: false                         # slår av grafen helt
  */
-const KI_NED_VERSJON = "1.0.0";
+const KI_NED_VERSJON = "1.1.0";
 
 const KI_NED_STATUS = {
   downloading: { navn: "Laster ned", farge: "var(--blue, #4aa3e0)", ikon: "mdi:download" },
@@ -20033,7 +20035,8 @@ const KI_NED_STIL = `
     background:var(--gray200); padding:14px 16px 0; cursor:pointer;
     display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:13px; align-items:start;
     transition:background .5s var(--myk); }
-  .hero.aktiv { background:color-mix(in srgb, var(--f) 22%, var(--gray200)); }
+  /* Ingen fargetone på heroen når den er aktiv. Den la et skinn over hele toppen, og
+     fargen sier ikke noe utover det ikonet og grafen alt viser. */
 
   .hero .ik { width:42px; height:42px; border-radius:50%; flex:none; display:flex;
     align-items:center; justify-content:center; --mdc-icon-size:22px;
@@ -20050,6 +20053,25 @@ const KI_NED_STIL = `
     background:rgba(250,251,252,.10); white-space:nowrap; }
   .kobling.advarsel { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
   .kobling.feil { background:var(--red,#e5706b); color:var(--black,#1b1b1b); }
+
+  /* ---- fartsgrafen ----
+     Kortet samler inn farten selv og tegner de siste par minuttene. Nedlasting som
+     fylt flate, opplasting som en strek over — da ser du om farten holder seg eller
+     hakker, noe et øyeblikkstall ikke kan vise. */
+  .graf { grid-column:1 / -1; position:relative; height:66px; margin:10px -16px 0; }
+  .graf svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .graf .rute { stroke:color-mix(in srgb, var(--gray1000) 10%, transparent); stroke-width:1; }
+  .graf .flate { fill:color-mix(in srgb, var(--blue,#4aa3e0) 28%, transparent); }
+  .graf .linje { fill:none; stroke:var(--blue,#4aa3e0); stroke-width:2;
+    stroke-linejoin:round; stroke-linecap:round; }
+  .graf .opp { fill:none; stroke:var(--green,#5ad18b); stroke-width:1.6;
+    stroke-linejoin:round; stroke-linecap:round; opacity:.85; }
+  /* Punktet i enden pulserer så det er tydelig hvor «nå» er */
+  .graf .naa { fill:var(--blue,#4aa3e0); }
+  .hero.aktiv .graf .naa { animation:kiNedPuls 1.6s ease-in-out infinite; }
+  @keyframes kiNedPuls { 0%,100% { r:3 } 50% { r:4.6 } }
+  .graf .toppmerke { font-size:9.5px; fill:currentColor; opacity:.45; }
+  .graf .venter { font-size:10.5px; fill:currentColor; opacity:.4; }
 
   /* røret nederst i heroen. Pakkene går ned når den laster, opp når den deler. */
   .ror { grid-column:1 / -1; position:relative; height:34px; margin:8px -16px 0;
@@ -20070,7 +20092,9 @@ const KI_NED_STIL = `
     background:color-mix(in srgb, var(--gray1000) 14%, transparent); }
 
   /* ---- køen ---- */
-  .rutenett { display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:8px; }
+  /* Kolonnetallet settes fra antallet, ikke av auto-fit. Med fem fliser ga auto-fit
+     fire på første rad og én alene under; nå blir det 3 + 2. Taket er fire. */
+  .rutenett { display:grid; grid-template-columns:repeat(var(--kol,4),minmax(0,1fr)); gap:8px; }
   .flis { background:var(--gray200); border-radius:20px; padding:12px 10px; text-align:center;
     cursor:pointer; min-width:0; }
   .flis b { display:block; font-size:22px; font-weight:600; letter-spacing:-.02em;
@@ -20149,9 +20173,34 @@ class KiNedlastingCard extends HTMLElement {
   set hass(h) {
     const g = this._h; this._h = h;
     if (!this._c) return;
+    this._maal();
+    if (!this._klokke) {
+      /* Uten egen klokke får vi bare en måling når farten endrer seg. Da ville en pause
+         se ut som at grafen stoppet, i stedet for å falle til null. */
+      this._klokke = setInterval(() => { this._maal(); this._tegn(); }, 3000);
+    }
     const sig = JSON.stringify(this._ider().map((id) => (h.states[id] || {}).state));
     if (sig !== this._sig) { this._sig = sig; this._tegn(); }
     else if (!g) this._tegn();
+  }
+
+  disconnectedCallback() {
+    if (this._klokke) { clearInterval(this._klokke); this._klokke = null; }
+  }
+
+  /* Én måling av ned- og oppfart. Vi holder de siste to minuttene. */
+  _maal() {
+    const ned = this._tall("download_speed");
+    const opp = this._tall("upload_speed");
+    if (ned === null && opp === null) return;
+    this._prover = this._prover || [];
+    const naa = Date.now();
+    const sist = this._prover[this._prover.length - 1];
+    if (sist && naa - sist.t < 1500) return;      // ikke tettere enn halvannet sekund
+    this._prover.push({ t: naa, ned: ned || 0, opp: opp || 0 });
+    const grense = naa - 120000;
+    while (this._prover.length && this._prover[0].t < grense) this._prover.shift();
+    if (this._prover.length > 120) this._prover.shift();
   }
 
   _id(s) { return this._c.prefiks + s; }
@@ -20165,6 +20214,16 @@ class KiNedlastingCard extends HTMLElement {
   _tekst(s) {
     const st = this._st(s);
     return st && !["unknown", "unavailable"].includes(st.state) ? st.state : null;
+  }
+
+  /* Kolonnetall som ikke etterlater én flis alene på siste rad. Fire er taket, og
+     blant de som ikke gir en enslig rest velges det høyeste. */
+  _kolonner(n) {
+    if (n <= 4) return n;
+    for (const k of [4, 3, 2]) {
+      if (n % k !== 1) return k;
+    }
+    return 3;
   }
 
   _ider() {
@@ -20212,6 +20271,47 @@ class KiNedlastingCard extends HTMLElement {
     } catch (e) {
       return { rader: [], feil: e && e.message ? e.message : String(e) };
     }
+  }
+
+  /* Grafen. Skalaen følger den høyeste målingen i vinduet, med et gulv så en rolig
+     periode ikke blåses opp til å se dramatisk ut. */
+  _grafHtml() {
+    const c = this._c;
+    if (c.graf === false) return "";
+    const p = this._prover || [];
+    const B = 340, H = 66, bunn = H - 2;
+    if (p.length < 2) {
+      return `<div class="graf"><svg viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+        <line class="rute" x1="0" y1="${bunn}" x2="${B}" y2="${bunn}"/>
+      </svg><svg viewBox="0 0 ${B} ${H}"><text class="venter" x="8" y="14">Samler
+        målinger …</text></svg></div>`;
+    }
+    const maks = Math.max(0.5, ...p.map((x) => Math.max(x.ned, x.opp)));
+    const t0 = p[0].t, t1 = Math.max(p[p.length - 1].t, t0 + 1);
+    const X = (t) => ((t - t0) / (t1 - t0)) * B;
+    const Y = (v) => bunn - (v / maks) * (bunn - 10);
+
+    const punkt = (felt) => p.map((x) => `${X(x.t).toFixed(1)},${Y(x[felt]).toFixed(1)}`);
+    const nedLinje = `M${punkt("ned").join(" L")}`;
+    const flate = `${nedLinje} L${B},${bunn} L0,${bunn} Z`;
+    const oppLinje = `M${punkt("opp").join(" L")}`;
+    const siste = p[p.length - 1];
+
+    return `<div class="graf">
+      <svg viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+        <line class="rute" x1="0" y1="${Y(maks).toFixed(1)}" x2="${B}" y2="${Y(maks).toFixed(1)}"/>
+        <line class="rute" x1="0" y1="${bunn}" x2="${B}" y2="${bunn}"/>
+        <path class="flate" d="${flate}"/>
+        <path class="linje" d="${nedLinje}"/>
+        <path class="opp" d="${oppLinje}"/>
+      </svg>
+      <svg viewBox="0 0 ${B} ${H}">
+        <text class="toppmerke" x="6" y="${(Y(maks) - 3).toFixed(1)}">${
+          kiNeFart(maks)} MB/s</text>
+        <circle class="naa" cx="${(X(siste.t) / B * B).toFixed(1)}"
+                cy="${Y(siste.ned).toFixed(1)}" r="3"/>
+      </svg>
+    </div>`;
   }
 
   _histHtml() {
@@ -20317,10 +20417,12 @@ class KiNedlastingCard extends HTMLElement {
             </div>
           </div>
           ${kobling ? `<span class="kobling ${koblingKlasse}">${kiNeEsc(koblingTekst)}</span>` : ""}
-          <div class="ror"><span class="strek"></span><div class="lag">${pakker}</div></div>
+          ${c.animasjon === "ror"
+            ? `<div class="ror"><span class="strek"></span><div class="lag">${pakker}</div></div>`
+            : this._grafHtml()}
         </div>
 
-        ${koen.length ? `<div class="rutenett">${koen.map((x) => `
+        ${koen.length ? `<div class="rutenett" style="--kol:${this._kolonner(koen.length)}">${koen.map((x) => `
           <div class="flis ${x.varsel && x.v > 0 ? "varsel" : ""}"
                data-mer="${kiNeEsc(this._id(x.k))}" tabindex="0">
             <b>${x.v}</b><span>${kiNeEsc(x.n)}</span>
@@ -20381,6 +20483,844 @@ if (!window.customCards.some((k) => k.type === "ki-nedlasting-card"))
   window.customCards.push({ type: "ki-nedlasting-card", name: "KI Nedlasting",
     description: "qBittorrent med fart, kø, totaler og historikk", preview: true });
 } catch (e) { console.error("ki-cards: 73-ki-nedlasting-card feilet", e); }
+
+/* ===== 74-ki-container-card ===== */
+try {
+/* ki-container-card – mange containere, gruppert og søkbare.
+ *
+ * Erstatter en flat liste med 43 brytere. Containerne grupperes etter funksjon, du ser
+ * hvor mange som kjører i hver gruppe, og du kan søke når du vet navnet.
+ *
+ * type: custom:ki-container-card
+ * prefiks: switch.d_day_darling_container_
+ * kjorer: sensor.d_day_darling_docker_total_cpu    # valgfri, bare til toppen
+ * oppdateringer: sensor.d_day_darling_container_updates_available
+ * grupper:
+ *   - navn: Media
+ *     ikon: mdi:play-circle-outline
+ *     containere: [binhex_plexpass, binhex_jellyfin, ...]
+ * resten: Annet          # gruppa som tar det som ikke er nevnt (false skjuler dem)
+ * navn_kort: {binhex_plexpass: Plex}   # penere navn enn entitets-id-en
+ */
+const KI_CONT_VERSJON = "1.0.0";
+
+const KI_CONT_STIL = `
+  :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { display:grid; gap:8px; color:var(--gray1000); }
+
+  /* ---- toppen: hvor mange kjører, og søk ---- */
+  .topp { background:var(--gray200); border-radius:24px; padding:14px 16px;
+    display:grid; gap:12px; }
+  .tall { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .tall b { font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .tall span { font-size:13px; opacity:.6; }
+  .tall .oppd { font-size:11.5px; font-weight:600; padding:4px 10px; border-radius:999px;
+    background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
+  .sok { display:flex; align-items:center; gap:10px; background:var(--gray100);
+    border-radius:75px; padding:0 14px; height:42px; --mdc-icon-size:19px; }
+  .sok input { flex:1; min-width:0; border:0; background:none; color:var(--gray1000);
+    font:inherit; font-size:14.5px; outline:none; }
+  .sok input::placeholder { color:var(--gray1000); opacity:.45; }
+  .sok button { border:0; background:none; color:var(--gray1000); opacity:.5;
+    cursor:pointer; display:flex; padding:0; }
+
+  /* ---- gruppene ---- */
+  .gruppe { display:grid; gap:6px; }
+  .ghode { display:flex; align-items:center; gap:10px; padding:10px 6px 2px;
+    cursor:pointer; --mdc-icon-size:18px; }
+  .ghode .gn { flex:1; min-width:0; font-size:14px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ghode .gt { font-size:12px; opacity:.55; font-variant-numeric:tabular-nums; }
+  .ghode ha-icon.pil { opacity:.5; transition:transform .2s var(--myk); }
+  .gruppe.lukket .ghode ha-icon.pil { transform:rotate(-90deg); }
+  .gruppe.lukket .rader { display:none; }
+  .rader { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+
+  .rad { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:18px;
+    background:var(--gray200); width:100%; text-align:left; cursor:pointer; min-width:0;
+    border:0; color:var(--gray1000); font:inherit; transition:background .2s; }
+  .rad .prikk { width:9px; height:9px; border-radius:50%; flex:none;
+    background:color-mix(in srgb, var(--gray1000) 26%, transparent); }
+  .rad.pa .prikk { background:var(--green,#5ad18b); box-shadow:0 0 8px var(--green,#5ad18b); }
+  .rad.borte .prikk { background:var(--orange,#f0a952); }
+  .rad .n { flex:1; min-width:0; font-size:13.5px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .rad.pa .n { font-weight:600; }
+  .rad .oppd { width:7px; height:7px; border-radius:50%; flex:none;
+    background:var(--orange,#f0a952); }
+  .rad:active { transform:scale(.985); }
+
+  .tom { font-size:13.5px; opacity:.65; padding:14px 16px; line-height:1.55;
+    background:var(--gray200); border-radius:24px; }
+  .tom code { font-size:12.5px; }
+  @media (prefers-reduced-motion: reduce) { .rad, .ghode ha-icon.pil { transition:none; } }
+`;
+
+const kiCoEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* «binhex_official_metube» blir «Binhex official metube» når du ikke har gitt det navn */
+const kiCoNavn = (nokkel) => String(nokkel).replace(/[_-]+/g, " ")
+  .replace(/^./, (c) => c.toUpperCase());
+
+class KiContainerCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); this._lukket = {}; this._sok = ""; }
+  static getStubConfig() { return { prefiks: "switch.d_day_darling_container_" }; }
+  getCardSize() { return 12; }
+
+  setConfig(c) {
+    if (!c || !c.prefiks) throw new Error("ki-container-card: 'prefiks' må settes");
+    this._c = { resten: "Annet", grupper: [], navn_kort: {}, ...c };
+  }
+
+  set hass(h) {
+    const g = this._h; this._h = h;
+    if (!this._c) return;
+    const sig = JSON.stringify(this._alle().map((x) => [x.nokkel, x.tilstand, x.oppdatering]));
+    if (sig !== this._sig) { this._sig = sig; this._tegn(); }
+    else if (!g) this._tegn();
+  }
+
+  /* Alle containere som finnes, funnet ut fra prefikset. Ingen liste å vedlikeholde:
+     starter du en ny container på Unraid, er den her ved neste oppdatering. */
+  _alle() {
+    if (!this._h) return [];
+    const c = this._c;
+    const ut = [];
+    for (const id of Object.keys(this._h.states)) {
+      if (!id.startsWith(c.prefiks)) continue;
+      const nokkel = id.slice(c.prefiks.length);
+      const st = this._h.states[id];
+      // oppdateringsentiteten heter det samme med _update bak
+      const oppd = this._h.states[`update.${id.split(".")[1]}_update`]
+        || this._h.states[id.replace(/^switch\./, "update.") + "_update"];
+      ut.push({
+        id, nokkel,
+        navn: c.navn_kort[nokkel] || (st.attributes && st.attributes.friendly_name
+          && !/^D-Day/.test(st.attributes.friendly_name) ? st.attributes.friendly_name
+          : kiCoNavn(nokkel)),
+        tilstand: st.state,
+        oppdatering: !!(oppd && oppd.state === "on"),
+      });
+    }
+    return ut.sort((a, b) => a.navn.localeCompare(b.navn, "nb"));
+  }
+
+  _grupper() {
+    const c = this._c;
+    const alle = this._alle();
+    const sok = this._sok.trim().toLowerCase();
+    const treff = (x) => !sok || x.navn.toLowerCase().includes(sok) || x.nokkel.toLowerCase().includes(sok);
+
+    // Søker du, er gruppene i veien: da vises treffene i én liste
+    if (sok) {
+      const funnet = alle.filter(treff);
+      // Ingen treff: returner tom liste, ellers står det et gruppehode med «0/0» og
+      // «ingen treff»-meldingen dukker aldri opp.
+      if (!funnet.length) return [];
+      return [{ navn: `Treff på «${this._sok.trim()}»`, ikon: "mdi:magnify",
+        id: "__sok", containere: funnet, apen: true }];
+    }
+
+    const brukt = new Set();
+    const ut = [];
+    for (const [i, g] of (c.grupper || []).entries()) {
+      const liste = [];
+      for (const n of (g.containere || [])) {
+        const x = alle.find((y) => y.nokkel === n);
+        if (x) { liste.push(x); brukt.add(n); }
+      }
+      if (liste.length) {
+        ut.push({ navn: g.navn || `Gruppe ${i + 1}`, ikon: g.ikon || "mdi:folder-outline",
+          id: `g${i}`, containere: liste });
+      }
+    }
+    if (c.resten !== false) {
+      const rest = alle.filter((x) => !brukt.has(x.nokkel));
+      if (rest.length) {
+        ut.push({ navn: c.resten || "Annet", ikon: "mdi:dots-horizontal",
+          id: "__rest", containere: rest });
+      }
+    }
+    return ut;
+  }
+
+  _tegn() {
+    const c = this._c;
+    const alle = this._alle();
+    if (!alle.length) {
+      this.shadowRoot.innerHTML = `<style>${KI_CONT_STIL}</style>
+        <div class="kort"><div class="tom">
+          Finner ingen containere med prefikset <code>${kiCoEsc(c.prefiks)}</code>.
+          Sjekk hva bryterne dine faktisk heter i Utviklerverktøy.
+        </div></div>`;
+      return;
+    }
+
+    const paa = alle.filter((x) => x.tilstand === "on").length;
+    const borte = alle.filter((x) => ["unavailable", "unknown"].includes(x.tilstand)).length;
+    const oppd = alle.filter((x) => x.oppdatering).length;
+    /* To kilder til «hvor mange oppdateringer»: update-entitetene vi finner selv, og
+       Unraids egen teller. De er ikke alltid enige — ikke alle containere har en
+       update-entitet — så vi viser den høyeste. Å vise 1 når serveren sier 3 er verre
+       enn å vise 3. */
+    const oppdSensor = c.oppdateringer && this._h.states[c.oppdateringer];
+    const fraSensor = oppdSensor && !isNaN(parseFloat(oppdSensor.state))
+      ? parseInt(oppdSensor.state, 10) : 0;
+    const oppdTall = Math.max(oppd, fraSensor);
+
+    const grupper = this._grupper();
+
+    this.shadowRoot.innerHTML = `<style>${KI_CONT_STIL}</style>
+      <div class="kort">
+        <div class="topp">
+          <div class="tall">
+            <b>${paa}</b><span>av ${alle.length} kjører</span>
+            ${borte ? `<span>· ${borte} uten svar</span>` : ""}
+            ${oppdTall ? `<span class="oppd">${oppdTall} oppdatering${
+              oppdTall === 1 ? "" : "er"}</span>` : ""}
+          </div>
+          <label class="sok">
+            <ha-icon icon="mdi:magnify"></ha-icon>
+            <input type="text" placeholder="Søk i ${alle.length} containere"
+                   value="${kiCoEsc(this._sok)}" />
+            ${this._sok ? `<button data-tom="1" aria-label="Tøm søket">
+              <ha-icon icon="mdi:close"></ha-icon></button>` : ""}
+          </label>
+        </div>
+
+        ${grupper.map((g) => {
+          const kj = g.containere.filter((x) => x.tilstand === "on").length;
+          const lukket = g.apen ? false : !!this._lukket[g.id];
+          return `<div class="gruppe ${lukket ? "lukket" : ""}">
+            <div class="ghode" data-gruppe="${kiCoEsc(g.id)}">
+              <ha-icon icon="${kiCoEsc(g.ikon)}"></ha-icon>
+              <span class="gn">${kiCoEsc(g.navn)}</span>
+              <span class="gt">${kj}/${g.containere.length}</span>
+              <ha-icon class="pil" icon="mdi:chevron-down"></ha-icon>
+            </div>
+            <div class="rader">${g.containere.map((x) => `
+              <button class="rad ${x.tilstand === "on" ? "pa" : ""} ${
+                ["unavailable", "unknown"].includes(x.tilstand) ? "borte" : ""}"
+                data-id="${kiCoEsc(x.id)}" title="${kiCoEsc(x.nokkel)}">
+                <span class="prikk"></span>
+                <span class="n">${kiCoEsc(x.navn)}</span>
+                ${x.oppdatering ? `<span class="oppd" title="Ny versjon"></span>` : ""}
+              </button>`).join("")}</div>
+          </div>`;
+        }).join("")}
+
+        ${grupper.length ? "" : `<div class="tom">Ingen treff på «${
+          kiCoEsc(this._sok)}».</div>`}
+      </div>`;
+
+    const felt = this.shadowRoot.querySelector(".sok input");
+    if (felt) {
+      felt.addEventListener("input", (e) => {
+        this._sok = e.target.value;
+        const pos = e.target.selectionStart;
+        this._tegn();
+        const nytt = this.shadowRoot.querySelector(".sok input");
+        if (nytt) { nytt.focus(); try { nytt.setSelectionRange(pos, pos); } catch (err) { /* ok */ } }
+      });
+    }
+    const tom = this.shadowRoot.querySelector("[data-tom]");
+    if (tom) tom.addEventListener("click", () => { this._sok = ""; this._tegn(); });
+
+    for (const h of this.shadowRoot.querySelectorAll("[data-gruppe]")) {
+      h.addEventListener("click", () => {
+        const id = h.dataset.gruppe;
+        this._lukket[id] = !this._lukket[id];
+        this._tegn();
+      });
+    }
+    /* Kort trykk veksler containeren, langt trykk åpner more-info. Å starte og stoppe
+       er det man gjør oftest, så det skal være det raskeste. */
+    for (const b of this.shadowRoot.querySelectorAll("[data-id]")) {
+      let lang = false, t = null;
+      const id = b.dataset.id;
+      b.addEventListener("pointerdown", () => {
+        lang = false;
+        t = setTimeout(() => {
+          lang = true;
+          this.dispatchEvent(new CustomEvent("hass-more-info",
+            { detail: { entityId: id }, bubbles: true, composed: true }));
+        }, 500);
+      });
+      const slipp = () => clearTimeout(t);
+      for (const n of ["pointerup", "pointerleave", "pointercancel"]) b.addEventListener(n, slipp);
+      b.addEventListener("click", () => {
+        if (lang) { lang = false; return; }
+        this._h.callService("switch", "toggle", { entity_id: id });
+      });
+    }
+  }
+}
+
+window.KI.define("ki-container-card", KiContainerCard);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-container-card"))
+  window.customCards.push({ type: "ki-container-card", name: "KI Containere",
+    description: "Docker-containere gruppert, med søk og status", preview: true });
+} catch (e) { console.error("ki-cards: 74-ki-container-card feilet", e); }
+
+/* ===== 75-ki-pve-card ===== */
+try {
+/* ki-pve-card – én velger over mange Proxmox-enheter.
+ *
+ * Containerne og de virtuelle maskinene har identisk oppsett: status, oppetid, CPU, seks
+ * info-felt og fire til ni knapper. Én nøstet fane per enhet ga elleve blokker på over
+ * seks hundre linjer YAML, der alt bortsett fra navnet og id-en var det samme.
+ *
+ * Her oppgir du bare navn og id per enhet. Kortet bygger resten, og viser den valgte
+ * enheten gjennom `ki-enhet-card` — samme kort som før, så utseendet er uendret.
+ *
+ * type: custom:ki-pve-card
+ * mal: ct                         # ct (container) eller vm
+ * enheter:
+ *   - navn: Dispatcharr
+ *     id: dispatcharr_100
+ *   - navn: Pi-hole
+ *     id: pihole_108
+ *     tjeneste: pihole            # brukes i knappenavnene, hvis den avviker fra id-en
+ */
+const KI_PVE_VERSJON = "1.0.0";
+
+const KI_PVE_STIL = `
+  :host { display:block; max-width:100%; overflow-x:clip; }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { display:grid; gap:10px; }
+  /* Velgeren: samme pilleform som fanerada i klimakortet, men med en prikk som
+     viser om enheten kjører — da ser du hele parken uten å bla gjennom fanene. */
+  .velg { display:flex; gap:4px; padding:4px; border-radius:20px; background:var(--gray200);
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .velg::-webkit-scrollbar { display:none; }
+  .velg button { flex:0 0 auto; display:flex; align-items:center; gap:7px; border:0;
+    background:none; color:var(--gray1000); font:inherit; font-size:13px; font-weight:500;
+    padding:9px 14px; border-radius:16px; cursor:pointer; opacity:.55; white-space:nowrap;
+    transition:background .18s, opacity .18s; }
+  .velg button.valgt { background:var(--active-small, var(--active-big, #ee95ff));
+    color:var(--gray100,#fafbfc); opacity:1; font-weight:600; }
+  .velg .prikk { width:8px; height:8px; border-radius:50%; flex:none;
+    background:color-mix(in srgb, var(--gray1000) 28%, transparent); }
+  .velg button.kjorer .prikk { background:var(--green,#5ad18b); }
+  .velg button.valgt .prikk { background:rgba(0,0,0,.35); }
+  .velg button.kjorer.valgt .prikk { background:rgba(0,0,0,.55); }
+  .tom { font-size:13.5px; opacity:.65; padding:14px 16px; line-height:1.55;
+    background:var(--gray200); border-radius:24px; color:var(--gray1000); }
+`;
+
+const kiPvEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* Info-feltene er de samme for alle enheter. VM-ene mangler «Disk brukt». */
+const KI_PVE_INFO = (mal) => [
+  ["RAM brukt", "ram_used"], ["RAM totalt", "ram_total"],
+  ...(mal === "vm" ? [] : [["Disk brukt", "disk_used"]]),
+  ["Disk totalt", "disk_total"], ["Nett RX", "network_rx"], ["Nett TX", "network_tx"],
+];
+
+/* Knappene. VM-ene har fire ekstra, og rekkefølgen er fra ufarlig til farlig. */
+const KI_PVE_KNAPPER = (mal) => [
+  ["Start", "start", "mdi:play", "var(--green)", null],
+  ["Stopp", "stop", "mdi:stop", null, "Stoppe {navn}?"],
+  ["Restart", "reboot", "mdi:restart", "var(--orange)", "Restarte {navn}?"],
+  ...(mal === "vm" ? [
+    ["Pause", "pause", "mdi:pause", null, null],
+    ["Fortsett", "resume", "mdi:play-pause", null, null],
+    ["Dvale", "hibernate", "mdi:moon-waning-crescent", null, null],
+  ] : []),
+  ["Av", "shutdown", "mdi:power", "var(--red)", "Slå av {navn}?"],
+  ...(mal === "vm" ? [
+    ["Reset", "reset", "mdi:restart-alert", "var(--red)",
+      "Tvangsreset av {navn}? Kan gi datatap."],
+  ] : []),
+];
+
+class KiPveCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getStubConfig() { return { mal: "ct", enheter: [] }; }
+  getCardSize() { return 14; }
+
+  setConfig(c) {
+    if (!c || !Array.isArray(c.enheter) || !c.enheter.length) {
+      throw new Error("ki-pve-card: 'enheter' må være en liste med minst én enhet");
+    }
+    this._c = { mal: "ct", prefiks_sensor: "sensor.3_ct_", prefiks_knapp: "button.3_ct_", ...c };
+    if (c.mal === "vm" && !c.prefiks_sensor) this._c.prefiks_sensor = "sensor.4_vm_";
+    if (c.mal === "vm" && !c.prefiks_knapp) this._c.prefiks_knapp = "button.4_vm_";
+    this._valgt = 0;
+    this._bygget = false;
+  }
+
+  set hass(h) {
+    this._h = h;
+    if (!this._c) return;
+    if (!this._bygget) this._bygg();
+    this._oppdater();
+    if (this._enhet) this._enhet.hass = h;
+  }
+
+  _s(id, felt) { return `${this._c.prefiks_sensor}${id}_${felt}`; }
+  _b(id, felt, tjeneste) { return `${this._c.prefiks_knapp}${id}_${felt}_${tjeneste}`; }
+
+  /* Konfigurasjonen ki-enhet-card får. Den bygges av malen, så et nytt felt trenger
+     bare legges til her i stedet for i elleve YAML-blokker. */
+  _enhetConfig(e) {
+    const c = this._c;
+    const tj = e.tjeneste || e.id.replace(/_\d+$/, "");
+    return {
+      type: "custom:ki-enhet-card",
+      navn: e.navn,
+      figur: e.figur || "boks",
+      status: this._s(e.id, "status"),
+      status_pa: ["running"],
+      tekst_pa: "Kjører",
+      tekst_av: "Stoppet",
+      oppetid: this._s(e.id, "uptime"),
+      maalinger: [{ navn: "CPU", entity: this._s(e.id, "cpu_usage"), enhet: "%" }],
+      info: KI_PVE_INFO(c.mal).map(([navn, felt]) => ({ navn, entity: this._s(e.id, felt) })),
+      knapper: KI_PVE_KNAPPER(c.mal).map(([navn, felt, ikon, farge, bekreft]) => ({
+        navn,
+        entity: this._b(e.id, felt, tj),
+        ikon,
+        ...(farge ? { farge } : {}),
+        ...(bekreft ? { bekreft: bekreft.replace("{navn}", e.navn) } : {}),
+      })),
+    };
+  }
+
+  _bygg() {
+    this.shadowRoot.innerHTML = `<style>${KI_PVE_STIL}</style>
+      <div class="kort"><div class="velg"></div><div class="innhold"></div></div>`;
+    this._bygget = true;
+    this._sistValgt = null;
+  }
+
+  _oppdater() {
+    const c = this._c;
+    const velg = this.shadowRoot.querySelector(".velg");
+    const innhold = this.shadowRoot.querySelector(".innhold");
+
+    velg.innerHTML = c.enheter.map((e, i) => {
+      const st = this._h && this._h.states[this._s(e.id, "status")];
+      const kjorer = st && st.state === "running";
+      return `<button class="${i === this._valgt ? "valgt" : ""} ${kjorer ? "kjorer" : ""}"
+        data-i="${i}"><span class="prikk"></span>${kiPvEsc(e.navn)}</button>`;
+    }).join("");
+    for (const b of velg.querySelectorAll("[data-i]")) {
+      b.addEventListener("click", () => {
+        this._valgt = Number(b.dataset.i);
+        this._oppdater();
+        if (this._enhet) this._enhet.hass = this._h;
+      });
+    }
+
+    // Bare bygg enhetskortet på nytt når valget faktisk endrer seg
+    if (this._sistValgt === this._valgt && this._enhet) return;
+    this._sistValgt = this._valgt;
+    innhold.innerHTML = "";
+    this._enhet = null;
+
+    if (!customElements.get("ki-enhet-card")) {
+      innhold.innerHTML = `<div class="tom">Fant ikke <code>ki-enhet-card</code>.
+        Det ligger i samme pakke som dette kortet — sjekk at hele bundelen er lastet.</div>`;
+      return;
+    }
+    const e = c.enheter[this._valgt] || c.enheter[0];
+    const kort = document.createElement("ki-enhet-card");
+    kort.setConfig(this._enhetConfig(e));
+    innhold.appendChild(kort);
+    this._enhet = kort;
+  }
+}
+
+window.KI.define("ki-pve-card", KiPveCard);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-pve-card"))
+  window.customCards.push({ type: "ki-pve-card", name: "KI Proxmox",
+    description: "Containere og VM-er med én velger i stedet for en fane hver",
+    preview: false });
+} catch (e) { console.error("ki-cards: 75-ki-pve-card feilet", e); }
+
+/* ===== 76-ki-unifi-card ===== */
+try {
+/* ki-unifi-card – rutere, switcher og aksesspunkt med én velger.
+ *
+ * Nettverk-fanen hadde én nøstet fane per enhet: tre switcher, to aksesspunkt, hver med
+ * samme oppsett — status, oppetid, firmware, CPU, minne, klienter, tilstand, uplink MAC
+ * og en restart-knapp. Det er 250 linjer YAML der bare navnet og slugen skiller dem.
+ *
+ * Her oppgir du navn og slug. Kortet bygger resten og viser den valgte enheten gjennom
+ * `ki-enhet-card`, så utseendet er uendret.
+ *
+ * type: custom:ki-unifi-card
+ * figur: switch                   # ruter | switch | ap | boks
+ * enheter:
+ *   - navn: Treets USW-24-PoE
+ *     slug: treets_usw_24_poe
+ *     led: true                   # enheten har en LED-bryter
+ *     porter: 16                  # viser ki-porter-card under, med strømsykling
+ *   - navn: Veien USW-24-G2
+ *     slug: veien_usw_24_g2
+ */
+const KI_UNIFI_VERSJON = "1.0.0";
+
+const KI_UNIFI_STIL = `
+  :host { display:block; max-width:100%; overflow-x:clip; }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { display:grid; gap:10px; }
+  .velg { display:flex; gap:4px; padding:4px; border-radius:20px; background:var(--gray200);
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .velg::-webkit-scrollbar { display:none; }
+  .velg button { flex:0 0 auto; display:flex; align-items:center; gap:7px; border:0;
+    background:none; color:var(--gray1000); font:inherit; font-size:13px; font-weight:500;
+    padding:9px 14px; border-radius:16px; cursor:pointer; opacity:.55; white-space:nowrap;
+    transition:background .18s, opacity .18s; }
+  .velg button.valgt { background:var(--active-small, var(--active-big, #ee95ff));
+    color:var(--gray100,#fafbfc); opacity:1; font-weight:600; }
+  /* Prikken viser om enheten svarer. Med fem enheter i velgeren ser du hele nettet
+     på én gang i stedet for å åpne én fane av gangen. */
+  .velg .prikk { width:8px; height:8px; border-radius:50%; flex:none;
+    background:color-mix(in srgb, var(--gray1000) 28%, transparent); }
+  .velg button.oppe .prikk { background:var(--green,#5ad18b); }
+  .velg button.valgt .prikk { background:rgba(0,0,0,.35); }
+  .velg button.oppe.valgt .prikk { background:rgba(0,0,0,.55); }
+  .tom { font-size:13.5px; opacity:.65; padding:14px 16px; line-height:1.55;
+    background:var(--gray200); border-radius:24px; color:var(--gray1000); }
+`;
+
+const kiUnEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+class KiUnifiCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getStubConfig() { return { figur: "switch", enheter: [] }; }
+  getCardSize() { return 14; }
+
+  setConfig(c) {
+    if (!c || !Array.isArray(c.enheter) || !c.enheter.length) {
+      throw new Error("ki-unifi-card: 'enheter' må være en liste med minst én enhet");
+    }
+    this._c = { figur: "switch", ...c };
+    this._valgt = 0;
+    this._bygget = false;
+  }
+
+  set hass(h) {
+    this._h = h;
+    if (!this._c) return;
+    if (!this._bygget) this._bygg();
+    this._oppdater();
+    for (const k of this._barn || []) k.hass = h;
+  }
+
+  /* Dream Machine Pro har `_2` bak flere av sensorene sine. `etterfiks` per enhet
+     dekker det uten at de andre trenger å bry seg. */
+  _e(slug, felt, etterfiks) {
+    return `sensor.${slug}_${felt}${etterfiks || ""}`;
+  }
+
+  _enhetConfig(e) {
+    const c = this._c;
+    const p = e.etterfiks || "";
+    const ut = {
+      type: "custom:ki-enhet-card",
+      navn: e.navn,
+      figur: e.figur || c.figur,
+      status: `device_tracker.${e.slug}`,
+      oppetid: this._e(e.slug, "uptime", p),
+      oppdatering: `update.${e.slug}_firmware`,
+      maalinger: [
+        { navn: "CPU", entity: this._e(e.slug, "cpu_utilisation", p), enhet: "%" },
+        { navn: "Minne", entity: this._e(e.slug, "memory_utilisation", p), enhet: "%" },
+      ],
+      info: [
+        { navn: "Klienter", entity: this._e(e.slug, "clients"), enhet: "" },
+        { navn: "Tilstand", entity: this._e(e.slug, "state") },
+        { navn: "Uplink MAC", entity: this._e(e.slug, "uplink_mac") },
+      ],
+      knapper: [
+        { navn: "Restart", entity: `button.${e.slug}_restart`, ikon: "mdi:restart",
+          farge: "var(--orange)", bekreft: `Restarte ${e.navn}?` },
+        ...(e.led ? [{ navn: "LED", entity: `light.${e.slug}_led`,
+          ikon: "mdi:led-outline" }] : []),
+      ],
+    };
+    // Ruteren har temperatur og latens, og det er nettopp de tallene man åpner den for
+    if ((e.figur || c.figur) === "ruter") {
+      ut.maalinger.push({ navn: "Temp", entity: this._e(e.slug, "cpu_temperature", p),
+        enhet: "°", maks: 90, gul: 60, rod: 75 });
+      ut.info = [
+        ...(e.latens || []).map((n) => ({ navn: n.navn,
+          entity: `sensor.${e.slug}_${n.felt}_wan_latency`, enhet: " ms", varsel_over: 80 })),
+        { navn: "Local temp", entity: this._e(e.slug, "local_temperature"),
+          enhet: " °C", varsel_over: 70 },
+        ...ut.info,
+      ];
+    }
+    return ut;
+  }
+
+  _bygg() {
+    this.shadowRoot.innerHTML = `<style>${KI_UNIFI_STIL}</style>
+      <div class="kort"><div class="velg"></div><div class="innhold"></div></div>`;
+    this._bygget = true;
+    this._sistValgt = null;
+  }
+
+  _oppdater() {
+    const c = this._c;
+    const velg = this.shadowRoot.querySelector(".velg");
+    const innhold = this.shadowRoot.querySelector(".innhold");
+
+    // Én enhet trenger ingen velger
+    velg.style.display = c.enheter.length > 1 ? "" : "none";
+    velg.innerHTML = c.enheter.map((e, i) => {
+      const st = this._h && this._h.states[`device_tracker.${e.slug}`];
+      const oppe = st && st.state === "home";
+      return `<button class="${i === this._valgt ? "valgt" : ""} ${oppe ? "oppe" : ""}"
+        data-i="${i}"><span class="prikk"></span>${kiUnEsc(e.navn)}</button>`;
+    }).join("");
+    for (const b of velg.querySelectorAll("[data-i]")) {
+      b.addEventListener("click", () => {
+        this._valgt = Number(b.dataset.i);
+        this._oppdater();
+        for (const k of this._barn || []) k.hass = this._h;
+      });
+    }
+
+    if (this._sistValgt === this._valgt && this._barn) return;
+    this._sistValgt = this._valgt;
+    innhold.innerHTML = "";
+    this._barn = [];
+
+    if (!customElements.get("ki-enhet-card")) {
+      innhold.innerHTML = `<div class="tom">Fant ikke <code>ki-enhet-card</code>.
+        Sjekk at hele bundelen er lastet.</div>`;
+      return;
+    }
+    const e = c.enheter[this._valgt] || c.enheter[0];
+    const kort = document.createElement("ki-enhet-card");
+    kort.setConfig(this._enhetConfig(e));
+    innhold.appendChild(kort);
+    this._barn.push(kort);
+
+    // Switchene med PoE har portene under, hvis kortet finnes
+    if (e.porter && customElements.get("ki-porter-card")) {
+      const p = document.createElement("ki-porter-card");
+      p.setConfig({
+        type: "custom:ki-porter-card",
+        tittel: e.porter_tittel || "Porter (strømsykling)",
+        prefiks: `button.${e.slug}_port_`,
+        etterfiks: "_power_cycle",
+        antall: Number(e.porter),
+        kolonner: e.porter_kolonner || 4,
+        bekreft: "Strømsykle {port}?",
+      });
+      innhold.appendChild(p);
+      this._barn.push(p);
+    }
+  }
+}
+
+window.KI.define("ki-unifi-card", KiUnifiCard);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-unifi-card"))
+  window.customCards.push({ type: "ki-unifi-card", name: "KI UniFi",
+    description: "Rutere, switcher og AP-er med én velger", preview: false });
+} catch (e) { console.error("ki-cards: 76-ki-unifi-card feilet", e); }
+
+/* ===== 77-ki-bruk-card ===== */
+try {
+/* ki-bruk-card – lister med «hvor fullt er det», funnet ut fra et prefiks.
+ *
+ * Delinger, Proxmox-lagring og diskene var tre lister med nesten like blokker: 13 + 5 + 5
+ * oppføringer på rundt 400 linjer, der bare navnet og en del av entitets-id-en skiller
+ * dem.
+ *
+ * Kortet finner oppføringene selv, sorterer dem etter hvor fulle de er, og viser en
+ * stolpe per oppføring. Den fulleste først er poenget: det er den du må gjøre noe med.
+ *
+ * type: custom:ki-bruk-card
+ * prefiks: sensor.d_day_darling_share_
+ * etterfiks: _usage
+ * tittel: Delinger
+ * felt:                            # valgfrie tilleggstall under navnet
+ *   - { navn: Brukt, etterfiks: _used }
+ *   - { navn: Ledig, etterfiks: _free }
+ * helse: binary_sensor.d_day_darling_disk_{navn}_health   # valgfri, {navn} byttes ut
+ * helse_ok: 'off'                  # tilstanden som betyr «frisk»
+ * terskel_gul: 75
+ * terskel_rod: 90
+ * navn_kort: {aoosar_x_linux: Aoosar X Linux}
+ */
+const KI_BRUK_VERSJON = "1.0.0";
+
+const KI_BRUK_STIL = `
+  :host { display:block; max-width:100%; overflow-x:clip; --myk:cubic-bezier(.2,.8,.2,1); }
+  *, *::before, *::after { box-sizing:border-box; min-width:0; }
+  .kort { display:grid; gap:6px; color:var(--gray1000); }
+  .tittel { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    padding:2px 6px 6px; }
+  .tittel .t { font-size:15px; font-weight:600; }
+  .tittel .s { font-size:12px; opacity:.55; }
+
+  .rad { background:var(--gray200); border-radius:20px; padding:12px 14px;
+    display:grid; gap:8px; cursor:pointer; }
+  .topp { display:flex; align-items:baseline; gap:10px; }
+  .topp .ik { --mdc-icon-size:18px; opacity:.6; align-self:center; }
+  .topp .n { flex:1; min-width:0; font-size:14px; font-weight:500;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .topp .v { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums;
+    white-space:nowrap; }
+  .spor { height:8px; border-radius:99px; overflow:hidden;
+    background:color-mix(in srgb, var(--gray1000) 12%, transparent); }
+  .spor i { display:block; height:100%; border-radius:99px; background:var(--blue,#4aa3e0);
+    transition:width .8s var(--myk); }
+  .spor i.gul { background:var(--orange,#f0a952); }
+  .spor i.rod { background:var(--red,#e5706b); }
+  .felt { display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; opacity:.55; }
+  .felt span b { font-weight:600; opacity:1; }
+  .syk { font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px;
+    background:var(--red,#e5706b); color:var(--black,#1b1b1b); white-space:nowrap; }
+
+  .tom { font-size:13.5px; opacity:.65; padding:14px 16px; line-height:1.55;
+    background:var(--gray200); border-radius:24px; }
+  .tom code { font-size:12.5px; }
+  @media (prefers-reduced-motion: reduce) { .spor i { transition:none; } }
+`;
+
+const kiBrEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const kiBrNavn = (n) => String(n).replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+class KiBrukCard extends HTMLElement {
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  static getStubConfig() { return { prefiks: "sensor.", etterfiks: "_usage" }; }
+  getCardSize() { return 8; }
+
+  setConfig(c) {
+    if (!c || !c.prefiks) throw new Error("ki-bruk-card: 'prefiks' må settes");
+    this._c = { etterfiks: "_usage", terskel_gul: 75, terskel_rod: 90,
+      navn_kort: {}, felt: [], helse_ok: "off", ...c };
+  }
+
+  set hass(h) {
+    const g = this._h; this._h = h;
+    if (!this._c) return;
+    const sig = JSON.stringify(this._rader().map((r) => [r.nokkel, r.verdi, r.syk]));
+    if (sig !== this._sig) { this._sig = sig; this._tegn(); }
+    else if (!g) this._tegn();
+  }
+
+  _rader() {
+    if (!this._h) return [];
+    const c = this._c;
+    const ut = [];
+    for (const id of Object.keys(this._h.states)) {
+      if (!id.startsWith(c.prefiks) || !id.endsWith(c.etterfiks)) continue;
+      const nokkel = id.slice(c.prefiks.length, id.length - c.etterfiks.length);
+      if (!nokkel) continue;
+      const st = this._h.states[id];
+      const v = parseFloat(st.state);
+      // Helsen ligger i en egen entitet hos Unraid, med nøkkelen midt i navnet
+      let syk = false, harHelse = false;
+      if (c.helse) {
+        const hid = c.helse.replace("{navn}", nokkel);
+        const hst = this._h.states[hid];
+        if (hst && !["unknown", "unavailable"].includes(hst.state)) {
+          harHelse = true;
+          syk = hst.state !== String(c.helse_ok);
+        }
+      }
+      ut.push({
+        id, nokkel,
+        navn: c.navn_kort[nokkel] || kiBrNavn(nokkel),
+        verdi: isNaN(v) ? null : v,
+        tekst: isNaN(v) ? st.state : null,
+        felt: (c.felt || []).map((f) => {
+          const fst = this._h.states[`${c.prefiks}${nokkel}${f.etterfiks}`];
+          return fst && !["unknown", "unavailable"].includes(fst.state)
+            ? { navn: f.navn, verdi: fst.state } : null;
+        }).filter(Boolean),
+        syk, harHelse,
+      });
+    }
+    // Fulleste først. Syke oppføringer helt øverst — de haster mer enn en full disk.
+    return ut.sort((a, b) => (b.syk - a.syk) || ((b.verdi ?? -1) - (a.verdi ?? -1)));
+  }
+
+  _tegn() {
+    const c = this._c;
+    const rader = this._rader();
+    if (!rader.length) {
+      this.shadowRoot.innerHTML = `<style>${KI_BRUK_STIL}</style>
+        <div class="kort"><div class="tom">
+          Finner ingen sensorer som starter med <code>${kiBrEsc(c.prefiks)}</code>
+          og slutter på <code>${kiBrEsc(c.etterfiks)}</code>.
+        </div></div>`;
+      return;
+    }
+    /* Maksverdien, ikke første rad: sorteringen setter syke oppføringer først, så
+       «fulleste» ble disken med feil i stedet for den som faktisk er full. */
+    const tall = rader.map((r) => r.verdi).filter((v) => v !== null);
+    const fulleste = tall.length ? Math.max(...tall) : null;
+    const syke = rader.filter((r) => r.syk).length;
+
+    this.shadowRoot.innerHTML = `<style>${KI_BRUK_STIL}</style>
+      <div class="kort">
+        ${c.tittel ? `<div class="tittel">
+          <span class="t">${kiBrEsc(c.tittel)}</span>
+          <span class="s">${rader.length} stk${
+            fulleste !== null ? ` · fulleste ${Math.round(fulleste)} %` : ""}${
+            syke ? ` · ${syke} med feil` : ""}</span>
+        </div>` : ""}
+        ${rader.map((r) => {
+          const kl = r.verdi === null ? "" : r.verdi >= c.terskel_rod ? "rod"
+            : r.verdi >= c.terskel_gul ? "gul" : "";
+          return `<div class="rad" data-mer="${kiBrEsc(r.id)}" tabindex="0">
+            <div class="topp">
+              <ha-icon class="ik" icon="${kiBrEsc(c.ikon || "mdi:folder-outline")}"></ha-icon>
+              <span class="n">${kiBrEsc(r.navn)}</span>
+              ${r.syk ? `<span class="syk">Feil</span>` : ""}
+              <span class="v">${r.verdi === null ? kiBrEsc(r.tekst)
+                : `${Math.round(r.verdi)} %`}</span>
+            </div>
+            ${r.verdi === null ? "" : `<div class="spor">
+              <i class="${kl}" style="width:${Math.max(0, Math.min(100, r.verdi)).toFixed(1)}%"></i>
+            </div>`}
+            ${r.felt.length ? `<div class="felt">${r.felt.map((f) =>
+              `<span>${kiBrEsc(f.navn)} <b>${kiBrEsc(f.verdi)}</b></span>`).join("")}</div>` : ""}
+          </div>`;
+        }).join("")}
+      </div>`;
+
+    for (const el of this.shadowRoot.querySelectorAll("[data-mer]")) {
+      const aapne = () => this.dispatchEvent(new CustomEvent("hass-more-info",
+        { detail: { entityId: el.dataset.mer }, bubbles: true, composed: true }));
+      el.addEventListener("click", aapne);
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aapne(); }
+      });
+    }
+  }
+}
+
+window.KI.define("ki-bruk-card", KiBrukCard);
+
+window.customCards = window.customCards || [];
+if (!window.customCards.some((k) => k.type === "ki-bruk-card"))
+  window.customCards.push({ type: "ki-bruk-card", name: "KI Bruk",
+    description: "Delinger, lagring og disker med stolper, funnet fra et prefiks",
+    preview: true });
+} catch (e) { console.error("ki-cards: 77-ki-bruk-card feilet", e); }
 
 /* ===== family-status-card ===== */
 window.KI.lit((LitElement, html, css) => {

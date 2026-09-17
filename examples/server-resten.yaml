@@ -1,0 +1,177 @@
+# Resten av server-popupen: Nettverk, Unraid Disker og Delinger, og Proxmox Lagring.
+#
+# Innrykket er fra `- title:` og ned, slik fanene ligger hos deg. Bytt ut den
+# tilsvarende fanen med blokka under. Ingen entitetsnavn er endret.
+#
+#   Nettverk/Ruter    39 linjer  ->  14   (ki-unifi-card)
+#   Nettverk/Switch  110 linjer  ->  16   (ki-unifi-card, med portene)
+#   Nettverk/AP       70 linjer  ->  12   (ki-unifi-card)
+#   Unraid/Disker     78 linjer  ->  18   (ki-bruk-card)
+#   Unraid/Delinger  140 linjer  ->  28   (ki-bruk-card)
+#   Proxmox/Lagring  100 linjer  ->  16   (ki-bruk-card)
+
+# ============================================================ Nettverk
+- title: Nettverk
+  cards:
+    - type: custom:ki-tabs-card
+      align: center
+      tabs:
+        - title: Ruter
+          cards:
+            # `etterfiks: _2` dekker at Dream Machine Pro har _2 bak CPU, minne,
+            # temperatur og oppetid. De andre enhetene trenger den ikke.
+            - type: custom:ki-unifi-card
+              figur: ruter
+              enheter:
+                - navn: Dream Machine Pro
+                  slug: oslo_dream_machine_pro
+                  etterfiks: '_2'
+                  latens:
+                    - { navn: Google, felt: google }
+                    - { navn: Cloudflare, felt: cloudflare }
+                    - { navn: Microsoft, felt: microsoft }
+            - type: custom:gap-card
+              height: 36
+
+        - title: Switch
+          cards:
+            # Tre switcher i én velger, med en prikk for hver som svarer. Treets har
+            # PoE-portene under seg — `porter` bytter ut den egne ki-porter-card-blokka.
+            - type: custom:ki-unifi-card
+              figur: switch
+              enheter:
+                - navn: Treets USW-24-PoE
+                  slug: treets_usw_24_poe
+                  porter: 16
+                - navn: Veien USW-24-G2
+                  slug: veien_usw_24_g2
+                - navn: Spisebord USW Flex Mini
+                  slug: spisebord_usw_flex_mini
+                  led: true
+            - type: custom:gap-card
+              height: 36
+
+        - title: AP
+          cards:
+            - type: custom:ki-unifi-card
+              figur: ap
+              enheter:
+                - navn: Fuglen U7 Pro XG
+                  slug: fuglen_u7_pro_xg
+                  led: true
+                - navn: Posten U7 Lite
+                  slug: posten_u7_lite
+                  led: true
+            - type: custom:gap-card
+              height: 36
+
+        - title: Wi-Fi
+          cards:
+            - type: custom:ki-wifi-card
+              navn: Skuta I Byen
+              qr: image.skuta_i_byen_qr_code
+              klienter: sensor.skuta_i_byen_clients
+              bryter: switch.skuta_i_byen_enabled
+            - type: custom:gap-card
+              height: 36
+
+# ============================================================ Unraid / Disker
+- title: Disker
+  cards:
+    # Diskene finnes ut fra prefikset, sorteres etter hvor fulle de er, og en disk med
+    # feil legges øverst uansett — den haster mer enn en full disk.
+    - type: custom:ki-bruk-card
+      tittel: Disker
+      ikon: mdi:harddisk
+      prefiks: sensor.d_day_darling_disk_
+      etterfiks: _usage
+      helse: binary_sensor.d_day_darling_disk_{navn}_health
+      helse_ok: 'off'
+      terskel_gul: 80
+      terskel_rod: 92
+      navn_kort:
+        disk1: Disk 1
+        disk2: Disk 2
+        disk3: Disk 3
+        disk4: Disk 4
+        cach: Cache
+    - type: custom:gap-card
+      height: 6
+    - type: custom:ki-sensor-card
+      storrelse: stor
+      entity: binary_sensor.d_day_darling_disk_parity_health
+      navn: Paritetsdisk
+      ikon: mdi:harddisk
+      tekst:
+        'on': Feil
+        'off': Frisk
+    - type: custom:gap-card
+      height: 36
+
+# ============================================================ Unraid / Delinger
+- title: Delinger
+  cards:
+    - type: custom:ki-bruk-card
+      tittel: Delinger
+      ikon: mdi:folder-outline
+      prefiks: sensor.d_day_darling_share_
+      etterfiks: _usage
+      navn_kort:
+        aoosar_x_linux: Aoosar X Linux
+        appdata: Appdata
+        isos: Isos
+        nextcloud: Nextcloud
+    - type: custom:gap-card
+      height: 6
+    - type: custom:ki-section-card
+      title: Nettverk br0
+    - type: grid
+      columns: 2
+      square: false
+      cards:
+        - type: custom:ki-sensor-card
+          storrelse: liten
+          entity: sensor.d_day_darling_network_br0_inbound
+          navn: Inn
+          ikon: mdi:download
+        - type: custom:ki-sensor-card
+          storrelse: liten
+          entity: sensor.d_day_darling_network_br0_outbound
+          navn: Ut
+          ikon: mdi:upload
+        - type: custom:ki-sensor-card
+          storrelse: liten
+          entity: sensor.d_day_darling_network_br0_speed
+          navn: Hastighet
+          ikon: mdi:speedometer
+        - type: custom:ki-sensor-card
+          storrelse: liten
+          entity: sensor.d_day_darling_network_br0_ip_address
+          navn: IP
+          ikon: mdi:ip-network
+    - type: custom:gap-card
+      height: 36
+
+# ============================================================ Proxmox / Lagring
+- title: Lagring
+  cards:
+    # Brukt, ledig og type står som en linje under stolpen i stedet for som fire
+    # info-felt i hvert sitt kort.
+    - type: custom:ki-bruk-card
+      tittel: Proxmox-lagring
+      ikon: mdi:database
+      prefiks: sensor.5_storage_
+      etterfiks: _usage
+      felt:
+        - { navn: Brukt, etterfiks: _used }
+        - { navn: Ledig, etterfiks: _free }
+        - { navn: Totalt, etterfiks: _total }
+        - { navn: Type, etterfiks: _type }
+      navn_kort:
+        flash: Flash
+        local: local
+        tank: tank (ZFS)
+        unraid: unraid
+        unraid_proxmox: unraid_proxmox
+    - type: custom:gap-card
+      height: 36

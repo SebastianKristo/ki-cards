@@ -7,8 +7,10 @@
  * oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
  * historikk_dager: 30                 # 0 slår av historikkdelen
  * maks_fart: 12                       # MB/s som fyller søylen helt
+ * animasjon: graf                     # graf (standard) | ror
+ * graf: false                         # slår av grafen helt
  */
-const KI_NED_VERSJON = "1.0.0";
+const KI_NED_VERSJON = "1.1.0";
 
 const KI_NED_STATUS = {
   downloading: { navn: "Laster ned", farge: "var(--blue, #4aa3e0)", ikon: "mdi:download" },
@@ -27,7 +29,8 @@ const KI_NED_STIL = `
     background:var(--gray200); padding:14px 16px 0; cursor:pointer;
     display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:13px; align-items:start;
     transition:background .5s var(--myk); }
-  .hero.aktiv { background:color-mix(in srgb, var(--f) 22%, var(--gray200)); }
+  /* Ingen fargetone på heroen når den er aktiv. Den la et skinn over hele toppen, og
+     fargen sier ikke noe utover det ikonet og grafen alt viser. */
 
   .hero .ik { width:42px; height:42px; border-radius:50%; flex:none; display:flex;
     align-items:center; justify-content:center; --mdc-icon-size:22px;
@@ -44,6 +47,25 @@ const KI_NED_STIL = `
     background:rgba(250,251,252,.10); white-space:nowrap; }
   .kobling.advarsel { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
   .kobling.feil { background:var(--red,#e5706b); color:var(--black,#1b1b1b); }
+
+  /* ---- fartsgrafen ----
+     Kortet samler inn farten selv og tegner de siste par minuttene. Nedlasting som
+     fylt flate, opplasting som en strek over — da ser du om farten holder seg eller
+     hakker, noe et øyeblikkstall ikke kan vise. */
+  .graf { grid-column:1 / -1; position:relative; height:66px; margin:10px -16px 0; }
+  .graf svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .graf .rute { stroke:color-mix(in srgb, var(--gray1000) 10%, transparent); stroke-width:1; }
+  .graf .flate { fill:color-mix(in srgb, var(--blue,#4aa3e0) 28%, transparent); }
+  .graf .linje { fill:none; stroke:var(--blue,#4aa3e0); stroke-width:2;
+    stroke-linejoin:round; stroke-linecap:round; }
+  .graf .opp { fill:none; stroke:var(--green,#5ad18b); stroke-width:1.6;
+    stroke-linejoin:round; stroke-linecap:round; opacity:.85; }
+  /* Punktet i enden pulserer så det er tydelig hvor «nå» er */
+  .graf .naa { fill:var(--blue,#4aa3e0); }
+  .hero.aktiv .graf .naa { animation:kiNedPuls 1.6s ease-in-out infinite; }
+  @keyframes kiNedPuls { 0%,100% { r:3 } 50% { r:4.6 } }
+  .graf .toppmerke { font-size:9.5px; fill:currentColor; opacity:.45; }
+  .graf .venter { font-size:10.5px; fill:currentColor; opacity:.4; }
 
   /* røret nederst i heroen. Pakkene går ned når den laster, opp når den deler. */
   .ror { grid-column:1 / -1; position:relative; height:34px; margin:8px -16px 0;
@@ -64,7 +86,9 @@ const KI_NED_STIL = `
     background:color-mix(in srgb, var(--gray1000) 14%, transparent); }
 
   /* ---- køen ---- */
-  .rutenett { display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:8px; }
+  /* Kolonnetallet settes fra antallet, ikke av auto-fit. Med fem fliser ga auto-fit
+     fire på første rad og én alene under; nå blir det 3 + 2. Taket er fire. */
+  .rutenett { display:grid; grid-template-columns:repeat(var(--kol,4),minmax(0,1fr)); gap:8px; }
   .flis { background:var(--gray200); border-radius:20px; padding:12px 10px; text-align:center;
     cursor:pointer; min-width:0; }
   .flis b { display:block; font-size:22px; font-weight:600; letter-spacing:-.02em;
@@ -143,9 +167,34 @@ class KiNedlastingCard extends HTMLElement {
   set hass(h) {
     const g = this._h; this._h = h;
     if (!this._c) return;
+    this._maal();
+    if (!this._klokke) {
+      /* Uten egen klokke får vi bare en måling når farten endrer seg. Da ville en pause
+         se ut som at grafen stoppet, i stedet for å falle til null. */
+      this._klokke = setInterval(() => { this._maal(); this._tegn(); }, 3000);
+    }
     const sig = JSON.stringify(this._ider().map((id) => (h.states[id] || {}).state));
     if (sig !== this._sig) { this._sig = sig; this._tegn(); }
     else if (!g) this._tegn();
+  }
+
+  disconnectedCallback() {
+    if (this._klokke) { clearInterval(this._klokke); this._klokke = null; }
+  }
+
+  /* Én måling av ned- og oppfart. Vi holder de siste to minuttene. */
+  _maal() {
+    const ned = this._tall("download_speed");
+    const opp = this._tall("upload_speed");
+    if (ned === null && opp === null) return;
+    this._prover = this._prover || [];
+    const naa = Date.now();
+    const sist = this._prover[this._prover.length - 1];
+    if (sist && naa - sist.t < 1500) return;      // ikke tettere enn halvannet sekund
+    this._prover.push({ t: naa, ned: ned || 0, opp: opp || 0 });
+    const grense = naa - 120000;
+    while (this._prover.length && this._prover[0].t < grense) this._prover.shift();
+    if (this._prover.length > 120) this._prover.shift();
   }
 
   _id(s) { return this._c.prefiks + s; }
@@ -159,6 +208,16 @@ class KiNedlastingCard extends HTMLElement {
   _tekst(s) {
     const st = this._st(s);
     return st && !["unknown", "unavailable"].includes(st.state) ? st.state : null;
+  }
+
+  /* Kolonnetall som ikke etterlater én flis alene på siste rad. Fire er taket, og
+     blant de som ikke gir en enslig rest velges det høyeste. */
+  _kolonner(n) {
+    if (n <= 4) return n;
+    for (const k of [4, 3, 2]) {
+      if (n % k !== 1) return k;
+    }
+    return 3;
   }
 
   _ider() {
@@ -206,6 +265,47 @@ class KiNedlastingCard extends HTMLElement {
     } catch (e) {
       return { rader: [], feil: e && e.message ? e.message : String(e) };
     }
+  }
+
+  /* Grafen. Skalaen følger den høyeste målingen i vinduet, med et gulv så en rolig
+     periode ikke blåses opp til å se dramatisk ut. */
+  _grafHtml() {
+    const c = this._c;
+    if (c.graf === false) return "";
+    const p = this._prover || [];
+    const B = 340, H = 66, bunn = H - 2;
+    if (p.length < 2) {
+      return `<div class="graf"><svg viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+        <line class="rute" x1="0" y1="${bunn}" x2="${B}" y2="${bunn}"/>
+      </svg><svg viewBox="0 0 ${B} ${H}"><text class="venter" x="8" y="14">Samler
+        målinger …</text></svg></div>`;
+    }
+    const maks = Math.max(0.5, ...p.map((x) => Math.max(x.ned, x.opp)));
+    const t0 = p[0].t, t1 = Math.max(p[p.length - 1].t, t0 + 1);
+    const X = (t) => ((t - t0) / (t1 - t0)) * B;
+    const Y = (v) => bunn - (v / maks) * (bunn - 10);
+
+    const punkt = (felt) => p.map((x) => `${X(x.t).toFixed(1)},${Y(x[felt]).toFixed(1)}`);
+    const nedLinje = `M${punkt("ned").join(" L")}`;
+    const flate = `${nedLinje} L${B},${bunn} L0,${bunn} Z`;
+    const oppLinje = `M${punkt("opp").join(" L")}`;
+    const siste = p[p.length - 1];
+
+    return `<div class="graf">
+      <svg viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+        <line class="rute" x1="0" y1="${Y(maks).toFixed(1)}" x2="${B}" y2="${Y(maks).toFixed(1)}"/>
+        <line class="rute" x1="0" y1="${bunn}" x2="${B}" y2="${bunn}"/>
+        <path class="flate" d="${flate}"/>
+        <path class="linje" d="${nedLinje}"/>
+        <path class="opp" d="${oppLinje}"/>
+      </svg>
+      <svg viewBox="0 0 ${B} ${H}">
+        <text class="toppmerke" x="6" y="${(Y(maks) - 3).toFixed(1)}">${
+          kiNeFart(maks)} MB/s</text>
+        <circle class="naa" cx="${(X(siste.t) / B * B).toFixed(1)}"
+                cy="${Y(siste.ned).toFixed(1)}" r="3"/>
+      </svg>
+    </div>`;
   }
 
   _histHtml() {
@@ -311,10 +411,12 @@ class KiNedlastingCard extends HTMLElement {
             </div>
           </div>
           ${kobling ? `<span class="kobling ${koblingKlasse}">${kiNeEsc(koblingTekst)}</span>` : ""}
-          <div class="ror"><span class="strek"></span><div class="lag">${pakker}</div></div>
+          ${c.animasjon === "ror"
+            ? `<div class="ror"><span class="strek"></span><div class="lag">${pakker}</div></div>`
+            : this._grafHtml()}
         </div>
 
-        ${koen.length ? `<div class="rutenett">${koen.map((x) => `
+        ${koen.length ? `<div class="rutenett" style="--kol:${this._kolonner(koen.length)}">${koen.map((x) => `
           <div class="flis ${x.varsel && x.v > 0 ? "varsel" : ""}"
                data-mer="${kiNeEsc(this._id(x.k))}" tabindex="0">
             <b>${x.v}</b><span>${kiNeEsc(x.n)}</span>
