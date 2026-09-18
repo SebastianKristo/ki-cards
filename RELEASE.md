@@ -1,44 +1,38 @@
-# ki-cards 4.5.0
+# ki-cards 4.6.0
 
-## `ki-server-card` 2.0.0: bygget etter dashbordet, ikke etter gjetning
+## `ki-hytte-card` 2.4.0: søk etter dag eller uke
 
-Jeg leste dashbordet ditt, og de tre popupene du peker på har alle **samme form**: ett
-kort og en gap-card, ingen sammensatt YAML.
+Nytt søkefelt øverst i Kalender-fanen. Skriv en dato eller et ukenummer, og få svaret på
+tvers av alle stedene: hvem var hvor.
 
-```yaml
-- type: custom:ki-planter-pro-card
-  scene: true
-  scene_hoyde: 200
-```
+Kalenderen svarer allerede på dette hvis du blar til riktig måned og trykker på dagen.
+Søket er for når du vet datoen, men ikke måneden — «uke 27» er lettere å skrive enn å
+bla tolv måneder bakover.
 
-Serverpopupen følger den formen nå — 111 linjer i stedet for tusen.
+Formatene som tolkes:
 
-### Animert scene øverst
+| Du skriver | Tolkes som |
+| --- | --- |
+| `4.7` · `04.07.2026` · `2026-07-04` | den dagen |
+| `4. juli` · `4 juli 2026` | den dagen |
+| `uke 28` · `u28` · `uke 28 2026` | hele uka |
+| `i dag` · `i går` | den dagen |
+| `denne uka` · `forrige uke` | hele uka |
 
-Et serverrom: rack med fire disker som blinker i **ulik takt** — samme takt ville sett ut
-som ett lys, ikke fire disker som jobber hver for seg — vifte som snurrer når noden
-jobber, og pakker som renner langs kabelen mot skyen når nettet er oppe.
+Ukenummer følger ISO-regelen, der torsdagen bestemmer hvilken uke og hvilket år dagene
+hører til. Uten den havner nyttårsuka i feil år.
 
-Hver fane tenner sin del: Unraid og Proxmox får viften, UniFi og Nedlasting får pakkene.
-`scene: false` slår den av, `scene_hoyde` endrer høyden.
+Ved uke eller flere dager står antall dager per person i parentes — «Cybele (2 d), Rune
+(1 d)» — så du ser hvem som var der hele tiden og hvem som stakk innom.
 
-### Flisene har dashbordets egne mål
+Svaret bruker den samme dagboksen som kalenderen viser når du trykker på en dag, med
+stedsfargen foran. Forstår den ikke det du skrev, sier den det og viser tre eksempler i
+stedet for å vise ingenting.
 
-Hentet rett fra `universal_sensor_ny`: 160 px høy, rundt ikonfelt på 52 px med 30 px
-ikon, verdien i `2em/300` med enheten i 14 px, og navnet under. To per rad.
-
-Det er den samme flisen vanningspopupen bruker — nå tegnet av kortet i stedet for av
-button-card, så den følger med automatisk for alt som oppdages.
-
-`fliser: false` gir de brede radene fra 1.1.0 i stedet.
+`sok: false` skjuler feltet.
 
 ### Testet
 
-Alle fire fanene: scene tegnet, fire diskblink med ulik forsinkelse, viften bare på
-Unraid og Proxmox, pakkene bare på UniFi og Nedlasting. Flisene måler 160 px med 2em
-verdi, og første flis viser «12 % / CPU» med riktig ikon.
-
-### Om backticks
-
-Femte gang i dag skrev jeg backticks i en CSS-kommentar og lukket template-strengen.
-`node --check` fanget det denne gangen. Byggeskrittet fra 3.98.1 fanger det uansett.
+Tretten inndataformater tolket riktig, inkludert ugyldige. Svarene kontrollert mot tre
+steder med kjente dager: enkeltdag med to personer, uke som spenner over to steder, en
+dato i fjor, en dag der ingen var noe sted, og tekst som ikke er en dato.

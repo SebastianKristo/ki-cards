@@ -1,4 +1,4 @@
-/* ki-cards v4.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v4.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.5.0";
+  KI.VERSION = "4.6.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11863,8 +11863,9 @@ try {
  * demo: true                 # eksempeldata for Oslo, Strömstad og Toten
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
+ * sok: false                      # skjuler søkefeltet i kalenderfanen
  */
-const KI_HYTTE_VERSJON = "2.3.0";
+const KI_HYTTE_VERSJON = "2.4.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12000,6 +12001,16 @@ const KI_HYTTE_STIL = `
   .rad .d { font-size:12px; opacity:.6; }
   .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  /* søkefeltet i kalenderfanen */
+  .sokrad { display:flex; align-items:center; gap:9px; background:var(--gray100);
+    border-radius:999px; padding:0 14px; height:40px; --mdc-icon-size:18px;
+    margin-bottom:8px; }
+  .sokrad input { flex:1; min-width:0; border:0; background:none; color:var(--gray1000);
+    font:inherit; font-size:14px; outline:none; }
+  .sokrad input::placeholder { color:var(--gray1000); opacity:.45; }
+  .sokrad button { border:0; background:none; color:var(--gray1000); opacity:.5;
+    cursor:pointer; display:flex; padding:0; }
+
   /* stedsfilter i oppholdsfanen */
   .stedfilter { display:flex; justify-content:center; }
   .stedskinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px;
@@ -12156,6 +12167,158 @@ class KiHytteCard extends HTMLElement {
       ${folk.length ? folk.map((n) => `<div class="rad2">
           <i style="background:${kiHyEsc(this._farge(n, d))}"></i>${kiHyEsc(n)}</div>`).join("")
         : `<div class="rad2" style="opacity:.6">Ingen her</div>`}</div>`;
+  }
+
+  /* Søkefeltet, i samme form som resten av kortet: rund pille på --gray100 med
+     forstørrelsesglass, og svaret i den samme dagboksen som kalenderen bruker når du
+     trykker på en dag. */
+  _sokfelt() {
+    if (this._c && this._c.sok === false) return "";
+    const v = this._sok || "";
+    return `
+      <label class="sokrad">
+        <ha-icon icon="mdi:magnify"></ha-icon>
+        <input type="text" placeholder="Søk: 12.7, uke 27, i går" value="${kiHyEsc(v)}" />
+        ${v ? `<button data-tomsok="1" aria-label="Tøm">
+          <ha-icon icon="mdi:close"></ha-icon></button>` : ""}
+      </label>
+      ${this._sokSvar()}`;
+  }
+
+  /* ---------------------------------------------------------- søk -------
+   * «Hvor var vi den dagen?» — skriv en dato eller et ukenummer, og få svaret på tvers
+   * av alle stedene.
+   *
+   * Kalenderen svarer allerede på dette hvis du blar til riktig måned og trykker på
+   * dagen. Søket er for når du vet datoen, men ikke måneden — «uke 27», «12.7», «i fjor
+   * sommer» er lettere å skrive enn å bla tolv måneder bakover.
+   *
+   * Formatene som tolkes:
+   *   12.7        12.7.2026      2026-07-12      12. juli
+   *   uke 27      u27            uke 27 2025
+   *   i dag       i går          i forrige uke   denne uka
+   */
+  _tolkSok(tekst) {
+    const t = String(tekst || "").trim().toLowerCase();
+    if (!t) return null;
+    const naa = new Date(); naa.setHours(0, 0, 0, 0);
+    const iso = (d) => kiHyDato(d);
+    const uke = (dato) => {
+      /* ISO-uke: torsdagen i uka bestemmer hvilket år og nummer uka har. Uten den
+         regelen havner nyttårsuka i feil år. */
+      const d = new Date(dato); d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+      const forste = new Date(d.getFullYear(), 0, 4);
+      const nr = 1 + Math.round(((d - forste) / 86400000 - 3 + ((forste.getDay() + 6) % 7)) / 7);
+      return { nr, aar: d.getFullYear() };
+    };
+    const ukeStart = (nr, aar) => {
+      const d = new Date(aar, 0, 4);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (nr - 1) * 7);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    };
+    const spenn = (fra, antall) => {
+      const ut = [];
+      for (let i = 0; i < antall; i++) {
+        const d = new Date(fra); d.setDate(fra.getDate() + i); ut.push(iso(d));
+      }
+      return ut;
+    };
+
+    if (t === "i dag" || t === "idag") return { tittel: "I dag", dager: [iso(naa)] };
+    if (t === "i går" || t === "igår" || t === "i gar") {
+      const d = new Date(naa); d.setDate(d.getDate() - 1);
+      return { tittel: "I går", dager: [iso(d)] };
+    }
+    if (/^denne uk/.test(t)) {
+      const u = uke(naa);
+      return { tittel: `Uke ${u.nr}`, dager: spenn(ukeStart(u.nr, u.aar), 7) };
+    }
+    if (/^(i )?forrige uk/.test(t)) {
+      const d = new Date(naa); d.setDate(d.getDate() - 7);
+      const u = uke(d);
+      return { tittel: `Uke ${u.nr}`, dager: spenn(ukeStart(u.nr, u.aar), 7) };
+    }
+
+    let m = t.match(/^(?:uke|u)\s*(\d{1,2})(?:\s+(\d{4}))?$/);
+    if (m) {
+      const nr = Number(m[1]);
+      if (nr >= 1 && nr <= 53) {
+        const aar = m[2] ? Number(m[2]) : naa.getFullYear();
+        return { tittel: `Uke ${nr}, ${aar}`, dager: spenn(ukeStart(nr, aar), 7) };
+      }
+    }
+
+    m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d)) return { tittel: this._langDato(d), dager: [iso(d)] };
+    }
+
+    m = t.match(/^(\d{1,2})[.\/\s-]+(\d{1,2})(?:[.\/\s-]+(\d{2,4}))?\.?$/);
+    if (m) {
+      let aar = m[3] ? Number(m[3]) : naa.getFullYear();
+      if (aar < 100) aar += 2000;
+      const d = new Date(aar, Number(m[2]) - 1, Number(m[1]));
+      if (!isNaN(d)) return { tittel: this._langDato(d), dager: [iso(d)] };
+    }
+
+    /* «12. juli» og «12 juli» — måneden skrevet ut */
+    const mnd = ["januar", "februar", "mars", "april", "mai", "juni", "juli",
+      "august", "september", "oktober", "november", "desember"];
+    m = t.match(/^(\d{1,2})\.?\s+([a-zæøå]+)(?:\s+(\d{4}))?$/);
+    if (m) {
+      const i = mnd.findIndex((x) => x.startsWith(m[2].slice(0, 3)));
+      if (i >= 0) {
+        const d = new Date(m[3] ? Number(m[3]) : naa.getFullYear(), i, Number(m[1]));
+        if (!isNaN(d)) return { tittel: this._langDato(d), dager: [iso(d)] };
+      }
+    }
+    return { feil: true };
+  }
+
+  _langDato(d) {
+    return d.toLocaleDateString("nb-NO",
+      { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  }
+
+  /* Svaret: ett avsnitt per sted som hadde noen der, med hvem og hvor mange dager. */
+  _sokSvar() {
+    const tekst = this._sok || "";
+    if (!tekst.trim()) return "";
+    const tolk = this._tolkSok(tekst);
+    if (!tolk || tolk.feil) {
+      return `<div class="dagboks"><div class="rad2" style="opacity:.6">
+        Forstod ikke «${kiHyEsc(tekst)}». Prøv <b>12.7</b>, <b>uke 27</b> eller
+        <b>i går</b>.</div></div>`;
+    }
+    const alle = this._alleSteder();
+    const kilder = alle.length ? alle : [this._data()].filter(Boolean);
+    const rader = [];
+    for (const x of kilder) {
+      const dager = x.dager || {};
+      const folk = new Map();
+      let antall = 0;
+      for (const iso of tolk.dager) {
+        const her = dager[iso] || [];
+        if (her.length) antall++;
+        for (const n of her) folk.set(n, (folk.get(n) || 0) + 1);
+      }
+      if (!folk.size) continue;
+      const navn = [...folk.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([n, d]) => tolk.dager.length > 1 ? `${n} (${d} d)` : n)
+        .join(", ");
+      rader.push(`<div class="rad2">
+        <i style="background:${kiHyEsc(this._stedFarge2(x.sted))}"></i>
+        ${kiHyEsc(x.sted)}<span class="folk">${kiHyEsc(navn)}</span></div>`);
+    }
+    return `<div class="dagboks">
+      <div class="tit2">${kiHyEsc(tolk.tittel)}${tolk.dager.length > 1
+        ? ` · ${tolk.dager.length} dager` : ""}</div>
+      ${rader.join("") || `<div class="rad2" style="opacity:.6">Ingen var noe sted.</div>`}
+    </div>`;
   }
 
   /* ---------------------------------------------------------- oppholdene */
@@ -12381,7 +12544,7 @@ class KiHytteCard extends HTMLElement {
     (c.faner || []).forEach((f) => {
       const panel = r.querySelector(`.panel[data-p="${f}"]`);
       if (!panel) return;
-      panel.innerHTML = f === "kalender" ? this._kalender(d)
+      panel.innerHTML = f === "kalender" ? (this._sokfelt() + this._kalender(d))
         : f === "opphold" ? this._opphold(d)
         : f === "helger" ? this._helger() : this._statistikk(d);
     });
@@ -12390,6 +12553,21 @@ class KiHytteCard extends HTMLElement {
 
   /* Knappene inne i fanene – kalles både ved full tegning og ved sidebytte */
   _koblPaneler(r) {
+    /* Søkefeltet. Vi tegner om ved hver tast, så markøren må settes tilbake — ellers
+       hopper den til slutten når du retter noe midt i teksten. */
+    const sokfelt = r.querySelector(".sokrad input");
+    if (sokfelt) {
+      sokfelt.addEventListener("input", (e) => {
+        this._sok = e.target.value;
+        const pos = e.target.selectionStart;
+        this._oppdaterPaneler();
+        const nytt = r.querySelector(".sokrad input");
+        if (nytt) { nytt.focus(); try { nytt.setSelectionRange(pos, pos); } catch (x) { /* ok */ } }
+      });
+    }
+    const tomsok = r.querySelector("[data-tomsok]");
+    if (tomsok) tomsok.addEventListener("click", () => { this._sok = ""; this._oppdaterPaneler(); });
+
     r.querySelectorAll("[data-dagvalg]").forEach((el) => el.addEventListener("click", () => {
       this._dagValgt = this._dagValgt === el.dataset.dagvalg ? null : el.dataset.dagvalg;
       this._oppdaterPaneler();
