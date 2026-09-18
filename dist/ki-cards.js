@@ -1,4 +1,4 @@
-/* ki-cards v3.98.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v3.98.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.98.0";
+  KI.VERSION = "3.98.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12934,7 +12934,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.8.0";
+  const VERSJON = "1.8.1";
 
   /* Finner LitElement i frontend.
    *
@@ -14740,8 +14740,10 @@ try {
           .idagv small { font-size: 11.5px; font-weight: 500; opacity: 0.5; margin-left: 2px; }
           .idagv.gron { color: var(--kib-green, #5ad18b); }
 
-          /* `.tall`, `.tall-verdi` og `.tall-tekst` er fjernet — de hørte til de tre
-             løse boksene som `.idag` erstattet, og ingen mal viste til dem lenger. */
+          /* Klassene tall, tall-verdi og tall-tekst er fjernet — de hørte til de tre
+             løse boksene som idag-flaten erstattet, og ingen mal viste til dem lenger.
+             MERK: ingen backticks i denne kommentaren. Den står inne i en
+             css-template-streng, og en backtick her lukker strengen midt i. */
 
           /* Graf */
           .grafblokk {

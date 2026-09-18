@@ -14,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.8.0";
+  const VERSJON = "1.8.1";
 
   /* Finner LitElement i frontend.
    *
@@ -1820,8 +1820,10 @@
           .idagv small { font-size: 11.5px; font-weight: 500; opacity: 0.5; margin-left: 2px; }
           .idagv.gron { color: var(--kib-green, #5ad18b); }
 
-          /* `.tall`, `.tall-verdi` og `.tall-tekst` er fjernet — de hørte til de tre
-             løse boksene som `.idag` erstattet, og ingen mal viste til dem lenger. */
+          /* Klassene tall, tall-verdi og tall-tekst er fjernet — de hørte til de tre
+             løse boksene som idag-flaten erstattet, og ingen mal viste til dem lenger.
+             MERK: ingen backticks i denne kommentaren. Den står inne i en
+             css-template-streng, og en backtick her lukker strengen midt i. */
 
           /* Graf */
           .grafblokk {

@@ -57,4 +57,11 @@ LIT
   done
 } > "$OUT"
 cp "$OUT" /tmp/sk-check.mjs && node --check /tmp/sk-check.mjs
+
+# sjekk-styles: `node --check` godtar en backtick inne i en css-mal, fordi resultatet
+# fortsatt er gyldig JavaScript — det blir bare et tagget kall på noe annet. Feilen
+# dukker først opp når `styles` leses i frontend. Her lastes bundelen med en lit-lik
+# css() og `styles` leses på hvert kort, som er nøyaktig der den slår ut.
+node "$(dirname "$0")/verifiser-styles.js" "$OUT" || {
+  echo "BYGG STOPPET: et kort feiler når styles leses"; exit 1; }
 echo "$OUT OK (v$V, $(du -k "$OUT" | cut -f1) kB)"

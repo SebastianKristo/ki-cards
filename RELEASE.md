@@ -1,34 +1,51 @@
-# ki-cards 3.98.0
+# ki-cards 3.98.1
 
-## `ki-basseng-card` 1.8.0: leter bredere etter LitElement, og sier fra når den ikke finnes
+## Feilen var min, og den var en backtick
 
-`ki-basseng-card` er **det eneste kortet i bundelen** som er bygget på LitElement. Alle
-de andre er vanlige `HTMLElement`. Det er derfor bare dette svikter med «Custom element
-doesn't exist».
+`ki-basseng-card` registrerte seg ikke:
 
-Kortet henter LitElement ved å ta prototypen til et Home Assistant-element og lese `html`
-og `css` fra den. Det virker bare så lenge frontend faktisk legger dem der.
+```
+ki-basseng-card: registreringen feilet (ved lasting)
+TypeError: css(...).tall is not a function
+    at get styles
+```
 
-Denne versjonen:
+I 3.97.0 slettet jeg de gamle `.tall`-stilene og la igjen en kommentar om det. Kommentaren
+sto **inne i css-malen**, og jeg skrev klassenavnene med backticks rundt:
 
-* **Leter i åtte elementer** i stedet for fire, og går oppover arvekjeden til den finner
-  et ledd med både `html` og `css`. Tåler mellomledd uten å vite hva de heter.
-* **Sier fra i konsollen** når den ikke finner dem, i stedet for å kaste stille fra en
-  `.then()` der bundelens try/catch ikke rekker.
+```
+/* `.tall`, `.tall-verdi` og `.tall-tekst` er fjernet — ... */
+```
 
-Seks frontend-former er kontrollert: direkte arv, ett og to mellomledd, bare `ha-card`
-tilgjengelig, ingen med `html`/`css`, og ingen HA-elementer i det hele tatt. De fire
-første registrerer kortet; de to siste sier hvorfor de ikke gjør det.
+Den første backticken lukket css-malen. Deretter leses `.tall` som en egenskap, og neste
+backtick starter et nytt tagget kall — `css(...).tall` som funksjon. Hele kortet falt bort.
 
-### Hva jeg IKKE har løst
+Kommentaren er skrevet om uten backticks, og kortet registreres igjen.
 
-Står det `ki-basseng-card: fant ikke LitElement i frontend` i konsollen etter denne
-oppdateringen, er konklusjonen at Home Assistant ikke lenger legger `html` og `css` på
-LitElement-prototypen. Da er det ingenting å lete bredere etter, og kortet må bygges om
-til vanlig `HTMLElement` som resten av bundelen.
+## Byggeskrittet som ville fanget det
 
-Det er en reell omskriving av rundt 2200 linjer, ikke en lapp. Den bør gjøres som eget
-arbeid.
+Dette er tredje gang i dag samme feilklasse dukker opp, og grunnen er at **`node --check`
+ikke ser den**: resultatet er fortsatt gyldig JavaScript, bare et tagget kall på noe
+annet. Feilen viser seg først når `styles` leses i frontend.
 
-En teori jeg forkastet underveis: at et mixin-ledd i arvekjeden var årsaken. Testet, og
-den gamle koden håndterte det fint — `html` arves gjennom kjeden uansett.
+`build.sh` kjører nå `verifiser-styles.js` etter hvert bygg. Den laster bundelen med en
+lit-lik `css()` og **leser `styles` på hvert registrerte kort** — nøyaktig der feilen slår
+ut. Feiler ett kort, stopper bygget.
+
+Kontrollert ved å sette inn en backtick i css-malen med vilje:
+
+```
+  1 problem(er):
+    styles feiler på ki-basseng-card: css(...).test is not a function
+BYGG STOPPET: et kort feiler når styles leses
+```
+
+Uten den innsatte feilen: `styles ok på 98 kort`.
+
+## Også i denne versjonen
+
+`finnLit` fra 1.8.0 leter i åtte HA-elementer og går oppover arvekjeden. Det var ikke
+årsaken her, men det er en bedre måte å finne LitElement på, så den står.
+
+Registreringen har egen feilfangst fra 1.7.1. Den er grunnen til at vi fikk se årsaken
+denne gangen i stedet for et tomt kort — den beholdes.
