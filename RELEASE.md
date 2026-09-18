@@ -1,43 +1,44 @@
-# ki-cards 4.0.0
+# ki-cards 4.1.0
 
-## `ki-basseng-card` 1.10.0
+## `ki-sikkerhet-card` 1.1.0: UI-editor og stedsprofiler
 
-### Fanerada sto til høyre
+### Editor
 
-Da tannhjulet kom i 1.6.0 satte jeg `margin: 0 0 12px auto` på rada, som skjøv hele
-gruppa mot høyre kant. Den skal stå midt på, og gjør det igjen.
+Kortet hadde ingen editor og måtte settes opp i YAML. Nå felt for alarmpanel, navn,
+sted, batterigrense, faner, soneknapper, tastatur og kompakt.
 
-### Helt ny graftype: timesøyler
+Standardverdiene står i editorens `data`, ikke bare i kortet. Uten det viser editoren
+tomme felt, og første lagring skriver tomme verdier over standardene — en felle jeg har
+gått i før med `vis_fanenavn`.
 
-Kurven var feil form for dette, og det er derfor ingen av forsøkene ble gode. En
-temperaturkurve over et døgn er nesten flat: enten blir den en kjedelig strek, eller — med
-stramt vindu — en dramatisk fjellkjede av målestøy. Ingen av dem sier noe.
+### Tre steder, tre bakgrunner
 
-Én søyle per time sier det kurven ikke kunne: **hvor mye vannet steg eller falt den
-timen**, og om pumpa gikk mens det skjedde.
+`profil:` bytter det som står rundt huset. **Huset selv er uendret** i alle tre — vinduene,
+døra, skannestreken, blinklysene og sirenene hører til alarmen og skal se like ut uansett
+sted. Profilen tegnes BAK huset, så ingen av animasjonene påvirkes.
 
-* Søyla går **opp** fra midtlinja når temperaturen steg i løpet av timen, **ned** når den
-  falt. Oransje opp, blå ned.
-* Under hver søyle et blått merke som viser **minuttene pumpa gikk** den timen.
-* Midtlinja er nullpunktet, så du ser med én gang hvilke timer som var netto varme.
-* Ingen strukket svg, altså ingen forvrengt tekst. Ingen levende måling, altså ingenting
-  som hopper mens du ser på det.
+* **`oslo`** — rekkehus: naboene på hver side, litt lavere og dempet, med hekk langs
+  fortauet som binder rekka sammen.
+* **`toten`** — åker med rader som smalner innover for å gi dybde, låve og silo bak huset,
+  og en traktor som kjører over åkeren på 26 sekunder.
+* **`stromstad`** — sjøen med to bølgelinjer i ulik fart, brygge med stolper foran huset,
+  og fyrtårnet til venstre med røde stripar og en lysstråle.
+* **`ingen`** — bare huset, som før.
 
-Under: temperaturen nå med målet og spennet i vinduet, og samlet pumpetid. 24 t / 3 d /
-7 d velger vinduet — over et døgn fortynnes søylene til 24 i stedet for å bli hårtynne.
+Hver profil har **én bevegelse**, ikke flere: traktoren kjører, fyrlyset svinger, bølgene
+glir. Mer enn det ville konkurrert med blinklysene når alarmen går, og da er kulissene i
+veien.
 
-Kontrollert for alle tre vinduene: 24 søyler hver gang, og opp + ned = 24.
+Fyrstrålen svinger fram og tilbake i stedet for å rotere. En full rotasjon ville pekt inn
+i huset halve tiden og sett ut som en feil.
 
-### Sprederen er bygget om i vanningskortets form
+Alt i bakgrunnene er dempet med vilje — 0,16 til 0,5 i gjennomsiktighet. Huset og alarmen
+skal eie oppmerksomheten.
 
-Den gamle var div-er som falt i rette streker. Vann beveger seg ikke i rette streker.
+De tre nye animasjonene er lagt inn i `prefers-reduced-motion`-blokka.
 
-Nå en SVG-scene som følger sprinkleren i `ki-vanning-card`: hodet vipper, **strålegruppa
-svinger i samme takt** — ellers ville strålene stått stille mens dysa beveget seg — og
-åtte dråper kastes ut langs buen med hver sin retning og forsinkelse, via `--dx`/`--dy`
-og samme `sprut`-kurve som vanningskortet.
+### Testet
 
-Står sprederen, er scenen stille og strålene usynlige.
-
-De gamle `.dyse`, `.draper` og `.bakke`-stilene er fjernet, og reduced-motion dekker de
-nye animasjonene.
+Alle fire profilene tegnet: Oslo 6 elementtyper, Toten 11, Strömstad 11, «ingen» tom.
+Bakgrunnen ligger før huset i markupen, og vinduer og dør er uendret. Editorens skjema
+har åtte felt, og stedsvelgeren har de fire valgene med lesbare etiketter.

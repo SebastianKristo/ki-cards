@@ -28,7 +28,7 @@
  *   code_length: 6             # false slår det av og gir bare huset
  *   arm_requires_code: true
  */
-const KI_SIK_VERSJON = "1.0.0";
+const KI_SIK_VERSJON = "1.1.0";
 
 const KI_SIK_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); --fjaer:cubic-bezier(.3,1.35,.5,1); }
@@ -75,6 +75,59 @@ const KI_SIK_STIL = `
     --tak-mork:color-mix(in srgb, var(--gray1000) 55%, transparent); }
   .kompakt .scene { height:132px; }
   .scene svg { width:100%; height:100%; display:block; overflow:visible; }
+
+  /* ---- stedsprofiler: bakgrunnen bak huset ----
+     Alt her er dempet med vilje. Huset og alarmen skal eie oppmerksomheten; dette er
+     kulisser som forteller hvilket sted du ser på. */
+  .bg { opacity:.9; }
+
+  /* Oslo: rekkehus */
+  .nabovegg { fill:var(--vegg-mork); opacity:.45; }
+  .nabotak { fill:var(--tak-mork); opacity:.5; }
+  .nabovindu { fill:var(--gray1000); opacity:.12; }
+  .nabodor { fill:var(--gray1000); opacity:.16; }
+  .hekk { fill:#5ad18b; opacity:.16; }
+
+  /* Toten: åker, låve og traktor */
+  .aker { fill:#c8a34a; opacity:.16; }
+  .akerrad { stroke:#c8a34a; stroke-width:1; opacity:.22; fill:none; }
+  .laave { fill:#b0553f; opacity:.3; }
+  .laavetak { fill:#8d4230; opacity:.35; }
+  .silo { fill:var(--gray1000); opacity:.14; }
+  .tkropp, .thytte { fill:#3f8f4f; opacity:.75; }
+  .thjul { fill:var(--gray1000); opacity:.35; }
+  .teksos { stroke:var(--gray1000); stroke-width:2; fill:none; opacity:.2; }
+  /* Traktoren kjører over åkeren og starter på nytt. 26 sekunder er sakte nok til at
+     den ikke stjeler blikket, men rask nok til at man ser at den beveger seg. */
+  .traktor { animation:sik-traktor 26s linear infinite; }
+  @keyframes sik-traktor {
+    from { transform:translateX(-30px); }
+    to { transform:translateX(330px); }
+  }
+
+  /* Strömstad: sjø, brygge og fyrtårn */
+  .sjo { fill:#4a9df8; opacity:.16; }
+  .bolge { stroke:#bfe9ff; stroke-width:1.5; fill:none; opacity:.3; }
+  .bolge.b1 { animation:sik-bolge 7s linear infinite; }
+  .bolge.b2 { animation:sik-bolge 11s linear infinite reverse; opacity:.2; }
+  @keyframes sik-bolge { to { transform:translateX(80px); } }
+  .fyrtarn { fill:var(--gray1000); opacity:.3; }
+  .fyrstripe { fill:#e5706b; opacity:.35; }
+  .fyrhus { fill:var(--gray1000); opacity:.38; }
+  .fyrlampe { fill:#f0a952; opacity:.9; }
+  /* Strålen svinger fram og tilbake fra lampa. En full rotasjon ville pekt inn i
+     huset halve tiden og sett ut som en feil. */
+  .fyrstrale {
+    fill:#f0a952; opacity:.1; transform-box:fill-box; transform-origin:0% 50%;
+    animation:sik-fyr 9s ease-in-out infinite alternate;
+  }
+  @keyframes sik-fyr {
+    from { transform:rotate(-16deg); opacity:.05; }
+    50% { opacity:.13; }
+    to { transform:rotate(16deg); opacity:.05; }
+  }
+  .brygge { fill:#8d6a45; opacity:.3; }
+  .bryggestolpe { fill:#8d6a45; opacity:.22; }
   .scene { overflow:visible; }
 
   .bakke { fill:var(--gray1000); opacity:.10; }
@@ -268,6 +321,7 @@ const KI_SIK_STIL = `
   .tom { font-size:13px; opacity:.6; padding:10px; }
 
   @media (prefers-reduced-motion: reduce) {
+    .traktor, .bolge.b1, .bolge.b2, .fyrstrale,
     .glo::before, .skjold::after, .skjold ha-icon, .vindu.apen, .vindu.apen .skinn,
     .dorgruppe.apen .dorapning, .radar, .radarring.puls,
     .sirene, .modus-venter .tellering, .roykpust, .liste,
@@ -301,10 +355,15 @@ class KiSikkerhetCard extends HTMLElement {
     return { columns: 12, rows: "auto", min_rows: rader };
   }
 
+  static getConfigElement() { return document.createElement("ki-sikkerhet-card-editor"); }
+  static getStubConfig() {
+    return { entity: "alarm_control_panel.alarmo", profil: "oslo", navn: "Sikkerhet" };
+  }
+
   setConfig(c) {
     if (!c || !c.entity) throw new Error("Sett entity: til alarmpanelet");
     this._c = { navn: "Sikkerhet", batteri_grense: 20, kompakt: false, tastatur: true,
-                faner: ["sikkerhet", "laser", "logg"], zones: [], ...c };
+                profil: "oslo", faner: ["sikkerhet", "laser", "logg"], zones: [], ...c };
     this._bygget = false;
     this._fane = this._fane || this._faner()[0];
   }
@@ -906,6 +965,82 @@ class KiSikkerhetCard extends HTMLElement {
 
   /* Huset. Færre, større former – tre vinduer og en dør, ingen panelskjøter,
    * ingen lampe. Silhuetten skal leses på et halvt sekund. */
+  /* Bakgrunnen bak huset, etter sted.
+   *
+   * Huset selv er uendret i alle tre — vinduene, døra, skannestreken og sirenene hører
+   * til alarmen og skal se like ut uansett. Profilen legger bare til det som står rundt,
+   * tegnet BAK huset, så ingen av animasjonene påvirkes.
+   *
+   * Hver profil har én bevegelse, ikke flere: traktoren kjører, fyrlyset svinger. Mer
+   * enn det ville konkurrert med blinklysene når alarmen går.
+   */
+  _bakgrunn(profil) {
+    if (profil === "toten") {
+      return `
+        <g class="bg toten">
+          <!-- åkeren: rader som smalner innover, så det leses som dybde -->
+          <path class="aker" d="M0 138 L320 138 L320 152 L0 152 z"></path>
+          ${[0, 1, 2, 3, 4].map((i) => `
+            <path class="akerrad" d="M${-20 + i * 74} 152 L${60 + i * 52} 138"></path>`).join("")}
+          <!-- silo og låve til høyre, bak huset -->
+          <rect class="laave" x="256" y="94" width="46" height="46" rx="3"></rect>
+          <path class="laavetak" d="M252 96 L279 78 L306 96 z"></path>
+          <rect class="silo" x="240" y="86" width="14" height="54" rx="7"></rect>
+          <!-- traktoren kjører sakte over åkeren -->
+          <g class="traktor">
+            <rect class="tkropp" x="0" y="118" width="26" height="12" rx="3"></rect>
+            <rect class="thytte" x="14" y="108" width="12" height="11" rx="2"></rect>
+            <circle class="thjul bak" cx="7" cy="132" r="7"></circle>
+            <circle class="thjul for" cx="22" cy="133" r="5"></circle>
+            <path class="teksos" d="M12 108 q3 -6 0 -11"></path>
+          </g>
+        </g>`;
+    }
+    if (profil === "stromstad") {
+      return `
+        <g class="bg stromstad">
+          <!-- sjøen med to bølgelinjer -->
+          <path class="sjo" d="M0 140 L320 140 L320 160 L0 160 z"></path>
+          <path class="bolge b1" d="M-20 146 q20 -4 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0"></path>
+          <path class="bolge b2" d="M-20 153 q20 -4 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0"></path>
+          <!-- fyrtårnet i bakgrunnen, til venstre -->
+          <g class="fyr">
+            <path class="fyrtarn" d="M28 138 L33 64 H47 L52 138 z"></path>
+            ${[0, 1, 2].map((i) => `
+              <rect class="fyrstripe" x="${30 + i * 0.6}" y="${76 + i * 20}"
+                    width="${20 - i * 1.2}" height="7"></rect>`).join("")}
+            <path class="fyrhus" d="M31 64 h18 l-3 -9 H34 z"></path>
+            <circle class="fyrlampe" cx="40" cy="58" r="4"></circle>
+            <!-- lysstrålen svinger: én bevegelse, ikke en roterende lyskjegle -->
+            <path class="fyrstrale" d="M40 58 L148 30 L148 86 z"></path>
+          </g>
+          <!-- brygge foran huset -->
+          <path class="brygge" d="M96 140 h128 v5 H96 z"></path>
+          ${[0, 1, 2, 3].map((i) => `
+            <rect class="bryggestolpe" x="${106 + i * 36}" y="145" width="4" height="12"></rect>`).join("")}
+        </g>`;
+    }
+    if (profil === "oslo") {
+      return `
+        <g class="bg oslo">
+          <!-- rekkehus: naboene på hver side, litt lavere og dempet, med felles vegg -->
+          <path class="nabotak" d="M44 96 L74 62 L104 96 z"></path>
+          <rect class="nabovegg" x="44" y="94" width="60" height="46" rx="3"></rect>
+          <rect class="nabovindu" x="58" y="104" width="18" height="15" rx="3"></rect>
+          <rect class="nabodor" x="82" y="112" width="12" height="28" rx="2"></rect>
+
+          <path class="nabotak" d="M216 96 L246 62 L276 96 z"></path>
+          <rect class="nabovegg" x="216" y="94" width="60" height="46" rx="3"></rect>
+          <rect class="nabovindu" x="244" y="104" width="18" height="15" rx="3"></rect>
+          <rect class="nabodor" x="224" y="112" width="12" height="28" rx="2"></rect>
+
+          <!-- hekk langs fortauet, som binder rekka sammen -->
+          <path class="hekk" d="M30 140 h260 v6 H30 z"></path>
+        </g>`;
+    }
+    return "";
+  }
+
   _hus({ paa, venter, alarm, apne, rorer, ulast }) {
     const antApne = apne.length;
     const dorApen = ulast.length > 0 || apne.some((r) => /dør|door|inngang|veranda/i.test(r.navn));
@@ -938,6 +1073,8 @@ class KiSikkerhetCard extends HTMLElement {
             <stop offset="100%" stop-color="var(--orange,#f0a952)" stop-opacity="0"></stop>
           </radialGradient>
         </defs>
+
+        ${this._bakgrunn(this._c.profil)}
 
         <ellipse class="bakke" cx="160" cy="146" rx="104" ry="7"></ellipse>
 
@@ -1008,7 +1145,59 @@ const KI_SIK_SIDEN = (iso) => {
 
 const KI_SIK_ESC = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
-customElements.define("ki-sikkerhet-card", KiSikkerhetCard);
+if (!customElements.get("ki-sikkerhet-card")) {
+  customElements.define("ki-sikkerhet-card", KiSikkerhetCard);
+}
+
+class KiSikkerhetCardEditor extends HTMLElement {
+  setConfig(c) { this._c = c; this._r(); }
+  set hass(h) { this._h = h; this._r(); }
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this._f) {
+      this._f = document.createElement("ha-form");
+      const n = {
+        entity: "Alarmpanel", navn: "Navn", profil: "Sted",
+        batteri_grense: "Varsle under batterinivå (%)",
+        kompakt: "Kompakt (lavere hus)", tastatur: "Vis tastatur",
+        soner: "Vis soneknapper", faner: "Faner",
+      };
+      this._f.computeLabel = (x) => n[x.name] || x.name;
+      this._f.addEventListener("value-changed", (e) => this.dispatchEvent(
+        new CustomEvent("config-changed",
+          { detail: { config: e.detail.value }, bubbles: true, composed: true })));
+      this.appendChild(this._f);
+    }
+    this._f.hass = this._h;
+    /* Standardverdiene må stå i `data`, ikke bare i kortet: uten dem viser editoren
+       tomme felt, og første lagring skriver tomme verdier over standardene. */
+    this._f.data = { profil: "oslo", navn: "Sikkerhet", batteri_grense: 20,
+      kompakt: false, tastatur: true, soner: true,
+      faner: ["sikkerhet", "laser", "logg"], ...this._c };
+    this._f.schema = [
+      { name: "entity", required: true,
+        selector: { entity: { domain: ["alarm_control_panel"] } } },
+      { name: "navn", selector: { text: {} } },
+      { name: "profil", selector: { select: { mode: "dropdown", options: [
+        { value: "oslo", label: "Oslo — rekkehus" },
+        { value: "toten", label: "Toten — hus med åker og traktor" },
+        { value: "stromstad", label: "Strömstad — hus ved sjøen med fyrtårn" },
+        { value: "ingen", label: "Ingen bakgrunn" }] } } },
+      { name: "batteri_grense", selector: { number: { min: 0, max: 100, step: 5,
+        mode: "slider" } } },
+      { name: "faner", selector: { select: { multiple: true, mode: "list", options: [
+        { value: "sikkerhet", label: "Sikkerhet" },
+        { value: "laser", label: "Låser" },
+        { value: "logg", label: "Logg" }] } } },
+      { name: "soner", selector: { boolean: {} } },
+      { name: "tastatur", selector: { boolean: {} } },
+      { name: "kompakt", selector: { boolean: {} } },
+    ];
+  }
+}
+if (!customElements.get("ki-sikkerhet-card-editor")) {
+  customElements.define("ki-sikkerhet-card-editor", KiSikkerhetCardEditor);
+}
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some((k) => k.type === "ki-sikkerhet-card"))
