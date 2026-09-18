@@ -14,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.6.0";
+  const VERSJON = "1.7.0";
 
   const finnLit = () => {
     const base =
@@ -165,7 +165,9 @@
         /* Ingen tittel over fanerada som standard. «Badebasseng» sto både i
            popup-overskriften og her, og gjentakelsen stjal en linje. `tittel:` med en
            verdi viser den likevel. */
-        this._config = { tittel: "", graf: true, ...config };
+        /* Grafene er av som standard. Temperaturgrafen og arbeidsgrafen sa mindre enn
+           de tok av plass, og `graf: true` skrur dem på igjen for den som vil. */
+        this._config = { tittel: "", graf: false, ...config };
         this._ider.clear();
         this._prefiks = this._config.prefix || null;
         this._modusId = null;
@@ -821,20 +823,30 @@
       _tallrad() {
         const valuta = this.enhet("kostnad");
         const effekt = (this.val("pumpeEffekt", 0) || 0) + (this.val("vpEffekt", 0) || 0);
+        const spart = this.val("spart", 0) || 0;
+        /* Tre tall som hører sammen — hvor mye pumpa har gått, hva den trekker nå, og
+           hva automatikken har spart — ligger på ÉN flate med hårfine skiller mellom.
+           Tre løse bokser leste som tre uavhengige ting; dette er ett regnskap for
+           dagen.
+           Sparingen er den interessante av de tre, så den får grønn verdi. */
         return html`
-          <div class="tallrad">
-            <div class="tall" @click=${() => this._mer("pumpetid")}>
-              <div class="tall-verdi">${nf(this.val("pumpetid", 0), 1)} t</div>
-              <div class="tall-tekst">pumpet i dag</div>
-            </div>
-            <div class="tall" @click=${() => this._mer("pumpeEffekt")}>
-              <div class="tall-verdi">${nf(effekt, 0)} W</div>
-              <div class="tall-tekst">effekt nå</div>
-            </div>
-            <div class="tall" @click=${() => this._mer("spart")}>
-              <div class="tall-verdi">${nf(this.val("spart", 0), 0)} ${valuta}</div>
-              <div class="tall-tekst">spart i dag</div>
-            </div>
+          <div class="idag">
+            <button class="idagcelle" @click=${() => this._mer("pumpetid")}>
+              <ha-icon icon="mdi:timer-outline"></ha-icon>
+              <span class="idagn">Pumpet i dag</span>
+              <span class="idagv">${nf(this.val("pumpetid", 0), 1)}<small>t</small></span>
+            </button>
+            <button class="idagcelle" @click=${() => this._mer("pumpeEffekt")}>
+              <ha-icon icon="mdi:flash"></ha-icon>
+              <span class="idagn">Effekt nå</span>
+              <span class="idagv">${nf(effekt, 0)}<small>W</small></span>
+            </button>
+            <button class="idagcelle" @click=${() => this._mer("spart")}>
+              <ha-icon icon="mdi:piggy-bank-outline"></ha-icon>
+              <span class="idagn">Spart i dag</span>
+              <span class="idagv ${spart > 0 ? "gron" : ""}">${
+                nf(spart, 0)}<small>${valuta}</small></span>
+            </button>
           </div>
         `;
       }
@@ -1734,31 +1746,64 @@
             opacity: 0.7;
           }
 
-          /* Tall */
-          .tallrad {
+          /* --- dagens regnskap: én flate, tre celler, hårfine skiller --- */
+          .idag {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
-          }
-          .tall {
-            padding: 14px 14px 12px;
-            border-radius: 18px;
+            border-radius: 22px;
             background: var(--kib-surface);
+            overflow: hidden;
+          }
+          .idagcelle {
+            position: relative;
+            border: 0;
+            background: none;
+            color: inherit;
+            font: inherit;
             cursor: pointer;
+            padding: 14px 10px 13px;
+            display: grid;
+            justify-items: center;
+            gap: 3px;
             min-width: 0;
           }
-          .tall-verdi {
-            font-size: 19px;
-            font-weight: 600;
+          /* Skillet er en 1 px linje mellom cellene, ikke mellomrom mellom bokser */
+          .idagcelle + .idagcelle::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 14px;
+            bottom: 14px;
+            width: 1px;
+            background: rgba(128, 128, 128, 0.22);
+          }
+          .idagcelle ha-icon {
+            --mdc-icon-size: 18px;
+            color: var(--kib-muted);
+            opacity: 0.7;
+          }
+          .idagn {
+            font-size: 10.5px;
+            opacity: 0.55;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 100%;
           }
-          .tall-tekst {
-            padding-top: 2px;
-            font-size: 12px;
-            color: var(--kib-muted);
+          .idagv {
+            font-size: 21px;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
           }
+          .idagv small { font-size: 11.5px; font-weight: 500; opacity: 0.5; margin-left: 2px; }
+          .idagv.gron { color: var(--kib-green, #5ad18b); }
+
+          /* `.tall`, `.tall-verdi` og `.tall-tekst` er fjernet — de hørte til de tre
+             løse boksene som `.idag` erstattet, og ingen mal viste til dem lenger. */
 
           /* Graf */
           .grafblokk {
