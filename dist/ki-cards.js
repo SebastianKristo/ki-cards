@@ -1,4 +1,4 @@
-/* ki-cards v3.90.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v3.91.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.90.0";
+  KI.VERSION = "3.91.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12934,7 +12934,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.3.0";
+  const VERSJON = "1.4.0";
 
   const finnLit = () => {
     const base =
@@ -13200,6 +13200,7 @@ try {
         if (!tvang && na - this._sistHist < 300000) return;
         const temp = this.id("vanntemp");
         const effekt = this.id("pumpeEffekt");
+        const vp = this.id("vpEffekt");
         if (!temp) return;
         this._henter = true;
         this._sistHist = na;
@@ -13208,7 +13209,7 @@ try {
           const svar = await this.hass.callWS({
             type: "history/history_during_period",
             start_time: start,
-            entity_ids: effekt ? [temp, effekt] : [temp],
+            entity_ids: [temp, effekt, vp].filter(Boolean),
             minimal_response: true,
             no_attributes: true,
             significant_changes_only: false,
@@ -13222,12 +13223,85 @@ try {
             til: na,
             temp: les(temp),
             effekt: effekt ? les(effekt) : [],
+            vp: vp ? les(vp) : [],
           };
         } catch (e) {
           this._hist = { feil: true };
         } finally {
           this._henter = false;
         }
+      }
+
+      /* Sirkulasjon og oppvarming over samme tid.
+       *
+       * Temperaturgrafen viser resultatet; denne viser arbeidet. Pumpa som fylt blå
+       * flate, varmepumpa som oransje over — da ser du om varmen kom mens vannet
+       * sirkulerte, som er hele forutsetningen for at den varmer noe.
+       *
+       * Skalaen er felles for de to, ellers ville en pumpe på 200 W sett like stor ut
+       * som en varmepumpe på 2 kW.
+       */
+      _grafArbeid() {
+        const h = this._hist;
+        if (!h || h.feil) return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
+        const pumpe = h.effekt || [];
+        const vp = h.vp || [];
+        if (pumpe.length < 2 && vp.length < 2) {
+          return html`<div class="dempet senter graf-tom">
+            Ingen effektmåling på pumpe eller varmepumpe.</div>`;
+        }
+        const B = 320;
+        const H = 74;
+        const fra = h.fra;
+        const til = h.til;
+        const maks = Math.max(100, ...pumpe.map((p) => p.v), ...vp.map((p) => p.v));
+        const X = (t) => ((t - fra) / (til - fra)) * B;
+        const Y = (v) => H - (v / maks) * (H - 6);
+
+        /* Trappeform, ikke rette linjer mellom punktene: en pumpe som slår på går fra
+           0 til 200 W momentant, og en skrå linje ville antydet en opptrapping. */
+        const bane = (liste) => {
+          if (!liste.length) return "";
+          let d = `M${X(liste[0].t).toFixed(1)},${Y(liste[0].v).toFixed(1)}`;
+          for (let i = 1; i < liste.length; i++) {
+            d += ` L${X(liste[i].t).toFixed(1)},${Y(liste[i - 1].v).toFixed(1)}`;
+            d += ` L${X(liste[i].t).toFixed(1)},${Y(liste[i].v).toFixed(1)}`;
+          }
+          d += ` L${B},${Y(liste[liste.length - 1].v).toFixed(1)}`;
+          return d;
+        };
+        const flate = (liste) => {
+          const b = bane(liste);
+          return b ? `${b} L${B},${H} L0,${H} Z` : "";
+        };
+
+        const sum = (liste) => {
+          // kWh: trapesregel over tiden, i timer
+          let kwh = 0;
+          for (let i = 1; i < liste.length; i++) {
+            const dt = (liste[i].t - liste[i - 1].t) / 3600000;
+            kwh += ((liste[i].v + liste[i - 1].v) / 2) * dt / 1000;
+          }
+          return kwh;
+        };
+
+        /* Banene ligger direkte i samme mal, alltid alle fire. Lit har ingen
+           `svg`-tag tilgjengelig her, og en nøstet `html`-mal ville laget elementene i
+           HTML-navnerommet — der blir en <path> usynlig. Tom `d` tegner ingenting. */
+        return html`
+          <svg class="graf" viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+            <path class="a-vp-flate" d="${vp.length ? flate(vp) : ""}"/>
+            <path class="a-pumpe-flate" d="${pumpe.length ? flate(pumpe) : ""}"/>
+            <path class="a-vp" d="${vp.length ? bane(vp) : ""}"/>
+            <path class="a-pumpe" d="${pumpe.length ? bane(pumpe) : ""}"/>
+          </svg>
+          <div class="graf-tekst">
+            <span><i class="prikk pumpe"></i>Sirkulasjon
+              ${pumpe.length ? html`<b>${nf(sum(pumpe), 2)} kWh</b>` : ""}</span>
+            <span><i class="prikk vp"></i>Oppvarming
+              ${vp.length ? html`<b>${nf(sum(vp), 2)} kWh</b>` : ""}</span>
+            <span class="dempet">topp ${nf(maks, 0)} W</span>
+          </div>`;
       }
 
       _byttVindu(timer) {
@@ -13515,12 +13589,27 @@ try {
         const temp = this.val("vanntemp");
         const maltemp = this.attr("vanntemp", "maltemperatur");
         const begrunnelse = this.attr("modus", "begrunnelse", "");
+        /* To animasjoner som betyr to forskjellige ting, og de kan skje samtidig:
+           sirkulasjon er vann som beveger seg, oppvarming er varme som stiger.
+           Før var det én bølge for begge, så du kunne ikke se hva som faktisk skjedde. */
+        const sirkulerer = gar;
+        /* «Varmer» avgjøres av effekten varmepumpa faktisk trekker, ikke av en
+           bryter: pumpa kan stå i heat uten å kjøre. Over 100 W regnes som i gang. */
+        const varmer = ["oppvarming", "boost"].includes(modus)
+          || Number(this.val("vpEffekt", 0)) > 100;
 
         return html`
           <div class="hero ${gar ? "gar" : ""}" @click=${() => this._mer("modus")}>
             <div class="vann" style="height:${Math.round(andel * 100)}%">
               <div class="bolge"></div>
+              <div class="bolge b2"></div>
+              ${sirkulerer ? html`<div class="strom">${
+                [0, 1, 2, 3, 4, 5].map((i) => html`<i style="--i:${i}"></i>`)}</div>` : ""}
+              ${varmer ? html`<div class="bobler">${
+                [0, 1, 2, 3, 4, 5, 6, 7].map((i) => html`<i style="--i:${i}"></i>`)}</div>` : ""}
             </div>
+            ${varmer ? html`<div class="varmedis">${
+              [0, 1, 2, 3].map((i) => html`<i style="--i:${i}"></i>`)}</div>` : ""}
             <div class="hero-innhold">
               <div class="hero-topp">
                 <div>
@@ -13791,6 +13880,13 @@ try {
                       </div>
                       ${this._graf()}
                     </div>
+                    <div class="grafblokk" style="margin-top:8px">
+                      <div class="grafhode">
+                        <span>Sirkulasjon og oppvarming</span>
+                        <span class="dempet">samme tidsvindu</span>
+                      </div>
+                      ${this._grafArbeid()}
+                    </div>
                   `
                 : ""}
               ${this.on("overstyrt")
@@ -13951,10 +14047,94 @@ try {
           .hero.gar .bolge {
             animation: bolge 6s linear infinite;
           }
+          /* Andre bølge, tregere og motsatt vei — én bølge alene ser mekanisk ut */
+          .bolge.b2 {
+            top: -7px;
+            opacity: 0.5;
+            background-size: 90px 12px;
+          }
+          .hero.gar .bolge.b2 {
+            animation: bolge 9s linear infinite reverse;
+          }
           @keyframes bolge {
             to {
               transform: translateX(-120px);
             }
+          }
+
+          /* Sirkulasjon: strømmer som drar sidelengs gjennom vannet */
+          .strom {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+          }
+          .strom i {
+            position: absolute;
+            left: -12%;
+            top: calc(18% + var(--i) * 14%);
+            width: 26%;
+            height: 2px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+            animation: strom 3.4s linear infinite;
+            animation-delay: calc(var(--i) * -0.55s);
+          }
+          @keyframes strom {
+            to {
+              transform: translateX(480%);
+            }
+          }
+
+          /* Oppvarming: bobler opp gjennom vannet, og varmedis over flaten */
+          .bobler {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+          }
+          .bobler i {
+            position: absolute;
+            bottom: -6px;
+            left: calc(8% + var(--i) * 11%);
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.45);
+            animation: boble 4.2s ease-in infinite;
+            animation-delay: calc(var(--i) * -0.5s);
+          }
+          @keyframes boble {
+            0% { transform: translateY(0) scale(0.6); opacity: 0; }
+            15% { opacity: 0.8; }
+            85% { opacity: 0.5; }
+            100% { transform: translateY(-120px) scale(1.15); opacity: 0; }
+          }
+          .varmedis {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+          }
+          .varmedis i {
+            position: absolute;
+            bottom: 34%;
+            left: calc(16% + var(--i) * 22%);
+            width: 2px;
+            height: 26px;
+            border-radius: 2px;
+            background: linear-gradient(0deg, rgba(255, 176, 92, 0.55), transparent);
+            filter: blur(1px);
+            animation: dis 3.6s ease-in-out infinite;
+            animation-delay: calc(var(--i) * -0.9s);
+          }
+          @keyframes dis {
+            0% { transform: translateY(0) scaleX(1); opacity: 0; }
+            25% { opacity: 0.75; }
+            100% { transform: translateY(-38px) scaleX(1.8); opacity: 0; }
           }
           .hero-innhold {
             position: relative;
@@ -14233,6 +14413,20 @@ try {
           .graf-tom {
             padding: 30px 0;
           }
+          .a-pumpe-flate { fill: rgba(74, 157, 248, 0.26); }
+          .a-vp-flate { fill: rgba(255, 176, 92, 0.22); }
+          .a-pumpe { fill: none; stroke: rgba(74, 157, 248, 0.9); stroke-width: 1.6; }
+          .a-vp { fill: none; stroke: rgba(255, 176, 92, 0.9); stroke-width: 1.6; }
+          .prikk {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+          }
+          .prikk.pumpe { background: rgba(74, 157, 248, 0.9); }
+          .prikk.vp { background: rgba(255, 176, 92, 0.9); }
           .graf-tekst {
             display: flex;
             justify-content: space-between;
@@ -14437,6 +14631,9 @@ try {
             }
           }
           @media (prefers-reduced-motion: reduce) {
+            .strom i,
+            .bobler i,
+            .varmedis i,
             .hero.gar .bolge {
               animation: none;
             }

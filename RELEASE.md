@@ -1,25 +1,38 @@
-# ki-cards 3.90.0
+# ki-cards 3.91.0
 
-## `ki-klima-pro-card` 2.8.0: tilstedeværelse og bortestyring
+## `ki-basseng-card` 1.4.0: animasjon og graf for varme og sirkulasjon
 
-**Ny blokk øverst i Oversikt.** Er noen hjemme, ute en tur, eller borte siden helgen? Det
-sto ingen steder i kortet, selv om integrasjonen skiller mellom de to siste.
+Kortet hadde én bølge som gikk uansett hva som skjedde, og én graf som viste
+temperaturen. Du kunne ikke se om bassenget sirkulerte, varmet, eller begge.
 
-Blokka leser `sensor.ki_tilstedevaerelse` (ny i KI Energi 2.20.0) og viser teksten med
-farge etter alvor: grønn når noen er hjemme, gul ved kort tur, blå ved bortemodus, dempet
-når tilstedeværelse er ukjent. Under står hvor lenge, og når hjemkomsten er satt til.
+**Sirkulasjon og oppvarming er nå to forskjellige animasjoner**, og de kan gå samtidig:
 
-Ved kort tur står nedtellingen til bortemodus i teksten — «Ute en tur, 40 min —
-bortemodus om 5 t 20 min». Det er det man vil vite når man er ute: hvor lang tid før huset
-senker seg.
+* **Sirkulasjon** — strømmer som drar sidelengs gjennom vannet, seks lag i ulik høyde og
+  fase. Vann som beveger seg.
+* **Oppvarming** — bobler som stiger opp gjennom vannet, og varmedis som flimrer over
+  overflaten. Varme som stiger.
+* To bølger i stedet for én, den andre tregere og motsatt vei. Én bølge alene ser
+  mekanisk ut.
 
-Under teksten ligger **bortestyringen**, som manglet: bryterne for bortemodus, automatisk
-aktivering og hjemkomst, og de fire tallene — timer før auto, og bortetemperaturene for
-panelovn, gulvvarme og bad. Trykk på et tall åpner det.
+«Varmer» avgjøres av effekten varmepumpa faktisk trekker — over 100 W — ikke av at den
+står i `heat`. Pumpa kan stå i heat uten å kjøre, og da skal ingenting boble.
 
-**«Helgemodus» heter «Bortemodus».** Det er samme navnebytte som i integrasjonen: på en
-hytte er det ukedagene den står tom, og navnet var grunnen til at bortestyringen ikke var
-å finne.
+## Ny graf: sirkulasjon og oppvarming
 
-Blokka vises ikke i det hele tatt hvis sensoren mangler, så kortet fungerer uendret på en
-eldre integrasjonsversjon.
+Temperaturgrafen viser resultatet. Den nye viser arbeidet: pumpa som fylt blå flate,
+varmepumpa som oransje over, i samme tidsvindu og med felles skala. Da ser du **om varmen
+kom mens vannet sirkulerte** — som er hele forutsetningen for at den varmer noe.
+
+Under grafen står forbruket i kWh for hver av dem, regnet med trapesregel over tiden, og
+toppeffekten i vinduet.
+
+To valg verdt å nevne:
+
+* **Trappeform, ikke rette linjer.** En pumpe som slår på går fra 0 til 200 W momentant.
+  En skrå linje mellom punktene ville antydet en opptrapping som ikke finnes.
+* **Felles skala.** Med egen skala per serie ville en pumpe på 200 W sett like stor ut som
+  en varmepumpe på 2 kW.
+
+Historikken henter nå varmepumpeeffekten i tillegg til pumpeeffekten, i samme spørring.
+
+Fanene er uendret — det er `simple-tabs`-formen fra før.
