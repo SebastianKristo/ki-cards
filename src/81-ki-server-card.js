@@ -13,7 +13,7 @@
  * Alt annet finnes selv: UniFi-enhetene, Proxmox-containere og -maskiner, Unraids
  * containere, disker og delinger.
  */
-const KI_SRV_VERSJON = "1.2.0";
+const KI_SRV_VERSJON = "2.0.0";
 
 const KI_SRV_STIL = `
   :host { display:block; max-width:100%; overflow-x:clip;
@@ -46,6 +46,43 @@ const KI_SRV_STIL = `
     opacity:1; transform:rotate(90deg); }
   @keyframes srvPuls { 0%,100% { opacity:1 } 50% { opacity:.35 } }
 
+  /* ---------- scenen: serverrommet ----------
+     Planterkortet har scene: true og scene_hoyde: 200, og det er den formen som gjør de
+     popupene levende. Her er serverrommet: rack med diskblink, vifte som snurrer, og
+     pakker som renner mellom nodene. Hver fane tenner sin del. */
+  .scene { position:relative; border-radius:26px; overflow:hidden; background:var(--gray200);
+    margin-bottom:8px; }
+  .scene svg { display:block; width:100%; }
+  .rackramme { fill:none; stroke:color-mix(in srgb, var(--gray1000) 22%, transparent);
+    stroke-width:2; }
+  .rackhylle { fill:rgba(250,251,252,.05); }
+  .disk { fill:rgba(250,251,252,.10); }
+  .diskled { fill:var(--f2); }
+  .diskled.blink { animation:srvBlink 1.4s steps(2,end) infinite; }
+  @keyframes srvBlink { 0%,60% { opacity:1 } 61%,100% { opacity:.15 } }
+  .vifte { transform-box:fill-box; transform-origin:50% 50%; animation:srvSnurr 3.2s linear infinite; }
+  @keyframes srvSnurr { to { transform:rotate(360deg) } }
+  .viftehus { fill:rgba(250,251,252,.08); }
+  .viftblad { fill:rgba(250,251,252,.22); }
+  /* Pakkene renner fra racket mot nettverkssymbolet og tilbake */
+  .pakke { fill:var(--f1); animation:srvPakke 2.6s linear infinite; }
+  @keyframes srvPakke {
+    0% { transform:translateX(0); opacity:0 }
+    10% { opacity:.9 }
+    90% { opacity:.9 }
+    100% { transform:translateX(96px); opacity:0 }
+  }
+  .kabel { stroke:color-mix(in srgb, var(--gray1000) 16%, transparent); stroke-width:2; fill:none; }
+  .sky { fill:rgba(250,251,252,.10); }
+  .scenetekst { position:absolute; left:18px; top:14px; }
+  .scenetekst .st1 { font-size:12px; font-weight:600; opacity:.55;
+    text-transform:uppercase; letter-spacing:.05em; }
+  .scenetekst .st2 { font-size:19px; font-weight:700; letter-spacing:-.015em; margin-top:2px; }
+  .scenetall { position:absolute; right:18px; bottom:14px; text-align:right; }
+  .scenetall b { font-size:2em; font-weight:300; letter-spacing:-.02em; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .scenetall span { display:block; font-size:12px; opacity:.55; margin-top:2px; }
+
   /* ---------- heroen ----------
      Grafen ligger BAK tallet, ikke ved siden av. Det er det som gjør at et stort tall
      og en tidsserie får plass på samme flate uten å slåss om oppmerksomheten. */
@@ -77,6 +114,27 @@ const KI_SRV_STIL = `
   .hero .stort span { font-size:13px; opacity:.55; font-weight:500; }
   .hero .stort em { font-style:normal; font-size:12px; opacity:.5; margin-left:auto;
     align-self:flex-end; text-align:right; }
+
+  /* ---------- fliser i dashbordets egen form ----------
+     Malene er hentet fra universal_sensor_ny: 160 px hoy, rundt ikonfelt paa 52 px med
+     30 px ikon, verdien i 2em/300 og navnet under. To per rad, som i vanningspopupen. */
+  .fliser { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .flis { position:relative; height:160px; border-radius:26px; background:var(--gray200);
+    padding:20px; cursor:pointer; display:grid; align-content:space-between;
+    transition:transform .12s var(--myk); }
+  .flis:active { transform:scale(.985); }
+  .flis .fik { width:52px; height:52px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:30px;
+    background:rgba(250,251,252,.10); color:var(--a); }
+  .flis .fnavn { font-size:14px; opacity:.6; padding-top:10px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .flis .fverdi { font-size:2em; font-weight:300; letter-spacing:-.02em; line-height:1.1;
+    font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .flis .fverdi small { font-size:14px; line-height:1.5em; margin-left:4px; font-weight:300; }
+  .flis.gul { background:color-mix(in srgb, var(--f4) 20%, var(--gray200)); }
+  .flis.rod { background:color-mix(in srgb, var(--fr) 22%, var(--gray200)); }
+  .flis.borte { opacity:.45; }
 
   /* ---------- brede rader med ikonfelt ----------
      Rutefliser fire per rad ble avvist, og med god grunn: de er små, tette, og
@@ -415,6 +473,55 @@ class KiServerCard extends HTMLElement {
   }
 
   // ------------------------------------------------------------ byggeklosser
+  /* Serverrommet som scene. Hvilken fane du står i tenner sin del: racket blinker
+     alltid, viften snurrer når CPU-en jobber, pakkene renner når nettet er oppe, og
+     skyen lyser når noe lastes ned. */
+  _sceneHtml(nokkel, farge, merke, tilstand, stort, enhet) {
+    const h = Number(this._c.scene_hoyde) || 200;
+    const arbeider = nokkel === "unraid" || nokkel === "proxmox";
+    const nett = nokkel === "unifi";
+    const laster = nokkel === "nedlasting";
+
+    /* Diskene blinker i ulik takt. Samme takt ville sett ut som ett lys, ikke som
+       fire disker som jobber hver for seg. */
+    const disker = [0, 1, 2, 3].map((i) => `
+      <g transform="translate(0 ${i * 22})">
+        <rect class="disk" x="38" y="52" width="86" height="16" rx="4"></rect>
+        <circle class="diskled blink" cx="114" cy="60" r="3"
+                style="animation-delay:-${(i * 0.37).toFixed(2)}s"></circle>
+      </g>`).join("");
+
+    const pakker = nett || laster ? [0, 1, 2, 3].map((i) => `
+      <rect class="pakke" x="140" y="${70 + i * 14}" width="7" height="4" rx="2"
+            style="animation-delay:-${(i * 0.65).toFixed(2)}s"></rect>`).join("") : "";
+
+    return `<div class="scene" style="--a:${farge}">
+      <svg viewBox="0 0 320 ${h}" preserveAspectRatio="xMidYMid meet">
+        <rect class="rackramme" x="30" y="42" width="102" height="${Math.min(h - 60, 104)}" rx="8"></rect>
+        ${disker}
+        ${arbeider ? `<g class="vifte" transform="translate(252 ${Math.min(h - 54, 128)})">
+          <circle class="viftehus" cx="0" cy="0" r="20"></circle>
+          ${[0, 1, 2, 3, 4].map((i) => `<path class="viftblad"
+            transform="rotate(${i * 72})" d="M0 0 L5 -17 A18 18 0 0 0 -5 -17 Z"></path>`).join("")}
+        </g>` : ""}
+        ${nett || laster ? `
+          <path class="kabel" d="M132 96 H244"></path>
+          ${pakker}
+          <g transform="translate(252 ${Math.min(h - 62, 96)})">
+            <path class="sky" d="M-18 6 a10 10 0 0 1 3 -19 a13 13 0 0 1 25 -3
+              a9 9 0 0 1 4 22 z"></path>
+          </g>` : ""}
+      </svg>
+      <div class="scenetekst">
+        <div class="st1">${kiSrvEsc(merke)}</div>
+        <div class="st2">${kiSrvEsc(tilstand)}</div>
+      </div>
+      <div class="scenetall">
+        <b>${kiSrvEsc(stort)}</b><span>${kiSrvEsc(enhet || "")}</span>
+      </div>
+    </div>`;
+  }
+
   _heroHtml({ nokkel, farge, ikon, merke, tilstand, stort, enhet, hoyre, pille, entity }) {
     const h = this._helse(nokkel);
     const p = pille || (h.niva === "feil"
@@ -471,7 +578,7 @@ class KiServerCard extends HTMLElement {
     const ut = [];
     for (let i = 0; i < med.length; i++) {
       const t = les(med[i]);
-      if (t.par && med[i + 1]) {
+      if (t.par && med[i + 1] && this._c.fliser === false) {
         const u = les(med[++i]);
         ut.push(`<div class="par" style="--a:${farge}">${[t, u].map((x) => `
           <div class="parcelle" data-mer="${kiSrvEsc(x.entity)}" tabindex="0">
@@ -479,6 +586,18 @@ class KiServerCard extends HTMLElement {
             <div class="parv">${kiSrvEsc(x.verdi)}${x.enhet
               ? `<small>${kiSrvEsc(x.enhet)}</small>` : ""}</div>
           </div>`).join("")}</div>`);
+        continue;
+      }
+      if (this._c.fliser !== false) {
+        ut.push(`<div class="flis ${t.borte ? "borte" : t.niva}" style="--a:${farge}"
+             data-mer="${kiSrvEsc(t.entity)}" tabindex="0">
+          <span class="fik"><ha-icon icon="${kiSrvEsc(t.ikon || "mdi:chart-line")}"></ha-icon></span>
+          <div>
+            <div class="fverdi">${kiSrvEsc(t.verdi)}${t.enhet
+              ? `<small>${kiSrvEsc(t.enhet)}</small>` : ""}</div>
+            <div class="fnavn">${kiSrvEsc(t.navn)}</div>
+          </div>
+        </div>`);
         continue;
       }
       ut.push(`<div class="irad ${t.borte ? "borte" : t.niva}" style="--a:${farge}"
@@ -491,7 +610,8 @@ class KiServerCard extends HTMLElement {
           <i style="width:${t.pst.toFixed(1)}%"></i></span>`}
       </div>`);
     }
-    return `<div class="rader">${ut.join("")}</div>`;
+    return `<div class="${this._c.fliser === false ? "rader" : "fliser"}">${
+      ut.join("")}</div>`;
   }
 
   _knapper(liste) {
@@ -523,7 +643,10 @@ class KiServerCard extends HTMLElement {
     const vist = sok ? cont.filter((x) => x.navn.toLowerCase().includes(sok)
       || x.nokkel.toLowerCase().includes(sok)) : cont;
 
-    return this._heroHtml({
+    return (this._c.scene === false ? "" : this._sceneHtml("unraid", "var(--f2)", "Unraid",
+      this._pa(Ub + "array_started") ? "Array kjører" : "Array er stoppet",
+      kiSrvFmt(array, 0), "% av array-en brukt"))
+    + this._heroHtml({
       nokkel: "unraid", farge: "var(--f2)", ikon: "mdi:server", merke: "Unraid",
       tilstand: this._pa(Ub + "array_started") ? "Array kjører" : "Array er stoppet",
       stort: kiSrvFmt(array, 0), enhet: "% av array-en brukt",
@@ -575,6 +698,8 @@ class KiServerCard extends HTMLElement {
     const R = "sensor.oslo_dream_machine_pro_";
     const klienter = this._n(R + "clients");
 
+    return (this._c.scene === false ? "" : this._sceneHtml("unifi", "var(--f1)", "UniFi",
+      oppe === e.length ? "Nettet er oppe" : `${e.length - oppe} enhet(er) svarer ikke`, kiSrvFmt(klienter, 0), "klienter"))
     return this._heroHtml({
       nokkel: "unifi", farge: "var(--f1)", ikon: "mdi:lan-connect", merke: "UniFi",
       tilstand: oppe === e.length ? "Nettet er oppe" : `${e.length - oppe} enhet(er) svarer ikke`,
@@ -628,6 +753,8 @@ class KiServerCard extends HTMLElement {
     const cpu = this._n(N + "cpu_usage");
     const lagring = this._bruk("sensor.5_storage_", "_usage");
 
+    return (this._c.scene === false ? "" : this._sceneHtml("proxmox", "var(--f3)", "Proxmox",
+      this._pa(N + "node_status", ["online"]) ? "Noden er online" : "Noden svarer ikke", kiSrvFmt(cpu, 0), "% CPU"))
     return this._heroHtml({
       nokkel: "proxmox", farge: "var(--f3)", ikon: "mdi:server-network", merke: "Proxmox",
       tilstand: this._pa(N + "node_status", ["online"]) ? "Noden er online" : "Noden svarer ikke",
@@ -679,6 +806,8 @@ class KiServerCard extends HTMLElement {
       up_down: "Laster og deler", idle: "Hviler" }[status] || status;
     const kob = this._s(Q + "connection_status");
 
+    return (this._c.scene === false ? "" : this._sceneHtml("nedlasting", "var(--f4)", "qBittorrent",
+      navn, kiSrvFmt(ned, 1), "MB/s ned"))
     return this._heroHtml({
       nokkel: "nedlasting", farge: "var(--f4)", ikon: "mdi:download-network-outline",
       merke: "qBittorrent", tilstand: navn,

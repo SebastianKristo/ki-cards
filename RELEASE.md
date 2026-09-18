@@ -1,30 +1,44 @@
-# ki-cards 4.4.0
+# ki-cards 4.5.0
 
-## Jeg leste dashbordet, og bygget serverpopupen av dine egne klosser
+## `ki-server-card` 2.0.0: bygget etter dashbordet, ikke etter gjetning
 
-Til nå har jeg designet serverpopupen sju ganger uten å ha sett dashbordet — hvert
-vedlegg kom fram tomt, og jeg fortsatte å gjette i stedet for å stoppe. Nå kom fila
-gjennom.
+Jeg leste dashbordet ditt, og de tre popupene du peker på har alle **samme form**: ett
+kort og en gap-card, ingen sammensatt YAML.
 
-M�nsteret er et helt annet enn det jeg har laget:
+```yaml
+- type: custom:ki-planter-pro-card
+  scene: true
+  scene_hoyde: 200
+```
 
-* `button-card` med `template: universal_sensor_ny`, **to per rad** i et vanlig `grid`
-* `custom:mini-graph-card` som **stolpediagram**, `group_by: date`, med card_mod som gir
-  den `--gray200`-bakgrunn, 14 px navn og 32 px verdi
-* `simple-tabs` med den runde fanerada og `--active-big` på valgt
+Serverpopupen følger den formen nå — 111 linjer i stedet for tusen.
 
-Det er nøyaktig formen vanningspopupen har. `examples/server-popup.yaml` følger den nå:
-22 fliser og 6 grafer fordelt på fire faner, alle bygget av dine maler i stedet for mine
-egne korttyper.
+### Animert scene øverst
 
-## `ki-server-card` 1.2.0: `bare_hero`
+Et serverrom: rack med fire disker som blinker i **ulik takt** — samme takt ville sett ut
+som ett lys, ikke fire disker som jobber hver for seg — vifte som snurrer når noden
+jobber, og pakker som renner langs kabelen mot skyen når nettet er oppe.
 
-Kortet beholdes øverst i hver fane, men bare som **hero** — statuslinja med helsen og det
-store tallet. `bare_hero: true` fjerner fanerada, tallene og listene, og `fane:` låser
-hvilken den viser.
+Hver fane tenner sin del: Unraid og Proxmox får viften, UniFi og Nedlasting får pakkene.
+`scene: false` slår den av, `scene_hoyde` endrer høyden.
 
-Uten det ville popupen hatt to fanerader og to sett med tall oppå hverandre — to design i
-samme kort, som er akkurat det som gjorde de forrige forsøkene rotete.
+### Flisene har dashbordets egne mål
 
-Testet: fullt kort gir hero, fanerad, 8 rader og 2 lister. Med `bare_hero: true` gir det
-hero og ingenting annet, og `fane:` treffer riktig hero i alle fire.
+Hentet rett fra `universal_sensor_ny`: 160 px høy, rundt ikonfelt på 52 px med 30 px
+ikon, verdien i `2em/300` med enheten i 14 px, og navnet under. To per rad.
+
+Det er den samme flisen vanningspopupen bruker — nå tegnet av kortet i stedet for av
+button-card, så den følger med automatisk for alt som oppdages.
+
+`fliser: false` gir de brede radene fra 1.1.0 i stedet.
+
+### Testet
+
+Alle fire fanene: scene tegnet, fire diskblink med ulik forsinkelse, viften bare på
+Unraid og Proxmox, pakkene bare på UniFi og Nedlasting. Flisene måler 160 px med 2em
+verdi, og første flis viser «12 % / CPU» med riktig ikon.
+
+### Om backticks
+
+Femte gang i dag skrev jeg backticks i en CSS-kommentar og lukket template-strengen.
+`node --check` fanget det denne gangen. Byggeskrittet fra 3.98.1 fanger det uansett.
