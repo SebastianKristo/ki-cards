@@ -1,4 +1,4 @@
-/* ki-cards v4.3.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v4.4.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.3.0";
+  KI.VERSION = "4.4.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -23214,7 +23214,7 @@ try {
  * Alt annet finnes selv: UniFi-enhetene, Proxmox-containere og -maskiner, Unraids
  * containere, disker og delinger.
  */
-const KI_SRV_VERSJON = "1.1.0";
+const KI_SRV_VERSJON = "1.2.0";
 
 const KI_SRV_STIL = `
   :host { display:block; max-width:100%; overflow-x:clip;
@@ -23417,6 +23417,9 @@ class KiServerCard extends HTMLElement {
   getCardSize() { return 14; }
 
   setConfig(c) {
+    /* `bare_hero: true` viser bare statuslinja og det store tallet — tallene under
+       kommer da fra dashbordets egne `universal_sensor_ny`-fliser i stedet for fra
+       kortet. `fane:` låser hvilken den viser, så én per fane i popupen. */
     this._c = { unraid: "d_day_darling", qbit: "sensor.qbittorrent_",
       pve_node: "sensor.1_node_pve_", pve_ct: "sensor.3_ct_", pve_vm: "sensor.4_vm_",
       knapp_ct: "button.3_ct_", knapp_vm: "button.4_vm_", ...(c || {}) };
@@ -23951,7 +23954,10 @@ class KiServerCard extends HTMLElement {
       { id: "proxmox", navn: "Proxmox" },
       { id: "nedlasting", navn: "Nedlasting" },
     ];
-    const aktiv = faner.some((f) => f.id === this._fane) || this._fane === "innstillinger"
+    const laast = this._c.fane;
+    const aktiv = laast && (faner.some((f) => f.id === laast) || laast === "innstillinger")
+      ? laast
+      : faner.some((f) => f.id === this._fane) || this._fane === "innstillinger"
       ? this._fane : "unraid";
 
     const innhold = aktiv === "unraid" ? this._unraidHtml()
@@ -23962,6 +23968,24 @@ class KiServerCard extends HTMLElement {
 
     /* Prikken i fanen viser helsen der, så du ser hvor problemet er uten å åpne fanen.
        Det er hele grunnen til at helsen regnes ut for alle fire hver gang. */
+    /* Bare heroen: ingen fanerad, ingen tall, ingen lister. Popupen har sin egen
+       fanerad og sine egne fliser, og to sett ville vært to design oppå hverandre. */
+    if (this._c.bare_hero) {
+      const bare = aktiv === "unraid" ? this._unraidHtml()
+        : aktiv === "unifi" ? this._unifiHtml()
+        : aktiv === "proxmox" ? this._proxmoxHtml()
+        : this._nedlastingHtml();
+      const slutt = bare.indexOf("</div>", bare.indexOf('class="stort"'));
+      rot.innerHTML = bare.slice(0, bare.indexOf("</div>", slutt + 6) + 6);
+      for (const el of rot.querySelectorAll("[data-mer]")) {
+        if (!el.dataset.mer) continue;
+        el.addEventListener("click", () => this.dispatchEvent(new CustomEvent(
+          "hass-more-info", { detail: { entityId: el.dataset.mer },
+            bubbles: true, composed: true })));
+      }
+      return;
+    }
+
     rot.innerHTML = `
       <div class="fanerad">
         <div class="faner">${faner.map((f) => {

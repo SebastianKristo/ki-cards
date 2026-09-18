@@ -1,17 +1,17 @@
-# Server-popupen.
+# Server-popupen, bygget av dine egne byggeklosser.
 #
-# Ett kort, ikke et sammensatt oppsett. Fem forsøk med sammensatte kort ble dårligere
-# for hver gang, og årsaken var metoden: åtte korttyper med hver sin stil, limt sammen
-# i YAML, kan ikke bli et helhetlig design.
+# Jeg leste dashbordet ditt nå, og mønsteret er et helt annet enn det jeg har laget:
 #
-# `ki-server-card` eier alt — faner, hero med levende graf, tall, lister, knapper — så
-# formspråket er ett stykke arbeid i stedet for åtte som nesten passer sammen.
+#   · `button-card` med `template: universal_sensor_ny`, to per rad i et `grid`
+#   · `custom:mini-graph-card` som stolpediagram, `group_by: date`, med card_mod som
+#     gir den `--gray200`-bakgrunn og 32 px verdi
+#   · `simple-tabs` med den runde fanerada
 #
-# Fanene har en prikk som viser helsen der: rød når noe er nede, gul ved advarsel. Du
-# ser hvilken fane problemet ligger i uten å åpne den.
+# Det er nøyaktig formen vanningspopupen har. Serverpopupen følger den nå.
 #
-# Alt finnes automatisk: UniFi-enhetene, Proxmox-containerne og -maskinene, Unraids
-# containere, disker og delinger. Tannhjulet viser hvilke prefikser som brukes.
+# `ki-server-card` er beholdt øverst i hver fane, men bare som hero — statuslinja med
+# helsen og det store tallet. Tallene under kommer fra dine egne fliser i stedet for
+# kortets. `bare_hero: true` krever ki-cards 4.4.0.
 
 type: custom:bubble-card
 card_type: pop-up
@@ -26,82 +26,478 @@ margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 button_type: name
-styles: >
-  .bubble-pop-up-container {
-    --vertical-stack-card-gap: 0px !important;
-  }
-
-  #header-container > div > div { background: var(--gray000) !important; }
-
-  #header-container > button { background: none; }
-
-  .icon-container { background-color: var(--gray1000) !important; }
-
-  .icon-container > ha-icon { color: var(--black) !important; opacity: 1
-  !important; }
-
-  .bubble-icon { --mdc-icon-size: 24px !important; }
-
-  .bubble-name {
-    font-size: 30px !important;
-    font-weight: 500;
-    line-height: 1.4 !important;
-    padding: 8px 0 !important;
-  }
-
-  .bubble-close-button { background-color: var(--gray200) !important;
-  border-radius: 50%; }
-
+styles: ".bubble-pop-up-container {\n  --vertical-stack-card-gap: 0px !important;\n}\n#header-container > div > div { background: var(--gray000) !important; }\n#header-container > button { background: none;\
+  \ }\n.icon-container { background-color: var(--gray1000) !important; }\n.icon-container > ha-icon { color: var(--black) !important; opacity: 1 !important; }\n.bubble-icon { --mdc-icon-size: 24px !important;\
+  \ }\n.bubble-name {\n  font-size: 30px !important;\n  font-weight: 500;\n  line-height: 1.4 !important;\n  padding: 8px 0 !important;\n}\n.bubble-close-button { background-color: var(--gray200) !important;\
+  \ border-radius: 50%; }\n"
 cards:
-  - type: custom:gap-card
-    height: 0
-
-  - type: custom:ki-server-card
-    unraid: d_day_darling
-    qbit: sensor.qbittorrent_
-    pve_node: sensor.1_node_pve_
-    # Standardverdier — ta dem med bare hvis dine avviker:
-    # pve_ct: sensor.3_ct_
-    # pve_vm: sensor.4_vm_
-    # knapp_ct: button.3_ct_
-    # knapp_vm: button.4_vm_
-    navn_kort:
-      adguard_home: AdGuard Home
-      binhex_jellyfin: Jellyfin
-      binhex_minecraftserver: Minecraft
-      binhex_official_metube: MeTube
-      binhex_plexpass: Plex
-      binhex_prowlarr: Prowlarr (binhex)
-      binhex_qbittorrentvpn: qBittorrent VPN
-      binhex_radarr: Radarr
-      binhex_readarr: Readarr
-      binhex_seerr: Seerr
-      binhex_sonarr: Sonarr
-      cloudflare_ddns: Cloudflare DDNS
-      cloudflaredtunnel: Cloudflared
-      glance_1: Glance
-      homeassistant_inabox: HA in a box
-      immich_machine_learning: Immich ML
-      immich_postgres: Immich DB
-      immich_redis: Immich Redis
-      immich_server: Immich
-      jellyfin_rewind: Jellyfin Rewind
-      jellyplex_watched: Jellyplex
-      lyrionmusicserver: Lyrion
-      portainerce: Portainer
-      silo_postgresql: Silo DB
-      speedtest_by_openspeedtest: OpenSpeedTest
-      speedtest_tracker: Speedtest Tracker
-      uptimekuma: Uptime Kuma
-      cach: Cache
-      disk1: Disk 1
-      disk2: Disk 2
-      disk3: Disk 3
-      disk4: Disk 4
-      aoosar_x_linux: Aoosar X Linux
-      tank: tank (ZFS)
-
-  - type: custom:gap-card
-    height: 36
-
+- type: custom:gap-card
+  height: 0
+- type: custom:simple-tabs
+  alignment: center
+  tab_position: top
+  show_fade: false
+  tabs_gap: 4px
+  button_padding: 9px 22px
+  background-color: transparent
+  border-color: transparent
+  text-color: rgba(255, 255, 255, 0.72)
+  hover-color: rgba(255, 255, 255, 0.95)
+  container_background: transparent
+  container_padding: 0 0 12px 0
+  tabs:
+  - title: Unraid
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-server-card
+        unraid: d_day_darling
+        fane: unraid
+        bare_hero: true
+      - type: custom:gap-card
+        height: 10
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_cpu_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:cpu-64-bit
+            sub_text: CPU
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_ram_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:memory
+            sub_text: RAM
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_array_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:harddisk
+            sub_text: Array brukt
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_cpu_temperature
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:thermometer
+            sub_text: Temperatur
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >°</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_up_since
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:clock-outline
+            sub_text: Oppe
+            main_text: "[[[\n  if (!entity) return '–';\n  const d = new Date(entity.state);\n  if (isNaN(d)) return entity.state;\n  const t = (Date.now() - d.getTime()) / 86400000;\n  if (t >= 1) return\
+              \ Math.floor(t) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\">døgn</span>';\n  return Math.floor(t * 24) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >t</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.d_day_darling_container_updates_available
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:cloud-download
+            sub_text: Oppdateringer
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '';\n]]]\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.d_day_darling_cpu_usage
+        name: CPU per dag
+        hours_to_show: 168
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--blue)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.d_day_darling_array_usage
+        name: Array brukt per dag
+        hours_to_show: 168
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--green)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+  - title: UniFi
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-server-card
+        unraid: d_day_darling
+        fane: unifi
+        bare_hero: true
+      - type: custom:gap-card
+        height: 10
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.oslo_dream_machine_pro_clients
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:account-group
+            sub_text: Klienter
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.oslo_dream_machine_pro_google_wan_latency
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:speedometer
+            sub_text: Latens
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              > ms</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.oslo_dream_machine_pro_cpu_utilisation_2
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:router-network
+            sub_text: Ruter CPU
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.oslo_dream_machine_pro_cpu_temperature_2
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:thermometer
+            sub_text: Ruter temp
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >°</span>';\n]]]\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.oslo_dream_machine_pro_clients
+        name: Klienter per dag
+        hours_to_show: 168
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--blue)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.oslo_dream_machine_pro_google_wan_latency
+        name: Latens per dag
+        hours_to_show: 168
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--orange)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+  - title: Proxmox
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-server-card
+        unraid: d_day_darling
+        fane: proxmox
+        bare_hero: true
+      - type: custom:gap-card
+        height: 10
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_cpu_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:cpu-64-bit
+            sub_text: CPU
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_memory_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:memory
+            sub_text: Minne
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_load_average_1m
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:speedometer
+            sub_text: Load 1m
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(2) + '';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_root_filesystem_usage
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:harddisk
+            sub_text: Rot-FS
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >%</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_uptime
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:clock-outline
+            sub_text: Oppe
+            main_text: "[[[\n  if (!entity) return '–';\n  const d = new Date(entity.state);\n  if (isNaN(d)) return entity.state;\n  const t = (Date.now() - d.getTime()) / 86400000;\n  if (t >= 1) return\
+              \ Math.floor(t) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\">døgn</span>';\n  return Math.floor(t * 24) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              >t</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.1_node_pve_pve_version
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:server-network
+            sub_text: PVE-versjon
+            main_text: "[[[\n  return entity && !['unknown','unavailable'].includes(entity.state)\n    ? entity.state : '–';\n]]]\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.1_node_pve_cpu_usage
+        name: Node-CPU per dag
+        hours_to_show: 168
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--purple)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+  - title: Nedlasting
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-server-card
+        unraid: d_day_darling
+        fane: nedlasting
+        bare_hero: true
+      - type: custom:gap-card
+        height: 10
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_download_speed
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:download
+            sub_text: Ned nå
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(1) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              > MB/s</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_upload_speed
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:upload
+            sub_text: Opp nå
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(1) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              > MB/s</span>';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_active_torrents
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:play-circle
+            sub_text: Aktive
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_all_torrents
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:format-list-numbered
+            sub_text: I kø
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(0) + '';\n]]]\n"
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_all_time_download
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:download
+            sub_text: Ned totalt
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(2) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              > TiB</span>';\n]]]\n"
+        - type: custom:button-card
+          template: universal_sensor_ny
+          entity: sensor.qbittorrent_all_time_upload
+          variables:
+            size: big
+            background_color: var(--gray200)
+            text_color: var(--gray1000)
+            icon: mdi:upload
+            sub_text: Opp totalt
+            main_text: "[[[\n  if (!entity || isNaN(parseFloat(entity.state))) return '–';\n  return parseFloat(entity.state).toFixed(2) + '<span style=\"font-size:14px;line-height:1.5em;margin-left:4px;font-weight:300;\"\
+              > TiB</span>';\n]]]\n"
+      - type: custom:mini-graph-card
+        entities:
+        - entity: sensor.qbittorrent_all_time_download
+        name: Lastet ned per dag
+        hours_to_show: 720
+        aggregate_func: max
+        group_by: date
+        font_size: 50
+        font_size_header: 12
+        hour24: true
+        line_color: var(--blue)
+        show:
+          graph: bar
+          legend: false
+          icon: false
+          labels: false
+          labels_secondary: false
+        card_mod:
+          style: "ha-card { background: var(--gray200); margin-top: 12px; }\n.header { padding: 2px 8px 8px 16px; }\n.name > span { font-weight: 400 !important; font-size: 14px !important; }\n.state__uom\
+            \ {\n  font-weight: 300 !important;\n  font-size: 14px !important;\n  opacity: 1 !important;\n  margin-top: 0 !important;\n  margin-bottom: 2px !important;\n}\n.state__value { font-size: 32px\
+            \ !important; }\n"
+  card_mod:
+    style: ".tabs-container {\n  width: fit-content !important;\n  margin: 0 auto !important;\n  padding: 2px 2px !important;\n  border: 1px solid rgba(255, 255, 255, 0.3);\n  border-radius: 999px;\n  overflow:\
+      \ hidden !important;\n}\n.tab-button {\n  border-radius: 999px !important;\n  font-weight: 500;\n}\n.tab-button.active {\n  background: var(--active-big) !important;\n  color: rgba(70, 58, 64, 0.95)\
+      \ !important;\n  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);\n}\n"
+- type: custom:gap-card
+  height: 36
 popup_mode: default

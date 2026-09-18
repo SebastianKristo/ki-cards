@@ -1,29 +1,30 @@
-# ki-cards 4.3.0
+# ki-cards 4.4.0
 
-## `ki-server-card` 1.1.0: brede rader i stedet for rutefliser
+## Jeg leste dashbordet, og bygget serverpopupen av dine egne klosser
 
-Rutenettet med fire små fliser per rad var lånt fra et annet kort og hørte ikke hjemme
-her. Ingenting annet i dashbordet ser slik ut.
+Til nå har jeg designet serverpopupen sju ganger uten å ha sett dashbordet — hvert
+vedlegg kom fram tomt, og jeg fortsatte å gjette i stedet for å stoppe. Nå kom fila
+gjennom.
 
-Serverkortet bruker nå **samme form som bannerne og info-radene i bassengkortet**: én bred
-flate per opplysning, rundt ikonfelt på 42 px til venstre, navnet i midten, verdien til
-høyre. Stolpen ligger langs underkanten av raden i stedet for inne i en flis, så nivået
-vises uten å ta en egen linje.
+M�nsteret er et helt annet enn det jeg har laget:
 
-Hver rad har fått sitt eget ikon — CPU, minne, temperatur, oppetid, Docker, latens og
-resten — så raden kan leses på ikonet før du leser teksten.
+* `button-card` med `template: universal_sensor_ny`, **to per rad** i et vanlig `grid`
+* `custom:mini-graph-card` som **stolpediagram**, `group_by: date`, med card_mod som gir
+  den `--gray200`-bakgrunn, 14 px navn og 32 px verdi
+* `simple-tabs` med den runde fanerada og `--active-big` på valgt
 
-Tall som hører sammen deler én flate med et hårfint skille mellom, slik «i dag»-flaten i
-bassengkortet gjør. «Ned totalt» og «Opp totalt» er første par; `par: true` på et tall
-legger det sammen med det neste.
+Det er nøyaktig formen vanningspopupen har. `examples/server-popup.yaml` følger den nå:
+22 fliser og 6 grafer fordelt på fire faner, alle bygget av dine maler i stedet for mine
+egne korttyper.
 
-Fargene er uendret: raden blir gul over `gul`-terskelen og rød over `rod`. RAM på 88 % med
-terskler 75 og 90 blir gul, ikke rød — kontrollert.
+## `ki-server-card` 1.2.0: `bare_hero`
 
-Heroene, faneprikkene, listene, søket, knappene og oppdagelsen er uendret.
+Kortet beholdes øverst i hver fane, men bare som **hero** — statuslinja med helsen og det
+store tallet. `bare_hero: true` fjerner fanerada, tallene og listene, og `fane:` låser
+hvilken den viser.
 
-### Testet
+Uten det ville popupen hatt to fanerader og to sett med tall oppå hverandre — to design i
+samme kort, som er akkurat det som gjorde de forrige forsøkene rotete.
 
-Unraid-fanen: 13 brede rader, 0 rutefliser, hver med ikon og riktig stolpelengde.
-Nedlasting: 6 rader og én par-flate med «Ned totalt 1,73 TiB | Opp totalt 0,72 TiB».
-Gul og rød terskel treffer de radene de skal.
+Testet: fullt kort gir hero, fanerad, 8 rader og 2 lister. Med `bare_hero: true` gir det
+hero og ingenting annet, og `fane:` treffer riktig hero i alle fire.
