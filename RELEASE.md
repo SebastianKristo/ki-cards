@@ -1,40 +1,25 @@
-# ki-cards 3.89.0
+# ki-cards 3.90.0
 
-## Containere som kjørte ble vist som nede i rødt
+## `ki-klima-pro-card` 2.8.0: tilstedeværelse og bortestyring
 
-`ki-rack-card` sammenlignet tilstanden ordrett mot `"running"`, og oppdagelsen låste
-`status_pa` til nettopp den verdien. Proxmox Extended Sensors oppgir «running» for noen
-containere og «online», «on» eller «Running» for andre — og alt som ikke var akkurat
-`running` ble rødt.
+**Ny blokk øverst i Oversikt.** Er noen hjemme, ute en tur, eller borte siden helgen? Det
+sto ingen steder i kortet, selv om integrasjonen skiller mellom de to siste.
 
-Sammenligningen er nå uten hensyn til store og små bokstaver, og standardlista dekker
-`running`, `online`, `on`, `started`, `active`, `up` og `ok`. Oppdagelsen setter ikke
-lenger `status_pa` i det hele tatt, så standardlista gjelder.
+Blokka leser `sensor.ki_tilstedevaerelse` (ny i KI Energi 2.20.0) og viser teksten med
+farge etter alvor: grønn når noen er hjemme, gul ved kort tur, blå ved bortemodus, dempet
+når tilstedeværelse er ukjent. Under står hvor lenge, og når hjemkomsten er satt til.
 
-**Og en tilstand vi ikke kjenner igjen** — verken en «på»- eller en kjent «av»-verdi —
-vises nå som uten svar, ikke som nede. Et falskt rødt kort er verre enn et spørsmålstegn.
-Testet mot fjorten skrivemåter.
+Ved kort tur står nedtellingen til bortemodus i teksten — «Ute en tur, 40 min —
+bortemodus om 5 t 20 min». Det er det man vil vite når man er ute: hvor lang tid før huset
+senker seg.
 
-## Unraid-fanen: fliser som navigasjon
+Under teksten ligger **bortestyringen**, som manglet: bryterne for bortemodus, automatisk
+aktivering og hjemkomst, og de fire tallene — timer før auto, og bortetemperaturene for
+panelovn, gulvvarme og bad. Trykk på et tall åpner det.
 
-Fanen hadde fem seksjoner under hverandre og var den siste som krevde rulling. Nå er den
-fem fliser: **Array, Containere, Disker, Delinger, Virtuelle maskiner**. Hver flis viser
-det ene tallet som sier om delen har det bra, og åpner sin egen del over rutenettet.
+**«Helgemodus» heter «Bortemodus».** Det er samme navnebytte som i integrasjonen: på en
+hytte er det ukedagene den står tom, og navnet var grunnen til at bortestyringen ikke var
+å finne.
 
-Fanen er fra atten kort til fem.
-
-`kort:` er nytt i `ki-rack-card`: en flis kan åpne en vilkårlig liste kort, ikke bare en
-enhet. Det er dette som gjør flisene brukbare som navigasjon.
-
-### To feil det avdekket
-
-**Innebygde Home Assistant-kort kunne ikke lages.** `grid`, `conditional` og `entities`
-heter noe annet internt, og `document.createElement("grid")` gir ingenting. VM-flisen
-åpnet derfor en tom seksjon. Egendefinerte kort lages direkte, resten gjennom
-`loadCardHelpers()`, som er måten HA gjør det selv.
-
-**Disker-flisen viste «off paritet».** En rå tilstand som undertekst sier ingenting.
-Paritetshelsen er nå flisens *status* — «off» betyr frisk i Unraid — og underteksten viser
-hvor mye av array-en som er brukt.
-
-Fliser uten statusentitet er ren navigasjon, og får en pil i stedet for en farget prikk.
+Blokka vises ikke i det hele tatt hvis sensoren mangler, så kortet fungerer uendret på en
+eldre integrasjonsversjon.

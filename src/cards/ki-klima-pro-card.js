@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "2.7.0";
+const KI_PRO_VERSJON = "2.8.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -614,10 +614,90 @@ class KiKlimaProCard extends HTMLElement {
 
   /* ---------------------------- Oversikt ---------------------- */
 
+  /* Tilstedeværelse: er noen hjemme, ute en tur, eller borte siden helgen?
+   *
+   * Integrasjonen skiller mellom de to siste — en tur på butikken skal ikke senke huset,
+   * bortreist skal — men skillet fantes ikke noe sted i kortet. Nå står det i klartekst
+   * med hvor lenge, og med bortestyringen ved siden av.
+   */
+  _tilstedeBlokk() {
+    const st = this._st("sensor.ki_tilstedevaerelse");
+    if (!st) return "";
+    const a = st.attributes || {};
+    const tilstand = st.state;
+    const tekst = a.tekst || tilstand;
+
+    const klasse = { hjemme: "pa", hjemkomst: "pa", kort_tur: "gul",
+      borte: "gul", borte_lenge: "borte", ukjent: "mangler" }[tilstand] || "";
+    const ikon = { hjemme: "mdi:home-account", hjemkomst: "mdi:home-import-outline",
+      kort_tur: "mdi:walk", borte: "mdi:home-export-outline",
+      borte_lenge: "mdi:bag-suitcase", ukjent: "mdi:help-circle-outline" }[tilstand]
+      || "mdi:home-account";
+
+    /* Ved kort tur er nedtellingen til bortemodus det man vil vite; ellers hvor lenge
+       det er siden. Begge tallene finnes i attributtene. */
+    const min = Number(a.minutter_borte);
+    const varighet = isNaN(min) || min === null ? null
+      : min >= 1440 ? `${Math.floor(min / 1440)} døgn ${Math.floor((min % 1440) / 60)} t`
+      : min >= 60 ? `${Math.floor(min / 60)} t ${min % 60} min`
+      : `${min} min`;
+
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Tilstedeværelse</span>${a.venter_svar
+          ? `<span class="sub">Venter på svar om helgen</span>` : ""}</div>
+        <div class="tilstede ${klasse}" data-handling="mer"
+             data-entity="sensor.ki_tilstedevaerelse">
+          <div class="chipikon"><ha-icon icon="${ikon}"></ha-icon></div>
+          <div style="min-width:0">
+            <div class="tstor">${esc(tekst)}</div>
+            <div class="tsub">${varighet ? `Borte i ${esc(varighet)}` : ""}${
+              varighet && a.hjemkomst_tid ? " · " : ""}${
+              a.hjemkomst_tid ? `Hjemkomst kl. ${esc(a.hjemkomst_tid)}` : ""}</div>
+          </div>
+        </div>
+        <div class="rutenett" style="margin-top:8px">
+          ${[["input_boolean.ki_helgemodus", "Bortemodus", "mdi:bag-suitcase", true],
+             ["input_boolean.ki_helg_auto", "Slå på automatisk", "mdi:timer-sand", true],
+             ["input_boolean.ki_hjemkomst_aktiv", "Hjemkomst", "mdi:home-import-outline", true]]
+            .map(([id, navn, ik, kanSlas]) => {
+              const på = this._pa(id);
+              return `<div class="chip ${på ? "pa" : ""} ${this._st(id) ? "" : "mangler"}"
+                data-handling="${kanSlas ? "veksle" : "mer"}" data-entity="${id}">
+                <div class="chipikon"><ha-icon icon="${ik}"></ha-icon></div>
+                <div><div class="chipnavn">${navn}</div>
+                  <div class="chipsub">${på ? "På" : "Av"}</div></div>
+              </div>`;
+            }).join("")}
+        </div>
+        ${this._tallrad([
+          ["input_number.ki_helg_auto_timer", "Timer før auto", " t"],
+          ["input_number.ki_temp_helg", "Borte panelovn", "°"],
+          ["input_number.ki_temp_helg_gulvvarme", "Borte gulv", "°"],
+          ["input_number.ki_temp_helg_bad", "Borte bad", "°"],
+        ])}
+      </div>`;
+  }
+
+  /* Liten rad med tall man kan trykke på for å endre. */
+  _tallrad(felter) {
+    const med = felter.filter(([id]) => this._st(id));
+    if (!med.length) return "";
+    return `<div class="tallrad fire" style="margin-top:8px">${med.map(([id, navn, enhet]) => {
+      // `_n` er kortets egen tallleser; `_num` finnes ikke
+      const v = this._n(id);
+      return `<div class="tall trykk" data-handling="mer" data-entity="${id}">
+        <b>${isFinite(v) ? nf(v, Number.isInteger(v) ? 0 : 1) : "–"}${
+          esc(enhet || "")}</b><span>${esc(navn)}</span></div>`;
+    }).join("")}</div>`;
+  }
+
   _oversikt() {
     const a = (n, d) => this._a("sensor.ki_energi_status", n, d);
     const modus = [
-      ["input_boolean.ki_helgemodus", this._l("Helgemodus"), "mdi:bag-suitcase", true],
+      /* «Bortemodus», ikke «Helgemodus». På en hytte er det ukedagene den står tom, og
+         navnet er grunnen til at bortestyringen ikke er å finne når man leter. */
+      ["input_boolean.ki_helgemodus", this._l("Bortemodus"), "mdi:bag-suitcase", true],
       ["input_boolean.ki_sommermodus", "Sommermodus", "mdi:white-balance-sunny", true],
       ["input_boolean.ki_hjemkomst_aktiv", this._l("Hjemkomst"), "mdi:home-import-outline", true],
       ["input_boolean.ki_sebastian_ferie", "Ferie", "mdi:school-outline", true],
@@ -630,6 +710,7 @@ class KiKlimaProCard extends HTMLElement {
 
     return `
       ${this._overtakelse(true)}
+      ${this._tilstedeBlokk()}
       ${this._leggetidBlokk()}
       ${this._budsjettBlokk(a)}
       <div class="blokk">
@@ -2025,6 +2106,17 @@ class KiKlimaProCard extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
       .faner::-webkit-scrollbar { display:none; }
+      /* tilstedeværelse */
+      .tilstede { display:flex; align-items:center; gap:13px; padding:12px 14px;
+        border-radius:20px; background: var(--gray100, rgba(128,128,128,.12));
+        cursor:pointer; min-width:0; }
+      .tilstede.pa { background: color-mix(in srgb, var(--green,#5ad18b) 24%, transparent); }
+      .tilstede.gul { background: color-mix(in srgb, var(--orange,#f0a952) 26%, transparent); }
+      .tilstede.borte { background: color-mix(in srgb, var(--blue,#4aa3e0) 24%, transparent); }
+      .tilstede.mangler { opacity:.55; }
+      .tilstede .tstor { font-size:15px; font-weight:600; line-height:1.35; }
+      .tilstede .tsub { font-size:12px; opacity:.6; margin-top:2px; }
+      .tall.trykk { cursor:pointer; }
       /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
       .faner.baretikon .fane span { display:none; }
       .faner.baretikon .fane { flex:1; padding:10px 8px; }
