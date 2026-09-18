@@ -1,37 +1,29 @@
-# ki-cards 4.2.0
+# ki-cards 4.3.0
 
-## `ki-alarm-card` 1.3.0: `zones:` som oppslag krasjet kortet
+## `ki-server-card` 1.1.0: brede rader i stedet for rutefliser
 
-```
-Uncaught (in promise) TypeError: (this._config.zones || []).map is not a function
-    at KiAlarmCard._sonedata (ki-alarm-card.js:235)
-```
+Rutenettet med fire små fliser per rad var lånt fra et annet kort og hørte ikke hjemme
+her. Ingenting annet i dashbordet ser slik ut.
 
-`zones:` må være en liste. Er den skrevet som et oppslag — uten bindestrek foran hver
-sone — ble `.map` kalt på et objekt, og kortet kastet **før det rakk å tegne noe**. Da
-står et gammelt bilde igjen, og all ny konfigurasjon ser ut til å bli ignorert. Det var
-grunnen til at `hero: false` «ikke gjorde noe».
+Serverkortet bruker nå **samme form som bannerne og info-radene i bassengkortet**: én bred
+flate per opplysning, rundt ikonfelt på 42 px til venstre, navnet i midten, verdien til
+høyre. Stolpen ligger langs underkanten av raden i stedet for inne i en flis, så nivået
+vises uten å ta en egen linje.
 
-Kortet tar nå imot begge former. Et oppslag gjøres om til en liste der nøkkelen blir
-tittel, med en advarsel i konsollen om hva som bør rettes i YAML-en. Er `zones:` noe helt
-annet enn en liste eller et oppslag, brukes ingen soner i stedet for at kortet dør.
+Hver rad har fått sitt eget ikon — CPU, minne, temperatur, oppetid, Docker, latens og
+resten — så raden kan leses på ikonet før du leser teksten.
 
-Testet: riktig liste går urørt gjennom, oppslag blir liste med nøkkelen som tittel, en
-egen `title:` i sonen vinner over nøkkelen, manglende `zones` gir tom liste, og en streng
-gir tom liste med advarsel.
+Tall som hører sammen deler én flate med et hårfint skille mellom, slik «i dag»-flaten i
+bassengkortet gjør. «Ned totalt» og «Opp totalt» er første par; `par: true` på et tall
+legger det sammen med det neste.
 
-## Om duplikate ressurser
+Fargene er uendret: raden blir gul over `gul`-terskelen og rød over `rod`. RAM på 88 % med
+terskler 75 og 90 blir gul, ikke rød — kontrollert.
 
-Konsollen viser at `ki-alarm-card` defineres to ganger:
+Heroene, faneprikkene, listene, søket, knappene og oppdagelsen er uendret.
 
-```
-KI-ALARM-CARD 1.2.1    ki-alarm-card.js:18
-KI-ALARM-CARD 1.2.1    ki-cards.js?hacstag=…:25621
-ki-cards: ki-alarm-card er allerede definert – hopper over
-```
+### Testet
 
-Den frittstående `ki-alarm-card.js` lastes først og vinner; bundelens kopi hoppes over.
-Denne rettelsen ligger i bundelen, så den får ingen virkning før den frittstående
-ressursen er fjernet under Innstillinger → Dashbord → Ressurser.
-
-Samme situasjon som `ki-klima-pro-card` tidligere i dag, og samme løsning: én kopi, ikke to.
+Unraid-fanen: 13 brede rader, 0 rutefliser, hver med ikon og riktig stolpelengde.
+Nedlasting: 6 rader og én par-flate med «Ned totalt 1,73 TiB | Opp totalt 0,72 TiB».
+Gul og rød terskel treffer de radene de skal.

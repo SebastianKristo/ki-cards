@@ -13,7 +13,7 @@
  * Alt annet finnes selv: UniFi-enhetene, Proxmox-containere og -maskiner, Unraids
  * containere, disker og delinger.
  */
-const KI_SRV_VERSJON = "1.0.0";
+const KI_SRV_VERSJON = "1.1.0";
 
 const KI_SRV_STIL = `
   :host { display:block; max-width:100%; overflow-x:clip;
@@ -78,26 +78,46 @@ const KI_SRV_STIL = `
   .hero .stort em { font-style:normal; font-size:12px; opacity:.5; margin-left:auto;
     align-self:flex-end; text-align:right; }
 
-  /* ---------- tett tallrutenett ---------- */
-  .tall { display:grid; gap:6px; grid-template-columns:repeat(4,minmax(0,1fr)); }
-  @media (max-width:430px) { .tall { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-  .t { background:var(--gray200); border-radius:16px; padding:9px 10px; cursor:pointer;
-    display:grid; gap:3px; align-content:start; min-width:0;
-    transition:transform .12s var(--myk); }
-  .t:active { transform:scale(.97); }
-  .t .n { font-size:10px; opacity:.5; text-transform:uppercase; letter-spacing:.05em;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .t .v { font-size:16.5px; font-weight:600; letter-spacing:-.02em; line-height:1.15;
-    font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; }
-  .t .v small { font-size:10.5px; font-weight:500; opacity:.5; margin-left:2px; }
-  .t .spor { height:3px; border-radius:99px; overflow:hidden;
-    background:color-mix(in srgb, currentColor 14%, transparent); }
-  .t .spor i { display:block; height:100%; border-radius:99px; background:var(--a);
+  /* ---------- brede rader med ikonfelt ----------
+     Rutefliser fire per rad ble avvist, og med god grunn: de er små, tette, og
+     ingenting i dashbordet ellers ser slik ut. Dette er samme form som bannerne og
+     info-radene i bassengkortet — én bred flate per opplysning, rundt ikonfelt til
+     venstre, verdien til høyre. */
+  .rader { display:grid; gap:6px; }
+  .irad { position:relative; display:flex; align-items:center; gap:13px;
+    padding:11px 16px 11px 8px; border-radius:22px; background:var(--gray200);
+    overflow:hidden; cursor:pointer; transition:transform .12s var(--myk); }
+  .irad:active { transform:scale(.995); }
+  .iik { width:42px; height:42px; flex:none; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:21px;
+    background:rgba(250,251,252,.09); color:var(--a); }
+  .inavn { flex:1; min-width:0; font-size:14px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .iverdi { font-size:17px; font-weight:600; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .iverdi small { font-size:12px; font-weight:500; opacity:.55; margin-left:1px; }
+  /* Stolpen ligger langs underkanten, ikke inne i en flis: nivå uten en egen linje */
+  .ispor { position:absolute; left:0; right:0; bottom:0; height:3px;
+    background:rgba(128,128,128,.18); }
+  .ispor i { display:block; height:100%; background:var(--a);
     transition:width .7s var(--myk); }
-  .t.gul { background:color-mix(in srgb, var(--f4) 22%, var(--gray200)); }
-  .t.rod { background:color-mix(in srgb, var(--fr) 24%, var(--gray200)); }
-  .t.borte { opacity:.42; }
+  .irad.gul { background:color-mix(in srgb, var(--f4) 20%, var(--gray200)); }
+  .irad.rod { background:color-mix(in srgb, var(--fr) 22%, var(--gray200)); }
+  .irad.borte { opacity:.45; }
+
+  /* To tall på samme flate, med hårfint skille — som «i dag» i bassengkortet */
+  .par { display:grid; grid-template-columns:1fr 1fr; border-radius:22px;
+    background:var(--gray200); overflow:hidden; }
+  .parcelle { position:relative; padding:13px 14px; display:grid; gap:3px;
+    cursor:pointer; min-width:0; }
+  .parcelle + .parcelle::before { content:""; position:absolute; left:0; top:13px;
+    bottom:13px; width:1px; background:rgba(128,128,128,.22); }
+  .parn { font-size:10.5px; opacity:.55; text-transform:uppercase;
+    letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .parv { font-size:19px; font-weight:600; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; }
+  .parv small { font-size:11px; font-weight:500; opacity:.5; margin-left:2px; }
 
   /* ---------- liste med enheter ---------- */
   .liste { display:grid; gap:5px; }
@@ -416,10 +436,12 @@ class KiServerCard extends HTMLElement {
     </div>`;
   }
 
+  /* Én opplysning per rad. `par: true` på et tall legger det sammen med det neste på
+     samme flate — for tall som hører sammen, som RX og TX. */
   _tallHtml(liste, farge) {
     const med = liste.filter((t) => t);
     if (!med.length) return "";
-    return `<div class="tall" style="--a:${farge}">${med.map((t) => {
+    const les = (t) => {
       const st = this._st(t.entity);
       const borte = !st || ["unknown", "unavailable", ""].includes(st.state);
       let verdi = "–", enhet = t.enhet || "", raa = null;
@@ -430,11 +452,9 @@ class KiServerCard extends HTMLElement {
         } else {
           raa = kiSrvTall(st);
           if (raa === null) {
-            verdi = st.state.length > 13 ? st.state.slice(0, 12) + "…" : st.state;
+            verdi = st.state.length > 16 ? st.state.slice(0, 15) + "…" : st.state;
             enhet = "";
-          } else {
-            verdi = kiSrvFmt(raa, t.desimaler);
-          }
+          } else verdi = kiSrvFmt(raa, t.desimaler);
         }
       }
       const niva = raa === null ? ""
@@ -442,13 +462,33 @@ class KiServerCard extends HTMLElement {
         : t.gul !== undefined && raa >= t.gul ? "gul" : "";
       const pst = raa !== null && t.maks
         ? Math.max(0, Math.min(100, (raa / t.maks) * 100)) : null;
-      return `<div class="t ${borte ? "borte" : niva}" data-mer="${kiSrvEsc(t.entity)}"
-           tabindex="0" title="${kiSrvEsc(t.navn)}">
-        <div class="n">${kiSrvEsc(t.navn)}</div>
-        <div class="v">${kiSrvEsc(verdi)}${enhet ? `<small>${kiSrvEsc(enhet)}</small>` : ""}</div>
-        ${pst === null ? "" : `<div class="spor"><i style="width:${pst.toFixed(1)}%"></i></div>`}
-      </div>`;
-    }).join("")}</div>`;
+      return { ...t, verdi, enhet, borte, niva, pst };
+    };
+
+    const ut = [];
+    for (let i = 0; i < med.length; i++) {
+      const t = les(med[i]);
+      if (t.par && med[i + 1]) {
+        const u = les(med[++i]);
+        ut.push(`<div class="par" style="--a:${farge}">${[t, u].map((x) => `
+          <div class="parcelle" data-mer="${kiSrvEsc(x.entity)}" tabindex="0">
+            <div class="parn">${kiSrvEsc(x.navn)}</div>
+            <div class="parv">${kiSrvEsc(x.verdi)}${x.enhet
+              ? `<small>${kiSrvEsc(x.enhet)}</small>` : ""}</div>
+          </div>`).join("")}</div>`);
+        continue;
+      }
+      ut.push(`<div class="irad ${t.borte ? "borte" : t.niva}" style="--a:${farge}"
+           data-mer="${kiSrvEsc(t.entity)}" tabindex="0">
+        <span class="iik"><ha-icon icon="${kiSrvEsc(t.ikon || "mdi:chart-line")}"></ha-icon></span>
+        <span class="inavn">${kiSrvEsc(t.navn)}</span>
+        <span class="iverdi">${kiSrvEsc(t.verdi)}${t.enhet
+          ? `<small>${kiSrvEsc(t.enhet)}</small>` : ""}</span>
+        ${t.pst === null ? "" : `<span class="ispor">
+          <i style="width:${t.pst.toFixed(1)}%"></i></span>`}
+      </div>`);
+    }
+    return `<div class="rader">${ut.join("")}</div>`;
   }
 
   _knapper(liste) {
@@ -488,14 +528,14 @@ class KiServerCard extends HTMLElement {
       entity: Ub + "array_started",
     })
     + this._tallHtml([
-      { navn: "CPU", entity: U + "cpu_usage", enhet: "%", maks: 100, gul: 70, rod: 88 },
-      { navn: "RAM", entity: U + "ram_usage", enhet: "%", maks: 100, gul: 75, rod: 90 },
-      { navn: "Temp", entity: U + "cpu_temperature", enhet: "°", maks: 95, gul: 65, rod: 80 },
-      { navn: "Effekt", entity: U + "cpu_power", enhet: "W", maks: 200 },
-      { navn: "Oppe", entity: U + "up_since", tid: true },
-      { navn: "Docker CPU", entity: U + "docker_total_cpu", enhet: "%", maks: 100, gul: 70 },
-      { navn: "Docker RAM", entity: U + "docker_total_memory", enhet: "%", maks: 100, gul: 75 },
-      { navn: "Varsler", entity: U + "active_notifications", gul: 1, rod: 5 },
+      { navn: "CPU", ikon: "mdi:cpu-64-bit", entity: U + "cpu_usage", enhet: "%", maks: 100, gul: 70, rod: 88 },
+      { navn: "RAM", ikon: "mdi:memory", entity: U + "ram_usage", enhet: "%", maks: 100, gul: 75, rod: 90 },
+      { navn: "Temp", ikon: "mdi:thermometer", entity: U + "cpu_temperature", enhet: "°", maks: 95, gul: 65, rod: 80 },
+      { navn: "Effekt", ikon: "mdi:flash", entity: U + "cpu_power", enhet: "W", maks: 200 },
+      { navn: "Oppe", ikon: "mdi:clock-outline", entity: U + "up_since", tid: true },
+      { navn: "Docker CPU", ikon: "mdi:docker", entity: U + "docker_total_cpu", enhet: "%", maks: 100, gul: 70 },
+      { navn: "Docker RAM", ikon: "mdi:docker", entity: U + "docker_total_memory", enhet: "%", maks: 100, gul: 75 },
+      { navn: "Varsler", ikon: "mdi:bell-outline", entity: U + "active_notifications", gul: 1, rod: 5 },
     ], "var(--f2)")
     + this._hodeHtml("Disker", disker.length ? `fulleste ${kiSrvFmt(disker[0].v, 0)} %` : "")
     + this._tallHtml(disker.slice(0, 8).map((d) => ({
@@ -540,14 +580,14 @@ class KiServerCard extends HTMLElement {
       entity: "device_tracker.oslo_dream_machine_pro",
     })
     + this._tallHtml([
-      { navn: "Google", entity: R + "google_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
-      { navn: "Cloudflare", entity: R + "cloudflare_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
-      { navn: "Microsoft", entity: R + "microsoft_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
-      { navn: "Ruter CPU", entity: R + "cpu_utilisation_2", enhet: "%", maks: 100, gul: 70, rod: 88 },
-      { navn: "Ruter RAM", entity: R + "memory_utilisation_2", enhet: "%", maks: 100, gul: 75, rod: 90 },
-      { navn: "Ruter temp", entity: R + "cpu_temperature_2", enhet: "°", maks: 95, gul: 65, rod: 80 },
-      { navn: "Lokal temp", entity: R + "local_temperature", enhet: "°", maks: 95, gul: 60, rod: 70 },
-      { navn: "Oppe", entity: R + "uptime_2", tid: true },
+      { navn: "Google", ikon: "mdi:google", entity: R + "google_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
+      { navn: "Cloudflare", ikon: "mdi:cloud", entity: R + "cloudflare_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
+      { navn: "Microsoft", ikon: "mdi:microsoft", entity: R + "microsoft_wan_latency", enhet: "ms", maks: 200, gul: 80, rod: 120 },
+      { navn: "Ruter CPU", ikon: "mdi:router-network", entity: R + "cpu_utilisation_2", enhet: "%", maks: 100, gul: 70, rod: 88 },
+      { navn: "Ruter RAM", ikon: "mdi:memory", entity: R + "memory_utilisation_2", enhet: "%", maks: 100, gul: 75, rod: 90 },
+      { navn: "Ruter temp", ikon: "mdi:thermometer", entity: R + "cpu_temperature_2", enhet: "°", maks: 95, gul: 65, rod: 80 },
+      { navn: "Lokal temp", ikon: "mdi:thermometer", entity: R + "local_temperature", enhet: "°", maks: 95, gul: 60, rod: 70 },
+      { navn: "Oppe", ikon: "mdi:clock-outline", entity: R + "uptime_2", tid: true },
     ], "var(--f1)")
     + this._hodeHtml("Enhetene", `${oppe} av ${e.length} oppe`)
     + `<div class="liste">${e.map((x) => {
@@ -593,14 +633,14 @@ class KiServerCard extends HTMLElement {
       entity: N + "node_status",
     })
     + this._tallHtml([
-      { navn: "Minne", entity: N + "memory_usage", enhet: "%", maks: 100, gul: 75, rod: 90 },
-      { navn: "Swap", entity: N + "swap_usage", enhet: "%", maks: 100, gul: 20, rod: 50 },
-      { navn: "Rot-FS", entity: N + "root_filesystem_usage", enhet: "%", maks: 100, gul: 80, rod: 92 },
-      { navn: "Load 1m", entity: N + "load_average_1m", desimaler: 2 },
-      { navn: "IO wait", entity: N + "io_wait", enhet: "%", maks: 100, gul: 10, rod: 25 },
-      { navn: "Idle", entity: N + "idle", enhet: "%", maks: 100 },
-      { navn: "Oppe", entity: N + "uptime", tid: true },
-      { navn: "Kernel", entity: N + "kernel_version" },
+      { navn: "Minne", ikon: "mdi:memory", entity: N + "memory_usage", enhet: "%", maks: 100, gul: 75, rod: 90 },
+      { navn: "Swap", ikon: "mdi:swap-horizontal", entity: N + "swap_usage", enhet: "%", maks: 100, gul: 20, rod: 50 },
+      { navn: "Rot-FS", ikon: "mdi:harddisk", entity: N + "root_filesystem_usage", enhet: "%", maks: 100, gul: 80, rod: 92 },
+      { navn: "Load 1m", ikon: "mdi:speedometer", entity: N + "load_average_1m", desimaler: 2 },
+      { navn: "IO wait", ikon: "mdi:timer-sand", entity: N + "io_wait", enhet: "%", maks: 100, gul: 10, rod: 25 },
+      { navn: "Idle", ikon: "mdi:sleep", entity: N + "idle", enhet: "%", maks: 100 },
+      { navn: "Oppe", ikon: "mdi:clock-outline", entity: N + "uptime", tid: true },
+      { navn: "Kernel", ikon: "mdi:console", entity: N + "kernel_version" },
     ], "var(--f3)")
     + (lagring.length ? this._hodeHtml("Lagring",
         `fulleste ${kiSrvFmt(lagring[0].v, 0)} %`)
@@ -646,14 +686,14 @@ class KiServerCard extends HTMLElement {
         ? { tekst: kob === "firewalled" ? "Bak brannmur" : "Frakoblet", klasse: "feil" } : null,
     })
     + this._tallHtml([
-      { navn: "Aktive", entity: Q + "active_torrents" },
-      { navn: "Pauset", entity: Q + "paused_torrents" },
-      { navn: "Uten trafikk", entity: Q + "inactive_torrents" },
-      { navn: "Feilet", entity: Q + "errored_torrents", gul: 1, rod: 3 },
-      { navn: "Totalt", entity: Q + "all_torrents" },
-      { navn: "Ned totalt", entity: Q + "all_time_download", enhet: "TiB", desimaler: 2 },
-      { navn: "Opp totalt", entity: Q + "all_time_upload", enhet: "TiB", desimaler: 2 },
-      { navn: "Tilkobling", entity: Q + "connection_status" },
+      { navn: "Aktive", ikon: "mdi:play-circle", entity: Q + "active_torrents" },
+      { navn: "Pauset", ikon: "mdi:pause-circle", entity: Q + "paused_torrents" },
+      { navn: "Uten trafikk", ikon: "mdi:sleep", entity: Q + "inactive_torrents" },
+      { navn: "Feilet", ikon: "mdi:alert-circle-outline", entity: Q + "errored_torrents", gul: 1, rod: 3 },
+      { navn: "Totalt", ikon: "mdi:format-list-numbered", entity: Q + "all_torrents" },
+      { par: true, navn: "Ned totalt", ikon: "mdi:download", entity: Q + "all_time_download", enhet: "TiB", desimaler: 2 },
+      { navn: "Opp totalt", ikon: "mdi:upload", entity: Q + "all_time_upload", enhet: "TiB", desimaler: 2 },
+      { navn: "Tilkobling", ikon: "mdi:lan-connect", entity: Q + "connection_status" },
     ], "var(--f4)")
     + this._hodeHtml("Kjeden", "trykk for å slå av og på")
     + `<div class="liste">${[
@@ -691,10 +731,10 @@ class KiServerCard extends HTMLElement {
         og delinger finnes automatisk — ingen liste å vedlikeholde.
       </div>`
       + this._tallHtml([
-        { navn: "Unraid", entity: this._U + "unraid_version" },
-        { navn: "PVE", entity: this._c.pve_node + "pve_version" },
-        { navn: "Kernel", entity: this._c.pve_node + "kernel_version" },
-        { navn: "Lagringsomr.", entity: this._c.pve_node + "storages" },
+        { navn: "Unraid", ikon: "mdi:server", entity: this._U + "unraid_version" },
+        { navn: "PVE", ikon: "mdi:server-network", entity: this._c.pve_node + "pve_version" },
+        { navn: "Kernel", ikon: "mdi:console", entity: this._c.pve_node + "kernel_version" },
+        { navn: "Lagringsomr.", ikon: "mdi:database", entity: this._c.pve_node + "storages" },
       ], "var(--f1)");
   }
 
