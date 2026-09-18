@@ -1,16 +1,16 @@
-# Server-popupen, ny struktur.
+# Server-popupen, tredje omgang.
 #
-# Fire faner uten nøsting: Nettverk, Unraid, Proxmox, Nedlasting. Formspråket er fra
-# klima-, vannings- og søvnpopupen: fanerad med ikon over tekst, statushero øverst,
-# seksjonsoverskrifter, og detaljene under.
+# Endringen denne gangen: de store enhetskortene er borte. I stedet tette tallrutenett —
+# `ki-tall-card` — der åtte tall får plass i høyden ett enhetskort tok. Hvert tall har
+# stolpe og terskler der det finnes en skala, så du ser nivået uten å lese verdien.
 #
-# Hver fane er bygget i den rekkefølgen du bruker dem:
-#   1. Statuskort   — er alt friskt? Én linje, og hva som feiler om noe gjør det.
-#   2. Handlinger   — det du starter, stopper og restarter.
-#   3. Detaljer     — tallene, for når noe er galt.
+# Hver fane: statuskort øverst (er alt friskt), så tallrutenettene, så listene og
+# handlingene. Fire faner uten nøsting.
 #
-# Den gamle popupen hadde tre nivåer faner og tolv underfaner. Alt innholdet er med, men
-# nå på ett nivå.
+# Ny informasjon som ikke var med før: swap og rot-FS på Proxmox, node score, KSM,
+# kernel- og PVE-versjon, IO wait og idle, br0-trafikk og IP, docker-RAM, paritetsfart
+# og framdrift, latens mot alle tre målene, klienter og oppetid per switch og AP, og
+# hele køen i qBittorrent med totaler.
 
 type: custom:bubble-card
 card_type: pop-up
@@ -18,787 +18,1020 @@ name: Server
 icon: mdi:server
 hash: '#server'
 is_sidebar_hidden: true
+bg_blur: '5'
+shadow_opacity: '20'
+bg_opacity: '98'
 margin_top_mobile: 50px
 margin_top_desktop: 50px
 card_layout: large
 button_type: name
-bg_blur: '5'
-shadow_opacity: '20'
-bg_opacity: '98'
-styles: >
-  .bubble-pop-up-container {
-    --vertical-stack-card-gap: 0px!important;
-  }
-
-  #header-container > div > div { background: var(--gray000)!important; }
-
-  #header-container > button { background: none; }
-
-  .icon-container { background-color: var(--gray1000)!important; }
-
-  .icon-container > ha-icon { color: var(--black)!important; opacity:
-  1!important; }
-
-  .bubble-icon { --mdc-icon-size: 24px !important; }
-
-  .bubble-name {
-    font-size: 30px !important;
-    font-weight: 500;
-    line-height: 1.4 !important;
-    padding: 8px 0 !important;
-  }
-
-  .bubble-close-button { background-color: var(--gray200) !important;
-  border-radius: 50%; }
-
+styles: ".bubble-pop-up-container {\n  --vertical-stack-card-gap: 0px !important;\n}\n#header-container > div > div { background: var(--gray000) !important; }\n#header-container > button { background: none;\
+  \ }\n.icon-container { background-color: var(--gray1000) !important; }\n.icon-container > ha-icon { color: var(--black) !important; opacity: 1 !important; }\n.bubble-icon { --mdc-icon-size: 24px !important;\
+  \ }\n.bubble-name {\n  font-size: 30px !important;\n  font-weight: 500;\n  line-height: 1.4 !important;\n  padding: 8px 0 !important;\n}\n.bubble-close-button { background-color: var(--gray200) !important;\
+  \ border-radius: 50%; }\n"
 cards:
-  - type: custom:gap-card
-    height: 0
+- type: custom:gap-card
+  height: 0
+- type: custom:simple-tabs
+  alignment: center
+  tab_position: top
+  show_fade: false
+  tabs_gap: 4px
+  button_padding: 9px 16px
+  background-color: transparent
+  border-color: transparent
+  text-color: rgba(255, 255, 255, 0.72)
+  hover-color: rgba(255, 255, 255, 0.95)
+  container_background: transparent
+  container_padding: 0 0 12px 0
+  card_mod:
+    style: ".tabs-container {\n  width: fit-content !important;\n  max-width: 100% !important;\n  min-width: 0 !important;\n  margin: 0 auto !important;\n  padding: 2px 2px !important;\n  border: 1px solid\
+      \ rgba(255, 255, 255, 0.3);\n  border-radius: 999px;\n  overflow-x: auto !important;\n  overflow-y: hidden !important;\n  scrollbar-width: none;\n  -webkit-overflow-scrolling: touch;\n}\n.tabs-container::-webkit-scrollbar\
+      \ { display: none; }\n.tab-button {\n  border-radius: 999px !important;\n  font-weight: 500;\n  flex: 0 0 auto !important;\n  white-space: nowrap !important;\n}\n.tab-button.active {\n  background:\
+      \ var(--active-big) !important;\n  color: rgba(70, 58, 64, 0.95) !important;\n  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);\n}\n"
+  tabs:
+  - title: Nettverk
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-status-card
+        navn: Nettverk
+        ikon: mdi:lan-connect
+        ok_tekst: Nettet er oppe
+        sjekker:
+        - entity: device_tracker.oslo_dream_machine_pro
+          ok: home
+          feil: Ruteren svarer ikke
+          alvor: rod
+        - entity: device_tracker.treets_usw_24_poe
+          ok: home
+          feil: Treets svarer ikke
+          alvor: rod
+        - entity: device_tracker.veien_usw_24_g2
+          ok: home
+          feil: Veien svarer ikke
+          alvor: rod
+        - entity: device_tracker.spisebord_usw_flex_mini
+          ok: home
+          feil: Spisebord svarer ikke
+        - entity: device_tracker.fuglen_u7_pro_xg
+          ok: home
+          feil: Fuglen AP svarer ikke
+        - entity: device_tracker.posten_u7_lite
+          ok: home
+          feil: Posten AP svarer ikke
+        - entity: sensor.oslo_dream_machine_pro_google_wan_latency
+          over: 120
+          feil: 'Høy latens: {verdi} ms'
+        tall:
+        - navn: Klienter
+          entity: sensor.oslo_dream_machine_pro_clients
+          desimaler: 0
+        - navn: Latens
+          entity: sensor.oslo_dream_machine_pro_google_wan_latency
+          enhet: ' ms'
+          desimaler: 0
+        - navn: CPU
+          entity: sensor.oslo_dream_machine_pro_cpu_utilisation_2
+          enhet: ' %'
+          desimaler: 0
+        - navn: Temp
+          entity: sensor.oslo_dream_machine_pro_cpu_temperature_2
+          enhet: °
+          desimaler: 0
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Ruteren
+        kolonner: 4
+        tall:
+        - navn: CPU
+          entity: sensor.oslo_dream_machine_pro_cpu_utilisation_2
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Minne
+          entity: sensor.oslo_dream_machine_pro_memory_utilisation_2
+          enhet: '%'
+          maks: 100
+          gul: 75
+          rod: 90
+        - navn: Temp
+          entity: sensor.oslo_dream_machine_pro_cpu_temperature_2
+          enhet: °
+          maks: 95
+          gul: 65
+          rod: 80
+        - navn: Oppe
+          entity: sensor.oslo_dream_machine_pro_uptime_2
+          tid: true
+        - navn: Google
+          entity: sensor.oslo_dream_machine_pro_google_wan_latency
+          enhet: ms
+          maks: 200
+          gul: 80
+          rod: 120
+        - navn: Cloudflare
+          entity: sensor.oslo_dream_machine_pro_cloudflare_wan_latency
+          enhet: ms
+          maks: 200
+          gul: 80
+          rod: 120
+        - navn: Microsoft
+          entity: sensor.oslo_dream_machine_pro_microsoft_wan_latency
+          enhet: ms
+          maks: 200
+          gul: 80
+          rod: 120
+        - navn: Klienter
+          entity: sensor.oslo_dream_machine_pro_clients
+          desimaler: 0
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Switcher
+        kolonner: 4
+        tall:
+        - navn: Treets CPU
+          entity: sensor.treets_usw_24_poe_cpu_utilisation
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Treets minne
+          entity: sensor.treets_usw_24_poe_memory_utilisation
+          enhet: '%'
+          maks: 100
+          gul: 75
+          rod: 90
+        - navn: Treets oppe
+          entity: sensor.treets_usw_24_poe_uptime
+          tid: true
+        - navn: Treets klient
+          entity: sensor.treets_usw_24_poe_clients
+          desimaler: 0
+        - navn: Veien CPU
+          entity: sensor.veien_usw_24_g2_cpu_utilisation
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Veien oppe
+          entity: sensor.veien_usw_24_g2_uptime
+          tid: true
+        - navn: Spisebord CPU
+          entity: sensor.spisebord_usw_flex_mini_cpu_utilisation
+          enhet: '%'
+          maks: 100
+        - navn: Spisebord oppe
+          entity: sensor.spisebord_usw_flex_mini_uptime
+          tid: true
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Aksesspunkt
+        kolonner: 4
+        tall:
+        - navn: Fuglen CPU
+          entity: sensor.fuglen_u7_pro_xg_cpu_utilisation
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Fuglen minne
+          entity: sensor.fuglen_u7_pro_xg_memory_utilisation
+          enhet: '%'
+          maks: 100
+        - navn: Fuglen klient
+          entity: sensor.fuglen_u7_pro_xg_clients
+          desimaler: 0
+        - navn: Fuglen oppe
+          entity: sensor.fuglen_u7_pro_xg_uptime
+          tid: true
+        - navn: Posten CPU
+          entity: sensor.posten_u7_lite_cpu_utilisation
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Posten minne
+          entity: sensor.posten_u7_lite_memory_utilisation
+          enhet: '%'
+          maks: 100
+        - navn: Posten klient
+          entity: sensor.posten_u7_lite_clients
+          desimaler: 0
+        - navn: Posten oppe
+          entity: sensor.posten_u7_lite_uptime
+          tid: true
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Handlinger
+      - type: custom:paper-buttons-row
+        styles:
+          gap: 8px
+          justify-content: flex-start
+          overflow: scroll
+          margin: 0 0 0 -18px
+          padding-left: 18px
+          width: calc(100% + 36px)
+        extra_styles: '::-webkit-scrollbar { display: none; }
 
-  # Fanerada. Ikon over tekst, som i klimakortet — og på smal skjerm er ikonene alene
-  # nok til at fire faner får plass uten å rulle.
-  - type: custom:simple-tabs
-    alignment: center
-    tab_position: top
-    show_fade: false
-    tabs_gap: 4px
-    button_padding: 9px 16px
-    background-color: transparent
-    border-color: transparent
-    text-color: rgba(255, 255, 255, 0.72)
-    hover-color: rgba(255, 255, 255, 0.95)
-    container_background: transparent
-    container_padding: 0 0 12px 0
-    card_mod:
-      # `width: fit-content` med `overflow: hidden` er grunnen til at rada falt ut av
-      # skjermen: den blir like bred som innholdet og klipper det som ikke får plass,
-      # i stedet for å krympe eller rulle. Nå har den maksbredde og ruller sidelengs.
-      style: |
-        .tabs-container {
-          width: fit-content !important;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          margin: 0 auto !important;
-          padding: 2px 2px !important;
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          border-radius: 999px;
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
-          scrollbar-width: none;
-          -webkit-overflow-scrolling: touch;
-        }
-        .tabs-container::-webkit-scrollbar { display: none; }
-        .tab-button {
-          border-radius: 999px !important;
-          font-weight: 500;
-          flex: 0 0 auto !important;
-          white-space: nowrap !important;
-        }
-        .tab-button.active {
-          background: var(--active-big) !important;
-          color: rgba(70, 58, 64, 0.95) !important;
-          box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
-        }
-    tabs:
-      # ==================================================== Nettverk
-      - title: Nettverk
-        card:
-          type: vertical-stack
-          cards:
-            - type: custom:ki-status-card
-              navn: Nettverk
-              ikon: mdi:lan-connect
-              ok_tekst: Nettet er oppe
-              sjekker:
-                - entity: device_tracker.oslo_dream_machine_pro
-                  ok: home
-                  feil: Ruteren svarer ikke
-                  alvor: rod
-                - entity: device_tracker.treets_usw_24_poe
-                  ok: home
-                  feil: Treets-switchen svarer ikke
-                  alvor: rod
-                - entity: device_tracker.veien_usw_24_g2
-                  ok: home
-                  feil: Veien-switchen svarer ikke
-                  alvor: rod
-                - entity: device_tracker.spisebord_usw_flex_mini
-                  ok: home
-                  feil: Spisebord-switchen svarer ikke
-                - entity: device_tracker.fuglen_u7_pro_xg
-                  ok: home
-                  feil: Fuglen AP svarer ikke
-                - entity: device_tracker.posten_u7_lite
-                  ok: home
-                  feil: Posten AP svarer ikke
-                - entity: sensor.oslo_dream_machine_pro_google_wan_latency
-                  over: 120
-                  feil: 'Høy latens: {verdi} ms'
-              tall:
-                - navn: Klienter
-                  entity: sensor.oslo_dream_machine_pro_clients
-                  desimaler: 0
-                - navn: Latens
-                  entity: sensor.oslo_dream_machine_pro_google_wan_latency
-                  enhet: ' ms'
-                  desimaler: 0
-                - navn: CPU
-                  entity: sensor.oslo_dream_machine_pro_cpu_utilisation_2
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: Temp
-                  entity: sensor.oslo_dream_machine_pro_cpu_temperature_2
-                  enhet: °
-                  desimaler: 0
-
-            - type: custom:gap-card
-              height: 10
-
-            # Enhetene finnes selv i UniFi-integrasjonen. Kortet ser etter par av en
-            # device_tracker og en «uptime»-sensor med samme slug — ikke et navnemønster,
-            # som ville brutt så snart du døper om noe.
-            #
-            # Det løser også tre ting jeg før måtte skrive inn manuelt: `_2`-etterfikset
-            # på Dream Machine Pro finnes ved å se hvilken sensor som faktisk eksisterer,
-            # portene telles, og LED-knappen tas med bare der lyset finnes.
-            #
-            # Ruter først, så switcher, så aksesspunkt.
-            - type: custom:ki-rack-card
-              oppdag: unifi
-              tittel: enhetene
-              kolonner: 2
-              # overstyr:
-              #   posten_u7_lite: { navn: Posten, ikon: mdi:access-point }
-              #   noe_du_ikke_vil_se: { skjul: true }
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Wi-Fi
-            - type: custom:ki-wifi-card
-              navn: Skuta I Byen
-              qr: image.skuta_i_byen_qr_code
-              klienter: sensor.skuta_i_byen_clients
-              bryter: switch.skuta_i_byen_enabled
-            - type: custom:gap-card
-              height: 36
-
-      # ==================================================== Unraid
-      - title: Unraid
-        card:
-          type: vertical-stack
-          cards:
-            - type: custom:ki-status-card
-              navn: Unraid — D-Day Darling
-              ikon: mdi:server
-              ok_tekst: Alt friskt
-              sjekker:
-                - entity: binary_sensor.d_day_darling_array_started
-                  ok: 'on'
-                  feil: Array er stoppet
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_disks_missing
-                  ok: 'off'
-                  feil: Disker mangler
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_disks_invalid
-                  ok: 'off'
-                  feil: Disker er ugyldige
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_disks_disabled
-                  ok: 'off'
-                  feil: Disker er deaktivert
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_filesystems_unmountable
-                  ok: 'off'
-                  feil: Filsystem kan ikke monteres
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_parity_valid
-                  ok: 'on'
-                  feil: Pariteten er ugyldig
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_disk_parity_health
-                  ok: 'off'
-                  feil: Paritetsdisken har feil
-                  alvor: rod
-                - entity: binary_sensor.d_day_darling_config_valid
-                  ok: 'on'
-                  feil: Konfigurasjonen er ugyldig
-                  alvor: rod
-                - entity: sensor.d_day_darling_active_notifications
-                  over: 0
-                  feil: '{verdi} varsler fra Unraid'
-                - entity: sensor.d_day_darling_container_updates_available
-                  over: 0
-                  feil: '{verdi} containeroppdateringer'
-                - entity: binary_sensor.d_day_darling_cloud_connected
-                  ok: 'on'
-                  feil: Ikke koblet til Unraid Connect
-                - entity: binary_sensor.d_day_darling_safe_mode
-                  ok: 'off'
-                  feil: Kjører i sikker modus
-              tall:
-                - navn: CPU
-                  entity: sensor.d_day_darling_cpu_usage
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: RAM
-                  entity: sensor.d_day_darling_ram_usage
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: Array
-                  entity: sensor.d_day_darling_array_usage
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: Temp
-                  entity: sensor.d_day_darling_cpu_temperature
-                  enhet: °
-                  desimaler: 0
-
-            # Paritetssjekken vises bare mens den kjører. Resten av tiden er de fem
-            # tallene om den bare støy.
-            - type: conditional
-              conditions:
-                - condition: state
-                  entity: binary_sensor.d_day_darling_parity_check_running
-                  state: 'on'
-              card:
-                type: vertical-stack
-                cards:
-                  - type: custom:gap-card
-                    height: 10
-                  - type: custom:ki-section-card
-                    title: Paritetssjekk pågår
-                  - type: grid
-                    columns: 2
-                    square: false
-                    cards:
-                      - type: custom:ki-sensor-card
-                        storrelse: liten
-                        entity: sensor.d_day_darling_parity_progress
-                        navn: Framdrift
-                        ikon: mdi:percent
-                        enhet: ' %'
-                        stolpe: true
-                        maks: 100
-                      - type: custom:ki-sensor-card
-                        storrelse: liten
-                        entity: sensor.d_day_darling_parity_check_speed
-                        navn: Hastighet
-                        ikon: mdi:speedometer
-                      - type: custom:ki-sensor-card
-                        storrelse: liten
-                        entity: sensor.d_day_darling_parity_check_elapsed
-                        navn: Brukt tid
-                        ikon: mdi:timer-outline
-                      - type: custom:ki-sensor-card
-                        storrelse: liten
-                        entity: sensor.d_day_darling_last_parity_check
-                        navn: Siste sjekk
-                        ikon: mdi:calendar-check
-
-            - type: custom:gap-card
-              height: 10
-
-            # De fem delene som fliser i stedet for fem seksjoner under hverandre.
-            # Array, containere, disker, delinger og maskinene — hver åpner sin egen
-            # del over rutenettet. Flisen viser det ene tallet som sier om delen har
-            # det bra; resten venter bak trykket.
-            - type: custom:ki-rack-card
-              tittel: Unraid
-              kolonner: 2
-              enheter:
-              - navn: Array
-                ikon: mdi:harddisk-plus
-                status: binary_sensor.d_day_darling_array_started
-                tall: sensor.d_day_darling_array_usage
-                tall_enhet: ' % brukt'
-                tall_desimaler: 0
-                nokkel: sensor.d_day_darling_array_state
-                nokkel_enhet: ''
-                detalj:
-                  navn: D-Day Darling
-                  figur: server
-                  status: binary_sensor.d_day_darling_array_started
-                  status_pa:
-                  - 'on'
-                  tekst_pa: Array startet
-                  tekst_av: Array stoppet
-                  oppetid: sensor.d_day_darling_up_since
-                  maalinger:
-                  - navn: CPU
-                    entity: sensor.d_day_darling_cpu_usage
-                    enhet: '%'
-                  - navn: RAM
-                    entity: sensor.d_day_darling_ram_usage
-                    enhet: '%'
-                  - navn: Array
-                    entity: sensor.d_day_darling_array_usage
-                    enhet: '%'
-                  - navn: Temp
-                    entity: sensor.d_day_darling_cpu_temperature
-                    enhet: °
-                    maks: 90
-                    gul: 65
-                    rod: 80
-                  info:
-                  - navn: Array
-                    entity: sensor.d_day_darling_array_state
-                  - navn: RAM brukt
-                    entity: sensor.d_day_darling_ram_used
-                  - navn: CPU-effekt
-                    entity: sensor.d_day_darling_cpu_power
-                  - navn: Unraid
-                    entity: sensor.d_day_darling_unraid_version
-                  - navn: Nettverk
-                    entity: sensor.d_day_darling_network_access
-                  - navn: Mover
-                    entity: binary_sensor.d_day_darling_mover_active
-                    tekst:
-                      'on': Kjører
-                      'off': Hviler
-                  - navn: Siste paritetssjekk
-                    entity: sensor.d_day_darling_last_parity_check
-                  - navn: br0 inn
-                    entity: sensor.d_day_darling_network_br0_inbound
-                  - navn: br0 ut
-                    entity: sensor.d_day_darling_network_br0_outbound
-                  - navn: br0 IP
-                    entity: sensor.d_day_darling_network_br0_ip_address
-                  knapper:
-                  - navn: Se etter oppdateringer
-                    entity: button.d_day_darling_check_container_updates
-                    ikon: mdi:cloud-download
-              - navn: Containere
-                ikon: mdi:docker
-                tall: sensor.d_day_darling_docker_total_cpu
-                tall_enhet: ' % CPU'
-                nokkel: sensor.d_day_darling_container_updates_available
-                nokkel_enhet: ' oppdateringer'
-                nokkel_desimaler: 0
-                kort:
-                - type: custom:ki-section-card
-                  title: Containere
-                - type: custom:ki-container-card
-                  prefiks: switch.d_day_darling_container_
-                  oppdateringer: sensor.d_day_darling_container_updates_available
-                  navn_kort:
-                    adguard_home: AdGuard Home
-                    binhex_jellyfin: Jellyfin
-                    binhex_minecraftserver: Minecraft
-                    binhex_official_metube: MeTube
-                    binhex_plexpass: Plex
-                    binhex_prowlarr: Prowlarr (binhex)
-                    binhex_qbittorrentvpn: qBittorrent VPN
-                    binhex_radarr: Radarr
-                    binhex_readarr: Readarr
-                    binhex_seerr: Seerr
-                    binhex_sonarr: Sonarr
-                    cloudflare_ddns: Cloudflare DDNS
-                    cloudflaredtunnel: Cloudflared
-                    glance_1: Glance
-                    homeassistant_inabox: HA in a box
-                    immich_machine_learning: Immich ML
-                    immich_postgres: Immich DB
-                    immich_redis: Immich Redis
-                    immich_server: Immich
-                    jellyfin_rewind: Jellyfin Rewind
-                    jellyplex_watched: Jellyplex
-                    lyrionmusicserver: Lyrion
-                    portainerce: Portainer
-                    silo_postgresql: Silo DB
-                    speedtest_by_openspeedtest: OpenSpeedTest
-                    speedtest_tracker: Speedtest Tracker
-                    uptimekuma: Uptime Kuma
-                  grupper:
-                  - navn: Media
-                    ikon: mdi:play-circle-outline
-                    containere:
-                    - binhex_plexpass
-                    - binhex_jellyfin
-                    - jellyfin_rewind
-                    - jellyplex_watched
-                    - lyrionmusicserver
-                    - navidrome
-                    - subwave
-                    - podgrab
-                    - binhex_official_metube
-                  - navn: Nedlasting
-                    ikon: mdi:download-network-outline
-                    containere:
-                    - binhex_qbittorrentvpn
-                    - binhex_sonarr
-                    - binhex_radarr
-                    - binhex_readarr
-                    - bazarr
-                    - binhex_seerr
-                    - prowlarr
-                    - binhex_prowlarr
-                    - flaresolverr
-                  - navn: Bilder og filer
-                    ikon: mdi:image-multiple-outline
-                    containere:
-                    - immich_server
-                    - immich_machine_learning
-                    - immich_postgres
-                    - immich_redis
-                    - cloudreve
-                    - minio
-                    - silo
-                    - silo_postgresql
-                  - navn: Nettverk
-                    ikon: mdi:lan
-                    containere:
-                    - adguard_home
-                    - cloudflare_ddns
-                    - cloudflaredtunnel
-                    - iperf3
-                    - speedtest_by_openspeedtest
-                    - speedtest_tracker
-                  - navn: Smarthus
-                    ikon: mdi:home-automation
-                    containere:
-                    - esphome
-                    - frigate
-                    - homeassistant_inabox
-                    - tofa
-                  - navn: Drift
-                    ikon: mdi:tools
-                    containere:
-                    - portainerce
-                    - uptimekuma
-                    - homarr
-                    - glance_1
-                    - redis
-                    - yubal
-                    - binhex_minecraftserver
-              - navn: Disker
-                ikon: mdi:harddisk
-                # Paritetsdisken er den ene tilstanden som betyr noe her: er den frisk,
-                # er array-en trygg. «off» betyr frisk i Unraid.
-                status: binary_sensor.d_day_darling_disk_parity_health
-                status_pa: ['off']
-                tall: sensor.d_day_darling_disk_disk1_usage
-                tall_enhet: ' % på disk 1'
-                tall_desimaler: 0
-                nokkel: sensor.d_day_darling_array_usage
-                nokkel_enhet: ' % av array-en brukt'
-                nokkel_desimaler: 0
-                kort:
-                - type: custom:ki-section-card
-                  title: Disker
-                - type: custom:ki-bruk-card
-                  ikon: mdi:harddisk
-                  prefiks: sensor.d_day_darling_disk_
-                  etterfiks: _usage
-                  helse: binary_sensor.d_day_darling_disk_{navn}_health
-                  helse_ok: 'off'
-                  terskel_gul: 80
-                  terskel_rod: 92
-                  navn_kort:
-                    disk1: Disk 1
-                    disk2: Disk 2
-                    disk3: Disk 3
-                    disk4: Disk 4
-                    cach: Cache
-              - navn: Delinger
-                ikon: mdi:folder-network-outline
-                tall: sensor.d_day_darling_share_media_usage
-                tall_enhet: ' % på media'
-                tall_desimaler: 0
-                kort:
-                - type: custom:ki-section-card
-                  title: Delinger
-                - type: custom:ki-bruk-card
-                  ikon: mdi:folder-outline
-                  prefiks: sensor.d_day_darling_share_
-                  etterfiks: _usage
-                  navn_kort:
-                    aoosar_x_linux: Aoosar X Linux
-                    appdata: Appdata
-                    isos: Isos
-                    nextcloud: Nextcloud
-              - navn: Virtuelle maskiner
-                ikon: mdi:desktop-tower
-                status: switch.d_day_darling_vm_home_assistant
-                kort:
-                - type: custom:ki-section-card
-                  title: Virtuelle maskiner
-                - type: grid
-                  columns: 2
-                  square: false
-                  cards:
-                  - type: custom:ki-toggle-card
-                    entity: switch.d_day_darling_vm_home_assistant
-                    name: Home Assistant
-                    icon: mdi:home-assistant
-                  - type: custom:ki-toggle-card
-                    entity: switch.d_day_darling_vm_home_assistantny
-                    name: Home Assistant Ny
-                    icon: mdi:home-assistant
-
-            - type: custom:gap-card
-              height: 36
-
-      # ==================================================== Proxmox
-      - title: Proxmox
-        card:
-          type: vertical-stack
-          cards:
-            - type: custom:ki-status-card
-              navn: Proxmox-noden
-              ikon: mdi:server-network
-              ok_tekst: Noden har det bra
-              sjekker:
-                - entity: sensor.1_node_pve_node_status
-                  ok: online
-                  feil: Noden er ikke online
-                  alvor: rod
-                - entity: binary_sensor.overloaded
-                  ok: 'off'
-                  feil: Noden er overbelastet
-                  alvor: rod
-                - entity: binary_sensor.disk_overloaded
-                  ok: 'off'
-                  feil: Disken er overbelastet
-                  alvor: rod
-                - entity: binary_sensor.stressed
-                  ok: 'off'
-                  feil: Noden er stresset
-                - entity: sensor.1_node_pve_node_updates
-                  over: 0
-                  feil: '{verdi} pakkeoppdateringer'
-                - entity: sensor.3_ct_dispatcharr_100_status
-                  ok: running
-                  feil: Dispatcharr er stoppet
-                - entity: sensor.3_ct_radio_102_status
-                  ok: running
-                  feil: Radio er stoppet
-                - entity: sensor.3_ct_zigbee2mqtt_105_status
-                  ok: running
-                  feil: Zigbee2MQTT er stoppet
-                  alvor: rod
-                - entity: sensor.3_ct_pihole_108_status
-                  ok: running
-                  feil: Pi-hole er stoppet
-                  alvor: rod
-                - entity: sensor.3_ct_homebridge_112_status
-                  ok: running
-                  feil: HomeBridge er stoppet
-                - entity: sensor.4_vm_haos_18_2_115_status
-                  ok: running
-                  feil: HAOS-maskinen er stoppet
-                  alvor: rod
-                - entity: sensor.4_vm_servarr_117_status
-                  ok: running
-                  feil: Servarr er stoppet
-              tall:
-                - navn: CPU
-                  entity: sensor.1_node_pve_cpu_usage
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: Minne
-                  entity: sensor.1_node_pve_memory_usage
-                  enhet: ' %'
-                  desimaler: 0
-                - navn: Load
-                  entity: sensor.1_node_pve_load_average_1m
-                  desimaler: 2
-                - navn: IO wait
-                  entity: sensor.1_node_pve_io_wait
-                  enhet: ' %'
-                  desimaler: 1
-
-            - type: custom:gap-card
-              height: 10
-
-            # Containerne og maskinene finnes fra Proxmox Extended Sensors: alt som har
-            # en `_status`-sensor under prefikset. Knappene tas med bare der de finnes,
-            # så en container uten «reset» får ikke en død knapp.
-            - type: custom:ki-rack-card
-              oppdag: pve_ct
-              tittel: containerne
-              kolonner: 2
-            - type: custom:ki-rack-card
-              oppdag: pve_vm
-              tittel: maskinene
-              kolonner: 2
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Lagring
-            - type: custom:ki-bruk-card
-              ikon: mdi:database
-              prefiks: sensor.5_storage_
-              etterfiks: _usage
-              felt:
-                - { navn: Brukt, etterfiks: _used }
-                - { navn: Ledig, etterfiks: _free }
-                - { navn: Type, etterfiks: _type }
-              navn_kort:
-                flash: Flash
-                local: local
-                tank: tank (ZFS)
-                unraid: unraid
-                unraid_proxmox: unraid_proxmox
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Fysiske disker
-            - type: grid
-              columns: 2
-              square: false
-              cards:
-                - type: custom:ki-sensor-card
-                  storrelse: liten
-                  entity: sensor.2_disks_pve_asint_as806_1tb_size
-                  navn: ASint AS806 1TB
-                  ikon: mdi:harddisk
-                - type: custom:ki-sensor-card
-                  storrelse: liten
-                  entity: sensor.2_disks_pve_hgst_hus724040ala640_size
-                  navn: HGST 4TB
-                  ikon: mdi:harddisk
-                - type: custom:ki-sensor-card
-                  storrelse: liten
-                  entity: sensor.2_disks_pve_kingston_snv2s500g_size
-                  navn: Kingston 500G
-                  ikon: mdi:harddisk
-                - type: custom:ki-sensor-card
-                  storrelse: liten
-                  entity: sensor.6_mounted_disks_pve_mounted_disks
-                  navn: Monterte disker
-                  ikon: mdi:database
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Detaljer
-            - type: custom:ki-enhet-card
-              navn: Proxmox-node
-              figur: server
-              status: sensor.1_node_pve_node_status
-              status_pa: [online]
-              oppetid: sensor.1_node_pve_uptime
-              maalinger:
-                - { navn: CPU, entity: sensor.1_node_pve_cpu_usage, enhet: '%' }
-                - { navn: Minne, entity: sensor.1_node_pve_memory_usage, enhet: '%' }
-                - { navn: Swap, entity: sensor.1_node_pve_swap_usage, enhet: '%' }
-                - { navn: Rot-FS, entity: sensor.1_node_pve_root_filesystem_usage, enhet: '%' }
-              info:
-                - { navn: Load 1m, entity: sensor.1_node_pve_load_average_1m, enhet: '' }
-                - { navn: Load, entity: sensor.1_node_pve_load_average, enhet: '' }
-                - { navn: IO wait, entity: sensor.1_node_pve_io_wait, enhet: ' %', desimaler: 1 }
-                - { navn: Idle, entity: sensor.1_node_pve_idle, enhet: ' %' }
-                - { navn: Node score, entity: sensor.1_node_pve_node_score }
-                - { navn: Nett RX, entity: sensor.1_node_pve_network_rx }
-                - { navn: Nett TX, entity: sensor.1_node_pve_network_tx }
-                - { navn: Siste oppgave, entity: sensor.1_node_pve_last_task }
-                - { navn: Backup, entity: sensor.1_node_pve_backup_progress, enhet: ' %' }
-                - { navn: KSM delt minne, entity: sensor.1_node_pve_ksm_shared_memory }
-                - { navn: ZFS tank, entity: sensor.1_node_pve_zfs_tank }
-                - { navn: Lagringsområder, entity: sensor.1_node_pve_storages, enhet: '' }
-                - { navn: PVE-versjon, entity: sensor.1_node_pve_pve_version }
-                - { navn: Kernel, entity: sensor.1_node_pve_kernel_version }
-                - { navn: CPU, entity: sensor.1_node_pve_cpu_information }
-              knapper:
-                - navn: Restart node
-                  entity: button.1_node_pve_reboot_pve
-                  ikon: mdi:restart
-                  farge: var(--orange)
-                  bekreft: Restarte hele Proxmox-noden?
-                - navn: Slå av node
-                  entity: button.1_node_pve_shutdown_pve
-                  ikon: mdi:power
-                  farge: var(--red)
-                  bekreft: Slå av hele Proxmox-noden? Dette stopper alt.
-            - type: custom:gap-card
-              height: 36
-
-      # ==================================================== Nedlasting
-      - title: Nedlasting
-        card:
-          type: vertical-stack
-          cards:
-            - type: custom:ki-status-card
-              navn: Nedlasting
-              ikon: mdi:download-network-outline
-              ok_tekst: Kjeden er i orden
-              sjekker:
-                - entity: switch.d_day_darling_container_binhex_qbittorrentvpn
-                  ok: 'on'
-                  feil: qBittorrent er stoppet
-                  alvor: rod
-                - entity: sensor.qbittorrent_connection_status
-                  ok: connected
-                  feil: 'VPN-porten er ikke åpen ({verdi})'
-                  alvor: rod
-                - entity: sensor.qbittorrent_errored_torrents
-                  over: 0
-                  feil: '{verdi} torrenter med feil'
-                - entity: switch.d_day_darling_container_binhex_sonarr
-                  ok: 'on'
-                  feil: Sonarr er stoppet
-                - entity: switch.d_day_darling_container_binhex_radarr
-                  ok: 'on'
-                  feil: Radarr er stoppet
-                - entity: switch.d_day_darling_container_binhex_prowlarr
-                  ok: 'on'
-                  feil: Prowlarr er stoppet
-                - entity: switch.d_day_darling_container_flaresolverr
-                  ok: 'on'
-                  feil: Flaresolverr er stoppet
-                - entity: switch.d_day_darling_container_bazarr
-                  ok: 'on'
-                  feil: Bazarr er stoppet
-              tall:
-                - navn: Ned
-                  entity: sensor.qbittorrent_download_speed
-                  enhet: ' MB/s'
-                  desimaler: 1
-                - navn: Opp
-                  entity: sensor.qbittorrent_upload_speed
-                  enhet: ' MB/s'
-                  desimaler: 1
-                - navn: Aktive
-                  entity: sensor.qbittorrent_active_torrents
-                  desimaler: 0
-                - navn: I kø
-                  entity: sensor.qbittorrent_all_torrents
-                  desimaler: 0
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-nedlasting-card
-              prefiks: sensor.qbittorrent_
-              bryter: switch.qbittorrent_alternative_speed
-              container: switch.d_day_darling_container_binhex_qbittorrentvpn
-              oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
-              historikk_dager: 30
-              maks_fart: 12
-
-            - type: custom:gap-card
-              height: 10
-            - type: custom:ki-section-card
-              title: Tjenestene i kjeden
-            - type: grid
-              columns: 2
-              square: false
-              cards:
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_prowlarr, name: Prowlarr, icon: 'mdi:magnify' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_flaresolverr, name: Flaresolverr, icon: 'mdi:shield-key-outline' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_sonarr, name: Sonarr, icon: 'mdi:television-classic' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_radarr, name: Radarr, icon: 'mdi:movie-open-outline' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_readarr, name: Readarr, icon: 'mdi:book-open-page-variant-outline' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_bazarr, name: Bazarr, icon: 'mdi:subtitles-outline' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_seerr, name: Seerr, icon: 'mdi:playlist-plus' }
-                - { type: 'custom:ki-toggle-card', entity: switch.d_day_darling_container_binhex_qbittorrentvpn, name: qBittorrent, icon: 'mdi:download-network-outline' }
-            - type: custom:gap-card
-              height: 36
-
-  - type: custom:gap-card
-    height: 36
-
+          '
+        buttons:
+        - icon: mdi:restart
+          layout: icon|name
+          name: Ruter
+          entity: button.oslo_dream_machine_pro_restart
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.oslo_dream_machine_pro_restart
+          confirmation:
+            text: Restarte ruteren?
+          styles:
+            name:
+              color: var(--gray1000)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--gray200)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--gray1000)
+              padding-right: 8px
+        - icon: mdi:restart
+          layout: icon|name
+          name: Treets
+          entity: button.treets_usw_24_poe_restart
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.treets_usw_24_poe_restart
+          confirmation:
+            text: Restarte Treets?
+          styles:
+            name:
+              color: var(--gray1000)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--gray200)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--gray1000)
+              padding-right: 8px
+        - icon: mdi:led-outline
+          layout: icon|name
+          name: Fuglen LED
+          entity: light.fuglen_u7_pro_xg_led
+          tap_action:
+            action: toggle
+          styles:
+            name:
+              color: var(--gray1000)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--gray200)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--gray1000)
+              padding-right: 8px
+        - icon: mdi:led-outline
+          layout: icon|name
+          name: Posten LED
+          entity: light.posten_u7_lite_led
+          tap_action:
+            action: toggle
+          styles:
+            name:
+              color: var(--gray1000)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--gray200)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+              margin-right: 36px
+            icon:
+              color: var(--gray1000)
+              padding-right: 8px
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Wi-Fi
+      - type: custom:ki-wifi-card
+        navn: Skuta I Byen
+        qr: image.skuta_i_byen_qr_code
+        klienter: sensor.skuta_i_byen_clients
+        bryter: switch.skuta_i_byen_enabled
+      - type: custom:gap-card
+        height: 36
+  - title: Unraid
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-status-card
+        navn: Unraid — D-Day Darling
+        ikon: mdi:server
+        ok_tekst: Alt friskt
+        sjekker:
+        - entity: binary_sensor.d_day_darling_array_started
+          ok: 'on'
+          feil: Array er stoppet
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_disks_missing
+          ok: 'off'
+          feil: Disker mangler
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_disks_invalid
+          ok: 'off'
+          feil: Disker er ugyldige
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_disks_disabled
+          ok: 'off'
+          feil: Disker er deaktivert
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_filesystems_unmountable
+          ok: 'off'
+          feil: Filsystem kan ikke monteres
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_parity_valid
+          ok: 'on'
+          feil: Pariteten er ugyldig
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_disk_parity_health
+          ok: 'off'
+          feil: Paritetsdisken har feil
+          alvor: rod
+        - entity: binary_sensor.d_day_darling_config_valid
+          ok: 'on'
+          feil: Konfigurasjonen er ugyldig
+          alvor: rod
+        - entity: sensor.d_day_darling_active_notifications
+          over: 0
+          feil: '{verdi} varsler fra Unraid'
+        - entity: sensor.d_day_darling_container_updates_available
+          over: 0
+          feil: '{verdi} containeroppdateringer'
+        - entity: binary_sensor.d_day_darling_cloud_connected
+          ok: 'on'
+          feil: Ikke koblet til Unraid Connect
+        - entity: binary_sensor.d_day_darling_safe_mode
+          ok: 'off'
+          feil: Kjører i sikker modus
+        tall:
+        - navn: CPU
+          entity: sensor.d_day_darling_cpu_usage
+          enhet: ' %'
+          desimaler: 0
+        - navn: RAM
+          entity: sensor.d_day_darling_ram_usage
+          enhet: ' %'
+          desimaler: 0
+        - navn: Array
+          entity: sensor.d_day_darling_array_usage
+          enhet: ' %'
+          desimaler: 0
+        - navn: Temp
+          entity: sensor.d_day_darling_cpu_temperature
+          enhet: °
+          desimaler: 0
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Maskinen
+        kolonner: 4
+        tall:
+        - navn: CPU
+          entity: sensor.d_day_darling_cpu_usage
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: RAM
+          entity: sensor.d_day_darling_ram_usage
+          enhet: '%'
+          maks: 100
+          gul: 75
+          rod: 90
+        - navn: Temp
+          entity: sensor.d_day_darling_cpu_temperature
+          enhet: °
+          maks: 95
+          gul: 65
+          rod: 80
+        - navn: Effekt
+          entity: sensor.d_day_darling_cpu_power
+          enhet: W
+          maks: 200
+        - navn: Oppe
+          entity: sensor.d_day_darling_up_since
+          tid: true
+        - navn: RAM brukt
+          entity: sensor.d_day_darling_ram_used
+        - navn: Unraid
+          entity: sensor.d_day_darling_unraid_version
+        - navn: Varsler
+          entity: sensor.d_day_darling_active_notifications
+          desimaler: 0
+          gul: 1
+          rod: 5
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Array og paritet
+        kolonner: 4
+        tall:
+        - navn: Array brukt
+          entity: sensor.d_day_darling_array_usage
+          enhet: '%'
+          maks: 100
+          gul: 80
+          rod: 92
+        - navn: Array
+          entity: sensor.d_day_darling_array_state
+        - navn: Siste sjekk
+          entity: sensor.d_day_darling_last_parity_check
+        - navn: Sjekk-fart
+          entity: sensor.d_day_darling_parity_check_speed
+        - navn: Framdrift
+          entity: sensor.d_day_darling_parity_progress
+          enhet: '%'
+          maks: 100
+        - navn: Brukt tid
+          entity: sensor.d_day_darling_parity_check_elapsed
+        - navn: Mover
+          entity: sensor.d_day_darling_mover_active
+        - navn: Nettverk
+          entity: sensor.d_day_darling_network_access
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Docker og nett
+        kolonner: 4
+        tall:
+        - navn: Docker CPU
+          entity: sensor.d_day_darling_docker_total_cpu
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Docker RAM
+          entity: sensor.d_day_darling_docker_total_memory
+          enhet: '%'
+          maks: 100
+          gul: 75
+          rod: 90
+        - navn: RAM brukt
+          entity: sensor.d_day_darling_docker_total_memory_used
+        - navn: Oppdat.
+          entity: sensor.d_day_darling_container_updates_available
+          desimaler: 0
+          gul: 1
+          rod: 5
+        - navn: br0 inn
+          entity: sensor.d_day_darling_network_br0_inbound
+        - navn: br0 ut
+          entity: sensor.d_day_darling_network_br0_outbound
+        - navn: br0 fart
+          entity: sensor.d_day_darling_network_br0_speed
+        - navn: br0 IP
+          entity: sensor.d_day_darling_network_br0_ip_address
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Disker
+      - type: custom:ki-bruk-card
+        ikon: mdi:harddisk
+        prefiks: sensor.d_day_darling_disk_
+        etterfiks: _usage
+        helse: binary_sensor.d_day_darling_disk_{navn}_health
+        helse_ok: 'off'
+        terskel_gul: 80
+        terskel_rod: 92
+        navn_kort:
+          disk1: Disk 1
+          disk2: Disk 2
+          disk3: Disk 3
+          disk4: Disk 4
+          cach: Cache
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Delinger
+      - type: custom:ki-bruk-card
+        ikon: mdi:folder-outline
+        prefiks: sensor.d_day_darling_share_
+        etterfiks: _usage
+        navn_kort:
+          aoosar_x_linux: Aoosar X Linux
+          appdata: Appdata
+          isos: Isos
+          nextcloud: Nextcloud
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Containere
+      - type: custom:ki-container-card
+        prefiks: switch.d_day_darling_container_
+        oppdateringer: sensor.d_day_darling_container_updates_available
+        navn_kort:
+          adguard_home: AdGuard Home
+          binhex_jellyfin: Jellyfin
+          binhex_minecraftserver: Minecraft
+          binhex_official_metube: MeTube
+          binhex_plexpass: Plex
+          binhex_prowlarr: Prowlarr (binhex)
+          binhex_qbittorrentvpn: qBittorrent VPN
+          binhex_radarr: Radarr
+          binhex_readarr: Readarr
+          binhex_seerr: Seerr
+          binhex_sonarr: Sonarr
+          cloudflare_ddns: Cloudflare DDNS
+          cloudflaredtunnel: Cloudflared
+          glance_1: Glance
+          homeassistant_inabox: HA in a box
+          immich_machine_learning: Immich ML
+          immich_postgres: Immich DB
+          immich_redis: Immich Redis
+          immich_server: Immich
+          jellyfin_rewind: Jellyfin Rewind
+          jellyplex_watched: Jellyplex
+          lyrionmusicserver: Lyrion
+          portainerce: Portainer
+          silo_postgresql: Silo DB
+          speedtest_by_openspeedtest: OpenSpeedTest
+          speedtest_tracker: Speedtest Tracker
+          uptimekuma: Uptime Kuma
+        grupper:
+        - navn: Media
+          ikon: mdi:play-circle-outline
+          containere:
+          - binhex_plexpass
+          - binhex_jellyfin
+          - jellyfin_rewind
+          - jellyplex_watched
+          - lyrionmusicserver
+          - navidrome
+          - subwave
+          - podgrab
+          - binhex_official_metube
+        - navn: Nedlasting
+          ikon: mdi:download-network-outline
+          containere:
+          - binhex_qbittorrentvpn
+          - binhex_sonarr
+          - binhex_radarr
+          - binhex_readarr
+          - bazarr
+          - binhex_seerr
+          - prowlarr
+          - binhex_prowlarr
+          - flaresolverr
+        - navn: Bilder og filer
+          ikon: mdi:image-multiple-outline
+          containere:
+          - immich_server
+          - immich_machine_learning
+          - immich_postgres
+          - immich_redis
+          - cloudreve
+          - minio
+          - silo
+          - silo_postgresql
+        - navn: Nettverk
+          ikon: mdi:lan
+          containere:
+          - adguard_home
+          - cloudflare_ddns
+          - cloudflaredtunnel
+          - iperf3
+          - speedtest_by_openspeedtest
+          - speedtest_tracker
+        - navn: Smarthus
+          ikon: mdi:home-automation
+          containere:
+          - esphome
+          - frigate
+          - homeassistant_inabox
+          - tofa
+        - navn: Drift
+          ikon: mdi:tools
+          containere:
+          - portainerce
+          - uptimekuma
+          - homarr
+          - glance_1
+          - redis
+          - yubal
+          - binhex_minecraftserver
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Virtuelle maskiner og handlinger
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_vm_home_assistant
+          name: Home Assistant
+          icon: mdi:home-assistant
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_vm_home_assistantny
+          name: Home Assistant Ny
+          icon: mdi:home-assistant
+      - type: custom:paper-buttons-row
+        styles:
+          gap: 8px
+          justify-content: flex-start
+          margin: 8px 0 0 0
+        buttons:
+        - icon: mdi:cloud-download
+          layout: icon|name
+          name: Se etter oppdateringer
+          entity: button.d_day_darling_check_container_updates
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.d_day_darling_check_container_updates
+          styles:
+            name:
+              color: var(--gray1000)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--gray200)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--gray1000)
+              padding-right: 8px
+      - type: custom:gap-card
+        height: 36
+  - title: Proxmox
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-status-card
+        navn: Proxmox-noden
+        ikon: mdi:server-network
+        ok_tekst: Noden har det bra
+        sjekker:
+        - entity: sensor.1_node_pve_node_status
+          ok: online
+          feil: Noden er ikke online
+          alvor: rod
+        - entity: binary_sensor.overloaded
+          ok: 'off'
+          feil: Noden er overbelastet
+          alvor: rod
+        - entity: binary_sensor.disk_overloaded
+          ok: 'off'
+          feil: Disken er overbelastet
+          alvor: rod
+        - entity: binary_sensor.stressed
+          ok: 'off'
+          feil: Noden er stresset
+        - entity: sensor.1_node_pve_updates
+          over: 0
+          feil: '{verdi} pakkeoppdateringer'
+        tall:
+        - navn: CPU
+          entity: sensor.1_node_pve_cpu_usage
+          enhet: ' %'
+          desimaler: 0
+        - navn: Minne
+          entity: sensor.1_node_pve_memory_usage
+          enhet: ' %'
+          desimaler: 0
+        - navn: Load
+          entity: sensor.1_node_pve_load_average_1m
+          desimaler: 2
+        - navn: IO wait
+          entity: sensor.1_node_pve_io_wait
+          enhet: ' %'
+          desimaler: 1
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Noden
+        kolonner: 4
+        tall:
+        - navn: CPU
+          entity: sensor.1_node_pve_cpu_usage
+          enhet: '%'
+          maks: 100
+          gul: 70
+          rod: 88
+        - navn: Minne
+          entity: sensor.1_node_pve_memory_usage
+          enhet: '%'
+          maks: 100
+          gul: 75
+          rod: 90
+        - navn: Swap
+          entity: sensor.1_node_pve_swap_usage
+          enhet: '%'
+          maks: 100
+          gul: 20
+          rod: 50
+        - navn: Rot-FS
+          entity: sensor.1_node_pve_root_filesystem_usage
+          enhet: '%'
+          maks: 100
+          gul: 80
+          rod: 92
+        - navn: Load 1m
+          entity: sensor.1_node_pve_load_average_1m
+          desimaler: 2
+        - navn: IO wait
+          entity: sensor.1_node_pve_io_wait
+          enhet: '%'
+          maks: 100
+          gul: 10
+          rod: 25
+        - navn: Idle
+          entity: sensor.1_node_pve_idle
+          enhet: '%'
+          maks: 100
+        - navn: Oppe
+          entity: sensor.1_node_pve_uptime
+          tid: true
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Node-detaljer
+        kolonner: 4
+        tall:
+        - navn: Score
+          entity: sensor.1_node_pve_node_score
+        - navn: Nett RX
+          entity: sensor.1_node_pve_network_rx
+        - navn: Nett TX
+          entity: sensor.1_node_pve_network_tx
+        - navn: KSM delt
+          entity: sensor.1_node_pve_ksm_shared_memory
+        - navn: ZFS tank
+          entity: sensor.1_node_pve_zfs_tank
+        - navn: Lagring
+          entity: sensor.1_node_pve_storages
+          desimaler: 0
+        - navn: PVE
+          entity: sensor.1_node_pve_pve_version
+        - navn: Kernel
+          entity: sensor.1_node_pve_kernel_version
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Containere
+      - type: custom:ki-rack-card
+        oppdag: pve_ct
+        tittel: containerne
+        kolonner: 2
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Virtuelle maskiner
+      - type: custom:ki-rack-card
+        oppdag: pve_vm
+        tittel: maskinene
+        kolonner: 2
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Lagring
+      - type: custom:ki-bruk-card
+        ikon: mdi:database
+        prefiks: sensor.5_storage_
+        etterfiks: _usage
+        felt:
+        - navn: Brukt
+          etterfiks: _used
+        - navn: Ledig
+          etterfiks: _free
+        - navn: Type
+          etterfiks: _type
+        navn_kort:
+          flash: Flash
+          local: local
+          tank: tank (ZFS)
+          unraid: unraid
+          unraid_proxmox: unraid_proxmox
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Fysiske disker
+        kolonner: 4
+        tall:
+        - navn: ASint 1TB
+          entity: sensor.2_disks_pve_asint_as806_1tb_size
+        - navn: HGST 4TB
+          entity: sensor.2_disks_pve_hgst_hus724040ala640_size
+        - navn: Kingston
+          entity: sensor.2_disks_pve_kingston_snv2s500g_size
+        - navn: Montert
+          entity: sensor.6_mounted_disks_pve_mounted_disks
+          desimaler: 0
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Handlinger
+      - type: custom:paper-buttons-row
+        styles:
+          gap: 8px
+          justify-content: flex-start
+        buttons:
+        - icon: mdi:restart
+          layout: icon|name
+          name: Restart node
+          entity: button.1_node_pve_reboot_pve
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.1_node_pve_reboot_pve
+          confirmation:
+            text: Restarte hele Proxmox-noden?
+          styles:
+            name:
+              color: var(--black)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--orange)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--black)
+              padding-right: 8px
+        - icon: mdi:power
+          layout: icon|name
+          name: Slå av node
+          entity: button.1_node_pve_shutdown_pve
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.1_node_pve_shutdown_pve
+          confirmation:
+            text: Slå av hele Proxmox-noden? Dette stopper alt.
+          styles:
+            name:
+              color: var(--black)
+              text-wrap: nowrap
+            button:
+              display: flex
+              background-color: var(--red)
+              border-radius: 24px
+              padding: 10px 18px 10px 14px
+            icon:
+              color: var(--black)
+              padding-right: 8px
+      - type: custom:gap-card
+        height: 36
+  - title: Nedlasting
+    card:
+      type: vertical-stack
+      cards:
+      - type: custom:ki-status-card
+        navn: Nedlasting
+        ikon: mdi:download-network-outline
+        ok_tekst: Kjeden er i orden
+        sjekker:
+        - entity: switch.d_day_darling_container_binhex_qbittorrentvpn
+          ok: 'on'
+          feil: qBittorrent er stoppet
+          alvor: rod
+        - entity: sensor.qbittorrent_connection_status
+          ok: connected
+          feil: VPN-porten er ikke åpen ({verdi})
+          alvor: rod
+        - entity: sensor.qbittorrent_errored_torrents
+          over: 0
+          feil: '{verdi} torrenter med feil'
+        - entity: switch.d_day_darling_container_binhex_sonarr
+          ok: 'on'
+          feil: Sonarr er stoppet
+        - entity: switch.d_day_darling_container_binhex_radarr
+          ok: 'on'
+          feil: Radarr er stoppet
+        - entity: switch.d_day_darling_container_binhex_prowlarr
+          ok: 'on'
+          feil: Prowlarr er stoppet
+        - entity: switch.d_day_darling_container_flaresolverr
+          ok: 'on'
+          feil: Flaresolverr er stoppet
+        - entity: switch.d_day_darling_container_bazarr
+          ok: 'on'
+          feil: Bazarr er stoppet
+        tall:
+        - navn: Ned
+          entity: sensor.qbittorrent_download_speed
+          enhet: ' MB/s'
+          desimaler: 1
+        - navn: Opp
+          entity: sensor.qbittorrent_upload_speed
+          enhet: ' MB/s'
+          desimaler: 1
+        - navn: Aktive
+          entity: sensor.qbittorrent_active_torrents
+          desimaler: 0
+        - navn: I kø
+          entity: sensor.qbittorrent_all_torrents
+          desimaler: 0
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-tall-card
+        tittel: Køen
+        kolonner: 4
+        tall:
+        - navn: Aktive
+          entity: sensor.qbittorrent_active_torrents
+          desimaler: 0
+        - navn: Pauset
+          entity: sensor.qbittorrent_paused_torrents
+          desimaler: 0
+        - navn: Uten trafikk
+          entity: sensor.qbittorrent_inactive_torrents
+          desimaler: 0
+        - navn: Feilet
+          entity: sensor.qbittorrent_errored_torrents
+          desimaler: 0
+          gul: 1
+          rod: 3
+        - navn: Totalt
+          entity: sensor.qbittorrent_all_torrents
+          desimaler: 0
+        - navn: Status
+          entity: sensor.qbittorrent_status
+        - navn: Tilkobling
+          entity: sensor.qbittorrent_connection_status
+        - navn: Ned totalt
+          entity: sensor.qbittorrent_all_time_download
+          enhet: TiB
+          desimaler: 2
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-nedlasting-card
+        prefiks: sensor.qbittorrent_
+        bryter: switch.qbittorrent_alternative_speed
+        container: switch.d_day_darling_container_binhex_qbittorrentvpn
+        oppdatering: update.d_day_darling_container_binhex_qbittorrentvpn_update
+        historikk_dager: 30
+        maks_fart: 12
+      - type: custom:gap-card
+        height: 8
+      - type: custom:ki-section-card
+        title: Tjenestene i kjeden
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_prowlarr
+          name: Prowlarr
+          icon: mdi:magnify
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_flaresolverr
+          name: Flaresolverr
+          icon: mdi:shield-key-outline
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_sonarr
+          name: Sonarr
+          icon: mdi:television-classic
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_radarr
+          name: Radarr
+          icon: mdi:movie-open-outline
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_readarr
+          name: Readarr
+          icon: mdi:book-open-page-variant-outline
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_bazarr
+          name: Bazarr
+          icon: mdi:subtitles-outline
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_seerr
+          name: Seerr
+          icon: mdi:playlist-plus
+        - type: custom:ki-toggle-card
+          entity: switch.d_day_darling_container_binhex_qbittorrentvpn
+          name: qBittorrent
+          icon: mdi:download-network-outline
+      - type: custom:gap-card
+        height: 36
+- type: custom:gap-card
+  height: 36
 popup_mode: default

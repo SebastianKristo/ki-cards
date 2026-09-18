@@ -1,20 +1,44 @@
-# ki-cards 3.92.0
+# ki-cards 3.93.0
 
-## `ki-klima-pro-card` er fjernet fra bundelen
+## Nytt kort: `ki-tall-card` — tett rutenett av tall
 
-Kortet fantes både her og i sitt eget repo, `ki-klima-strom-kort`. De to hadde kommet ut
-av takt: kopien her sto på 2.7.0 med en annen kodebase enn repoets 1.5.0.
+Enhetskortene tok en halv skjerm for å vise tre tall. Her får åtte tall plass i samme
+høyde: liten etikett, verdien, og en tynn stolpe når det finnes en skala.
 
-Verre var at **kopien her vant**. Bundelen registrerer kort gjennom `KI.define`, som
-hopper over elementer som alt finnes. Den frittstående fila brukte rå
-`customElements.define` og kastet «already been used» — stille, midt i fila. Lastet
-ki-cards først, var det kopien her som kjørte, uansett hva som sto i repoet.
+```yaml
+type: custom:ki-tall-card
+tittel: Noden
+kolonner: 4
+tall:
+  - { navn: CPU, entity: sensor.x_cpu, enhet: '%', maks: 100, gul: 70, rod: 88 }
+  - { navn: Oppe, entity: sensor.x_uptime, tid: true }
+  - { navn: PVE, entity: sensor.x_pve_version }
+```
 
-Det gjorde endringer i det riktige repoet usynlige, og var vanskelig å se: ingen feil i
-grensesnittet, bare et kort som ikke oppfører seg som koden man leser.
+* `maks` gir stolpe, `gul` og `rod` farger den og hele flisen når verdien passerer.
+* `tid: true` gjør et tidsstempel eller sekunder til «5 døgn» — UniFi og Proxmox oppgir
+  oppetid som tidsstempel, og en ISO-streng er ikke noe man leser.
+* Tekstverdier vises som de er, forkortet med ellipse. Hele strengen må være et tall for
+  å bli behandlet som ett: `parseFloat` godtar alt som *begynner* med et, og
+  «6.12.4-pve» ble ellers vist som 6,1.
+* Uten svar blir dempet med «–», og overskriften teller hvor mange.
+* Tre kolonner under 420 px, fire over.
 
-Filen er slettet. Kortet lastes nå bare fra `ki-klima-strom-kort`, som er der det hører.
+En kollisjon underveis: flisene het `.t`, det samme som titteltesten, så tittelen fikk
+flisenes bakgrunn og padding. Og en kommentar med backticks inne i CSS-en — som er en
+template-streng — avsluttet strengen midt i. `node --check` fanget ingen av dem, siden
+resultatet er gyldig JavaScript; det var DOM-testen som viste det.
 
-**Etter oppgradering:** sørg for at `ki-klima-strom-kort.js` ligger i
-Lovelace-ressursene. Er den ikke der, forsvinner kortet — det finnes ikke lenger i denne
-bundelen.
+## Server-popupen bygget om igjen
+
+De store enhetskortene er borte fra alle fire faner. Hver fane: statuskort øverst, så to
+til tre tallrutenett, så listene og handlingene.
+
+**76 tall i rutenett** der det før var enhetskort med tre målinger hver. Ny informasjon
+som ikke var synlig før: swap og rot-FS på Proxmox, node score, KSM delt minne, kernel-
+og PVE-versjon, IO wait og idle, br0-trafikk og IP-adresse, docker-RAM, paritetsfart og
+framdrift, latens mot alle tre målene, klienter og oppetid per switch og aksesspunkt, og
+hele qBittorrent-køen med totaler.
+
+Handlingene har fått egne rader: restart av ruter og switch med bekreftelse, LED-brytere,
+og node-restart og avstenging i rødt og oransje.
