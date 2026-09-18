@@ -14,65 +14,93 @@
  * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
  * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "2.1.0";
+const KI_BDP_VERSJON = "3.0.0";
+
+/* Ett kakeikon, brukt både i flisa og i pillene. Sto det to steder, ville de kommet ut
+   av takt ved første endring. */
+const KI_BD_KAKE = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor"
+  stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 52V38a6 6 0 0 1 6-6h28a6 6 0 0 1 6 6v14z" fill="currentColor" fill-opacity=".16"/>
+  <path d="M10 52h44M32 32V22"/>
+  <g class="flamme"><path d="M32 20c3-3 1-6 0-7-1 1-3 4 0 7z" fill="currentColor"/></g>
+  <path d="M20 32v-8M44 32v-8" opacity=".5"/>
+</svg>`;
 
 const KI_BDP_STIL = `
-  :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); }
+  :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
-  .rot { display:grid; gap:12px; }
-  .kort { position:relative; overflow:hidden; isolation:isolate; border-radius:var(--ha-card-border-radius,24px);
-    background:var(--gray200); color:var(--gray1000); padding:20px; cursor:pointer;
-    display:grid; grid-template-areas:"dag ." "dato navn"; grid-template-columns:min-content 1fr; align-items:center; }
-  /* de mindre radene: datoskive, initial, navn og nedtelling */
-  .kort.liten { padding:14px 16px; display:grid; grid-template-areas:"skive navn dager";
-    grid-template-columns:56px 1fr auto; gap:14px; align-items:center; }
-  .skive { grid-area:skive; width:56px; height:56px; border-radius:50%; position:relative; display:grid;
-    place-items:center; background:var(--gray100); }
-  .skive .ring { position:absolute; inset:0; border-radius:50%;
-    background:conic-gradient(var(--tone,var(--active-big,#ee95ff)) var(--p,0deg), transparent 0deg); opacity:.9; }
-  .skive .ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--gray200); }
-  .skive .tall { position:relative; text-align:center; line-height:1; }
-  .skive .dd { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
-  .skive .mm { font-size:10px; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
-  .kort.liten .navn .n { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
-  .kort.liten .navn .u { font-size:12.5px; opacity:.6; margin-top:2px; }
-  .initial { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11px;
-    font-weight:700; color:var(--black,#000); background:var(--tone,var(--active-big,#ee95ff)); flex:none; }
-  .kort.liten .dager { grid-area:dager; font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:9px;
-    background:rgba(255,255,255,.08); opacity:.9; white-space:nowrap; }
-  .kort.i_dag { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .dag { grid-area:dag; font-size:13px; opacity:.6; text-transform:capitalize; }
-  .kort.i_dag .dag { opacity:.8; }
-  .dato { grid-area:dato; font-size:2.6em; font-weight:300; line-height:1.05; padding-right:20px;
-    white-space:nowrap; font-variant-numeric:tabular-nums; }
-  .kort.liten .dato { font-size:1.6em; width:100px; }
-  .navn { grid-area:navn; min-width:0; }
-  .navn .n { font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .navn .u { font-size:13px; opacity:.6; margin-top:2px; }
-  .kort.i_dag .navn .u { opacity:.8; }
-  .dager { grid-area:dager; font-size:13px; opacity:.55; white-space:nowrap; }
-  .kake { position:absolute; right:18px; top:50%; transform:translateY(-50%); width:76px; height:76px; opacity:.2; }
-  .kort.i_dag .kake { opacity:.4; }
+  .rot { display:grid; gap:8px; color:var(--gray1000); }
+  button { font:inherit; color:inherit; border:0; text-align:left; cursor:pointer; }
+
+  /* --- den nærmeste: høy flis, som et rom --- */
+  .flis { position:relative; display:grid; align-content:start;
+    grid-template-columns:1fr auto; gap:0 12px;
+    min-height:190px; padding:20px 22px 22px; border-radius:28px;
+    background:var(--gray200); overflow:hidden;
+    transition:transform .12s var(--myk), background .5s var(--myk); }
+  .flis:active { transform:scale(.99); }
+  .flis.i_dag { background:color-mix(in srgb, var(--tone) 24%, var(--gray200)); }
+
+  .fnavn { grid-column:1; font-size:23px; font-weight:500; align-self:start;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fsirkel { grid-column:2; grid-row:1 / span 2; width:66px; height:66px; flex:none;
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:rgba(250,251,252,.09); color:var(--gray1000);
+    transition:background .5s var(--myk), color .4s; }
+  .fsirkel svg { width:32px; height:32px; }
+  .fsirkel.nar { background:var(--tone); color:var(--black,#1b1b1b); }
+
+  /* Tallet er stort og lett, halen dempet ved siden av — som «23°» med «48%» */
+  .fverdi { grid-column:1; display:flex; align-items:baseline; gap:10px;
+    margin-top:34px; }
+  .fverdi b { font-size:clamp(46px,13vw,64px); font-weight:200; line-height:1;
+    letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .fverdi i { font-style:normal; font-size:21px; font-weight:300; opacity:.5; }
+  .funder { grid-column:1 / -1; font-size:14px; opacity:.55; margin-top:10px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .fstripe { position:absolute; left:0; right:0; bottom:0; height:4px;
+    background:rgba(128,128,128,.2); }
+  .fstripe i { display:block; height:100%; background:var(--tone);
+    transition:width .8s var(--myk); }
+
+  /* --- de neste: piller med rundt ikon og to linjer --- */
+  .pille { display:flex; align-items:center; gap:14px; width:100%;
+    border-radius:999px; background:var(--gray200); padding:8px 20px 8px 8px;
+    transition:transform .12s var(--myk); }
+  .pille:active { transform:scale(.995); }
+  .pikon { width:58px; height:58px; flex:none; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(250,251,252,.09); color:var(--gray1000);
+    transition:background .5s var(--myk), color .4s; }
+  .pikon svg { width:26px; height:26px; }
+  .pille.nar .pikon { background:var(--tone); color:var(--black,#1b1b1b); }
+  .pille.i_dag { background:color-mix(in srgb, var(--tone) 22%, var(--gray200)); }
+  .ptekst { flex:1; min-width:0; display:grid; gap:1px; }
+  .pn { font-size:19px; font-weight:500; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pu { font-size:14px; opacity:.55; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pdato { font-size:13px; opacity:.4; flex:none; white-space:nowrap; }
+  @media (max-width:400px) { .pdato { display:none; } }
+
+  /* Flammen blafrer bare på selve dagen — ellers ville tre kort blinket samtidig */
   .flamme { transform-box:fill-box; transform-origin:50% 100%; }
-  .kort.i_dag .flamme { animation:bd-flamme 1.8s ease-in-out infinite; }
-  @keyframes bd-flamme { 0%,100% { transform:scaleY(1) rotate(-3deg); } 50% { transform:scaleY(1.18) rotate(3deg); } }
-  .tom { background:var(--gray200); border-radius:20px; padding:22px; text-align:center; font-size:13px; opacity:.6; }
-  .nyknapp { border:0; width:100%; background:var(--gray200); color:var(--gray1000); font:inherit; font-size:13px;
-    font-weight:600; border-radius:16px; padding:12px; cursor:pointer; display:flex; align-items:center;
-    justify-content:center; gap:8px; --mdc-icon-size:20px; }
-  .nyknapp:active { transform:scale(.98); }
-  .skjema { background:var(--gray200); border-radius:20px; padding:16px; display:grid; gap:12px; }
-  .skjema label { font-size:12px; opacity:.6; display:block; margin-bottom:4px; }
-  .skjema input { width:100%; max-width:100%; box-sizing:border-box; background:var(--gray100); border:0;
-    border-radius:12px; color:var(--gray1000); font:inherit; font-size:14px; padding:10px 12px; appearance:none; }
-  .skjema input::-webkit-calendar-picker-indicator { filter:invert(1); opacity:.5; }
-  .skjemarad { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; }
-  .sknapper { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .sk { border:0; border-radius:14px; padding:12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
-    background:var(--gray100); color:var(--gray1000); }
-  .sk.lagre { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .hint { font-size:11.5px; opacity:.55; line-height:1.5; }
-  @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+  .flis.i_dag .flamme, .pille.i_dag .flamme {
+    animation:kiBdFlamme 1.6s ease-in-out infinite alternate; }
+  @keyframes kiBdFlamme {
+    from { transform:scale(.85) rotate(-6deg); opacity:.75 }
+    to { transform:scale(1.1) rotate(6deg); opacity:1 }
+  }
+
+  .nyknapp { display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:13px; border-radius:999px; background:var(--gray200); opacity:.75;
+    font-size:14px; --mdc-icon-size:19px; }
+  .tom { padding:16px 18px; border-radius:24px; background:var(--gray200);
+    font-size:14px; opacity:.7; }
+  @media (prefers-reduced-motion: reduce) {
+    .flis, .pille, .flamme, .fstripe i { animation:none; transition:none; }
+  }
 `;
 
 /* «Rune (1985)», «Rune's Birthday» og «bursdag_rune» blir alle til «Rune» */
@@ -262,39 +290,49 @@ class KiBursdagProCard extends HTMLElement {
     }
     const folk = this._personer();
     const farger = ["var(--active-big,#ee95ff)", "var(--blue)", "var(--yellow)", "var(--green)", "var(--orange)"];
+    /* Første bursdag er en høy flis: navnet oppe til venstre, kakesirkelen i motsatt
+       hjørne, og det store tallet nede — samme oppbygning som romflisene. De neste blir
+       piller, siden de sjelden haster.
+       Sirkelen er farget bare når det nærmer seg. Ellers er den nøytral, slik et rom
+       som er av ikke lyser. */
     const kort = (p, i) => {
       const ukedag = p.dato.toLocaleDateString("nb-NO", { weekday: "long" });
       const under = p.alder ? `fyller ${p.alder} år` : "bursdag";
-      const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen" : `om ${p.dager} dager`;
+      const dato = `${p.dato.getDate()}. ${KI_BD_MND[p.dato.getMonth()]}`;
       const tone = farger[i % farger.length];
+      const nar = p.dager <= 14;
+
       if (i) {
-        /* ringen fylles jo nærmere dagen kommer – hel sirkel på selve dagen */
-        const grader = Math.max(0, Math.min(360, Math.round((1 - Math.min(p.dager, 60) / 60) * 360)));
-        return `<div class="kort liten ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}"
-          role="button" tabindex="0" style="--tone:${tone}">
-          <div class="skive"><span class="ring" style="--p:${grader}deg"></span>
-            <span class="tall"><span class="dd">${p.dato.getDate()}</span>
-              <span class="mm">${KI_BD_MND[p.dato.getMonth()]}</span></span></div>
-          <div class="navn">
-            <div class="n"><span class="initial">${kiBdEsc(p.navn.slice(0, 1))}</span>${kiBdEsc(p.navn)}</div>
-            <div class="u">${kiBdEsc(under)} · ${kiBdEsc(ukedag)}</div>
-          </div>
-          <div class="dager">${kiBdEsc(naar)}</div>
-        </div>`;
+        const naar = p.dager === 0 ? "I dag" : p.dager === 1 ? "I morgen"
+          : `${p.dager} dager`;
+        return `<button class="pille ${p.dager === 0 ? "i_dag" : ""} ${nar ? "nar" : ""}"
+            data-e="${kiBdEsc(p.id)}" style="--tone:${tone}">
+          <span class="pikon">${KI_BD_KAKE}</span>
+          <span class="ptekst">
+            <span class="pn">${kiBdEsc(p.navn)}</span>
+            <span class="pu">${kiBdEsc(naar)} · ${kiBdEsc(under)}</span>
+          </span>
+          <span class="pdato">${kiBdEsc(dato)}</span>
+        </button>`;
       }
-      return `<div class="kort ${p.dager === 0 ? "i_dag" : ""}" data-e="${kiBdEsc(p.id)}" role="button" tabindex="0">
-        ${`<svg class="kake" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor"
-            stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 52V38a6 6 0 0 1 6-6h28a6 6 0 0 1 6 6v14z" fill="currentColor" fill-opacity=".12"/>
-            <path d="M10 52h44M32 32V22"/>
-            <g class="flamme"><path d="M32 20c3-3 1-6 0-7-1 1-3 4 0 7z" fill="currentColor"/></g>
-            <path d="M20 32v-8M44 32v-8" opacity=".5"/>
-          </svg>`}
-        <div class="dag">${kiBdEsc(ukedag)}</div>
-        <div class="dato">${p.dato.getDate()}. ${KI_BD_MND[p.dato.getMonth()]}</div>
-        <div class="navn"><div class="n">${kiBdEsc(p.navn)}</div><div class="u">${kiBdEsc(under)}</div></div>
-      </div>`;
+
+      /* Tallet er det store: dagene igjen, eller «I dag» på selve dagen. */
+      const stort = p.dager === 0 ? "I dag" : String(p.dager);
+      const halet = p.dager === 0 ? "" : p.dager === 1 ? "dag" : "dager";
+      /* Stripa under fylles jo nærmere vi kommer, med 60 dager som helt vindu. */
+      const fyll = Math.max(0, Math.min(100, (1 - Math.min(p.dager, 60) / 60) * 100));
+      return `<button class="flis ${p.dager === 0 ? "i_dag" : ""}"
+          data-e="${kiBdEsc(p.id)}" style="--tone:${tone}">
+        <span class="fnavn">${kiBdEsc(p.navn)}</span>
+        <span class="fsirkel ${nar ? "nar" : ""}">${KI_BD_KAKE}</span>
+        <span class="fverdi">
+          <b>${kiBdEsc(stort)}</b>${halet ? `<i>${halet}</i>` : ""}
+        </span>
+        <span class="funder">${kiBdEsc(under)} · ${kiBdEsc(ukedag)} ${kiBdEsc(dato)}</span>
+        <span class="fstripe"><i style="width:${fyll.toFixed(0)}%"></i></span>
+      </button>`;
     };
+
     const nyKnapp = c.kalender && c.legg_til !== false
       ? `<button class="nyknapp" data-ny="1"><ha-icon icon="mdi:plus"></ha-icon>Ny bursdag</button>` : "";
     const html = `<style>${KI_BDP_STIL}</style><div class="rot">${
