@@ -1,41 +1,55 @@
-# ki-cards 3.94.0
+# ki-cards 3.95.0
 
-## `ki-basseng-card` 1.5.0
+## Nytt kort: `ki-server-card` — hele serverpopupen i ett kort
 
-### Innstillinger er et tannhjul, ikke en fane
+Fem runder med sammensatte kort ble dårligere for hver gang. Årsaken var metoden, ikke
+detaljene: åtte korttyper med hver sin stil, limt sammen i YAML, kan ikke bli et
+helhetlig design. Her eier ett kort alt, så formspråket er ett stykke arbeid.
 
-Tannhjulet ligger til høyre for fanerada og roterer når det er valgt. Innstillinger er
-noe man går inn i sjelden, og som fane stjal den plass fra de tre man bruker. Trykker du
-på tannhjulet igjen, går du tilbake til første fane.
+Popupen er fra 1037 linjer YAML til 107.
 
-### Tittelen over fanene er borte
+### Fanene viser hvor problemet er
 
-«Badebasseng» sto både i popup-overskriften og i kortet. Gjentakelsen stjal en linje.
-`tittel: Noe` viser den likevel om du vil.
+Hver fane har en prikk: grønn når alt er friskt, gul ved advarsel, rød og pulserende når
+noe er nede. Helsen regnes ut for alle fire uansett hvilken som er åpen, så **du ser
+hvilken fane problemet ligger i uten å åpne den**.
 
-### Sirkulasjon er et kort, ikke en side
+Unraid har åtte sjekker, UniFi én per enhet pluss latens, Proxmox fire pluss hver
+container og maskin, nedlasting fire.
 
-Fanen var en liste av innstillingsrader med blokkene som tekst — «Blokk 1: 02:00–05:00».
-Da måtte man regne selv for å se om pumpa går nå.
+### Heroen
 
-Nå: **fire tall øverst** (omsetninger med stolpe, pumpetid, neste start, én omsetning),
-og så **døgnet som en stripe** med de planlagte blokkene tegnet inn og et lysende merke
-for nå. Går pumpa, pulserer blokkene svakt. Under står hvor mange blokker og hvor mange
-timer som er planlagt, og snittprisen i planen mot snittet for døgnet.
+Grafen ligger **bak** tallet, ikke ved siden av. Det er det som gjør at et stort tall og
+en tidsserie får plass på samme flate uten å slåss om oppmerksomheten. Kortet måler selv
+hvert femtende sekund og holder et kvarter tilbake, med egen serie per fane.
 
-Har du en plan for i morgen, får den sin egen stripe.
+Øverst: ikon i domenets farge, hva det er, tilstanden i klartekst, og en pille til høyre
+når noe feiler. Nederst det ene tallet som betyr mest — array-bruk, klienter, node-CPU,
+nedlastingsfart.
 
-Tolkningen av blokk-strengene tar både `–`, `-` og `—` som skilletegn, og ettsifret time.
-En blokk over midnatt klippes ved døgnskillet — «22:00–01:30» blir 22:00 til 24:00 —
-ellers ville den tegnet seg baklengs over hele stripa.
+### Innholdet
 
-### Spreder har fått en scene
+* **Tett tallrutenett**, fire per rad, med stolpe og terskler. 18 tall i Unraid-fanen,
+  13 i Proxmox.
+* **Lister** over enheter, containere og maskiner med prikk, navn og nøkkeltall på
+  høyre side. Trykk veksler containere, eller åpner more-info.
+* **Knapper** i domenets farge, med bekreftelse der det trengs. Node-avstenging er rød.
+* **Søk** i Unraid-containerne.
+* **Tannhjul** for oppsettet: hvilke prefikser kortet bruker, og versjonsnumrene.
 
-Dysa svinger, og dråpene faller — men bare når sprederen faktisk går. Står den, er scenen
-stille og dråpene usynlige.
+### Alt finnes automatisk
 
-Under: fire tall med brukt i dag mot maks som stolpe, varighet, intervall og minutter
-igjen. Så start/stopp-knappen, og innstillingene under et skille.
+UniFi-enhetene (par av `device_tracker` og en uptime-sensor, så telefonene faller
+utenfor), Proxmox-containerne og -maskinene, Unraids containere, disker og delinger.
+`navn_kort` gir penere navn, ellers utledes de fra entitetens eget navn.
 
-Begge fanene bruker nå samme tette tallrutenett som resten av dashbordet, med stolper der
-det finnes en skala.
+`_2`-etterfikset på Dream Machine Pro og portantallet på Treets finnes ved å se hvilke
+entiteter som faktisk eksisterer.
+
+### Testet
+
+Alle fem faner tegnet mot et fullt datasett: 6 UniFi-enheter, 11 containere, 4 Proxmox-
+containere, 2 maskiner, 5 disker, 5 delinger, 5 lagringsområder. Interaksjonene
+kontrollert: containerveksling, VM-knapper, oppdateringsknapp, node-avstenging med
+bekreftelse, søk med og uten treff, fanebytte og tannhjul. Og med tom
+entitetsliste — kortet tegner fanene og krasjer ikke.
