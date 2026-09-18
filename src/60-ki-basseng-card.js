@@ -14,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.5.0";
+  const VERSJON = "1.6.0";
 
   const finnLit = () => {
     const base =
@@ -900,12 +900,13 @@
         /* Tallene først, i samme tette rutenett som resten av dashbordet, og så
            innstillingene bak et tannhjul-lignende skille. */
         return html`
-          <div class="tallrutenett">
-            ${this._flis("Omsetninger", nf(gjort, 2), `av ${nf(mal, 2)}`,
-              Math.min(100, (gjort / mal) * 100))}
-            ${this._flis("Pumpetid", nf(this.val("pumpetid", 0), 1), "t i dag")}
-            ${this._flis("Neste start", neste ? String(neste) : "–", "")}
-            ${this._flis("Én omsetning", nf(enOms, 1), "t")}
+          <div class="iradliste">
+            ${this._infoRad("mdi:autorenew", "Omsetninger",
+              `${nf(gjort, 2)} av ${nf(mal, 2)}`, "", Math.min(100, (gjort / mal) * 100))}
+            ${this._infoRad("mdi:timer-outline", "Pumpetid i dag",
+              nf(this.val("pumpetid", 0), 1), " t")}
+            ${this._infoRad("mdi:clock-start", "Neste start", neste ? String(neste) : "–", "")}
+            ${this._infoRad("mdi:water-sync", "Én omsetning tar", nf(enOms, 1), " t")}
           </div>
 
           <div class="grafblokk" style="margin-top:8px">
@@ -934,14 +935,21 @@
         `;
       }
 
-      /* Liten flis: etikett, verdi, undertekst, og stolpe når det finnes en skala. */
-      _flis(navn, verdi, under, pst) {
+      /* Full-bredde rad med rundt ikonfelt til venstre — samme form som bannerne og
+       * sensorkortene i dashbordet.
+       *
+       * Forrige utgave brukte små rutefliser, fire per rad. Det var lånt fra
+       * serverpopupen og passer ikke her: bassengkortet er bygget av brede flater med
+       * ikonfelt, og småfliser bryter det språket.
+       */
+      _infoRad(ikon, navn, verdi, enhet, pst) {
         return html`
-          <div class="tflis">
-            <div class="tn">${navn}</div>
-            <div class="tv">${verdi}${under ? html`<small>${under}</small>` : ""}</div>
-            ${pst === undefined ? "" : html`<div class="tspor">
-              <i style="width:${Math.max(0, Math.min(100, pst)).toFixed(1)}%"></i></div>`}
+          <div class="irad">
+            <span class="iik"><ha-icon icon="${ikon}"></ha-icon></span>
+            <span class="inavn">${navn}</span>
+            <span class="iverdi">${verdi}${enhet ? html`<small>${enhet}</small>` : ""}</span>
+            ${pst === undefined ? "" : html`<span class="ispor">
+              <i style="width:${Math.max(0, Math.min(100, pst)).toFixed(1)}%"></i></span>`}
           </div>
         `;
       }
@@ -978,11 +986,14 @@
               : `Start sprederen i ${Math.round(varighet)} min`}
           </button>
 
-          <div class="tallrutenett" style="margin-top:8px">
-            ${this._flis("Brukt i dag", nf(brukt, 0), maks ? `av ${nf(maks, 0)} min` : "min", andel)}
-            ${this._flis("Varighet", nf(varighet, 0), "min")}
-            ${this._flis("Intervall", intervall ? nf(intervall, 0) : "–", intervall ? "t" : "")}
-            ${this._flis("Igjen nå", gar ? String(Math.ceil(igjen)) : "–", gar ? "min" : "")}
+          <div class="iradliste" style="margin-top:8px">
+            ${this._infoRad("mdi:sprinkler-variant", "Brukt i dag",
+              maks ? `${nf(brukt, 0)} av ${nf(maks, 0)}` : nf(brukt, 0), " min", andel)}
+            ${this._infoRad("mdi:timer-sand", "Varighet", nf(varighet, 0), " min")}
+            ${this._infoRad("mdi:repeat", "Program: start hver",
+              intervall ? nf(intervall, 0) : "–", intervall ? " t" : "")}
+            ${gar ? this._infoRad("mdi:timer-outline", "Igjen nå",
+              String(Math.ceil(igjen)), " min") : ""}
           </div>
 
           <div class="skille"></div>
@@ -1165,53 +1176,59 @@
             outline: 2px solid var(--kib-accent);
             outline-offset: 2px;
           }
-          /* --- tett tallrutenett, samme form som resten av dashbordet --- */
-          .tallrutenett {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 6px;
-          }
-          @media (max-width: 420px) {
-            .tallrutenett { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          }
-          .tflis {
+          /* --- info-rader med ikonfelt, som bannerne i dashbordet --- */
+          .iradliste { display: grid; gap: 6px; }
+          .irad {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 11px 16px 11px 8px;
+            border-radius: 22px;
             background: var(--kib-surface);
-            border-radius: 16px;
-            padding: 9px 10px;
-            display: grid;
-            gap: 3px;
-            align-content: start;
-            min-width: 0;
+            overflow: hidden;
           }
-          .tn {
-            font-size: 10.5px;
-            opacity: 0.55;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            white-space: nowrap;
+          .iik {
+            width: 42px;
+            height: 42px;
+            flex: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(250, 251, 252, 0.09);
+            --mdc-icon-size: 21px;
+            color: var(--kib-muted);
+          }
+          .inavn {
+            flex: 1;
+            min-width: 0;
+            font-size: 14px;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
           }
-          .tv {
+          .iverdi {
             font-size: 17px;
             font-weight: 600;
             letter-spacing: -0.02em;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
           }
-          .tv small { font-size: 11px; font-weight: 500; opacity: 0.55; margin-left: 3px; }
-          .tspor {
+          .iverdi small { font-size: 12px; font-weight: 500; opacity: 0.55; margin-left: 1px; }
+          /* Stolpen ligger langs underkanten av raden i stedet for inne i en flis —
+             den viser nivå uten å ta en egen linje. */
+          .ispor {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
             height: 3px;
-            border-radius: 99px;
-            background: rgba(128, 128, 128, 0.25);
-            overflow: hidden;
+            background: rgba(128, 128, 128, 0.18);
           }
-          .tspor i {
+          .ispor i {
             display: block;
             height: 100%;
-            border-radius: 99px;
             background: rgba(74, 157, 248, 0.9);
             transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
           }

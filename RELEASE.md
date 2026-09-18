@@ -1,55 +1,31 @@
-# ki-cards 3.95.0
+# ki-cards 3.96.0
 
-## Nytt kort: `ki-server-card` — hele serverpopupen i ett kort
+## `ki-basseng-card` 1.6.0
 
-Fem runder med sammensatte kort ble dårligere for hver gang. Årsaken var metoden, ikke
-detaljene: åtte korttyper med hver sin stil, limt sammen i YAML, kan ikke bli et
-helhetlig design. Her eier ett kort alt, så formspråket er ett stykke arbeid.
+### Rutenettet av småfliser er borte
 
-Popupen er fra 1037 linjer YAML til 107.
+Jeg dro inn det tette tallrutenettet fra serverpopupen i 1.5.0 uten at det var bedt om
+det, og det passer ikke her. Bassengkortet er bygget av **brede flater med rundt
+ikonfelt** — som bannerne og sensorkortene i dashbordet — og småfliser fire per rad
+bryter det språket.
 
-### Fanene viser hvor problemet er
+Sirkulasjon og Spreder bruker nå full-bredde rader: 42 px rundt ikonfelt til venstre,
+navn, og verdien til høyre. Stolpen ligger langs underkanten av raden i stedet for inne i
+en flis, så den viser nivå uten å ta en egen linje.
 
-Hver fane har en prikk: grønn når alt er friskt, gul ved advarsel, rød og pulserende når
-noe er nede. Helsen regnes ut for alle fire uansett hvilken som er åpen, så **du ser
-hvilken fane problemet ligger i uten å åpne den**.
+### En feil rutenettet skjulte
 
-Unraid har åtte sjekker, UniFi én per enhet pluss latens, Proxmox fire pluss hver
-container og maskin, nedlasting fire.
+Kortet hadde allerede en metode som het `_flis`, med signaturen
+`(ikon, navn, tekst, aktiv, klikk, farge)` — den bygger handlingsflisene i Oversikt, og
+brukes seks steder.
 
-### Heroen
+Min nye `_flis(navn, verdi, under, pst)` fra 1.5.0 hadde samme navn, og **overskygget
+den**. En klasse kan ikke ha to metoder med samme navn; den siste vinner. Oversikt-fanens
+seks fliser har derfor fått feil argumenter siden 1.5.0 — ikon der det skulle stå navn, og
+ingen klikkhandling.
 
-Grafen ligger **bak** tallet, ikke ved siden av. Det er det som gjør at et stort tall og
-en tidsserie får plass på samme flate uten å slåss om oppmerksomheten. Kortet måler selv
-hvert femtende sekund og holder et kvarter tilbake, med egen serie per fane.
+Den nye metoden heter `_infoRad`, og den opprinnelige `_flis` er intakt. Kontrollert: én
+definisjon, og alle seks kallene stemmer med signaturen.
 
-Øverst: ikon i domenets farge, hva det er, tilstanden i klartekst, og en pille til høyre
-når noe feiler. Nederst det ene tallet som betyr mest — array-bruk, klienter, node-CPU,
-nedlastingsfart.
-
-### Innholdet
-
-* **Tett tallrutenett**, fire per rad, med stolpe og terskler. 18 tall i Unraid-fanen,
-  13 i Proxmox.
-* **Lister** over enheter, containere og maskiner med prikk, navn og nøkkeltall på
-  høyre side. Trykk veksler containere, eller åpner more-info.
-* **Knapper** i domenets farge, med bekreftelse der det trengs. Node-avstenging er rød.
-* **Søk** i Unraid-containerne.
-* **Tannhjul** for oppsettet: hvilke prefikser kortet bruker, og versjonsnumrene.
-
-### Alt finnes automatisk
-
-UniFi-enhetene (par av `device_tracker` og en uptime-sensor, så telefonene faller
-utenfor), Proxmox-containerne og -maskinene, Unraids containere, disker og delinger.
-`navn_kort` gir penere navn, ellers utledes de fra entitetens eget navn.
-
-`_2`-etterfikset på Dream Machine Pro og portantallet på Treets finnes ved å se hvilke
-entiteter som faktisk eksisterer.
-
-### Testet
-
-Alle fem faner tegnet mot et fullt datasett: 6 UniFi-enheter, 11 containere, 4 Proxmox-
-containere, 2 maskiner, 5 disker, 5 delinger, 5 lagringsområder. Interaksjonene
-kontrollert: containerveksling, VM-knapper, oppdateringsknapp, node-avstenging med
-bekreftelse, søk med og uten treff, fanebytte og tannhjul. Og med tom
-entitetsliste — kortet tegner fanene og krasjer ikke.
+Det er andre gang i dag samme feil har oppstått — navnekollisjon mot en eksisterende
+metode. Første gang var `this._histData` mot `_historikk()`.
