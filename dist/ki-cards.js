@@ -1,4 +1,4 @@
-/* ki-cards v3.97.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v3.97.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.97.0";
+  KI.VERSION = "3.97.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12934,7 +12934,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.7.0";
+  const VERSJON = "1.7.1";
 
   const finnLit = () => {
     const base =
@@ -15096,9 +15096,31 @@ try {
     );
   };
 
+  /* Registreringen skjer ofte fra en `.then()`, fordi LitElement ikke finnes i
+   * frontend ennå når fila lastes. Kaster `start()` der, fanges det IKKE av
+   * try/catch-en bundelen legger rundt hver fil — feilen forsvinner som en ubehandlet
+   * promise-avvisning, og resultatet er «Custom element doesn't exist» uten et ord om
+   * hvorfor.
+   *
+   * Derfor egen fangst med et navn på feilen. Kortet blir ikke mer robust av dette,
+   * men neste gang står årsaken i konsollen.
+   */
+  const trygtStart = (LitElement, hvor) => {
+    try {
+      if (!LitElement || !LitElement.prototype || !LitElement.prototype.html) {
+        console.error(`ki-basseng-card: LitElement fra ${hvor} mangler html/css. `
+          + "Frontend-versjonen kan ha endret seg.");
+        return;
+      }
+      start(LitElement);
+    } catch (e) {
+      console.error(`ki-basseng-card: registreringen feilet (${hvor})`, e);
+    }
+  };
+
   const lit = finnLit();
   if (lit) {
-    start(lit);
+    trygtStart(lit, "ved lasting");
   } else {
     Promise.race([
       customElements.whenDefined("ha-panel-lovelace"),
@@ -15106,9 +15128,9 @@ try {
       customElements.whenDefined("home-assistant-main"),
     ]).then(() => {
       const sen = finnLit();
-      if (sen) start(sen);
+      if (sen) trygtStart(sen, "etter whenDefined");
       else console.error("ki-basseng-card: fant ikke LitElement i frontend");
-    });
+    }).catch((e) => console.error("ki-basseng-card: whenDefined feilet", e));
   }
 })();
 } catch (e) { console.error("ki-cards: 60-ki-basseng-card feilet", e); }

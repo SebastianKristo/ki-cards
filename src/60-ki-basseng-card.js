@@ -14,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.7.0";
+  const VERSJON = "1.7.1";
 
   const finnLit = () => {
     const base =
@@ -2176,9 +2176,31 @@
     );
   };
 
+  /* Registreringen skjer ofte fra en `.then()`, fordi LitElement ikke finnes i
+   * frontend ennå når fila lastes. Kaster `start()` der, fanges det IKKE av
+   * try/catch-en bundelen legger rundt hver fil — feilen forsvinner som en ubehandlet
+   * promise-avvisning, og resultatet er «Custom element doesn't exist» uten et ord om
+   * hvorfor.
+   *
+   * Derfor egen fangst med et navn på feilen. Kortet blir ikke mer robust av dette,
+   * men neste gang står årsaken i konsollen.
+   */
+  const trygtStart = (LitElement, hvor) => {
+    try {
+      if (!LitElement || !LitElement.prototype || !LitElement.prototype.html) {
+        console.error(`ki-basseng-card: LitElement fra ${hvor} mangler html/css. `
+          + "Frontend-versjonen kan ha endret seg.");
+        return;
+      }
+      start(LitElement);
+    } catch (e) {
+      console.error(`ki-basseng-card: registreringen feilet (${hvor})`, e);
+    }
+  };
+
   const lit = finnLit();
   if (lit) {
-    start(lit);
+    trygtStart(lit, "ved lasting");
   } else {
     Promise.race([
       customElements.whenDefined("ha-panel-lovelace"),
@@ -2186,8 +2208,8 @@
       customElements.whenDefined("home-assistant-main"),
     ]).then(() => {
       const sen = finnLit();
-      if (sen) start(sen);
+      if (sen) trygtStart(sen, "etter whenDefined");
       else console.error("ki-basseng-card: fant ikke LitElement i frontend");
-    });
+    }).catch((e) => console.error("ki-basseng-card: whenDefined feilet", e));
   }
 })();
