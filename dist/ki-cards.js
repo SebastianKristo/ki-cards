@@ -1,4 +1,4 @@
-/* ki-cards v3.99.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v4.0.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.99.0";
+  KI.VERSION = "4.0.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12934,7 +12934,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.9.0";
+  const VERSJON = "1.10.0";
 
   /* Finner LitElement i frontend.
    *
@@ -13347,6 +13347,20 @@ try {
        *  3. Flaten under temperaturkurven la seg over båndene og gjorde begge grumsete.
        *     Kurven står nå som en rein strek.
        */
+      /* Timesøyler i stedet for en kurve.
+       *
+       * Kurven var feil form for dette. En temperaturkurve over et døgn er nesten flat,
+       * og da blir den enten en kjedelig strek eller — med stramt vindu — en dramatisk
+       * fjellkjede av målestøy. Ingen av dem sier noe.
+       *
+       * Én søyle per time sier det kurven ikke kunne: hvor mye vannet steg eller falt
+       * DEN timen, og om pumpa gikk mens det skjedde. Søylen går opp fra midtlinja når
+       * temperaturen steg, ned når den falt, og det blå merket under viser minuttene
+       * pumpa gikk i samme time.
+       *
+       * Ingen strukket svg, så ingen forvrengt tekst. Ingen levende måling, så ingenting
+       * som hopper mens du ser på det.
+       */
       _graf() {
         const h = this._hist;
         if (!h || h.feil) return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
@@ -13354,65 +13368,80 @@ try {
           return html`<div class="dempet senter graf-tom">
             Ikke nok temperaturhistorikk ennå.</div>`;
         }
-        const B = 320, H = 96;
-        const verdier = h.temp.map((p) => p.v);
+
+        /* Del vinduet i timer, og finn første og siste temperatur i hver time.
+           Differansen er endringen den timen. */
+        const timer = Math.max(6, Math.min(this._timer, 168));
+        const bøtter = [];
+        const start = new Date(h.til);
+        start.setMinutes(0, 0, 0);
+        for (let i = timer - 1; i >= 0; i--) {
+          const fra = start.getTime() - i * 3600000;
+          bøtter.push({ fra, til: fra + 3600000, temp: [], min: 0 });
+        }
+        const finn = (t) => bøtter.find((b) => t >= b.fra && t < b.til);
+        for (const p of h.temp) { const b = finn(p.t); if (b) b.temp.push(p.v); }
+
+        /* Minutter pumpa gikk per time. Vi går gjennom effektmålingene og legger tiden
+           mellom to målinger på timen den tilhører, når effekten var over terskelen. */
+        const E = h.effekt || [];
+        for (let i = 1; i < E.length; i++) {
+          if (E[i - 1].v <= 40) continue;
+          const b = finn(E[i - 1].t);
+          if (b) b.min += Math.min(60, (E[i].t - E[i - 1].t) / 60000);
+        }
+
+        const med = bøtter.filter((b) => b.temp.length);
+        if (!med.length) {
+          return html`<div class="dempet senter graf-tom">
+            Ingen temperaturmålinger i vinduet.</div>`;
+        }
+        for (const b of med) {
+          b.forste = b.temp[0];
+          b.siste = b.temp[b.temp.length - 1];
+          b.endring = b.siste - b.forste;
+        }
+        const maksEndring = Math.max(0.15, ...med.map((b) => Math.abs(b.endring)));
+        const na = med[med.length - 1].siste;
+        const alle = med.flatMap((b) => b.temp);
+        const sumMin = bøtter.reduce((s2, b) => s2 + b.min, 0);
         const mal = this.attr("vanntemp", "maltemperatur");
-        let lav = Math.min(...verdier), hoy = Math.max(...verdier);
-        if (mal != null && !isNaN(mal)) { lav = Math.min(lav, +mal); hoy = Math.max(hoy, +mal); }
-        /* Minst to graders vindu: en kurve som har stått stille skal se stille ut.
-           Med ett grad ble en halv grads støy en dramatisk fjellkjede. */
-        if (hoy - lav < 2) { const m = (hoy + lav) / 2; lav = m - 1; hoy = m + 1; }
-        const pad = (hoy - lav) * 0.12;
-        lav -= pad; hoy += pad;
-        const x = (t) => ((t - h.fra) / (h.til - h.fra)) * B;
-        const y = (v) => H - ((v - lav) / (hoy - lav)) * H;
 
-        const linje = h.temp
-          .map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`)
-          .join("");
-
-        const band = [];
-        let paa = null;
-        for (const p of (h.effekt || [])) {
-          if (p.v > 40 && paa === null) paa = p.t;
-          else if (p.v <= 40 && paa !== null) { band.push([paa, p.t]); paa = null; }
-        }
-        if (paa !== null) band.push([paa, h.til]);
-        const ekte = band.filter(([f, t]) => t - f >= 120000);
-        const minutter = ekte.reduce((sum, [f, t]) => sum + (t - f) / 60000, 0);
-
-        const na = h.temp[h.temp.length - 1];
-        const steg = this._timer <= 24 ? 6 : 24;
-        const merker = [];
-        for (let i = steg; i < this._timer; i += steg) {
-          const t = h.til - (this._timer - i) * 3600000;
-          merker.push({ x: x(t), tekst: String(new Date(t).getHours()).padStart(2, "0") });
-        }
+        const klokke = (t) => String(new Date(t).getHours()).padStart(2, "0");
+        const vis = timer <= 24 ? bøtter : bøtter.filter((_, i) => i % Math.ceil(timer / 24) === 0);
 
         return html`
-          <div class="grafflate">
-            <!-- lag 1: kurvene, strukket etter bredden -->
-            <svg class="graf" viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
-              ${ekte.map(([f, t]) => html`<rect class="band" x="${x(f).toFixed(1)}" y="0"
-                width="${Math.max(1, x(t) - x(f)).toFixed(1)}" height="${H}"></rect>`)}
-              ${mal != null && !isNaN(mal) && +mal > lav && +mal < hoy
-                ? html`<line class="mal" x1="0" x2="${B}"
-                    y1="${y(+mal).toFixed(1)}" y2="${y(+mal).toFixed(1)}"></line>` : ""}
-              <path class="linje" d="${linje}"></path>
-            </svg>
-            <!-- lag 2: tekst og punkt, IKKE strukket -->
-            <svg class="grafover" viewBox="0 0 ${B} ${H}">
-              ${merker.map((m) => html`<text class="akse" x="${m.x.toFixed(1)}"
-                y="${H - 3}" text-anchor="middle">${m.tekst}</text>`)}
-              <circle class="grafna" cx="${x(na.t).toFixed(1)}" cy="${y(na.v).toFixed(1)}" r="3.2"/>
-            </svg>
+          <div class="soyler">
+            ${vis.map((b) => {
+              const har = b.temp.length > 0;
+              const e = har ? b.endring : 0;
+              const h2 = Math.abs(e) / maksEndring * 44;
+              return html`
+                <div class="soyle ${har ? "" : "tom"}"
+                     title="kl. ${klokke(b.fra)} · ${har
+                       ? `${nf(b.siste, 1)}° (${e >= 0 ? "+" : ""}${nf(e, 2)}°)` : "ingen data"}${
+                       b.min ? ` · pumpet ${Math.round(b.min)} min` : ""}">
+                  <div class="opp">${e > 0 ? html`<i class="stigning"
+                    style="height:${h2.toFixed(1)}px"></i>` : ""}</div>
+                  <div class="midt"></div>
+                  <div class="ned">${e < 0 ? html`<i class="fall"
+                    style="height:${h2.toFixed(1)}px"></i>` : ""}</div>
+                  <div class="pumpe"><i style="height:${
+                    (Math.min(60, b.min) / 60 * 10).toFixed(1)}px"></i></div>
+                </div>`;
+            })}
+          </div>
+          <div class="soyleakse">
+            <span>kl. ${klokke(bøtter[0].fra)}</span>
+            <span>${timer <= 24 ? "siste døgn" : `siste ${Math.round(timer / 24)} døgn`}</span>
+            <span>kl. ${klokke(bøtter[bøtter.length - 1].fra)}</span>
           </div>
           <div class="graf-tekst">
-            <span><i class="prikk temp"></i>${nf(Math.min(...verdier), 1)}–${
-              nf(Math.max(...verdier), 1)} °C${mal != null ? ` · mål ${nf(mal, 0)}°` : ""}</span>
-            <span><i class="prikk sirk"></i>${ekte.length
-              ? `${ekte.length} perioder · ${nf(minutter / 60, 1)} t`
-              : "ingen sirkulasjon"}</span>
+            <span><i class="prikk temp"></i>${nf(na, 1)}° nå${
+              mal != null ? ` · mål ${nf(mal, 0)}°` : ""} · spenn ${
+              nf(Math.min(...alle), 1)}–${nf(Math.max(...alle), 1)}°</span>
+            <span><i class="prikk sirk"></i>${sumMin >= 60
+              ? `pumpet ${nf(sumMin / 60, 1)} t` : `pumpet ${Math.round(sumMin)} min`}</span>
           </div>
         `;
       }
@@ -13925,13 +13954,32 @@ try {
         const andel = maks ? Math.min(100, (brukt / maks) * 100) : undefined;
 
         return html`
-          <!-- Sprederen som en scene: dysa svinger, og dråpene faller bare når den går -->
+          <!-- Sprederen som en SVG-scene, i samme form som sprinkleren i
+               vanningskortet: hodet vipper, strålene svinger i samme takt, og dråpene
+               kastes ut langs buen. Forrige utgave var div-er med rette streker, og
+               vann beveger seg ikke i rette streker. -->
           <div class="spredscene ${gar ? "gar" : ""}">
-            <div class="dyse"><i></i></div>
-            <div class="draper">
-              ${[0, 1, 2, 3, 4, 5, 6, 7].map((i) => html`<i style="--i:${i}"></i>`)}
-            </div>
-            <div class="bakke"></div>
+            <svg viewBox="0 0 320 120" preserveAspectRatio="xMidYMid meet">
+              <rect class="sp-vann" x="0" y="96" width="320" height="24"></rect>
+              <g class="sp-gruppe" transform-origin="160px 78px">
+                <path class="sp-straale" d="M160 78 q34 -38 70 -18"></path>
+                <path class="sp-straale tynn" d="M160 78 q26 -30 54 -20"></path>
+                <path class="sp-straale" d="M160 78 q-34 -38 -70 -18"></path>
+                <path class="sp-straale tynn" d="M160 78 q-26 -30 -54 -20"></path>
+              </g>
+              <g class="sp-draper">
+                ${[[52, 16], [74, 26], [96, 20], [-52, 16], [-74, 26], [-96, 20],
+                   [38, 30], [-38, 30]].map(([dx, dy], i) => html`
+                  <circle class="sp-drape" cx="160" cy="78" r="2.6"
+                    style="--dx:${dx}px;--dy:${dy}px;animation-delay:${
+                      (i * 0.17).toFixed(2)}s"></circle>`)}
+              </g>
+              <g class="sp-hode" transform-origin="160px 96px">
+                <rect x="157" y="78" width="6" height="20" rx="3" class="sp-stamme"></rect>
+                <circle cx="160" cy="78" r="7" class="sp-topp"></circle>
+                <circle cx="160" cy="78" r="3" class="sp-dyse"></circle>
+              </g>
+            </svg>
             <div class="spredtekst">
               ${gar ? `Sprederen går · ${Math.ceil(igjen)} min igjen` : "Sprederen står"}
             </div>
@@ -14235,70 +14283,53 @@ try {
             font-variant-numeric: tabular-nums;
           }
 
-          /* --- sprederscenen --- */
+          /* --- sprederscenen, i samme form som sprinkleren i vanningskortet --- */
           .spredscene {
             position: relative;
-            height: 108px;
-            border-radius: 18px;
+            border-radius: 22px;
             background: var(--kib-surface);
             overflow: hidden;
             margin-bottom: 8px;
           }
-          .dyse {
-            position: absolute;
-            left: 50%;
-            bottom: 26px;
-            width: 10px;
-            height: 22px;
-            margin-left: -5px;
-            border-radius: 3px 3px 0 0;
-            background: rgba(200, 205, 210, 0.5);
-            transform-origin: 50% 100%;
+          .spredscene svg { display: block; width: 100%; height: 120px; }
+          .sp-vann { fill: rgba(74, 157, 248, 0.18); }
+          .sp-stamme { fill: rgba(200, 205, 210, 0.45); }
+          .sp-topp { fill: rgba(234, 246, 255, 0.9); }
+          .sp-dyse { fill: rgba(106, 169, 201, 0.95); }
+
+          /* Hodet vipper, og strålegruppa svinger i samme takt. Ellers ville strålene
+             stått stille mens dysa beveget seg. */
+          .sp-hode { transform-box: fill-box; transform-origin: 50% 100%; }
+          .spredscene.gar .sp-hode { animation: sp-vipp 3.2s ease-in-out infinite alternate; }
+          @keyframes sp-vipp { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+
+          .sp-gruppe { opacity: 0; transform-box: view-box; }
+          .spredscene.gar .sp-gruppe {
+            opacity: 1;
+            animation: sp-sving 3.2s ease-in-out infinite alternate;
           }
-          .spredscene.gar .dyse { animation: sving 4s ease-in-out infinite; }
-          @keyframes sving {
-            0%, 100% { transform: rotate(-38deg); }
-            50% { transform: rotate(38deg); }
+          @keyframes sp-sving { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+          .sp-straale {
+            fill: none;
+            stroke: rgba(191, 233, 255, 0.55);
+            stroke-width: 3;
+            stroke-linecap: round;
           }
-          .dyse i {
-            position: absolute;
-            top: -3px;
-            left: 50%;
-            width: 6px;
-            height: 6px;
-            margin-left: -3px;
-            border-radius: 50%;
-            background: rgba(74, 157, 248, 0.8);
-          }
-          .draper { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
-          .spredscene.gar .draper { opacity: 1; }
-          .draper i {
-            position: absolute;
-            bottom: 48px;
-            left: calc(14% + var(--i) * 10%);
-            width: 3px;
-            height: 3px;
-            border-radius: 50%;
-            background: rgba(74, 157, 248, 0.85);
-            animation: drape 1.9s linear infinite;
-            animation-delay: calc(var(--i) * -0.24s);
-          }
-          @keyframes drape {
-            0% { transform: translateY(-34px) scale(0.7); opacity: 0; }
-            25% { opacity: 1; }
-            100% { transform: translateY(26px) scale(1); opacity: 0; }
-          }
-          .bakke {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 26px;
-            background: linear-gradient(180deg, rgba(90, 209, 139, 0.22), rgba(90, 209, 139, 0.08));
+          .sp-straale.tynn { stroke-width: 2; stroke: rgba(191, 233, 255, 0.35); }
+
+          .sp-drape { fill: rgba(191, 233, 255, 0.9); opacity: 0; transform-box: view-box; }
+          .spredscene.gar .sp-drape { animation: sp-sprut 1.5s ease-out infinite; }
+          @keyframes sp-sprut {
+            0% { opacity: 0; transform: translate(0, 0) scale(0.45); }
+            12% { opacity: 0.95; }
+            45% { transform: translate(calc(var(--dx, 40px) * 0.55),
+                    calc(var(--dy, 22px) * -1)) scale(0.9); }
+            100% { opacity: 0; transform: translate(var(--dx, 40px),
+                     calc(var(--dy, 22px) * 0.9)) scale(0.8); }
           }
           .spredtekst {
             position: absolute;
-            left: 14px;
+            left: 16px;
             top: 12px;
             font-size: 13px;
             font-weight: 600;
@@ -14309,7 +14340,10 @@ try {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin: 0 0 12px auto;
+            /* Verdien 0 0 12px auto skjøv hele rada mot høyre kant. Den skal stå midt
+               på, slik den gjorde før tannhjulet kom til. Ingen backticks i CSS-
+               kommentarer: de lukker template-strengen. */
+            margin: 0 auto 12px auto;
             width: fit-content;
             max-width: 100%;
             min-width: 0;
@@ -14749,6 +14783,53 @@ try {
              MERK: ingen backticks i denne kommentaren. Den står inne i en
              css-template-streng, og en backtick her lukker strengen midt i. */
 
+          /* --- timesøyler: én søyle per time, opp når vannet steg, ned når det falt --- */
+          .soyler {
+            display: flex;
+            align-items: stretch;
+            gap: 2px;
+            height: 104px;
+            padding: 2px 0 0;
+          }
+          .soyle {
+            flex: 1 1 0;
+            min-width: 0;
+            display: grid;
+            grid-template-rows: 44px 1px 44px 12px;
+            cursor: default;
+          }
+          .soyle.tom { opacity: 0.35; }
+          .soyle .opp { display: flex; align-items: flex-end; }
+          .soyle .ned { display: flex; align-items: flex-start; }
+          .soyle .opp i, .soyle .ned i {
+            display: block;
+            width: 100%;
+            border-radius: 3px 3px 0 0;
+            background: var(--kib-orange);
+            transition: height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+          .soyle .ned i { border-radius: 0 0 3px 3px; background: var(--kib-blue); }
+          /* Midtlinja er nullpunktet: over den steg temperaturen, under falt den */
+          .soyle .midt { background: rgba(128, 128, 128, 0.3); }
+          .soyle .pumpe { display: flex; align-items: flex-end; padding-top: 2px; }
+          .soyle .pumpe i {
+            display: block;
+            width: 100%;
+            border-radius: 2px;
+            background: var(--kib-blue);
+            opacity: 0.55;
+            transition: height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+          .soyle:hover .opp i, .soyle:hover .ned i { filter: brightness(1.25); }
+          .soyleakse {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10.5px;
+            opacity: 0.45;
+            margin-top: 4px;
+            font-variant-numeric: tabular-nums;
+          }
+
           /* --- grafen: to lag, så tekst ikke strekkes med kurvene --- */
           .grafflate { position: relative; height: 96px; }
           .grafflate .graf, .grafflate .grafover {
@@ -15058,8 +15139,9 @@ try {
             }
           }
           @media (prefers-reduced-motion: reduce) {
-            .spredscene.gar .dyse,
-            .draper i,
+            .spredscene.gar .sp-hode,
+            .spredscene.gar .sp-gruppe,
+            .sp-drape,
             .stripe.aktiv .blokk,
             .strom i,
             .bobler i,

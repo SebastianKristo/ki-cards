@@ -1,36 +1,43 @@
-# ki-cards 3.99.0
+# ki-cards 4.0.0
 
-## `ki-basseng-card` 1.9.0: temperatur og sirkulasjon i samme graf
+## `ki-basseng-card` 1.10.0
 
-Konseptet fantes fra før — sirkulasjonen som bånd bak temperaturkurven — men utførelsen
-hadde tre feil, og det er dem jeg tror gjorde grafen ubrukelig:
+### Fanerada sto til høyre
 
-**1. Aksetallene var forvrengt.** Alt lå i én `svg` med `preserveAspectRatio="none"`. Den
-strekker innholdet etter bredden, så tallene under grafen ble strukket med. Nå er det to
-lag: kurvene i en strukket svg, tekst og nå-punkt i en som ikke strekkes.
+Da tannhjulet kom i 1.6.0 satte jeg `margin: 0 0 12px auto` på rada, som skjøv hele
+gruppa mot høyre kant. Den skal stå midt på, og gjør det igjen.
 
-**2. Terskelen for «pumpa går» var 10 W.** Standby-trekk ligger over det, så det ble bånd
-hele døgnet — og da sier båndene ingenting. Nå 40 W, og perioder kortere enn to minutter
-forkastes: et blaff er ikke en pumpeperiode.
+### Helt ny graftype: timesøyler
 
-**3. Flaten under temperaturkurven la seg over båndene** og gjorde begge grumsete. Kurven
-står nå som en rein strek.
+Kurven var feil form for dette, og det er derfor ingen av forsøkene ble gode. En
+temperaturkurve over et døgn er nesten flat: enten blir den en kjedelig strek, eller — med
+stramt vindu — en dramatisk fjellkjede av målestøy. Ingen av dem sier noe.
 
-I tillegg: minst to graders vindu på y-aksen. Med ett grad ble en halv grads måle-støy en
-dramatisk fjellkjede på en dag da ingenting skjedde.
+Én søyle per time sier det kurven ikke kunne: **hvor mye vannet steg eller falt den
+timen**, og om pumpa gikk mens det skjedde.
 
-Under grafen står temperaturspennet med målet, og antall pumpeperioder med samlet tid.
-Tidsvinduet velges med 24 t / 3 d / 7 d.
+* Søyla går **opp** fra midtlinja når temperaturen steg i løpet av timen, **ned** når den
+  falt. Oransje opp, blå ned.
+* Under hver søyle et blått merke som viser **minuttene pumpa gikk** den timen.
+* Midtlinja er nullpunktet, så du ser med én gang hvilke timer som var netto varme.
+* Ingen strukket svg, altså ingen forvrengt tekst. Ingen levende måling, altså ingenting
+  som hopper mens du ser på det.
 
-**Grafen ligger nå i Sirkulasjon-fanen**, over planstripa. Der hører den: stripa viser
-hva som er *planlagt*, grafen hva som *skjedde*. Arbeidsgrafen fra 3.91.0 er fjernet — den
-var den ene av to som ikke sa noe nytt.
+Under: temperaturen nå med målet og spennet i vinduet, og samlet pumpetid. 24 t / 3 d /
+7 d velger vinduet — over et døgn fortynnes søylene til 24 i stedet for å bli hårtynne.
 
-Grafen er på som standard igjen.
+Kontrollert for alle tre vinduene: 24 søyler hver gang, og opp + ned = 24.
 
-### Testet
+### Sprederen er bygget om i vanningskortets form
 
-Én to-timers periode gir ett bånd og «2,0 t». Et blaff på 60 sekunder gir ingen bånd.
-Standby på 12 W hele døgnet gir ingen bånd. Standby på 45 W gir ett langt bånd, som det
-skal — da trekker pumpa faktisk strøm. En flat kurve varierer 3,9 px av 96 i stedet for å
-fylle hele høyden.
+Den gamle var div-er som falt i rette streker. Vann beveger seg ikke i rette streker.
+
+Nå en SVG-scene som følger sprinkleren i `ki-vanning-card`: hodet vipper, **strålegruppa
+svinger i samme takt** — ellers ville strålene stått stille mens dysa beveget seg — og
+åtte dråper kastes ut langs buen med hver sin retning og forsinkelse, via `--dx`/`--dy`
+og samme `sprut`-kurve som vanningskortet.
+
+Står sprederen, er scenen stille og strålene usynlige.
+
+De gamle `.dyse`, `.draper` og `.bakke`-stilene er fjernet, og reduced-motion dekker de
+nye animasjonene.
