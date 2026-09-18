@@ -14,15 +14,33 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.7.1";
+  const VERSJON = "1.8.0";
 
+  /* Finner LitElement i frontend.
+   *
+   * Gammel utgave tok prototypen til ett HA-element og antok at `html` og `css` lå på
+   * den. Det holder bare så lenge arvekjeden er nøyaktig ett ledd dyp, og Home
+   * Assistant har flyttet på den: er det et mellomledd — en mixin — mellom elementet
+   * og LitElement, er `html` ikke der, og kortet registrerer seg aldri.
+   *
+   * Nå går vi OPPOVER kjeden til vi finner et ledd som faktisk har `html` og `css`, og
+   * vi prøver flere elementer. Det tåler et mellomledd uten å vite hva det heter.
+   */
   const finnLit = () => {
-    const base =
-      customElements.get("ha-panel-lovelace") ||
-      customElements.get("hui-view") ||
-      customElements.get("hui-masonry-view") ||
-      customElements.get("home-assistant-main");
-    return base ? Object.getPrototypeOf(base) : null;
+    const kandidater = [
+      "ha-panel-lovelace", "hui-view", "hui-masonry-view", "hui-sections-view",
+      "home-assistant-main", "ha-card", "hui-entities-card", "ha-panel-config",
+    ];
+    for (const navn of kandidater) {
+      let k = customElements.get(navn);
+      if (!k) continue;
+      // maks ti ledd; kjeden er kort, og en løkke uten tak er en løkke som kan henge
+      for (let i = 0; i < 10 && k; i++) {
+        k = Object.getPrototypeOf(k);
+        if (k && k.prototype && k.prototype.html && k.prototype.css) return k;
+      }
+    }
+    return null;
   };
 
   const start = (LitElement) => {
