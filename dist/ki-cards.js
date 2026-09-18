@@ -1,4 +1,4 @@
-/* ki-cards v4.8.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v4.9.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.8.0";
+  KI.VERSION = "4.9.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11863,9 +11863,10 @@ try {
  * demo: true                 # eksempeldata for Oslo, Strömstad og Toten
  * helger: sensor.ki_hyttebesok_oslo_helger   # oppdages automatisk
  * maaneder: 1                     # antall måneder i kalenderen
- * sok: false                      # skjuler søkefeltet i kalenderfanen
+ * sok: false                      # skjuler søkeknappen ved fanene
+ *   søket tolker: 12.7 · 2026-07-12 · 4. juli · uke 28 · helg 37 · i går · forrige helg
  */
-const KI_HYTTE_VERSJON = "2.5.0";
+const KI_HYTTE_VERSJON = "2.6.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12026,6 +12027,9 @@ const KI_HYTTE_STIL = `
     cursor:pointer; display:flex; align-items:center; justify-content:center;
     --mdc-icon-size:17px; }
   .soksvar:empty { display:none; }
+  /* Helgelinja skilles fra dagene over med en hårfin strek, så den leses som et
+     sammendrag og ikke som enda et sted. */
+  .helglinje { border-top:1px solid rgba(128,128,128,.22); margin-top:6px; padding-top:8px; }
 
   /* stedsfilter i oppholdsfanen */
   .stedfilter { display:flex; justify-content:center; }
@@ -12260,20 +12264,48 @@ class KiHytteCard extends HTMLElement {
     }
     if (/^denne uk/.test(t)) {
       const u = uke(naa);
-      return { tittel: `Uke ${u.nr}`, dager: spenn(ukeStart(u.nr, u.aar), 7) };
+      return { tittel: `Uke ${u.nr}`, uke: u.nr, dager: spenn(ukeStart(u.nr, u.aar), 7) };
     }
     if (/^(i )?forrige uk/.test(t)) {
       const d = new Date(naa); d.setDate(d.getDate() - 7);
       const u = uke(d);
-      return { tittel: `Uke ${u.nr}`, dager: spenn(ukeStart(u.nr, u.aar), 7) };
+      return { tittel: `Uke ${u.nr}`, uke: u.nr, dager: spenn(ukeStart(u.nr, u.aar), 7) };
     }
 
-    let m = t.match(/^(?:uke|u)\s*(\d{1,2})(?:\s+(\d{4}))?$/);
+    /* «helg 37», «helgen uke 37» — fredag til søndag i den uka. Det er den vanligste
+       måten å huske en tur på: ikke datoen, men hvilken helg det var. */
+    let m = t.match(/^helg(?:en|a)?\s*(?:uke|u)?\s*(\d{1,2})(?:\s+(\d{4}))?$/);
     if (m) {
       const nr = Number(m[1]);
       if (nr >= 1 && nr <= 53) {
         const aar = m[2] ? Number(m[2]) : naa.getFullYear();
-        return { tittel: `Uke ${nr}, ${aar}`, dager: spenn(ukeStart(nr, aar), 7) };
+        const man = ukeStart(nr, aar);
+        const fre = new Date(man); fre.setDate(man.getDate() + 4);
+        return { tittel: `Helgen i uke ${nr}, ${aar}`, uke: nr, helg: true,
+          dager: spenn(fre, 3) };
+      }
+    }
+    if (/^(denne )?helg(en|a)$/.test(t) || t === "i helga" || t === "i helgen") {
+      const u = uke(naa);
+      const man = ukeStart(u.nr, u.aar);
+      const fre = new Date(man); fre.setDate(man.getDate() + 4);
+      return { tittel: `Helgen i uke ${u.nr}`, uke: u.nr, helg: true, dager: spenn(fre, 3) };
+    }
+    if (/^(i )?forrige helg(en|a)?$/.test(t)) {
+      const d = new Date(naa); d.setDate(d.getDate() - 7);
+      const u = uke(d);
+      const man = ukeStart(u.nr, u.aar);
+      const fre = new Date(man); fre.setDate(man.getDate() + 4);
+      return { tittel: `Helgen i uke ${u.nr}`, uke: u.nr, helg: true, dager: spenn(fre, 3) };
+    }
+
+    let m2 = t.match(/^(?:uke|u)\s*(\d{1,2})(?:\s+(\d{4}))?$/);
+    m = m2;
+    if (m) {
+      const nr = Number(m[1]);
+      if (nr >= 1 && nr <= 53) {
+        const aar = m[2] ? Number(m[2]) : naa.getFullYear();
+        return { tittel: `Uke ${nr}, ${aar}`, uke: nr, dager: spenn(ukeStart(nr, aar), 7) };
       }
     }
 
@@ -12341,10 +12373,33 @@ class KiHytteCard extends HTMLElement {
         <i style="background:${kiHyEsc(this._stedFarge2(x.sted))}"></i>
         ${kiHyEsc(x.sted)}<span class="folk">${kiHyEsc(navn)}</span></div>`);
     }
+    /* Ved ukesøk legges helga til som egen linje. Det er den folk husker: ikke at det
+       var uke 37, men at «vi var på Toten den helga». Fredag, lørdag og søndag telles,
+       og stedet som hadde flest av dem er helgestedet. */
+    let helgelinje = "";
+    if (tolk.uke && !tolk.helg) {
+      const fre = tolk.dager.slice(4, 7);
+      const per = new Map();
+      for (const x of kilder) {
+        let n = 0;
+        for (const iso of fre) if ((((x.dager || {})[iso]) || []).length) n++;
+        if (n) per.set(x.sted, n);
+      }
+      if (per.size) {
+        const sortert = [...per.entries()].sort((a, b) => b[1] - a[1]);
+        const tekst = sortert.map(([sted, n]) =>
+          sortert.length > 1 ? `${sted} (${n} av 3)` : sted).join(", ");
+        helgelinje = `<div class="rad2 helglinje">
+          <i style="background:${kiHyEsc(this._stedFarge2(sortert[0][0]))}"></i>
+          Helgen<span class="folk">${kiHyEsc(tekst)}</span></div>`;
+      }
+    }
+
     return `<div class="dagboks">
       <div class="tit2">${kiHyEsc(tolk.tittel)}${tolk.dager.length > 1
         ? ` · ${tolk.dager.length} dager` : ""}</div>
       ${rader.join("") || `<div class="rad2" style="opacity:.6">Ingen var noe sted.</div>`}
+      ${helgelinje}
     </div>`;
   }
 

@@ -1,36 +1,37 @@
-# ki-cards 4.8.0
+# ki-cards 4.9.0
 
-## `ki-hytte-card` 2.5.0
+## `ki-hytte-card` 2.6.0: søk på helg
 
-### Tastaturet falt tilbake til bokstaver etter hvert tall
+Det er sjelden datoen man husker. Det er «vi var på Toten den helga».
 
-Skrev du «12.7» på mobil, måtte du inn i talltastaturet igjen for hvert eneste tegn.
+Nye søk:
 
-Årsaken: jeg tegnet om hele panelet ved hvert tastetrykk. Da byttes input-elementet ut
-med et **nytt element**, og et nytt felt får nytt tastatur — mobilen begynner på
-bokstaver igjen. Fokus og markør ble satt tilbake, så det så nesten riktig ut, men
-tastaturmodusen kunne ikke reddes.
+| Du skriver | Tolkes som |
+| --- | --- |
+| `helg 37` · `helgen 37` · `helg uke 37` | fredag, lørdag og søndag i uke 37 |
+| `helga` · `denne helgen` | helga denne uka |
+| `forrige helg` | helga forrige uke |
 
-Nå røres bare svarboksen ved tasting. Input-feltet står urørt fra det opprettes til du
-lukker søket, og tastaturet blir stående der du satte det.
+**Og ved ethvert ukesøk legges helga til som egen linje.** Søker du `uke 37` og dere var
+på Oslo mandag til torsdag og Toten fredag til søndag, står det:
 
-Feltet har også fått `autocomplete="off"`, `autocapitalize="off"` og `spellcheck="false"`
-— ingen stor sak hver for seg, men til sammen slutter mobilen å foreslå og rette midt i
-en dato.
+```
+Uke 37, 2026 · 7 dager
+  Toten     Sebastian (3 d), Rune (3 d)
+  Oslo      Cybele (4 d)
+  ─────────────────────────
+  Helgen    Toten
+```
 
-### Søket ligger bak et forstørrelsesglass
+Var dere flere steder i helga, står fordelingen: «Toten (2 av 3), Oslo (1 av 3)». Linja er
+skilt fra dagene over med en hårfin strek, så den leses som et sammendrag og ikke som enda
+et sted.
 
-Knappen står til høyre for fanerada, i samme form som tannhjulet i bassengkortet: rund,
-38 px, og den lyser i `--active-big` når søket er åpent. Lukket tar feltet ingen plass.
-
-Åpner du søket fra en annen fane, hopper kortet til Kalender, siden det er der svaret
-hører hjemme. Lukkeknappen tømmer søket og lukker feltet i én bevegelse.
-
-Feltet er høyere enn før — 46 px mot 40 — med større tekst, og glir ned i stedet for å
-dukke opp.
+Helga regnes fra `dager`-oppslaget, altså de samme dataene kalenderen bruker. Den krever
+ikke helgesensoren fra KI Hyttebesøk, men stemmer overens med den.
 
 ### Kontrollert
 
-Lukket søk gir ingen markup i det hele tatt. Ved tasting kjøres bare `.soksvar`, aldri
-`_tegn()` eller `_oppdaterPaneler()`. Svaret følger teksten tegn for tegn: «uke 2» gir uke
-2 og «uke 28» gir uke 28, og fire ulike datoer gir fire ulike svar.
+Sju skrivemåter tolket riktig, inkludert at `helga` og `denne helgen` treffer inneværende
+uke og `forrige helg` uka før. Svaret kontrollert mot en uke der Oslo hadde mandag til
+torsdag og Toten fredag til søndag: helgelinja sier Toten.
