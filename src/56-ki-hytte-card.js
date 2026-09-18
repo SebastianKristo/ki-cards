@@ -17,7 +17,7 @@
  * sok: false                      # skjuler søkeknappen ved fanene
  *   søket tolker: 12.7 · 2026-07-12 · 4. juli · uke 28 · helg 37 · i går · forrige helg
  */
-const KI_HYTTE_VERSJON = "2.7.0";
+const KI_HYTTE_VERSJON = "2.7.1";
 
 /* ISO-ukenummer: torsdagen i uka bestemmer hvilket år og nummer uka hører til. Uten den
    regelen havner dagene rundt nyttår i feil uke. Samme regel som søket bruker. */
@@ -165,8 +165,9 @@ const KI_HYTTE_STIL = `
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
   /* Ukenummeret står ved måneden, dempet: det er en opplysning man slår opp, ikke noe
      som skal konkurrere med månedsnavnet. */
-  .ukenaa { font-size:11.5px; font-weight:600; opacity:.5; margin-left:8px;
-    padding:3px 8px; border-radius:999px; background:rgba(128,128,128,.18);
+  /* Ingen bakgrunn: pilla ble en flate til ved siden av månedsnavnet. Som ren dempet
+     tekst leses den som en opplysning om måneden, ikke som et eget element. */
+  .ukenaa { font-size:11.5px; font-weight:600; opacity:.45; margin-left:8px;
     vertical-align:middle; }
 
   /* søket: knapp ved fanene, felt som glir ned */

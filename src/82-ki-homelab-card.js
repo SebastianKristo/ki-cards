@@ -8,7 +8,7 @@
  *    speedtestdotnet  → ned/opp/ping (valgfritt)
  *
  *  type: custom:ki-homelab-card
- *  vis: scene          # scene (standard) | gjester | nettverk | lagring
+ *  vis: scene          # scene (standard) | nedlasting | gjester | nettverk | lagring
  *  kilde: alle         # gjester: proxmox | unraid | alle
  *  navn: Homelab
  *  skjul: [homarr]     # valgfritt: skjul rader/enheter som inneholder denne teksten
@@ -73,7 +73,7 @@
     const devNavn = (id) => { const d = D[id]; return d ? (d.name_by_user || d.name || "") : ""; };
     const devModell = (id) => { const d = D[id]; return d ? `${d.manufacturer || ""} ${d.model || ""}`.toLowerCase() : ""; };
     const nm = cfg.navn_map || {};
-    const R = { proxmox: { noder: [], gjester: [], lagring: [], varsler: [] }, unifi: { enheter: [], wlan: [] }, unraid: null, qbit: null, speedtest: null };
+    const R = { proxmox: { noder: [], gjester: [], lagring: [], varsler: [], diskerMap: {}, disker: [], montert: null }, unifi: { enheter: [], wlan: [] }, unraid: null, qbit: null, speedtest: null };
 
     /* Proxmox */
     for (const [dev, liste] of Object.entries(per.proxmox_sensors || {})) {
@@ -86,7 +86,9 @@
       // varsler: binærsensorer på som ikke er statuser
       alle(liste, /(stressed|overloaded|overbelast|stress)/, "binary_sensor").forEach((id) => R.proxmox.varsler.push(id));
       // felles prefiks → nøkkel og vmid
-      let pre = ids.reduce((a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); }, ids[0] || "");
+      // prefiks regnes bare av id-er med nummer foran (binary_sensor.stressed o.l. ligger på noden uten prefiks)
+      const medNr = ids.filter((o) => /^\d+_/.test(o)); const grunnlag = medNr.length ? medNr : ids;
+      let pre = grunnlag.reduce((a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); }, grunnlag[0] || "");
       pre = pre.slice(0, pre.lastIndexOf("_") + 1);
       const nokkel = pre.replace(/^\d+_(node|ct|lxc|vm|qemu|storage|disks?|mounted_disks)_/, "").replace(/_$/, "");
       const vmid = (nokkel.match(/_(\d{3,})$/) || [])[1];
@@ -116,7 +118,26 @@
       if (type === "node") R.proxmox.noder.push(g);
       else if (type === "ct" || type === "vm") R.proxmox.gjester.push(g);
       else if (type === "storage") R.proxmox.lagring.push(g);
+      else if (type === "mounted_disks") R.proxmox.montert = finn(liste, /./, "sensor");
+      else if (type === "disks" || type === "disk" || type === "annet") {
+        liste.filter((e) => dom(e.entity_id) === "sensor").forEach((e) => {
+          const o = obj(e.entity_id);
+          const m = o.match(/(airflow_temperature|temperature|temp|size|health|smart_status|wearout|life_left|power_on_hours)$/); if (!m) return;
+          const k = o.slice(0, o.length - m[1].length).replace(/_$/, "").replace(/^\d+_disks?_/, "").replace(/^disks?_/, "");
+          const d = (R.proxmox.diskerMap[k] = R.proxmox.diskerMap[k] || { id: "pd-" + k, nokkel: k });
+          const f = /temp/.test(m[1]) ? "temp" : m[1] === "size" ? "storrelse" : /health|smart/.test(m[1]) ? "helse" : /wearout|life/.test(m[1]) ? "slitasje" : "timer";
+          if (!d[f]) d[f] = e.entity_id;
+        });
+      }
     }
+    // pene disknavn: «pve_samsung_ssd_840_evo_250gb» → «Samsung SSD 840 EVO 250 GB»
+    const nodeNokler = R.proxmox.noder.map((n) => n.nokkel).filter(Boolean);
+    R.proxmox.disker = Object.values(R.proxmox.diskerMap).filter((d) => !skjult(d.nokkel)).map((d) => {
+      let t = d.nokkel.split("_"); if (t.length > 1 && nodeNokler.includes(t[0])) t = t.slice(1);
+      d.navn = nm[d.nokkel] || t.map((w) => /^(ssd|hdd|nvme|evo|qvo|pro|wd|wdc|sata|m2)$/i.test(w) ? w.toUpperCase()
+        : /^\d+(gb|tb)$/i.test(w) ? w.replace(/(\d+)(gb|tb)/i, (a, n, u) => n + " " + u.toUpperCase()) : w.replace(/^./, (c) => c.toUpperCase())).join(" ");
+      return d;
+    });
     const rek = { start: 0, restart: 1, stopp: 2, av: 3, pause: 4, fortsett: 5, dvale: 6, reset: 7 };
     [...R.proxmox.gjester, ...R.proxmox.noder].forEach((g) => g.knapper.sort((a, b) => rek[a.a] - rek[b.a]));
     R.proxmox.gjester.sort((a, b) => (a.type === b.type ? 0 : a.type === "vm" ? 1 : -1) || String(a.vmid || a.navn).localeCompare(String(b.vmid || b.navn), "nb", { numeric: true }));
@@ -308,6 +329,74 @@
     .strek { height:6px; border-radius:3px; background:rgba(250,251,252,.12); overflow:hidden; margin:0 16px 12px 16px; }
     .strek i { display:block; height:100%; border-radius:3px; background:var(--green); transition:width 1s ease; }
     .overskrift { font-size:14px; opacity:.7; padding:4px 4px 0; }
+
+    /* nedlasting */
+    .nd { position:relative; height:180px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate; color:#e8f1ff; cursor:pointer;
+      background:linear-gradient(165deg,#12191f 0%,#16211f 55%,#1a2a28 100%); -webkit-tap-highlight-color:transparent; }
+    .nd:active { transform:scale(.985); }
+    .nd .glod { background:radial-gradient(70% 100% at 72% 40%, rgba(90,230,200,.0) 0%, transparent 60%); transition:background 1.2s; }
+    .nd.laster .glod { background:radial-gradient(60% 90% at 72% 38%, rgba(90,230,200,.30) 0%, transparent 62%); }
+    .nd.begrenset .glod { background:radial-gradient(60% 90% at 72% 38%, rgba(255,179,74,.22) 0%, transparent 62%); }
+    .nd.av { background:linear-gradient(165deg,#1c2130,#232838); }
+    .nd .pille { background:rgba(232,241,255,.12); } .nd.laster .pille { background:rgba(90,230,200,.24); } .nd.begrenset .pille { background:rgba(255,179,74,.28); }
+    .peer { fill:#1f2833; stroke:#3b4757; stroke-width:1.2; transition:stroke .6s, fill .6s; }
+    .peer.ned { stroke:#5ae6c8; fill:#1c3a36; } .peer.opp { stroke:#ffb34a; fill:#3a2e1c; } .peer.ned.opp { stroke:#b8f0e4; }
+    .peer.ned, .peer.opp { animation:peerpuls 2.4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+    @keyframes peerpuls { 0%,100% { transform:scale(1); } 50% { transform:scale(1.25); } }
+    .spor { stroke:rgba(255,255,255,.07); stroke-width:1.2; fill:none; }
+    .strom { fill:none; stroke-width:2.2; stroke-linecap:round; stroke-dasharray:2 9; opacity:0; transition:opacity .6s; }
+    .strom.ned { stroke:#5ae6c8; animation:flyt var(--ned-tid,1.2s) linear infinite; }
+    .strom.opp { stroke:#ffb34a; animation:flyt var(--opp-tid,1.4s) linear infinite; }
+    .strom.paa { opacity:1; }
+    .hub { fill:#1b2530; stroke:#3b4757; stroke-width:1.5; transition:stroke .6s; } .nd.laster .hub { stroke:#5ae6c8; }
+    .hubring { fill:none; stroke:#5ae6c8; stroke-width:1.5; opacity:0; transform-box:fill-box; transform-origin:center; }
+    .nd.laster .hubring { animation:hubring 2s ease-out infinite; }
+    @keyframes hubring { 0% { opacity:.7; transform:scale(1); } 100% { opacity:0; transform:scale(1.9); } }
+    .hubpil { fill:#e8f1ff; } .nd.laster .hubpil { animation:hubpil 1.1s ease-in-out infinite; fill:#5ae6c8; }
+    @keyframes hubpil { 0%,100% { transform:translateY(-1.5px); } 50% { transform:translateY(1.5px); } }
+    .t-hub { font-size:8px; font-weight:600; fill:#e8f1ff; }
+    .graf-ned { fill:url(#gn); stroke:#5ae6c8; stroke-width:1.4; vector-effect:non-scaling-stroke; transition:d .8s; }
+    .graf-opp { fill:none; stroke:#ffb34a; stroke-width:1.2; stroke-dasharray:3 2; vector-effect:non-scaling-stroke; }
+    .graf-akse { stroke:rgba(255,255,255,.08); stroke-width:1; }
+    .t-graf { font-size:7px; fill:#e8f1ff; opacity:.5; }
+    .skilpadde { opacity:0; transition:opacity .5s; } .nd.begrenset .skilpadde { opacity:1; }
+
+    /* lagring */
+    .lg { display:grid; gap:8px; }
+    .ar { position:relative; height:196px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate; color:#e8f1ff;
+      background:linear-gradient(165deg,#161a22 0%,#1b202b 55%,#221f2b 100%); }
+    .ar .glod { background:radial-gradient(70% 100% at 78% 110%, rgba(241,90,44,.26) 0%, transparent 62%); }
+    .ar.stoppet .glod { background:radial-gradient(70% 100% at 78% 110%, rgba(255,90,70,.36) 0%, transparent 62%); }
+    .ar .pille { background:rgba(91,227,138,.2); } .ar.stoppet .pille { background:rgba(255,80,70,.4); }
+    .ar .scene { width:62%; max-width:320px; }
+    .ror-ytre { fill:#10151c; stroke:#2f3a47; stroke-width:1.2; transition:stroke .6s; }
+    .ror-ytre.varm { stroke:#ffb34a; animation:varselkant 1.8s ease-in-out infinite; } .ror-ytre.het { stroke:#ff5a4a; animation:varselkant 1s ease-in-out infinite; }
+    .vaeske { transition:transform 1.6s cubic-bezier(.3,.8,.3,1); animation:stig 1.6s cubic-bezier(.3,.8,.3,1); }
+    @keyframes stig { from { transform:translateY(124px); } }
+    .bolgetopp { animation:skvulp 3s ease-in-out infinite; }
+    @keyframes skvulp { 0%,100% { transform:translateX(0); } 50% { transform:translateX(-6px); } }
+    .t-ror { font-size:8.5px; font-weight:600; fill:#e8f1ff; } .t-temp { font-size:7.5px; fill:#e8f1ff; opacity:.6; }
+    .t-temp.varm { fill:#ffb34a; opacity:1; } .t-temp.het { fill:#ff5a4a; opacity:1; }
+    .t-pst { font-size:7px; font-weight:600; fill:#0e1217; }
+    .lg-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .fl { background:var(--gray200); color:var(--gray1000); border-radius:var(--ha-card-border-radius,24px); padding:14px 16px 16px; display:grid; gap:10px;
+      cursor:pointer; min-width:0; -webkit-tap-highlight-color:transparent; }
+    .fl:active { transform:scale(.97); }
+    .fl .hode { display:flex; align-items:center; gap:10px; min-width:0; }
+    .fl .hode .ik { width:40px; height:40px; margin:0; flex:none; } .fl .hode .ik ha-icon { --mdc-icon-size:22px; }
+    .fl .hode span { font-size:14px; font-weight:500; opacity:.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .smult { justify-self:center; position:relative; width:108px; height:108px; }
+    .smult svg { width:100%; height:100%; transform:rotate(-90deg); }
+    .smult .bak { fill:none; stroke:rgba(250,251,252,.1); stroke-width:10; }
+    .smult .bue { fill:none; stroke-width:10; stroke-linecap:round; stroke-dasharray:264; transition:stroke-dashoffset 1.2s cubic-bezier(.3,.8,.3,1), stroke .6s; animation:tegn 1.3s cubic-bezier(.3,.8,.3,1); }
+    @keyframes tegn { from { stroke-dashoffset:264; } }
+    .smult .midt2 { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+    .smult b { font-size:26px; font-weight:300; line-height:1; } .smult b small { font-size:13px; opacity:.7; margin-left:1px; }
+    .smult i { font-style:normal; font-size:11px; opacity:.6; margin-top:3px; }
+    .fl .bunn { font-size:12px; opacity:.7; text-align:center; line-height:1.45; min-width:0; }
+    .fl .bunn div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .fl.bred { grid-column:1 / -1; grid-template-columns:auto 1fr; align-items:center; gap:12px; padding:12px 16px; }
+    .fl.bred .bunn { text-align:left; font-size:14px; opacity:.9; }
     @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
     @media (max-width:380px) { .scene { width:56%; } .tekst { max-width:44%; } }
   `;
@@ -366,7 +455,7 @@
       return {
         schema: [
           { name: "vis", selector: { select: { mode: "dropdown", options: [
-            { value: "scene", label: "Animert rack" }, { value: "gjester", label: "Containere og VM-er" },
+            { value: "scene", label: "Animert rack" }, { value: "nedlasting", label: "Nedlastinger (animert)" }, { value: "gjester", label: "Containere og VM-er" },
             { value: "nettverk", label: "UniFi-enheter og Wi-Fi" }, { value: "lagring", label: "Lagring" }] } } },
           { name: "kilde", selector: { select: { mode: "dropdown", options: [{ value: "alle", label: "Alle" }, { value: "proxmox", label: "Proxmox" }, { value: "unraid", label: "Unraid" }] } } },
           { name: "navn", selector: { text: {} } },
@@ -387,8 +476,22 @@
       if (forrige && this._ids && this._ids.every((id) => forrige.states[id] === h.states[id])) return;
       this._oppdater();
     }
-    getCardSize() { return this._c && this._c.vis === "scene" ? 4 : 6; }
-    getGridOptions() { return { columns: 12, rows: this._c && this._c.vis === "scene" ? 3 : "auto", min_rows: 2 }; }
+    getCardSize() { return this._c && ["scene", "nedlasting"].includes(this._c.vis) ? 4 : 6; }
+    getGridOptions() { return { columns: 12, rows: this._c && ["scene", "nedlasting"].includes(this._c.vis) ? 3 : "auto", min_rows: 2 }; }
+    disconnectedCallback() { clearInterval(this._graftimer); this._graftimer = null; }
+    connectedCallback() { if (this._c && this._c.vis === "nedlasting" && this._bygget && !this._graftimer) this._graftimer = setInterval(() => this._tegnGraf(), 15000); }
+
+    /** oppdater bare elementer merket data-u, så CSS-overganger og animasjoner fortsetter */
+    _patch(rot, html) {
+      const t = document.createElement("template"); t.innerHTML = html;
+      const nye = {}; t.content.querySelectorAll("[data-u]").forEach((el) => { nye[el.dataset.u] = el; });
+      rot.querySelectorAll("[data-u]").forEach((el) => {
+        const n = nye[el.dataset.u]; if (!n) return;
+        for (const a of n.attributes) if (el.getAttribute(a.name) !== a.value) el.setAttribute(a.name, a.value);
+        for (const a of [...el.attributes]) if (!n.hasAttribute(a.name)) el.removeAttribute(a.name);
+        if (el.innerHTML !== n.innerHTML) el.innerHTML = n.innerHTML;
+      });
+    }
 
     /* felles */
     get s() { const h = this._hass; return (id) => (id ? h.states[id] : undefined); }
@@ -418,6 +521,7 @@
       else if (a === "mer") this._mer(id);
       else if (a === "port") { el.classList.add("jobber"); setTimeout(() => el.classList.remove("jobber"), 4000); this._trykkeknapp(id, ekstra); }
       else if (a === "scene") this._sceneTrykk();
+      else if (a === "ned") this._mer(this._R.qbit && this._R.qbit.ned);
       e.stopPropagation();
     }
 
@@ -426,6 +530,7 @@
       if (v === "gjester") this._gjester();
       else if (v === "nettverk") this._nettverk();
       else if (v === "lagring") this._lagring();
+      else if (v === "nedlasting") this._nedlasting();
       else this._scene();
     }
 
@@ -661,29 +766,198 @@
       this._ids = ids; this._liste(rader, "Fant ingen UniFi-enheter. Sjekk at UniFi Network-integrasjonen er satt opp.");
     }
 
-    /* ── lagring ── */
-    _lagring() {
-      const R = this._R, s = this.s, ids = [], rader = [];
-      const bruk = (id) => { if (id) ids.push(id); return s(id); };
-      R.proxmox.lagring.forEach((g) => {
-        const p = tall(bruk(g.bruk));
-        rader.push({ id: g.id, ikon: "mdi:database", l: g.navn, mer: g.bruk || g.brukt,
-          d: [ok(bruk(g.brukt)) ? medEnhet(s(g.brukt), 1) + (ok(bruk(g.total)) ? " av " + medEnhet(s(g.total), 1) : "") : "", ok(bruk(g.ledig)) ? medEnhet(s(g.ledig), 1) + " ledig" : ""].filter(Boolean).join(" · ") || "Proxmox",
-          hoyre: isNaN(p) ? "" : `<span style="font-size:16px;font-weight:500">${Math.round(p)} %</span>`, strek: isNaN(p) ? undefined : p });
+    /* ── nedlasting ── */
+    _nedlasting() {
+      const Q = this._R.qbit, s = this.s, c = this._c, rot = this._rot();
+      if (!Q) { rot.innerHTML = `<style>${STIL}</style><div class="tom">Fant ikke qBittorrent. Sjekk at qBittorrent-integrasjonen er satt opp.</div>`; this._bygget = true; this._modus = "nedlasting"; this._ids = []; return; }
+      const C = [126, 62], R0 = 46, N = 7;
+      const peers = Array.from({ length: N }, (_, i) => {
+        const v = (-150 + i * (300 / (N - 1))) * Math.PI / 180, r = R0 + ((i * 37) % 9) - 4;
+        return [C[0] + Math.sin(v) * r, C[1] - Math.cos(v) * r * 0.92];
       });
+      if (!this._bygget || this._modus !== "nedlasting") {
+        const linjer = peers.map(([x, y], i) => `<path class="spor" d="M${x.toFixed(1)} ${y.toFixed(1)} L${C[0]} ${C[1]}"/>
+            <path class="strom ned" data-i="${i}" d="M${x.toFixed(1)} ${y.toFixed(1)} L${C[0]} ${C[1]}" style="animation-delay:-${(i * 0.23).toFixed(2)}s"/>
+            <path class="strom opp" data-i="${i}" d="M${C[0]} ${C[1]} L${x.toFixed(1)} ${y.toFixed(1)}" style="animation-delay:-${(i * 0.31).toFixed(2)}s"/>`).join("");
+        rot.innerHTML = `<style>${STIL}</style><div class="nd" data-a="ned" role="img" tabindex="0">
+          <div class="glod"></div><div class="tekst"><div class="n"></div><span class="pille"><ha-icon></ha-icon><span class="pt"></span></span>
+          <div class="stor"></div><div class="sub"></div></div>
+          <div class="scene"><svg viewBox="0 0 200 180" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+            <defs><linearGradient id="gn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ae6c8" stop-opacity=".45"/><stop offset="1" stop-color="#5ae6c8" stop-opacity="0"/></linearGradient></defs>
+            ${linjer}
+            ${peers.map(([x, y], i) => `<circle class="peer" data-i="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" style="animation-delay:-${(i * 0.37).toFixed(2)}s"/>`).join("")}
+            <circle class="hubring" cx="${C[0]}" cy="${C[1]}" r="17"/>
+            <rect class="hub" x="${C[0] - 16}" y="${C[1] - 16}" width="32" height="32" rx="10"/>
+            <g class="hubpil"><path d="M${C[0] - 1.6} ${C[1] - 9} h3.2 v7 h3.6 l-5.2 5.6 -5.2-5.6 h3.6z"/></g>
+            <path d="M${C[0] - 8} ${C[1] + 5} v3.5 h16 v-3.5" fill="none" stroke="#e8f1ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <text class="t-hub" x="${C[0]}" y="${C[1] + 28}" text-anchor="middle"></text>
+            <g class="skilpadde" transform="translate(${C[0] + 11} ${C[1] - 24})"><circle r="6" fill="#ffb34a"/><path d="M-3 1 q3-5 6 0 z M-3.5 1 h7" fill="#3a2e1c" stroke="#3a2e1c" stroke-width=".8"/></g>
+            <line class="graf-akse" x1="6" y1="170" x2="194" y2="170"/>
+            <path class="graf-ned" d=""/><path class="graf-opp" d=""/>
+            <text class="t-graf" x="6" y="124">siste 30 min</text><text class="t-graf t-maks" x="194" y="124" text-anchor="end"></text>
+          </svg></div></div>`;
+        this._bygget = true; this._modus = "nedlasting"; this._hist = this._hist || { ned: [], opp: [] };
+        this._hentHistorikk();
+        clearInterval(this._graftimer); this._graftimer = setInterval(() => this._tegnGraf(), 15000);
+      }
+      const $ = (q) => rot.querySelector(q), $$ = (q) => rot.querySelectorAll(q), kort = $(".nd");
+      const nedS = s(Q.ned), oppS = s(Q.opp), st = s(Q.status), alt = s(Q.alt);
+      this._ids = [Q.ned, Q.opp, Q.status, Q.aktive, Q.alle, Q.alt].filter(Boolean);
+      const ned = byteRate(nedS), opp = byteRate(oppS), av = !ok(nedS);
+      const laster = ned > 10000, deler = opp > 10000, begrenset = !!alt && alt.state === "on";
+      const aktive = tall(s(Q.aktive)), alleT = tall(s(Q.alle));
+      kort.classList.toggle("laster", laster && !av); kort.classList.toggle("deler", deler && !av);
+      kort.classList.toggle("begrenset", begrenset && !av); kort.classList.toggle("av", av);
+      const tid = (b) => klem(1.6 - Math.log10(b / 1e4 + 1) * 0.45, 0.3, 1.6).toFixed(2) + "s";
+      kort.style.setProperty("--ned-tid", tid(ned || 0)); kort.style.setProperty("--opp-tid", tid(opp || 0));
+      const antall = (b) => (b > 10000 ? klem(Math.ceil(Math.log2(b / 2e4 + 1)) + 1, 1, N) : 0);
+      const nN = av ? 0 : antall(ned), oN = av ? 0 : antall(opp);
+      $$(".strom.ned").forEach((l, i) => l.classList.toggle("paa", i < nN));
+      $$(".strom.opp").forEach((l, i) => l.classList.toggle("paa", N - 1 - i < oN));
+      $$(".peer").forEach((p, i) => { p.classList.toggle("ned", i < nN); p.classList.toggle("opp", N - 1 - i < oN); });
+      $(".t-hub").textContent = isNaN(aktive) ? "" : `${Math.round(aktive)} aktive`;
+      // historikk: legg til nåverdien
+      const naa = Date.now();
+      if (!isNaN(ned)) this._leggTil("ned", naa, ned); if (!isNaN(opp)) this._leggTil("opp", naa, opp);
+      this._tegnGraf();
+      // tekst
+      $(".n").textContent = c.navn && c.navn !== "Homelab" ? c.navn : "Nedlastinger";
+      const stTxt = ok(st) ? String(st.state).toLowerCase() : "";
+      let pt, ik;
+      if (av) { pt = "Frakoblet"; ik = "mdi:lan-disconnect"; }
+      else if (begrenset && (laster || deler)) { pt = "Begrenset fart"; ik = "mdi:tortoise"; }
+      else if (laster && deler) { pt = "Laster ned og deler"; ik = "mdi:swap-vertical"; }
+      else if (laster) { pt = "Laster ned"; ik = "mdi:download"; }
+      else if (deler || /seed/.test(stTxt)) { pt = "Deler"; ik = "mdi:upload"; }
+      else { pt = "Hviler"; ik = "mdi:sleep"; }
+      $(".pille ha-icon").setAttribute("icon", ik); $(".pt").textContent = pt;
+      if (av) $(".stor").innerHTML = "--";
+      else { const [v, u] = fartTekst(ned); $(".stor").innerHTML = `↓ ${v}<small>${u}</small>`; }
+      const [ov, ou] = fartTekst(opp);
+      $(".sub").textContent = [av ? "" : `↑ ${ov} ${ou}`, !isNaN(aktive) ? `${Math.round(aktive)}${!isNaN(alleT) ? " av " + Math.round(alleT) : ""} aktive` : ""].filter(Boolean).join("  ·  ");
+      kort.setAttribute("aria-label", `Nedlastinger: ${pt}. ${$(".stor").textContent}. ${$(".sub").textContent}`);
+    }
+    _leggTil(k, t, v) {
+      const a = this._hist[k], siste = a[a.length - 1];
+      if (siste && siste[1] === v && t - siste[0] < 60000) return;
+      a.push([t, v]); const grense = Date.now() - 31 * 60000; while (a.length > 2 && a[1][0] < grense) a.shift();
+    }
+    async _hentHistorikk() {
+      const Q = this._R.qbit; if (!Q || !this._hass.callWS || this._hentet) return; this._hentet = true;
+      try {
+        const start = new Date(Date.now() - 30 * 60000).toISOString();
+        const r = await this._hass.callWS({ type: "history/history_during_period", start_time: start, entity_ids: [Q.ned, Q.opp].filter(Boolean), minimal_response: true, no_attributes: true, significant_changes_only: false });
+        const fra = (id, k) => {
+          const rader = r[id] || [], naa = this.s(id); if (!rader.length) return;
+          const f = byteRate({ state: "1", attributes: (naa && naa.attributes) || {} });
+          const pkt = rader.map((x) => [((x.lu || x.lc || 0) * 1000) || Date.parse(x.last_updated || x.last_changed), parseFloat(x.s ?? x.state) * f]).filter((x) => !isNaN(x[1]) && x[0]);
+          this._hist[k] = pkt.concat(this._hist[k].filter((x) => x[0] > (pkt.length ? pkt[pkt.length - 1][0] : 0)));
+        };
+        fra(Q.ned, "ned"); fra(Q.opp, "opp"); this._tegnGraf();
+      } catch (e) { /* historikk er valgfritt – grafen bygger seg opp av seg selv */ }
+    }
+    _tegnGraf() {
+      const rot = this.shadowRoot; if (!rot || !this._hist) return;
+      const gn = rot.querySelector(".graf-ned"), go = rot.querySelector(".graf-opp"); if (!gn) return;
+      const naa = Date.now(), fra = naa - 30 * 60000, X0 = 6, W = 188, Y0 = 170, H = 40;
+      const alle = this._hist.ned.concat(this._hist.opp).filter((p) => p[0] >= fra - 60000).map((p) => p[1]);
+      const maks = Math.max(1, ...alle);
+      const punkter = (a) => {
+        const inn = a.filter((p) => p[0] >= fra); const før = a.filter((p) => p[0] < fra).pop();
+        const liste = (før ? [[fra, før[1]]] : []).concat(inn);
+        if (liste.length) liste.push([naa, liste[liste.length - 1][1]]);
+        // trappetrinn: verdien gjelder til neste måling
+        const ut = []; liste.forEach((p, i) => { const x = X0 + ((p[0] - fra) / (naa - fra)) * W, y = Y0 - (p[1] / maks) * H;
+          if (i) ut.push([x, ut[ut.length - 1][1]]); ut.push([x, y]); });
+        return ut;
+      };
+      const pn = punkter(this._hist.ned), po = punkter(this._hist.opp);
+      gn.setAttribute("d", pn.length ? `M${pn[0][0].toFixed(1)} ${Y0} ` + pn.map((p) => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ") + ` L${pn[pn.length - 1][0].toFixed(1)} ${Y0} Z` : "");
+      go.setAttribute("d", po.length ? po.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ") : "");
+      const [v, u] = fartTekst(maks); rot.querySelector(".t-maks").textContent = alle.length ? `topp ${v} ${u}` : "";
+    }
+
+    /* ── lagring ── */
+    _farge(p) { return p >= 90 ? "var(--red,#ff5a4a)" : p >= 75 ? "var(--orange,#ffb34a)" : "var(--green,#5be38a)"; }
+    _smult(uid, p, midt, under, farge) {
+      const off = isNaN(p) ? 264 : 264 * (1 - klem(p, 0, 100) / 100);
+      return `<div class="smult"><svg viewBox="0 0 100 100"><circle class="bak" cx="50" cy="50" r="42"/>
+          <circle class="bue" data-u="${uid}-bue" cx="50" cy="50" r="42" style="stroke-dashoffset:${off.toFixed(1)};stroke:${farge}"/></svg>
+        <div class="midt2"><b data-u="${uid}-v">${midt}</b><i>${esc(under)}</i></div></div>`;
+    }
+    _lagring() {
+      const R = this._R, s = this.s, ids = [], rot = this._rot();
+      const bruk = (id) => { if (id) ids.push(id); return s(id); };
+      const deler = [];
+      /* Unraid-array: diskene som glassrør med væske */
       if (R.unraid) {
         const U = R.unraid, p = tall(bruk(U.arrayBruk)), st = bruk(U.arrayStatus);
-        rader.push({ id: "ur-array", ikon: "mdi:nas", l: `${U.navn} – array`, mer: U.arrayBruk || U.arrayStatus,
-          d: ok(st) ? ({ on: "Startet", off: "Stoppet", started: "Startet", stopped: "Stoppet" }[String(st.state).toLowerCase()] || st.state) : "Unraid",
-          hoyre: isNaN(p) ? "" : `<span style="font-size:16px;font-weight:500">${Math.round(p)} %</span>`, strek: isNaN(p) ? undefined : p });
-        U.disker.forEach((dk) => {
-          const pb = tall(bruk(dk.bruk)), t = tall(bruk(dk.temp));
-          rader.push({ id: "ur-" + dk.navn, ikon: /parity/.test(dk.navn) ? "mdi:shield-check-outline" : /cache/.test(dk.navn) ? "mdi:flash-outline" : "mdi:harddisk",
-            prikk: isNaN(t) ? "" : t >= 50 ? "rod" : t >= 45 ? "gul" : "gronn", l: tittel(dk.navn.replace(/(\D)(\d)/, "$1 $2")), mer: dk.bruk || dk.temp,
-            d: isNaN(t) ? "" : `${Math.round(t)} °C`, hoyre: isNaN(pb) || /parity/.test(dk.navn) ? "" : `<span style="font-size:16px;font-weight:500">${Math.round(pb)} %</span>`, strek: isNaN(pb) || /parity/.test(dk.navn) ? undefined : pb });
-        });
+        const startet = !ok(st) || /on|start|normal|ok/i.test(st.state);
+        const disker = U.disker, n = Math.max(1, disker.length);
+        const sp = Math.min(30, 186 / n), w = Math.min(20, sp - 7), x0 = 196 - n * sp;
+        let varmest = NaN;
+        const ror = disker.map((dk, i) => {
+          const pb = tall(bruk(dk.bruk)), t = tall(bruk(dk.temp)), par = /parity/.test(dk.navn), cache = /cache/.test(dk.navn);
+          if (!isNaN(t)) varmest = isNaN(varmest) ? t : Math.max(varmest, t);
+          const x = x0 + i * sp + (sp - w) / 2, fyll = par ? 1 : isNaN(pb) ? 0 : klem(pb, 0, 100) / 100;
+          const farge = par ? "url(#skravur)" : cache ? "#5ad1ff" : this._farge(pb).replace(/var\(--\w+,(#\w+)\)/, "$1");
+          const kort = par ? "P" : cache ? "C" : dk.navn.replace(/^disk/i, "D");
+          const tk = t >= 50 ? "het" : t >= 45 ? "varm" : "";
+          return `<g data-a="mer|${dk.bruk || dk.temp}" style="cursor:pointer">
+            <defs><clipPath id="rc${i}"><rect x="${x.toFixed(1)}" y="22" width="${w.toFixed(1)}" height="124" rx="${(w / 2).toFixed(1)}"/></clipPath></defs>
+            <rect class="ror-ytre ${tk}" data-u="ror${i}" x="${x.toFixed(1)}" y="22" width="${w.toFixed(1)}" height="124" rx="${(w / 2).toFixed(1)}"/>
+            <g clip-path="url(#rc${i})"><g class="vaeske" data-u="v${i}" style="transform:translateY(${((1 - fyll) * 124).toFixed(1)}px);animation-delay:${(i * 0.08).toFixed(2)}s">
+              <path class="bolgetopp" d="M${(x - 8).toFixed(1)} 24 q3-3 6 0 t6 0 t6 0 t6 0 t6 0 t6 0 V160 H${(x - 8).toFixed(1)}z" fill="${farge}" opacity=".95" style="animation-delay:-${(i * 0.6).toFixed(1)}s"/>
+            </g></g>
+            ${!par && !isNaN(pb) && w >= 14 ? `<text class="t-pst" data-u="p${i}" x="${(x + w / 2).toFixed(1)}" y="140" text-anchor="middle">${Math.round(pb)}</text>` : ""}
+            <text class="t-ror" x="${(x + w / 2).toFixed(1)}" y="160" text-anchor="middle">${esc(kort)}</text>
+            <text class="t-temp ${tk}" data-u="t${i}" x="${(x + w / 2).toFixed(1)}" y="172" text-anchor="middle">${isNaN(t) ? "" : Math.round(t) + "°"}</text></g>`;
+        }).join("");
+        const antDisker = disker.filter((d) => !/parity|cache/.test(d.navn)).length;
+        deler.push(`<div class="ar ${startet ? "" : "stoppet"}"><div class="glod"></div>
+          <div class="tekst"><div class="n">${esc(U.navn)} – array</div>
+            <span class="pille" data-u="ar-pille"><ha-icon icon="${startet ? "mdi:check-circle" : "mdi:harddisk-remove"}"></ha-icon><span>${startet ? "Startet" : "Stoppet"}</span></span>
+            <div class="stor" data-u="ar-stor">${isNaN(p) ? "--" : Math.round(p)}<small>% brukt</small></div>
+            <div class="sub" data-u="ar-sub">${[antDisker ? `${antDisker} disker` : "", !isNaN(varmest) ? `varmest ${Math.round(varmest)} °C` : ""].filter(Boolean).join("  ·  ")}</div></div>
+          <div class="scene"><svg viewBox="0 0 200 190" preserveAspectRatio="xMaxYMax meet">
+            <defs><pattern id="skravur" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#8a96a6"/><rect width="3" height="6" fill="#6c7788"/></pattern></defs>
+            ${ror}</svg></div></div>`);
       }
-      this._ids = ids; this._liste(rader, "Fant ingen lagring. Sjekk at Proxmox Extended Sensors eller Unraid er satt opp.");
+      /* Proxmox-lagring, fysiske disker og monterte disker som fliser */
+      const fliser = [];
+      R.proxmox.lagring.forEach((g) => {
+        const p = tall(bruk(g.bruk));
+        const bruktT = ok(bruk(g.brukt)) ? medEnhet(s(g.brukt), 1) + (ok(bruk(g.total)) ? " av " + medEnhet(s(g.total), 1) : "") : "";
+        fliser.push(`<div class="fl" data-a="mer|${g.bruk || g.brukt}">
+          <div class="hode"><div class="ik"><ha-icon icon="mdi:database"></ha-icon></div><span>${esc(g.navn)}</span></div>
+          ${this._smult(g.id, p, isNaN(p) ? "--" : `${Math.round(p)}<small>%</small>`, "brukt", this._farge(p))}
+          <div class="bunn" data-u="${g.id}-b"><div>${esc(bruktT)}</div><div>${ok(bruk(g.ledig)) ? esc(medEnhet(s(g.ledig), 1)) + " ledig" : ""}</div></div></div>`);
+      });
+      R.proxmox.disker.forEach((d) => {
+        const t = tall(bruk(d.temp)), helse = bruk(d.helse), slit = tall(bruk(d.slitasje));
+        const p = isNaN(t) ? NaN : klem((t - 20) / 40 * 100, 0, 100);
+        const farge = t >= 50 ? "var(--red,#ff5a4a)" : t >= 45 ? "var(--orange,#ffb34a)" : "var(--blue,#5ad1ff)";
+        fliser.push(`<div class="fl" data-a="mer|${d.temp || d.storrelse}">
+          <div class="hode"><div class="ik"><ha-icon icon="mdi:harddisk"></ha-icon></div><span>${esc(d.navn)}</span></div>
+          ${this._smult(d.id, p, isNaN(t) ? "--" : `${Math.round(t)}<small>°C</small>`, "temperatur", farge)}
+          <div class="bunn" data-u="${d.id}-b"><div>${ok(bruk(d.storrelse)) ? esc(medEnhet(s(d.storrelse))) : ""}</div>
+            <div>${ok(helse) ? "Helse: " + esc(helse.state) : !isNaN(slit) ? `Slitasje ${Math.round(slit)} %` : ""}</div></div></div>`);
+      });
+      if (R.proxmox.montert) {
+        const m = bruk(R.proxmox.montert);
+        fliser.push(`<div class="fl bred" data-a="mer|${R.proxmox.montert}"><div class="ik"><ha-icon icon="mdi:harddisk-plus"></ha-icon></div>
+          <div class="bunn" data-u="montert"><div>Monterte disker: ${ok(m) ? esc(m.state) : "--"}</div></div></div>`);
+      }
+      if (fliser.length) deler.push(`<div class="lg-grid">${fliser.join("")}</div>`);
+      this._ids = ids;
+      const html = deler.length ? `<div class="lg">${deler.join("")}</div>` : `<div class="tom">Fant ingen lagring. Sjekk at Proxmox Extended Sensors eller Unraid er satt opp.</div>`;
+      const nokler = "lagring|" + (R.unraid ? R.unraid.disker.map((d) => d.navn).join(",") : "") + "|" + R.proxmox.lagring.map((g) => g.id).join(",") + "|" + R.proxmox.disker.map((d) => d.id).join(",") + "|" + !!R.proxmox.montert;
+      if (!this._bygget || this._modus !== "lagring" || nokler !== this._nokler) {
+        rot.innerHTML = `<style>${STIL}</style>${html}`; this._bygget = true; this._modus = "lagring"; this._nokler = nokler;
+      } else {
+        this._patch(rot, html);
+        const ar = rot.querySelector(".ar"); if (ar) ar.classList.toggle("stoppet", /class="ar stoppet"/.test(html));
+      }
     }
   }
 

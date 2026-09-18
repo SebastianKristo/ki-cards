@@ -1,18 +1,26 @@
-# ki-cards 4.10.0
+# ki-cards 4.11.0
 
-## `ki-hytte-card` 2.7.0: ukenummeret står i kalenderen
+## `ki-homelab-card` oppdatert
 
-En dempet pille ved siden av måneden viser hvilken uke vi er i nå: «september 2026 · Uke
-38».
+Erstattet med den nye fila du sendte. 318 linjer endret mot forrige utgave.
 
-Den viser **inneværende uke**, ikke uka du har bladd til. Blar du til oktober, står det
-fortsatt Uke 38 — pilla svarer på «hvilken uke er det nå», som er det man trenger når man
-skal skrive noe i søkefeltet eller avtale en helg. Skulle den fulgt måneden du ser på,
-måtte den vist et spenn, og da sier den ingenting.
+Det nye er en femte visning, **`vis: nedlasting`**, med `_nedlasting()`, `_hentHistorikk()`
+og `_tegnGraf()` — qBittorrent med historikk hentet fra Home Assistant og tegnet som graf,
+i tillegg til `scene`, `gjester`, `nettverk` og `lagring`.
 
-Ukenummeret følger ISO-regelen, der torsdagen bestemmer hvilken uke og hvilket år dagene
-hører til. Kontrollert mot skiftene rundt nyttår: 1. januar 2026 er uke 1, 29. desember
-2025 er uke 1 i 2026, og 31. desember 2026 er uke 53.
+```yaml
+type: custom:ki-homelab-card
+vis: nedlasting
+```
 
-Samme regel som søket bruker, så «uke 38» i søkefeltet og pilla i kalenderen peker på de
-samme dagene.
+### Kontrollert
+
+Alle fem visningene tegner mot et sett med Proxmox-, Unraid-, qBittorrent- og
+UniFi-entiteter uten å kaste, og nedlastingsvisningen kaller historikk-API-et som den
+skal. Byggeskrittet leser `styles` på alle 100 kort.
+
+README-raden nevner nå nedlastingsgrafen.
+
+**Husk:** har du `ki-homelab-card.js` som egen Lovelace-ressurs, vinner den over
+bundelens kopi, og da får du ikke denne oppdateringen. Fjern den under Innstillinger →
+Dashbord → Ressurser.
