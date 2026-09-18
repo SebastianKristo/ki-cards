@@ -1,29 +1,36 @@
-# ki-cards 4.7.0
+# ki-cards 4.8.0
 
-## Nytt kort: `ki-homelab-card`
+## `ki-hytte-card` 2.5.0
 
-Lagt inn i bundelen som `src/82-ki-homelab-card.js`, uendret fra fila du sendte.
+### Tastaturet falt tilbake til bokstaver etter hvert tall
 
-Kortet finner alt selv gjennom entitetsregisteret, gruppert per integrasjon og enhet:
+Skrev du «12.7» på mobil, måtte du inn i talltastaturet igjen for hvert eneste tegn.
 
-* **proxmox_sensors** — node, containere, VM-er, lagring og varsler
-* **unifi** — ruter, switcher, aksesspunkt, Wi-Fi med QR-kode, porter, LED og restart
-* **unraid** — CPU, RAM, array, disker, Docker-containere og VM-er
-* **qbittorrent** — ned- og oppfart, status, torrenter, alternativ hastighet
-* **speedtestdotnet** — ned, opp og ping, om den finnes
+Årsaken: jeg tegnet om hele panelet ved hvert tastetrykk. Da byttes input-elementet ut
+med et **nytt element**, og et nytt felt får nytt tastatur — mobilen begynner på
+bokstaver igjen. Fokus og markør ble satt tilbake, så det så nesten riktig ut, men
+tastaturmodusen kunne ikke reddes.
 
-Fire visninger: `scene` (standard), `gjester`, `nettverk` og `lagring`. `skjul:` tar bort
-rader som inneholder en tekst, og `navn_map:` gir pene navn per vmid eller nøkkel.
+Nå røres bare svarboksen ved tasting. Input-feltet står urørt fra det opprettes til du
+lukker søket, og tastaturet blir stående der du satte det.
 
-Fila er frittstående og krever ikke bundelen, men i bundelen registreres den gjennom
-`KI.define` som de andre — så en kopi lastet fra en egen ressurs vinner ikke i stillhet.
-Har du den som egen Lovelace-ressurs fra før, fjern den, ellers får du to kopier og den
-gamle vinner.
+Feltet har også fått `autocomplete="off"`, `autocapitalize="off"` og `spellcheck="false"`
+— ingen stor sak hver for seg, men til sammen slutter mobilen å foreslå og rette midt i
+en dato.
 
-Merkeikon lagt til i `brand/` og rad i README-tabellen.
+### Søket ligger bak et forstørrelsesglass
+
+Knappen står til høyre for fanerada, i samme form som tannhjulet i bassengkortet: rund,
+38 px, og den lyser i `--active-big` når søket er åpent. Lukket tar feltet ingen plass.
+
+Åpner du søket fra en annen fane, hopper kortet til Kalender, siden det er der svaret
+hører hjemme. Lukkeknappen tømmer søket og lukker feltet i én bevegelse.
+
+Feltet er høyere enn før — 46 px mot 40 — med større tekst, og glir ned i stedet for å
+dukke opp.
 
 ### Kontrollert
 
-Registreres fra bundelen, dukker opp i kortlista, og alle fire visningene tegner mot et
-sett med Proxmox-, Unraid-, qBittorrent- og UniFi-entiteter uten å kaste. Byggeskrittet
-leser `styles` på alle 100 kort.
+Lukket søk gir ingen markup i det hele tatt. Ved tasting kjøres bare `.soksvar`, aldri
+`_tegn()` eller `_oppdaterPaneler()`. Svaret følger teksten tegn for tegn: «uke 2» gir uke
+2 og «uke 28» gir uke 28, og fire ulike datoer gir fire ulike svar.

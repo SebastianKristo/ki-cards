@@ -16,7 +16,7 @@
  * maaneder: 1                     # antall måneder i kalenderen
  * sok: false                      # skjuler søkefeltet i kalenderfanen
  */
-const KI_HYTTE_VERSJON = "2.4.0";
+const KI_HYTTE_VERSJON = "2.5.0";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -152,15 +152,31 @@ const KI_HYTTE_STIL = `
   .rad .d { font-size:12px; opacity:.6; }
   .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
-  /* søkefeltet i kalenderfanen */
-  .sokrad { display:flex; align-items:center; gap:9px; background:var(--gray100);
-    border-radius:999px; padding:0 14px; height:40px; --mdc-icon-size:18px;
-    margin-bottom:8px; }
+  /* søket: knapp ved fanene, felt som glir ned */
+  .faner { position:relative; align-items:center; gap:8px; }
+  .sokknapp { flex:0 0 auto; width:38px; height:38px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(255,255,255,.22); background:none; color:var(--gray1000);
+    display:flex; align-items:center; justify-content:center; --mdc-icon-size:19px;
+    opacity:.6; transition:background .2s, opacity .2s, transform .3s var(--myk); }
+  .sokknapp:hover { opacity:.9; }
+  .sokknapp.apen { background:var(--active-big,#ee95ff); color:var(--gray100,#fafbfc);
+    opacity:1; transform:scale(1.04); }
+  .sokboks { display:grid; gap:8px; margin-bottom:10px; animation:kiHySok .22s var(--myk); }
+  @keyframes kiHySok {
+    from { opacity:0; transform:translateY(-6px); }
+    to { opacity:1; transform:none; }
+  }
+  .sokrad { display:flex; align-items:center; gap:10px; background:var(--gray100);
+    border-radius:999px; padding:0 8px 0 16px; height:46px; --mdc-icon-size:19px; }
+  .sokrad > ha-icon { opacity:.5; }
   .sokrad input { flex:1; min-width:0; border:0; background:none; color:var(--gray1000);
-    font:inherit; font-size:14px; outline:none; }
-  .sokrad input::placeholder { color:var(--gray1000); opacity:.45; }
-  .sokrad button { border:0; background:none; color:var(--gray1000); opacity:.5;
-    cursor:pointer; display:flex; padding:0; }
+    font:inherit; font-size:15px; outline:none; }
+  .sokrad input::placeholder { color:var(--gray1000); opacity:.4; }
+  .sokrad button { width:32px; height:32px; flex:none; border:0; border-radius:50%;
+    background:rgba(128,128,128,.18); color:var(--gray1000); opacity:.75;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    --mdc-icon-size:17px; }
+  .soksvar:empty { display:none; }
 
   /* stedsfilter i oppholdsfanen */
   .stedfilter { display:flex; justify-content:center; }
@@ -323,17 +339,28 @@ class KiHytteCard extends HTMLElement {
   /* Søkefeltet, i samme form som resten av kortet: rund pille på --gray100 med
      forstørrelsesglass, og svaret i den samme dagboksen som kalenderen bruker når du
      trykker på en dag. */
+  /* Feltet ligger bak forstørrelsesglasset ved siden av fanene, som tannhjulet i
+     bassengkortet. Lukket tar det ingen plass; åpent glir det ned over kalenderen.
+     
+     Svaret ligger i sin egen boks. Det er ikke pynt: teksten oppdateres uten at
+     input-feltet tegnes på nytt, og det er nettopp det som gjorde at tastaturet falt
+     tilbake til bokstaver etter hvert tall. */
   _sokfelt() {
     if (this._c && this._c.sok === false) return "";
+    if (!this._sokApen) return "";
     const v = this._sok || "";
     return `
-      <label class="sokrad">
-        <ha-icon icon="mdi:magnify"></ha-icon>
-        <input type="text" placeholder="Søk: 12.7, uke 27, i går" value="${kiHyEsc(v)}" />
-        ${v ? `<button data-tomsok="1" aria-label="Tøm">
-          <ha-icon icon="mdi:close"></ha-icon></button>` : ""}
-      </label>
-      ${this._sokSvar()}`;
+      <div class="sokboks">
+        <label class="sokrad">
+          <ha-icon icon="mdi:magnify"></ha-icon>
+          <input type="text" inputmode="text" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" placeholder="12.7 · uke 27 · i går"
+                 value="${kiHyEsc(v)}" />
+          <button data-tomsok="1" aria-label="Lukk søket">
+            <ha-icon icon="mdi:close"></ha-icon></button>
+        </label>
+        <div class="soksvar">${this._sokSvar()}</div>
+      </div>`;
   }
 
   /* ---------------------------------------------------------- søk -------
@@ -706,18 +733,37 @@ class KiHytteCard extends HTMLElement {
   _koblPaneler(r) {
     /* Søkefeltet. Vi tegner om ved hver tast, så markøren må settes tilbake — ellers
        hopper den til slutten når du retter noe midt i teksten. */
+    /* Her er poenget: ved tasting rører vi BARE svarboksen. Tegner vi hele panelet om,
+       byttes input-elementet ut med et nytt — og et nytt felt får nytt tastatur, så
+       mobilen faller tilbake til bokstaver etter hvert tall du skriver. */
     const sokfelt = r.querySelector(".sokrad input");
     if (sokfelt) {
       sokfelt.addEventListener("input", (e) => {
         this._sok = e.target.value;
-        const pos = e.target.selectionStart;
-        this._oppdaterPaneler();
-        const nytt = r.querySelector(".sokrad input");
-        if (nytt) { nytt.focus(); try { nytt.setSelectionRange(pos, pos); } catch (x) { /* ok */ } }
+        const boks = r.querySelector(".soksvar");
+        if (boks) boks.innerHTML = this._sokSvar();
+      });
+      if (this._sokFokus) { this._sokFokus = false; sokfelt.focus(); }
+    }
+    const apne = r.querySelector("[data-sokapne]");
+    if (apne) {
+      apne.addEventListener("click", () => {
+        this._sokApen = !this._sokApen;
+        this._sokFokus = this._sokApen;
+        if (!this._sokApen) this._sok = "";
+        /* Åpne og lukke bygger feltet, og da må panelet tegnes om — men det skjer bare
+           på knappetrykk, ikke mens du skriver. */
+        if (this._fane !== "kalender" && this._sokApen) this._fane = "kalender";
+        this._bygget = false;
+        this._tegn();
       });
     }
     const tomsok = r.querySelector("[data-tomsok]");
-    if (tomsok) tomsok.addEventListener("click", () => { this._sok = ""; this._oppdaterPaneler(); });
+    if (tomsok) {
+      tomsok.addEventListener("click", () => {
+        this._sok = ""; this._sokApen = false; this._bygget = false; this._tegn();
+      });
+    }
 
     r.querySelectorAll("[data-dagvalg]").forEach((el) => el.addEventListener("click", () => {
       this._dagValgt = this._dagValgt === el.dataset.dagvalg ? null : el.dataset.dagvalg;
@@ -881,8 +927,14 @@ class KiHytteCard extends HTMLElement {
     const html = `<style>${KI_HYTTE_STIL}</style>
       <div class="rot">
         ${heroer}
-        ${c.faner.length > 1 ? `<div class="faner"><div class="skinne" role="tablist">${c.faner.map((f) =>
-          `<button class="fane ${f === this._fane ? "valgt" : ""}" data-f="${f}">${navn[f] || f}</button>`).join("")}</div></div>` : ""}
+        ${c.faner.length > 1 ? `<div class="faner">
+          <div class="skinne" role="tablist">${c.faner.map((f) =>
+            `<button class="fane ${f === this._fane ? "valgt" : ""}" data-f="${f}">${
+              navn[f] || f}</button>`).join("")}</div>
+          ${c.sok === false ? "" : `<button class="sokknapp ${this._sokApen ? "apen" : ""}"
+            data-sokapne="1" aria-label="Søk etter dag eller uke">
+            <ha-icon icon="mdi:magnify"></ha-icon></button>`}
+        </div>` : ""}
         ${c.faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}">${
           f === "kalender" ? this._kalender(valgtD) : f === "opphold" ? this._opphold(valgtD)
           : f === "helger" ? this._helger() : this._statistikk(valgtD)}</div>`).join("")}
