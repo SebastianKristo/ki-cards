@@ -14,7 +14,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.4.0";
+  const VERSJON = "1.5.0";
 
   const finnLit = () => {
     const base =
@@ -162,7 +162,10 @@
       }
 
       setConfig(config) {
-        this._config = { tittel: "Badebasseng", graf: true, ...config };
+        /* Ingen tittel over fanerada som standard. «Badebasseng» sto både i
+           popup-overskriften og her, og gjentakelsen stjal en linje. `tittel:` med en
+           verdi viser den likevel. */
+        this._config = { tittel: "", graf: true, ...config };
         this._ider.clear();
         this._prefiks = this._config.prefix || null;
         this._modusId = null;
@@ -615,7 +618,9 @@
           { id: "oversikt", navn: "Oversikt" },
           { id: "sirkulasjon", navn: "Sirkulasjon" },
           { id: "spreder", navn: "Spreder" },
-          { id: "innstillinger", navn: "Innstillinger" },
+          /* Innstillinger er ikke en likeverdig fane — den åpnes fra tannhjulet til
+             høyre i rada. Den ligger her bare så `faner:`-lista kan nevne den. */
+          { id: "innstillinger", navn: "Innstillinger", tannhjul: true },
         ];
         if (Array.isArray(valgt) && valgt.length) {
           return valgt
@@ -626,9 +631,14 @@
       }
 
       _faner(liste, aktiv) {
+        /* Tannhjulet skilles ut fra de vanlige fanene. Innstillinger er noe man går inn
+           i sjelden, og som fane stjal den plass fra de tre man bruker. */
+        const vanlige = liste.filter((f) => !f.tannhjul);
+        const cog = liste.find((f) => f.tannhjul);
         return html`
+          <div class="fanerad">
           <div class="faner">
-            ${liste.map(
+            ${vanlige.map(
               (f) => html`
                 <button
                   class="fane ${f.id === aktiv ? "aktiv" : ""}"
@@ -638,6 +648,16 @@
                 </button>
               `
             )}
+          </div>
+          ${cog ? html`
+            <button
+              class="cog ${cog.id === aktiv ? "aktiv" : ""}"
+              title="Innstillinger"
+              aria-label="Innstillinger"
+              @click=${() => { this._fane = cog.id === aktiv ? vanlige[0].id : cog.id; }}
+            >
+              <ha-icon icon="mdi:cog-outline"></ha-icon>
+            </button>` : ""}
           </div>
         `;
       }
@@ -819,6 +839,53 @@
         `;
       }
 
+      /* Døgnet som en stripe, med de planlagte blokkene tegnet inn og et merke for nå.
+       *
+       * Blokkene sto som tekstrader — «Blokk 1: 02:00–05:00» — og da måtte man regne
+       * selv for å se om pumpa går nå, eller hvor mye av natta som er dekket. På en
+       * stripe ser man det med én gang.
+       *
+       * `blokker` er strenger som «02:00–05:00» eller «02:00 - 05:00» fra
+       * integrasjonen; vi tolker begge strekene.
+       */
+      _planstripe(blokker, merkeNa) {
+        const tolk = (b) => {
+          const m = String(b).match(/(\d{1,2}):(\d{2})\s*[–\-—]\s*(\d{1,2}):(\d{2})/);
+          if (!m) return null;
+          const fra = Number(m[1]) * 60 + Number(m[2]);
+          let til = Number(m[3]) * 60 + Number(m[4]);
+          // over midnatt: klipp ved døgnskillet, resten hører til neste døgn
+          if (til <= fra) til = 1440;
+          return { fra, til };
+        };
+        const deler = blokker.map(tolk).filter(Boolean);
+        const na = new Date();
+        const naMin = na.getHours() * 60 + na.getMinutes();
+        const dekket = deler.reduce((sum, d) => sum + (d.til - d.fra), 0);
+        const gaarNa = deler.some((d) => naMin >= d.fra && naMin < d.til);
+
+        return html`
+          <div class="stripe ${gaarNa ? "aktiv" : ""}">
+            ${[6, 12, 18].map((t) => html`
+              <i class="rute" style="left:${(t / 24) * 100}%"></i>`)}
+            ${deler.map((d) => html`
+              <i class="blokk" style="left:${(d.fra / 1440) * 100}%;width:${
+                ((d.til - d.fra) / 1440) * 100}%"></i>`)}
+            ${merkeNa ? html`<i class="na" style="left:${(naMin / 1440) * 100}%"></i>` : ""}
+          </div>
+          <div class="stripetekst">
+            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+          </div>
+          <div class="dempet">
+            ${deler.length
+              ? `${deler.length} blokk${deler.length === 1 ? "" : "er"} · ${
+                  Math.round(dekket / 60 * 10) / 10} t planlagt${
+                  gaarNa ? " · går nå" : ""}`
+              : "Ingen blokker planlagt."}
+          </div>
+        `;
+      }
+
       _sirkulasjon() {
         const bl = this.attr("modus", "blokker", []) || [];
         const blm = this.attr("modus", "blokker_i_morgen", []) || [];
@@ -826,26 +893,55 @@
         const snittDogn = this.attr("modus", "snittpris_dogn");
         const anbefalt = this.attr("omsetninger", "anbefalt");
         const enOms = this.attr("omsetninger", "en_omsetning_timer");
+        const gjort = this.val("omsetninger", 0) || 0;
+        const mal = Number(this.attr("omsetninger", "mal", this.val("mal", 1.5))) || 1.5;
+        const neste = this.val("nesteStart");
+
+        /* Tallene først, i samme tette rutenett som resten av dashbordet, og så
+           innstillingene bak et tannhjul-lignende skille. */
         return html`
+          <div class="tallrutenett">
+            ${this._flis("Omsetninger", nf(gjort, 2), `av ${nf(mal, 2)}`,
+              Math.min(100, (gjort / mal) * 100))}
+            ${this._flis("Pumpetid", nf(this.val("pumpetid", 0), 1), "t i dag")}
+            ${this._flis("Neste start", neste ? String(neste) : "–", "")}
+            ${this._flis("Én omsetning", nf(enOms, 1), "t")}
+          </div>
+
+          <div class="grafblokk" style="margin-top:8px">
+            <div class="grafhode">
+              <span>Planen i dag</span>
+              <span class="dempet">${snittPlan != null
+                ? `snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : ""}</span>
+            </div>
+            ${this._planstripe(bl, true)}
+          </div>
+
+          ${blm.length ? html`
+            <div class="grafblokk" style="margin-top:8px">
+              <div class="grafhode"><span>I morgen</span></div>
+              ${this._planstripe(blm, false)}
+            </div>` : ""}
+
+          ${anbefalt ? html`<div class="dempet" style="margin-top:8px">
+            Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger.</div>` : ""}
+
+          <div class="skille"></div>
           ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
           ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
           ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
           ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
-          <div class="skille"></div>
-          ${bl.length
-            ? bl.map((b, i) => this._rad(`Blokk ${i + 1}`, b))
-            : html`<div class="dempet">Ingen blokker planlagt i dag.</div>`}
-          ${blm.length ? this._rad("I morgen", blm.join("  ·  ")) : ""}
-          ${snittPlan != null
-            ? html`
-                ${this._rad("Snittpris i planen", nf(snittPlan, 2))}
-                ${this._rad("Snittpris hele døgnet", nf(snittDogn, 2))}
-              `
-            : ""}
-          <div class="dempet">
-            Én omsetning tar ${nf(enOms, 1)} t.${anbefalt
-              ? ` Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger.`
-              : ""}
+        `;
+      }
+
+      /* Liten flis: etikett, verdi, undertekst, og stolpe når det finnes en skala. */
+      _flis(navn, verdi, under, pst) {
+        return html`
+          <div class="tflis">
+            <div class="tn">${navn}</div>
+            <div class="tv">${verdi}${under ? html`<small>${under}</small>` : ""}</div>
+            ${pst === undefined ? "" : html`<div class="tspor">
+              <i style="width:${Math.max(0, Math.min(100, pst)).toFixed(1)}%"></i></div>`}
           </div>
         `;
       }
@@ -856,7 +952,22 @@
         const varighet = this.val("spredVarighet", 10) || 10;
         const brukt = this.attr("spredertid", "brukt_i_dag_min", 0);
         const maks = this.val("spredMaks", 0) || 0;
+        const intervall = this.val("spredIntervall", 0) || 0;
+        const andel = maks ? Math.min(100, (brukt / maks) * 100) : undefined;
+
         return html`
+          <!-- Sprederen som en scene: dysa svinger, og dråpene faller bare når den går -->
+          <div class="spredscene ${gar ? "gar" : ""}">
+            <div class="dyse"><i></i></div>
+            <div class="draper">
+              ${[0, 1, 2, 3, 4, 5, 6, 7].map((i) => html`<i style="--i:${i}"></i>`)}
+            </div>
+            <div class="bakke"></div>
+            <div class="spredtekst">
+              ${gar ? `Sprederen går · ${Math.ceil(igjen)} min igjen` : "Sprederen står"}
+            </div>
+          </div>
+
           <button
             class="stor ${gar ? "stopp" : ""}"
             @click=${() => this._trykk(gar ? "stoppSpreder" : "startSpreder")}
@@ -866,13 +977,20 @@
               ? `Stopp sprederen · ${Math.ceil(igjen)} min igjen`
               : `Start sprederen i ${Math.round(varighet)} min`}
           </button>
+
+          <div class="tallrutenett" style="margin-top:8px">
+            ${this._flis("Brukt i dag", nf(brukt, 0), maks ? `av ${nf(maks, 0)} min` : "min", andel)}
+            ${this._flis("Varighet", nf(varighet, 0), "min")}
+            ${this._flis("Intervall", intervall ? nf(intervall, 0) : "–", intervall ? "t" : "")}
+            ${this._flis("Igjen nå", gar ? String(Math.ceil(igjen)) : "–", gar ? "min" : "")}
+          </div>
+
+          <div class="skille"></div>
           ${this._velger("spredVarighet", "Varighet", { suffiks: " min" })}
           ${this._velger("spredIntervall", "Program: start hver", { suffiks: " t" })}
           ${this._velger("spredMaks", "Maks per døgn", { step: 10, suffiks: " min" })}
           ${this._bryterRad("spredprogram", "Program på")}
           ${this._bryterRad("frostvakt", "Frostvakt")}
-          <div class="skille"></div>
-          ${this._rad("Brukt i dag", `${nf(brukt, 0)} min${maks ? ` av ${nf(maks, 0)}` : ""}`)}
         `;
       }
 
@@ -1047,6 +1165,205 @@
             outline: 2px solid var(--kib-accent);
             outline-offset: 2px;
           }
+          /* --- tett tallrutenett, samme form som resten av dashbordet --- */
+          .tallrutenett {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+          }
+          @media (max-width: 420px) {
+            .tallrutenett { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          }
+          .tflis {
+            background: var(--kib-surface);
+            border-radius: 16px;
+            padding: 9px 10px;
+            display: grid;
+            gap: 3px;
+            align-content: start;
+            min-width: 0;
+          }
+          .tn {
+            font-size: 10.5px;
+            opacity: 0.55;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .tv {
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .tv small { font-size: 11px; font-weight: 500; opacity: 0.55; margin-left: 3px; }
+          .tspor {
+            height: 3px;
+            border-radius: 99px;
+            background: rgba(128, 128, 128, 0.25);
+            overflow: hidden;
+          }
+          .tspor i {
+            display: block;
+            height: 100%;
+            border-radius: 99px;
+            background: rgba(74, 157, 248, 0.9);
+            transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+          }
+
+          /* --- døgnstripa med planlagte blokker --- */
+          .stripe {
+            position: relative;
+            height: 26px;
+            border-radius: 8px;
+            background: rgba(128, 128, 128, 0.18);
+            overflow: hidden;
+            margin-top: 2px;
+          }
+          .stripe .rute {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.12);
+          }
+          .stripe .blokk {
+            position: absolute;
+            top: 3px;
+            bottom: 3px;
+            border-radius: 5px;
+            background: rgba(74, 157, 248, 0.75);
+            min-width: 2px;
+          }
+          /* Går pumpa nå, pulserer blokkene svakt — ikke mer enn det, stripa skal
+             kunne leses. */
+          .stripe.aktiv .blokk { animation: stripepuls 2.6s ease-in-out infinite; }
+          @keyframes stripepuls {
+            0%, 100% { opacity: 0.75; }
+            50% { opacity: 1; }
+          }
+          .stripe .na {
+            position: absolute;
+            top: -2px;
+            bottom: -2px;
+            width: 2px;
+            background: var(--kib-accent, #ee95ff);
+            box-shadow: 0 0 6px var(--kib-accent, #ee95ff);
+          }
+          .stripetekst {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            opacity: 0.45;
+            margin-top: 3px;
+            font-variant-numeric: tabular-nums;
+          }
+
+          /* --- sprederscenen --- */
+          .spredscene {
+            position: relative;
+            height: 108px;
+            border-radius: 18px;
+            background: var(--kib-surface);
+            overflow: hidden;
+            margin-bottom: 8px;
+          }
+          .dyse {
+            position: absolute;
+            left: 50%;
+            bottom: 26px;
+            width: 10px;
+            height: 22px;
+            margin-left: -5px;
+            border-radius: 3px 3px 0 0;
+            background: rgba(200, 205, 210, 0.5);
+            transform-origin: 50% 100%;
+          }
+          .spredscene.gar .dyse { animation: sving 4s ease-in-out infinite; }
+          @keyframes sving {
+            0%, 100% { transform: rotate(-38deg); }
+            50% { transform: rotate(38deg); }
+          }
+          .dyse i {
+            position: absolute;
+            top: -3px;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            margin-left: -3px;
+            border-radius: 50%;
+            background: rgba(74, 157, 248, 0.8);
+          }
+          .draper { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+          .spredscene.gar .draper { opacity: 1; }
+          .draper i {
+            position: absolute;
+            bottom: 48px;
+            left: calc(14% + var(--i) * 10%);
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: rgba(74, 157, 248, 0.85);
+            animation: drape 1.9s linear infinite;
+            animation-delay: calc(var(--i) * -0.24s);
+          }
+          @keyframes drape {
+            0% { transform: translateY(-34px) scale(0.7); opacity: 0; }
+            25% { opacity: 1; }
+            100% { transform: translateY(26px) scale(1); opacity: 0; }
+          }
+          .bakke {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 26px;
+            background: linear-gradient(180deg, rgba(90, 209, 139, 0.22), rgba(90, 209, 139, 0.08));
+          }
+          .spredtekst {
+            position: absolute;
+            left: 14px;
+            top: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            opacity: 0.8;
+          }
+
+          .fanerad {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px auto;
+            width: fit-content;
+            max-width: 100%;
+            min-width: 0;
+          }
+          .cog {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            background: none;
+            color: rgba(255, 255, 255, 0.72);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            --mdc-icon-size: 20px;
+            transition: background 0.18s, color 0.18s, transform 0.3s ease;
+          }
+          .cog:hover { color: rgba(255, 255, 255, 0.95); }
+          .cog.aktiv {
+            background: var(--kib-accent);
+            color: rgba(70, 58, 64, 0.95);
+            transform: rotate(60deg);
+          }
           .faner {
             display: flex;
             gap: 4px;
@@ -1054,7 +1371,7 @@
             box-sizing: border-box;
             width: fit-content;
             max-width: 100%;
-            margin: 0 auto 12px auto;
+            margin: 0;
             padding: 2px;
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 999px;
@@ -1711,6 +2028,9 @@
             }
           }
           @media (prefers-reduced-motion: reduce) {
+            .spredscene.gar .dyse,
+            .draper i,
+            .stripe.aktiv .blokk,
             .strom i,
             .bobler i,
             .varmedis i,

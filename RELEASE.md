@@ -1,44 +1,41 @@
-# ki-cards 3.93.0
+# ki-cards 3.94.0
 
-## Nytt kort: `ki-tall-card` — tett rutenett av tall
+## `ki-basseng-card` 1.5.0
 
-Enhetskortene tok en halv skjerm for å vise tre tall. Her får åtte tall plass i samme
-høyde: liten etikett, verdien, og en tynn stolpe når det finnes en skala.
+### Innstillinger er et tannhjul, ikke en fane
 
-```yaml
-type: custom:ki-tall-card
-tittel: Noden
-kolonner: 4
-tall:
-  - { navn: CPU, entity: sensor.x_cpu, enhet: '%', maks: 100, gul: 70, rod: 88 }
-  - { navn: Oppe, entity: sensor.x_uptime, tid: true }
-  - { navn: PVE, entity: sensor.x_pve_version }
-```
+Tannhjulet ligger til høyre for fanerada og roterer når det er valgt. Innstillinger er
+noe man går inn i sjelden, og som fane stjal den plass fra de tre man bruker. Trykker du
+på tannhjulet igjen, går du tilbake til første fane.
 
-* `maks` gir stolpe, `gul` og `rod` farger den og hele flisen når verdien passerer.
-* `tid: true` gjør et tidsstempel eller sekunder til «5 døgn» — UniFi og Proxmox oppgir
-  oppetid som tidsstempel, og en ISO-streng er ikke noe man leser.
-* Tekstverdier vises som de er, forkortet med ellipse. Hele strengen må være et tall for
-  å bli behandlet som ett: `parseFloat` godtar alt som *begynner* med et, og
-  «6.12.4-pve» ble ellers vist som 6,1.
-* Uten svar blir dempet med «–», og overskriften teller hvor mange.
-* Tre kolonner under 420 px, fire over.
+### Tittelen over fanene er borte
 
-En kollisjon underveis: flisene het `.t`, det samme som titteltesten, så tittelen fikk
-flisenes bakgrunn og padding. Og en kommentar med backticks inne i CSS-en — som er en
-template-streng — avsluttet strengen midt i. `node --check` fanget ingen av dem, siden
-resultatet er gyldig JavaScript; det var DOM-testen som viste det.
+«Badebasseng» sto både i popup-overskriften og i kortet. Gjentakelsen stjal en linje.
+`tittel: Noe` viser den likevel om du vil.
 
-## Server-popupen bygget om igjen
+### Sirkulasjon er et kort, ikke en side
 
-De store enhetskortene er borte fra alle fire faner. Hver fane: statuskort øverst, så to
-til tre tallrutenett, så listene og handlingene.
+Fanen var en liste av innstillingsrader med blokkene som tekst — «Blokk 1: 02:00–05:00».
+Da måtte man regne selv for å se om pumpa går nå.
 
-**76 tall i rutenett** der det før var enhetskort med tre målinger hver. Ny informasjon
-som ikke var synlig før: swap og rot-FS på Proxmox, node score, KSM delt minne, kernel-
-og PVE-versjon, IO wait og idle, br0-trafikk og IP-adresse, docker-RAM, paritetsfart og
-framdrift, latens mot alle tre målene, klienter og oppetid per switch og aksesspunkt, og
-hele qBittorrent-køen med totaler.
+Nå: **fire tall øverst** (omsetninger med stolpe, pumpetid, neste start, én omsetning),
+og så **døgnet som en stripe** med de planlagte blokkene tegnet inn og et lysende merke
+for nå. Går pumpa, pulserer blokkene svakt. Under står hvor mange blokker og hvor mange
+timer som er planlagt, og snittprisen i planen mot snittet for døgnet.
 
-Handlingene har fått egne rader: restart av ruter og switch med bekreftelse, LED-brytere,
-og node-restart og avstenging i rødt og oransje.
+Har du en plan for i morgen, får den sin egen stripe.
+
+Tolkningen av blokk-strengene tar både `–`, `-` og `—` som skilletegn, og ettsifret time.
+En blokk over midnatt klippes ved døgnskillet — «22:00–01:30» blir 22:00 til 24:00 —
+ellers ville den tegnet seg baklengs over hele stripa.
+
+### Spreder har fått en scene
+
+Dysa svinger, og dråpene faller — men bare når sprederen faktisk går. Står den, er scenen
+stille og dråpene usynlige.
+
+Under: fire tall med brukt i dag mot maks som stolpe, varighet, intervall og minutter
+igjen. Så start/stopp-knappen, og innstillingene under et skille.
+
+Begge fanene bruker nå samme tette tallrutenett som resten av dashbordet, med stolper der
+det finnes en skala.
