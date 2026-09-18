@@ -1,38 +1,29 @@
-# ki-cards 4.6.0
+# ki-cards 4.7.0
 
-## `ki-hytte-card` 2.4.0: søk etter dag eller uke
+## Nytt kort: `ki-homelab-card`
 
-Nytt søkefelt øverst i Kalender-fanen. Skriv en dato eller et ukenummer, og få svaret på
-tvers av alle stedene: hvem var hvor.
+Lagt inn i bundelen som `src/82-ki-homelab-card.js`, uendret fra fila du sendte.
 
-Kalenderen svarer allerede på dette hvis du blar til riktig måned og trykker på dagen.
-Søket er for når du vet datoen, men ikke måneden — «uke 27» er lettere å skrive enn å
-bla tolv måneder bakover.
+Kortet finner alt selv gjennom entitetsregisteret, gruppert per integrasjon og enhet:
 
-Formatene som tolkes:
+* **proxmox_sensors** — node, containere, VM-er, lagring og varsler
+* **unifi** — ruter, switcher, aksesspunkt, Wi-Fi med QR-kode, porter, LED og restart
+* **unraid** — CPU, RAM, array, disker, Docker-containere og VM-er
+* **qbittorrent** — ned- og oppfart, status, torrenter, alternativ hastighet
+* **speedtestdotnet** — ned, opp og ping, om den finnes
 
-| Du skriver | Tolkes som |
-| --- | --- |
-| `4.7` · `04.07.2026` · `2026-07-04` | den dagen |
-| `4. juli` · `4 juli 2026` | den dagen |
-| `uke 28` · `u28` · `uke 28 2026` | hele uka |
-| `i dag` · `i går` | den dagen |
-| `denne uka` · `forrige uke` | hele uka |
+Fire visninger: `scene` (standard), `gjester`, `nettverk` og `lagring`. `skjul:` tar bort
+rader som inneholder en tekst, og `navn_map:` gir pene navn per vmid eller nøkkel.
 
-Ukenummer følger ISO-regelen, der torsdagen bestemmer hvilken uke og hvilket år dagene
-hører til. Uten den havner nyttårsuka i feil år.
+Fila er frittstående og krever ikke bundelen, men i bundelen registreres den gjennom
+`KI.define` som de andre — så en kopi lastet fra en egen ressurs vinner ikke i stillhet.
+Har du den som egen Lovelace-ressurs fra før, fjern den, ellers får du to kopier og den
+gamle vinner.
 
-Ved uke eller flere dager står antall dager per person i parentes — «Cybele (2 d), Rune
-(1 d)» — så du ser hvem som var der hele tiden og hvem som stakk innom.
+Merkeikon lagt til i `brand/` og rad i README-tabellen.
 
-Svaret bruker den samme dagboksen som kalenderen viser når du trykker på en dag, med
-stedsfargen foran. Forstår den ikke det du skrev, sier den det og viser tre eksempler i
-stedet for å vise ingenting.
+### Kontrollert
 
-`sok: false` skjuler feltet.
-
-### Testet
-
-Tretten inndataformater tolket riktig, inkludert ugyldige. Svarene kontrollert mot tre
-steder med kjente dager: enkeltdag med to personer, uke som spenner over to steder, en
-dato i fjor, en dag der ingen var noe sted, og tekst som ikke er en dato.
+Registreres fra bundelen, dukker opp i kortlista, og alle fire visningene tegner mot et
+sett med Proxmox-, Unraid-, qBittorrent- og UniFi-entiteter uten å kaste. Byggeskrittet
+leser `styles` på alle 100 kort.
