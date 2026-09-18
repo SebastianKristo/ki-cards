@@ -1,44 +1,37 @@
-# ki-cards 4.1.0
+# ki-cards 4.2.0
 
-## `ki-sikkerhet-card` 1.1.0: UI-editor og stedsprofiler
+## `ki-alarm-card` 1.3.0: `zones:` som oppslag krasjet kortet
 
-### Editor
+```
+Uncaught (in promise) TypeError: (this._config.zones || []).map is not a function
+    at KiAlarmCard._sonedata (ki-alarm-card.js:235)
+```
 
-Kortet hadde ingen editor og måtte settes opp i YAML. Nå felt for alarmpanel, navn,
-sted, batterigrense, faner, soneknapper, tastatur og kompakt.
+`zones:` må være en liste. Er den skrevet som et oppslag — uten bindestrek foran hver
+sone — ble `.map` kalt på et objekt, og kortet kastet **før det rakk å tegne noe**. Da
+står et gammelt bilde igjen, og all ny konfigurasjon ser ut til å bli ignorert. Det var
+grunnen til at `hero: false` «ikke gjorde noe».
 
-Standardverdiene står i editorens `data`, ikke bare i kortet. Uten det viser editoren
-tomme felt, og første lagring skriver tomme verdier over standardene — en felle jeg har
-gått i før med `vis_fanenavn`.
+Kortet tar nå imot begge former. Et oppslag gjøres om til en liste der nøkkelen blir
+tittel, med en advarsel i konsollen om hva som bør rettes i YAML-en. Er `zones:` noe helt
+annet enn en liste eller et oppslag, brukes ingen soner i stedet for at kortet dør.
 
-### Tre steder, tre bakgrunner
+Testet: riktig liste går urørt gjennom, oppslag blir liste med nøkkelen som tittel, en
+egen `title:` i sonen vinner over nøkkelen, manglende `zones` gir tom liste, og en streng
+gir tom liste med advarsel.
 
-`profil:` bytter det som står rundt huset. **Huset selv er uendret** i alle tre — vinduene,
-døra, skannestreken, blinklysene og sirenene hører til alarmen og skal se like ut uansett
-sted. Profilen tegnes BAK huset, så ingen av animasjonene påvirkes.
+## Om duplikate ressurser
 
-* **`oslo`** — rekkehus: naboene på hver side, litt lavere og dempet, med hekk langs
-  fortauet som binder rekka sammen.
-* **`toten`** — åker med rader som smalner innover for å gi dybde, låve og silo bak huset,
-  og en traktor som kjører over åkeren på 26 sekunder.
-* **`stromstad`** — sjøen med to bølgelinjer i ulik fart, brygge med stolper foran huset,
-  og fyrtårnet til venstre med røde stripar og en lysstråle.
-* **`ingen`** — bare huset, som før.
+Konsollen viser at `ki-alarm-card` defineres to ganger:
 
-Hver profil har **én bevegelse**, ikke flere: traktoren kjører, fyrlyset svinger, bølgene
-glir. Mer enn det ville konkurrert med blinklysene når alarmen går, og da er kulissene i
-veien.
+```
+KI-ALARM-CARD 1.2.1    ki-alarm-card.js:18
+KI-ALARM-CARD 1.2.1    ki-cards.js?hacstag=…:25621
+ki-cards: ki-alarm-card er allerede definert – hopper over
+```
 
-Fyrstrålen svinger fram og tilbake i stedet for å rotere. En full rotasjon ville pekt inn
-i huset halve tiden og sett ut som en feil.
+Den frittstående `ki-alarm-card.js` lastes først og vinner; bundelens kopi hoppes over.
+Denne rettelsen ligger i bundelen, så den får ingen virkning før den frittstående
+ressursen er fjernet under Innstillinger → Dashbord → Ressurser.
 
-Alt i bakgrunnene er dempet med vilje — 0,16 til 0,5 i gjennomsiktighet. Huset og alarmen
-skal eie oppmerksomheten.
-
-De tre nye animasjonene er lagt inn i `prefers-reduced-motion`-blokka.
-
-### Testet
-
-Alle fire profilene tegnet: Oslo 6 elementtyper, Toten 11, Strömstad 11, «ingen» tom.
-Bakgrunnen ligger før huset i markupen, og vinduer og dør er uendret. Editorens skjema
-har åtte felt, og stedsvelgeren har de fire valgene med lesbare etiketter.
+Samme situasjon som `ki-klima-pro-card` tidligere i dag, og samme løsning: én kopi, ikke to.

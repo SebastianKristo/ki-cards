@@ -13,7 +13,7 @@
  * JavaScript Module: /local/ki-alarm-card.js
  */
 
-const KI_ALARM_VERSION = "1.2.1";
+const KI_ALARM_VERSION = "1.3.0";
 
 console.info(
   `%c KI-ALARM-CARD %c ${KI_ALARM_VERSION} `,
@@ -203,7 +203,30 @@ class KiAlarmCard extends HTMLElement {
       throw new Error("ki-alarm-card: 'entity' må være et alarm_control_panel");
     }
     this._config = JSON.parse(JSON.stringify(config));
-    if (!this._config.zones) this._config.zones = [];
+
+    /* `zones:` må være en liste. Er den skrevet som et oppslag — uten bindestrek foran
+       hver sone — ble `.map` kalt på et objekt, og kortet kastet
+       «(this._config.zones || []).map is not a function» før det rakk å tegne noe. Da
+       ser man et gammelt bilde og tror ny konfigurasjon ikke virker.
+       Vi tar imot begge former: et oppslag gjøres om til en liste, der nøkkelen blir
+       tittel hvis sonen ikke har en. */
+    const z = this._config.zones;
+    if (!z) {
+      this._config.zones = [];
+    } else if (!Array.isArray(z)) {
+      if (typeof z === "object") {
+        this._config.zones = Object.entries(z).map(([navn, sone]) => ({
+          title: navn, ...(sone && typeof sone === "object" ? sone : {}),
+        }));
+        console.warn("ki-alarm-card: `zones:` var et oppslag, ikke en liste. Den er "
+          + "tolket som en liste, men sett en bindestrek foran hver sone i YAML-en: "
+          + "`- title: Dører`.");
+      } else {
+        this._config.zones = [];
+        console.warn("ki-alarm-card: `zones:` må være en liste. Fant "
+          + typeof z + ", og bruker ingen soner.");
+      }
+    }
     this._signatur = "";
     this._bygget = false;
   }
