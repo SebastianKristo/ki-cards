@@ -1,37 +1,19 @@
-# ki-cards 4.9.0
+# ki-cards 4.9.1
 
-## `ki-hytte-card` 2.6.0: søk på helg
+## Søkefeltet kom ikke opp før du trykket i kalenderen
 
-Det er sjelden datoen man husker. Det er «vi var på Toten den helga».
+Kortet har **to tegneveier**: `_tegn()` bygger hele kortet, og `_oppdaterPaneler()`
+bytter bare innholdet i fanene. Begge tegner kalenderpanelet, men jeg la søkefeltet
+bare inn i den ene.
 
-Nye søk:
+Trykk på søkeikonet kjørte den fulle `_tegn()`, som ikke kjente til feltet. Først når du
+trykket på en dag i kalenderen — som kjører `_oppdaterPaneler()` — dukket det opp.
 
-| Du skriver | Tolkes som |
-| --- | --- |
-| `helg 37` · `helgen 37` · `helg uke 37` | fredag, lørdag og søndag i uke 37 |
-| `helga` · `denne helgen` | helga denne uka |
-| `forrige helg` | helga forrige uke |
+Feltet bygges nå i begge veiene.
 
-**Og ved ethvert ukesøk legges helga til som egen linje.** Søker du `uke 37` og dere var
-på Oslo mandag til torsdag og Toten fredag til søndag, står det:
+Kontrollert ved å trykke på ikonet i en testrigg: feltet er borte før trykket, synlig
+rett etter, knappen markeres som åpen, og lukkeknappen fjerner det igjen.
 
-```
-Uke 37, 2026 · 7 dager
-  Toten     Sebastian (3 d), Rune (3 d)
-  Oslo      Cybele (4 d)
-  ─────────────────────────
-  Helgen    Toten
-```
-
-Var dere flere steder i helga, står fordelingen: «Toten (2 av 3), Oslo (1 av 3)». Linja er
-skilt fra dagene over med en hårfin strek, så den leses som et sammendrag og ikke som enda
-et sted.
-
-Helga regnes fra `dager`-oppslaget, altså de samme dataene kalenderen bruker. Den krever
-ikke helgesensoren fra KI Hyttebesøk, men stemmer overens med den.
-
-### Kontrollert
-
-Sju skrivemåter tolket riktig, inkludert at `helga` og `denne helgen` treffer inneværende
-uke og `forrige helg` uka før. Svaret kontrollert mot en uke der Oslo hadde mandag til
-torsdag og Toten fredag til søndag: helgelinja sier Toten.
+Dette er samme feilklasse som med enhetskortet tidligere i dag, der jeg endret
+`.info`-grenen mens `.panel`-grenen var den som faktisk kjørte. Når et kort har to veier
+til samme utsnitt, må endringen inn i begge — eller de to slås sammen.

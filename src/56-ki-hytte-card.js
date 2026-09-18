@@ -17,7 +17,7 @@
  * sok: false                      # skjuler søkeknappen ved fanene
  *   søket tolker: 12.7 · 2026-07-12 · 4. juli · uke 28 · helg 37 · i går · forrige helg
  */
-const KI_HYTTE_VERSJON = "2.6.0";
+const KI_HYTTE_VERSJON = "2.6.1";
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -991,7 +991,8 @@ class KiHytteCard extends HTMLElement {
             <ha-icon icon="mdi:magnify"></ha-icon></button>`}
         </div>` : ""}
         ${c.faner.map((f) => `<div class="panel ${f === this._fane ? "valgt" : ""}" data-p="${f}">${
-          f === "kalender" ? this._kalender(valgtD) : f === "opphold" ? this._opphold(valgtD)
+          f === "kalender" ? (this._sokfelt() + this._kalender(valgtD))
+          : f === "opphold" ? this._opphold(valgtD)
           : f === "helger" ? this._helger() : this._statistikk(valgtD)}</div>`).join("")}
       </div>`;
 
