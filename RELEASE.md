@@ -1,51 +1,36 @@
-# ki-cards 3.98.1
+# ki-cards 3.99.0
 
-## Feilen var min, og den var en backtick
+## `ki-basseng-card` 1.9.0: temperatur og sirkulasjon i samme graf
 
-`ki-basseng-card` registrerte seg ikke:
+Konseptet fantes fra før — sirkulasjonen som bånd bak temperaturkurven — men utførelsen
+hadde tre feil, og det er dem jeg tror gjorde grafen ubrukelig:
 
-```
-ki-basseng-card: registreringen feilet (ved lasting)
-TypeError: css(...).tall is not a function
-    at get styles
-```
+**1. Aksetallene var forvrengt.** Alt lå i én `svg` med `preserveAspectRatio="none"`. Den
+strekker innholdet etter bredden, så tallene under grafen ble strukket med. Nå er det to
+lag: kurvene i en strukket svg, tekst og nå-punkt i en som ikke strekkes.
 
-I 3.97.0 slettet jeg de gamle `.tall`-stilene og la igjen en kommentar om det. Kommentaren
-sto **inne i css-malen**, og jeg skrev klassenavnene med backticks rundt:
+**2. Terskelen for «pumpa går» var 10 W.** Standby-trekk ligger over det, så det ble bånd
+hele døgnet — og da sier båndene ingenting. Nå 40 W, og perioder kortere enn to minutter
+forkastes: et blaff er ikke en pumpeperiode.
 
-```
-/* `.tall`, `.tall-verdi` og `.tall-tekst` er fjernet — ... */
-```
+**3. Flaten under temperaturkurven la seg over båndene** og gjorde begge grumsete. Kurven
+står nå som en rein strek.
 
-Den første backticken lukket css-malen. Deretter leses `.tall` som en egenskap, og neste
-backtick starter et nytt tagget kall — `css(...).tall` som funksjon. Hele kortet falt bort.
+I tillegg: minst to graders vindu på y-aksen. Med ett grad ble en halv grads måle-støy en
+dramatisk fjellkjede på en dag da ingenting skjedde.
 
-Kommentaren er skrevet om uten backticks, og kortet registreres igjen.
+Under grafen står temperaturspennet med målet, og antall pumpeperioder med samlet tid.
+Tidsvinduet velges med 24 t / 3 d / 7 d.
 
-## Byggeskrittet som ville fanget det
+**Grafen ligger nå i Sirkulasjon-fanen**, over planstripa. Der hører den: stripa viser
+hva som er *planlagt*, grafen hva som *skjedde*. Arbeidsgrafen fra 3.91.0 er fjernet — den
+var den ene av to som ikke sa noe nytt.
 
-Dette er tredje gang i dag samme feilklasse dukker opp, og grunnen er at **`node --check`
-ikke ser den**: resultatet er fortsatt gyldig JavaScript, bare et tagget kall på noe
-annet. Feilen viser seg først når `styles` leses i frontend.
+Grafen er på som standard igjen.
 
-`build.sh` kjører nå `verifiser-styles.js` etter hvert bygg. Den laster bundelen med en
-lit-lik `css()` og **leser `styles` på hvert registrerte kort** — nøyaktig der feilen slår
-ut. Feiler ett kort, stopper bygget.
+### Testet
 
-Kontrollert ved å sette inn en backtick i css-malen med vilje:
-
-```
-  1 problem(er):
-    styles feiler på ki-basseng-card: css(...).test is not a function
-BYGG STOPPET: et kort feiler når styles leses
-```
-
-Uten den innsatte feilen: `styles ok på 98 kort`.
-
-## Også i denne versjonen
-
-`finnLit` fra 1.8.0 leter i åtte HA-elementer og går oppover arvekjeden. Det var ikke
-årsaken her, men det er en bedre måte å finne LitElement på, så den står.
-
-Registreringen har egen feilfangst fra 1.7.1. Den er grunnen til at vi fikk se årsaken
-denne gangen i stedet for et tomt kort — den beholdes.
+Én to-timers periode gir ett bånd og «2,0 t». Et blaff på 60 sekunder gir ingen bånd.
+Standby på 12 W hele døgnet gir ingen bånd. Standby på 45 W gir ett langt bånd, som det
+skal — da trekker pumpa faktisk strøm. En flat kurve varierer 3,9 px av 96 i stedet for å
+fylle hele høyden.

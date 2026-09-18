@@ -1,4 +1,4 @@
-/* ki-cards v3.98.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v3.99.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "3.98.1";
+  KI.VERSION = "3.99.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -12934,7 +12934,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.8.1";
+  const VERSJON = "1.9.0";
 
   /* Finner LitElement i frontend.
    *
@@ -13103,9 +13103,9 @@ try {
         /* Ingen tittel over fanerada som standard. «Badebasseng» sto både i
            popup-overskriften og her, og gjentakelsen stjal en linje. `tittel:` med en
            verdi viser den likevel. */
-        /* Grafene er av som standard. Temperaturgrafen og arbeidsgrafen sa mindre enn
-           de tok av plass, og `graf: true` skrur dem på igjen for den som vil. */
-        this._config = { tittel: "", graf: false, ...config };
+        /* Grafen er på igjen: den viser nå temperatur OG sirkulasjon i samme bilde,
+           som er det den skulle vise hele tiden. `graf: false` skrur den av. */
+        this._config = { tittel: "", graf: true, ...config };
         this._ider.clear();
         this._prefiks = this._config.prefix || null;
         this._modusId = null;
@@ -13332,90 +13332,87 @@ try {
         this._hentHistorikk(true);
       }
 
+      /* Temperatur og sirkulasjon i samme graf.
+       *
+       * Konseptet var riktig fra før — bånd for pumpeperiodene bak temperaturkurven —
+       * men utførelsen hadde tre feil:
+       *
+       *  1. Alt lå i ÉN svg med `preserveAspectRatio="none"`. Den strekker innholdet
+       *     etter bredden, så aksetallene ble forvrengt og strektykkelsen ujevn. Nå er
+       *     det to lag: kurvene i en strukket svg, tekst og punkter i en som ikke
+       *     strekkes.
+       *  2. Terskelen for «pumpa går» var 10 W. Standby-trekk ligger over det, så det
+       *     ble bånd hele døgnet. Nå 40 W, og bånd kortere enn to minutter forkastes —
+       *     et blaff er ikke en pumpeperiode.
+       *  3. Flaten under temperaturkurven la seg over båndene og gjorde begge grumsete.
+       *     Kurven står nå som en rein strek.
+       */
       _graf() {
         const h = this._hist;
-        if (!h || h.feil || !h.temp || h.temp.length < 2) {
-          return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
+        if (!h || h.feil) return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
+        if (!h.temp || h.temp.length < 2) {
+          return html`<div class="dempet senter graf-tom">
+            Ikke nok temperaturhistorikk ennå.</div>`;
         }
-        const B = 320;
-        const H = 92;
+        const B = 320, H = 96;
         const verdier = h.temp.map((p) => p.v);
         const mal = this.attr("vanntemp", "maltemperatur");
-        let lav = Math.min(...verdier);
-        let hoy = Math.max(...verdier);
-        if (mal != null && !isNaN(mal)) {
-          lav = Math.min(lav, Number(mal));
-          hoy = Math.max(hoy, Number(mal));
-        }
-        if (hoy - lav < 1) {
-          const m = (hoy + lav) / 2;
-          lav = m - 0.5;
-          hoy = m + 0.5;
-        }
-        const pad = (hoy - lav) * 0.15;
-        lav -= pad;
-        hoy += pad;
+        let lav = Math.min(...verdier), hoy = Math.max(...verdier);
+        if (mal != null && !isNaN(mal)) { lav = Math.min(lav, +mal); hoy = Math.max(hoy, +mal); }
+        /* Minst to graders vindu: en kurve som har stått stille skal se stille ut.
+           Med ett grad ble en halv grads støy en dramatisk fjellkjede. */
+        if (hoy - lav < 2) { const m = (hoy + lav) / 2; lav = m - 1; hoy = m + 1; }
+        const pad = (hoy - lav) * 0.12;
+        lav -= pad; hoy += pad;
         const x = (t) => ((t - h.fra) / (h.til - h.fra)) * B;
         const y = (v) => H - ((v - lav) / (hoy - lav)) * H;
 
         const linje = h.temp
           .map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`)
           .join("");
-        const flate = `${linje}L${B},${H}L0,${H}Z`;
 
-        // Blå bånd der pumpen faktisk trakk effekt
         const band = [];
         let paa = null;
-        for (const p of h.effekt) {
-          if (p.v > 10 && paa === null) paa = p.t;
-          else if (p.v <= 10 && paa !== null) {
-            band.push([paa, p.t]);
-            paa = null;
-          }
+        for (const p of (h.effekt || [])) {
+          if (p.v > 40 && paa === null) paa = p.t;
+          else if (p.v <= 40 && paa !== null) { band.push([paa, p.t]); paa = null; }
         }
         if (paa !== null) band.push([paa, h.til]);
+        const ekte = band.filter(([f, t]) => t - f >= 120000);
+        const minutter = ekte.reduce((sum, [f, t]) => sum + (t - f) / 60000, 0);
 
-        const timerTilbake = this._timer;
+        const na = h.temp[h.temp.length - 1];
+        const steg = this._timer <= 24 ? 6 : 24;
         const merker = [];
-        const steg = timerTilbake <= 24 ? 6 : 24;
-        for (let i = steg; i < timerTilbake; i += steg) {
-          const t = h.til - (timerTilbake - i) * 3600000;
-          merker.push(
-            html`<text class="akse" x="${x(t)}" y="${H + 14}" text-anchor="middle">
-              ${new Date(t).getHours().toString().padStart(2, "0")}
-            </text>`
-          );
+        for (let i = steg; i < this._timer; i += steg) {
+          const t = h.til - (this._timer - i) * 3600000;
+          merker.push({ x: x(t), tekst: String(new Date(t).getHours()).padStart(2, "0") });
         }
 
         return html`
-          <svg class="graf" viewBox="0 0 ${B} ${H + 18}" preserveAspectRatio="none">
-            ${band.map(
-              ([a, b]) => html`
-                <rect
-                  class="band"
-                  x="${x(a)}"
-                  y="0"
-                  width="${Math.max(1, x(b) - x(a))}"
-                  height="${H}"
-                ></rect>
-              `
-            )}
-            ${mal != null && !isNaN(mal) && Number(mal) > lav && Number(mal) < hoy
-              ? html`<line
-                  class="mal"
-                  x1="0"
-                  x2="${B}"
-                  y1="${y(Number(mal))}"
-                  y2="${y(Number(mal))}"
-                ></line>`
-              : ""}
-            <path class="flate" d="${flate}"></path>
-            <path class="linje" d="${linje}"></path>
-            ${merker}
-          </svg>
+          <div class="grafflate">
+            <!-- lag 1: kurvene, strukket etter bredden -->
+            <svg class="graf" viewBox="0 0 ${B} ${H}" preserveAspectRatio="none">
+              ${ekte.map(([f, t]) => html`<rect class="band" x="${x(f).toFixed(1)}" y="0"
+                width="${Math.max(1, x(t) - x(f)).toFixed(1)}" height="${H}"></rect>`)}
+              ${mal != null && !isNaN(mal) && +mal > lav && +mal < hoy
+                ? html`<line class="mal" x1="0" x2="${B}"
+                    y1="${y(+mal).toFixed(1)}" y2="${y(+mal).toFixed(1)}"></line>` : ""}
+              <path class="linje" d="${linje}"></path>
+            </svg>
+            <!-- lag 2: tekst og punkt, IKKE strukket -->
+            <svg class="grafover" viewBox="0 0 ${B} ${H}">
+              ${merker.map((m) => html`<text class="akse" x="${m.x.toFixed(1)}"
+                y="${H - 3}" text-anchor="middle">${m.tekst}</text>`)}
+              <circle class="grafna" cx="${x(na.t).toFixed(1)}" cy="${y(na.v).toFixed(1)}" r="3.2"/>
+            </svg>
+          </div>
           <div class="graf-tekst">
-            <span>${nf(Math.min(...verdier), 1)} – ${nf(Math.max(...verdier), 1)} °C</span>
-            <span>${band.length} pumpeperioder</span>
+            <span><i class="prikk temp"></i>${nf(Math.min(...verdier), 1)}–${
+              nf(Math.max(...verdier), 1)} °C${mal != null ? ` · mål ${nf(mal, 0)}°` : ""}</span>
+            <span><i class="prikk sirk"></i>${ekte.length
+              ? `${ekte.length} perioder · ${nf(minutter / 60, 1)} t`
+              : "ingen sirkulasjon"}</span>
           </div>
         `;
       }
@@ -13861,6 +13858,20 @@ try {
 
           <div class="grafblokk" style="margin-top:8px">
             <div class="grafhode">
+              <span>Temperatur og sirkulasjon</span>
+              <span class="vindu">
+                ${[24, 72, 168].map((t) => html`
+                  <button class="${this._timer === t ? "aktiv" : ""}"
+                          @click=${() => this._byttVindu(t)}>
+                    ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
+                  </button>`)}
+              </span>
+            </div>
+            ${this._graf()}
+          </div>
+
+          <div class="grafblokk" style="margin-top:8px">
+            <div class="grafhode">
               <span>Planen i dag</span>
               <span class="dempet">${snittPlan != null
                 ? `snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : ""}</span>
@@ -14038,13 +14049,6 @@ try {
                         </span>
                       </div>
                       ${this._graf()}
-                    </div>
-                    <div class="grafblokk" style="margin-top:8px">
-                      <div class="grafhode">
-                        <span>Sirkulasjon og oppvarming</span>
-                        <span class="dempet">samme tidsvindu</span>
-                      </div>
-                      ${this._grafArbeid()}
                     </div>
                   `
                 : ""}
@@ -14744,6 +14748,30 @@ try {
              løse boksene som idag-flaten erstattet, og ingen mal viste til dem lenger.
              MERK: ingen backticks i denne kommentaren. Den står inne i en
              css-template-streng, og en backtick her lukker strengen midt i. */
+
+          /* --- grafen: to lag, så tekst ikke strekkes med kurvene --- */
+          .grafflate { position: relative; height: 96px; }
+          .grafflate .graf, .grafflate .grafover {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+          }
+          /* Fargene på band, linje, mal og akse er de som alt fantes lenger ned
+             (.graf .band og resten). Her legges bare det som er nytt til, så det ikke
+             finnes to konkurrerende sett med farger for samme graf. */
+          .grafna { fill: var(--kib-orange); }
+          .graf-tekst .prikk {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+          }
+          .graf-tekst .prikk.temp { background: var(--kib-orange); }
+          .graf-tekst .prikk.sirk { background: var(--kib-blue); opacity: 0.7; }
 
           /* Graf */
           .grafblokk {
