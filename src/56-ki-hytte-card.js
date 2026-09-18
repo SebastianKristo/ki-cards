@@ -17,7 +17,17 @@
  * sok: false                      # skjuler søkeknappen ved fanene
  *   søket tolker: 12.7 · 2026-07-12 · 4. juli · uke 28 · helg 37 · i går · forrige helg
  */
-const KI_HYTTE_VERSJON = "2.6.1";
+const KI_HYTTE_VERSJON = "2.7.0";
+
+/* ISO-ukenummer: torsdagen i uka bestemmer hvilket år og nummer uka hører til. Uten den
+   regelen havner dagene rundt nyttår i feil uke. Samme regel som søket bruker. */
+function kiHyUkenr(dato) {
+  const d = new Date(dato);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const forste = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - forste) / 86400000 - 3 + ((forste.getDay() + 6) % 7)) / 7);
+}
 
 const KI_HYTTE_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -153,6 +163,12 @@ const KI_HYTTE_STIL = `
   .rad .d { font-size:12px; opacity:.6; }
   .rad .netter { font-size:13px; font-weight:600; white-space:nowrap; }
   .tom { padding:22px; text-align:center; font-size:13px; opacity:.6; }
+  /* Ukenummeret står ved måneden, dempet: det er en opplysning man slår opp, ikke noe
+     som skal konkurrere med månedsnavnet. */
+  .ukenaa { font-size:11.5px; font-weight:600; opacity:.5; margin-left:8px;
+    padding:3px 8px; border-radius:999px; background:rgba(128,128,128,.18);
+    vertical-align:middle; }
+
   /* søket: knapp ved fanene, felt som glir ned */
   .faner { position:relative; align-items:center; gap:8px; }
   .sokknapp { flex:0 0 auto; width:38px; height:38px; border-radius:50%; cursor:pointer;
@@ -302,7 +318,8 @@ class KiHytteCard extends HTMLElement {
     return `<div class="kal">
       <div class="kaltopp">
         <button class="pil" data-mnd="-1" ${kanTilbake ? "" : "disabled"}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-        <div class="mnd">${KI_HY_MND[vist.getMonth()]} ${vist.getFullYear()}</div>
+        <div class="mnd">${KI_HY_MND[vist.getMonth()]} ${vist.getFullYear()}
+          <span class="ukenaa">Uke ${kiHyUkenr(nå)}</span></div>
         <button class="pil" data-mnd="1" ${kanFram ? "" : "disabled"}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
       <div class="ukedager">${KI_HY_UKE.map((u) => `<span>${u}</span>`).join("")}</div>
