@@ -1,4 +1,4 @@
-/* ki-cards v4.33.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.33.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.33.0";
+  KI.VERSION = "4.33.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -548,10 +548,12 @@ window.KI = window.KI || {};
          overgangen blir den samme som når rada overlever. */
       const husk = vert._kiPilleSist;
       if (husk) {
-        pille.classList.add("drar");          // hopp til forrige plass uten overgang
+        /* Sett forrige plass UTEN overgang, så pilla står der den sto før tegningen.
+           Klassen fjernes ikke her — det gjør `flytt(false)` under, i neste bilde, og
+           da glir den derfra til den nye fanen. */
+        pille.classList.add("drar");
         pille.style.setProperty("--x", husk.x);
         pille.style.setProperty("--w", husk.w);
-        requestAnimationFrame(() => pille.classList.remove("drar"));
       }
 
       const flytt = (uten) => {
@@ -583,10 +585,22 @@ window.KI = window.KI || {};
 
       /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
          ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble
-         pilla riktig først etter et fanebytte. */
-      requestAnimationFrame(() => { flytt(true); requestAnimationFrame(() => flytt(true)); });
-      setTimeout(() => flytt(true), 120);
-      setTimeout(() => flytt(true), 400);
+         pilla riktig først etter et fanebytte.
+         `uten` styrer om overgangen er av: FØRSTE gang skal pilla bare stå på plass,
+         men etter en ny tegning har vi en forrige posisjon å gli FRA — og da var
+         `flytt(true)` grunnen til at den hoppet i stedet. */
+      const stille = !husk;
+      requestAnimationFrame(() => {
+        /* Ett bilde etter at forrige plass er satt: nå glir den dit den skal.
+           Første gang finnes ingen forrige plass, og da settes den stille. */
+        flytt(stille);
+        requestAnimationFrame(() => flytt(stille));
+      });
+      /* De sene målingene retter bredden når skrifta er byttet. De MÅ animeres — med
+         `flytt(true)` slo 120 ms-målingen av overgangen midt i glidningen, og pilla
+         hoppet resten av veien. */
+      setTimeout(() => flytt(false), 120);
+      setTimeout(() => flytt(false), 400);
 
       /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
          egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
