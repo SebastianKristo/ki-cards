@@ -22,7 +22,9 @@
  * teller: true                        # «2 av 5 på» nederst (av som standard)
  */
 const KI_VARS_VERSJON = "1.0.0";
-const KI_VARS_PLATTFORM = "ki_notifications";
+/* Flere integrasjoner kan ha varslingsbrytere. `ki_energi` legger alle sine på ÉN
+   enhet, i motsetning til `ki_notifications` som har én enhet per regel. */
+const KI_VARS_PLATTFORM = ["ki_notifications", "ki_energi"];
 
 const KI_VARS_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -100,6 +102,18 @@ const KI_VARS_TEKST = [
   [/home.?assistant|oppstart|startet/, "Home Assistant", "Varsel etter omstart av HA", "mdi:home-assistant"],
   [/vaermelding|værmelding|vaer_ai/, "Værmelding", "Daglig værvarsel fra AI", "mdi:weather-partly-cloudy"],
   [/stromforbruk|strømforbruk|forbruk.?rapport/, "Strømforbruk", "Daglig rapport", "mdi:chart-bar"],
+
+  /* KI Energi. Hovedbryteren først: den slår av alle de andre, og må ikke forveksles
+     med `ki_varsel_effekt`, som bare gjelder effektgrensen. */
+  [/\bki_energi_varsler\b/, "Energivarsler", "Hovedbryter for alle energivarsler", "mdi:bell-outline"],
+  [/ki_varsel_effekt/, "Effektgrense", "Varsel når timen nærmer seg grensen", "mdi:flash-alert"],
+  [/ki_varsel_hjemkomst/, "Hjemkomst", "Varsel når huset varmes opp før dere kommer", "mdi:home-import-outline"],
+  [/ki_varsel_sommer/, "Sommermodus", "Varsel når sommermodus slår inn", "mdi:white-balance-sunny"],
+  [/ki_varsel_vvb/, "Varmtvann", "Varsel om berederen og legionella", "mdi:water-boiler"],
+  [/ki_varsel_hanklevarmer/, "Håndklevarmer", "Varsel om håndklevarmeren", "mdi:radiator"],
+  [/ki_varsel_helg/, "Bortemodus", "Varsel når huset settes i bortemodus", "mdi:bag-suitcase"],
+  [/ki_helg_spor_torsdag/, "Spør torsdag", "Spør om dere drar bort i helgen", "mdi:calendar-question"],
+  [/ki_helg_spor_fredag/, "Spør fredag", "Spør igjen fredag hvis du ikke svarte", "mdi:calendar-question"],
 ];
 
 const KI_VARS_IKON = [
@@ -131,6 +145,7 @@ class KiVarslingCard extends HTMLElement {
 
   setConfig(c) {
     this._c = { plattform: KI_VARS_PLATTFORM, sok: true, ...(c || {}) };
+    this._plattformer = [].concat(this._c.plattform);
     this._bygget = false;
   }
 
@@ -195,7 +210,8 @@ class KiVarslingCard extends HTMLElement {
       if (eget) navn = eget;
       if (egenUnder) under = egenUnder;
       ut.push({
-        id, slug, kilde, enhet: enhet || "Annet",
+        id, slug, kilde, plattform: (reg[id] || {}).platform || "",
+        enhet: enhet || "Annet",
         navn: navn.trim() || slug,
         under,
         ikon: (c.ikoner || {})[slug] || (c.ikoner || {})[id]
@@ -206,8 +222,12 @@ class KiVarslingCard extends HTMLElement {
     };
 
     for (const [id, e] of Object.entries(reg)) {
-      if (e.platform !== c.plattform) continue;
+      if (!this._plattformer.includes(e.platform)) continue;
       if (!id.startsWith("switch.") && !id.startsWith("input_boolean.")) continue;
+      /* KI Energi har 206 entiteter på én enhet, og bare noen få er varslingsbrytere.
+         Vi tar bare dem som faktisk handler om varsling — resten er styring, og hører
+         hjemme i klimakortet. */
+      if (e.platform === "ki_energi" && !/varsel|varsler|spor_/.test(id)) continue;
       legg(id, "integrasjon");
     }
     for (const id of (c.ekstra || [])) legg(id, "ekstra");
@@ -225,13 +245,19 @@ class KiVarslingCard extends HTMLElement {
       const erMaster = (b) => /alle[ _-]?varsler|_aktivert$|_varsling$|_aktiv$/.test(b.id)
         || b.slug === b.enhet.toLowerCase().replace(/[^a-z0-9]+/g, "_")
         || /^(alle varsler|aktivert|varsling|aktiv)$/i.test(b.under || "");
+      /* Mastermodus gjelder bare der én enhet ER én regel. KI Energi har alle sine
+         varslingsbrytere på samme enhet, og da ville «hovedbryteren» skjult fem av seks
+         — de er sidestilte valg, ikke underinnstillinger. */
       const perEnhet = new Map();
       for (const b of ut) {
-        if (b.kilde === "ekstra") continue;
+        if (b.kilde === "ekstra" || b.plattform === "ki_energi") continue;
         if (!perEnhet.has(b.enhet)) perEnhet.set(b.enhet, []);
         perEnhet.get(b.enhet).push(b);
       }
+
       const behold = new Set();
+      /* Brytere fra KI Energi beholdes alltid: de er sidestilte valg på én enhet. */
+      for (const b of ut) if (b.plattform === "ki_energi") behold.add(b.id);
       for (const [, liste] of perEnhet) {
         if (liste.length <= 1) { liste.forEach((b) => behold.add(b.id)); continue; }
         const m = liste.filter(erMaster);

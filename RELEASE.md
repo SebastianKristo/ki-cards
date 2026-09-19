@@ -1,42 +1,35 @@
-# ki-cards 4.22.0
+# ki-cards 4.23.0
 
-## Én bryter per regel
+## `ki-varsling-card` tar også varslene fra KI Energi
 
-«Alarm» har åtte entiteter og «Familie – hjemme/borte» ti, men bare én av dem hører
-hjemme i en oversikt: den som slår hele regelen av og på. Resten er finjustering.
+Kortet leter nå i både `ki_notifications` og `ki_energi`. `plattform:` overstyrer lista.
 
-Kortet viser nå bare hovedbryteren. Den kjennes på navnet — «alle varsler», «aktivert»,
-«varsling», eller at den heter det samme som regelen.
+Tre ting måtte håndteres, fordi KI Energi er bygget annerledes:
 
-Finner kortet ingen hovedbryter for en regel, viser det alle bryterne for den. **Å skjule
-noe vi ikke forstod er verre enn å vise for mye**, særlig når man ikke ser at det er
-skjult.
+**206 entiteter på én enhet.** Bare de som handler om varsling tas med — `varsel`,
+`varsler` eller `spor_` i ID-en. De øvrige 200 er styring og hører hjemme i klimakortet.
+Testet med 21 styringsbrytere blandet inn: ingen av dem kom med.
 
-`master: false` viser alle. Undertogglene ligger uansett under langt trykk.
+**Mastermodus gjelder ikke her.** `ki_notifications` har én enhet per regel, så
+hovedbryteren er den ene som betyr noe. KI Energi har alle sine på samme enhet, og de er
+**sidestilte valg** — effektgrense, hjemkomst, varmtvann. Hadde mastermodus slått inn,
+ville fem av seks forsvunnet.
 
-Testet: åtte brytere fordelt på tre regler blir tre rader, og `master: false` gir alle
-åtte.
+**Navn og forklaring** for alle ni: Energivarsler, Effektgrense, Hjemkomst, Sommermodus,
+Varmtvann, Håndklevarmer, Bortemodus, Spør torsdag og Spør fredag — med integrasjonens
+egne ikoner.
 
-## Navnene dine er lagt inn i kortet
+Hovedbryteren `ki_energi_varsler` har sin egen oppføring, slik at den ikke forveksles med
+`ki_varsel_effekt`. Uten den fikk den «Strømforbruk» og et søylediagram-ikon, fordi
+«energi» traff gjettemønsteret for forbruk.
 
-Fjorten regler med navn, forklaring og ikon — vekking, ansiktsgjenkjenning, autolås,
-fastkjørt lås, dørlys, hjemme/borte, alarm, Heimdall, Ruter, planter, støvsuger, Home
-Assistant, værmelding og strømforbruk.
+## Popupen har fått en Strøm-fane
 
-Integrasjonens egne navn er tekniske («Alarm - Alle varsler»). Disse er de som faktisk
-forklarer hva bryteren gjør, og nå slipper du å skrive dem i hver installasjon.
-
-`navn:` og `undertekst:` overstyrer som før, `kjente: false` slår tabellen av.
-
-### Resultatet
-
-Hele popupen er 71 linjer, mot rundt 240 i det håndskrevne oppsettet — og **uten en
-eneste entitets-ID, navn eller ikon**. Alle tretten reglene kommer opp med riktig tekst
-og ikon av seg selv.
+Tre faner nå: Automasjoner, Push varsler og Strøm. 81 linjer, fortsatt uten en eneste
+entitets-ID.
 
 ---
 
-# ki-cards 4.21.0
+# ki-cards 4.22.0
 
-Filtrering på regelnavn med `enheter:` og `ikke_enheter:`, som overlever mellom
-installasjonene der entitets-ID-ene varierer.
+Én bryter per regel fra `ki_notifications`, og navnene dine lagt inn i kortet.
