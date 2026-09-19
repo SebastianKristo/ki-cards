@@ -1,4 +1,4 @@
-/* ki-cards v5.4.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v5.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.4.0";
+  KI.VERSION = "5.5.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26682,6 +26682,7 @@ try {
  *   – ved lading strømmer energi fra laderen gjennom kabelen, og batteriet glitrer
  *   – frunk og bagasjerom åpnes i tegningen når de står åpne
  *   – defrost gir varmebølger på frontruta, sentry blinker rødt
+ *   – vinduer på gløtt: en svart glipe øverst i vinduene og luft som strømmer ut
  *   – når bilen kjører, ruller hjulene og veien glir forbi i takt med farten
  *   – ladeporten i baklyset åpnes og lyser når porten er åpen, grønt når kabelen står i
  *   – låseikonet over taket er oransje og vipper når bilen er ulåst
@@ -26715,7 +26716,9 @@ try {
     laas_omvendt: true,
     bagasje: "switch.tesla_model_y_car_trunk_rear",
     frunk: "switch.tesla_model_y_car_trunk_front", sentry: null, klima: null, innetemp: null, gir: null, fart: "sensor.tesla_model_y_car_drive_speed",
-    defrost: "switch.folkevogn_defrost",
+    // defrost kan være én entitet eller en liste – animasjonen vises hvis én av dem er på
+    defrost: ["switch.tesla_model_y_klima_climate_defrost", "switch.folkevogn_defrost"],
+    vindu: "switch.tesla_model_y_klima_climate_window_vent",
   };
   const AUTO = {
     frunk: [/^(switch|cover)\..*(frunk|trunk_front|front_trunk|vehicle_state_ft)/],
@@ -26808,6 +26811,11 @@ try {
     .tc.defrost .dfr { animation:stig 2.2s ease-out infinite; } .tc.defrost .dfr.d2 { animation-delay:.7s; } .tc.defrost .dfr.d3 { animation-delay:1.4s; }
     @keyframes stig { 0% { opacity:0; transform:translateY(2px); } 30% { opacity:.9; } 100% { opacity:0; transform:translateY(-4px); } }
     .dfr { transform-box:fill-box; }
+    .glipe { fill:none; stroke:#04060a; stroke-width:1.7; stroke-linecap:round; opacity:0; transition:opacity .6s; }
+    .tc.vindu .glipe { opacity:1; }
+    .luft { fill:none; stroke:#bfe4ff; stroke-width:1; stroke-linecap:round; opacity:0; transform-box:fill-box; }
+    .tc.vindu .luft { animation:luft 2.6s ease-out infinite; } .tc.vindu .l2 { animation-delay:.9s; } .tc.vindu .l3 { animation-delay:1.7s; }
+    @keyframes luft { 0% { opacity:0; transform:translate(0,2px); } 30% { opacity:.8; } 100% { opacity:0; transform:translate(5px,-7px); } }
     .sentrylys { fill:#ff3b30; opacity:0; } .tc.sentry .sentrylys { animation:sentry 1.6s ease-in-out infinite; }
     @keyframes sentry { 0%,100% { opacity:.25; } 50% { opacity:1; filter:drop-shadow(0 0 4px #ff3b30); } }
     .t-inne { font-size:8px; font-weight:600; fill:#eef3f8; opacity:.85; }
@@ -26882,6 +26890,11 @@ try {
     <path d="M109 100.8 Q127 100.6 141.5 103.3 L141.5 113.6 L109 115.4 Z" fill="url(#bakrute)"/>
     <path d="M144 103.8 Q150 105 153.2 107.6 Q151.8 110.4 150.4 112.2 L144 113.2 Z" fill="url(#bakrute)"/>
     <path d="M67 115 Q76 107 88 103" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".8"/>
+    <!-- vinduer på gløtt -->
+    <path class="glipe" d="M67 115.2 Q77.5 105.8 91.6 102 L102.4 101.4"/>
+    <path class="glipe" d="M109.4 101.4 Q127 101.2 141.2 104"/>
+    <path class="glipe" d="M144.4 104.4 Q149.8 105.6 152.6 108"/>
+    <path class="luft" d="M84 101 q1.5-2 0-4 q-1.5-2 0-4"/><path class="luft l2" d="M121 99.5 q1.5-2 0-4 q-1.5-2 0-4"/><path class="luft l3" d="M138 101 q1.5-2 0-4 q-1.5-2 0-4"/>
     <!-- detaljer: dørlinjer, håndtak, speil, kamera, skulderlinje -->
     <path class="linje" d="M58.2 118.9 Q55.4 132 57.6 147 M102.8 117.2 V146.4 M143.1 114.2 Q141.4 124 136.4 131.5"/>
     <path d="M58 124.8 Q115 120.4 176.4 120" fill="none" stroke="rgba(255,255,255,.22)" stroke-width=".9"/>
@@ -26936,6 +26949,7 @@ try {
           { name: "ladestatus", selector: { entity: {} } },
           { name: "ladeport", selector: { entity: {} } },
           { name: "fart", selector: { entity: { domain: "sensor" } } },
+          { name: "vindu", selector: { entity: { domain: "switch" } } },
           { name: "laas", selector: { entity: { domain: ["lock", "switch", "binary_sensor"] } } },
           { name: "laas_omvendt", selector: { boolean: {} } },
           { name: "bagasje", selector: { entity: { domain: ["switch", "cover"] } } },
@@ -26943,7 +26957,7 @@ try {
           { name: "tap_action", selector: { ui_action: {} } },
         ],
         computeLabel: (s) => ({ navn: "Navn", lakk: "Lakkfarge (hex)", kapasitet: "Batterikapasitet", batteri: "Batterinivå", rekkevidde: "Rekkevidde",
-          effekt: "Ladeeffekt", ladegrense: "Ladegrense", ladestatus: "Ladestatus", ladeport: "Ladeport", fart: "Fart", laas: "Lås", laas_omvendt: "Lås: «på» betyr åpen", bagasje: "Bagasjerom", frunk: "Frunk", tap_action: "Trykk" }[s.name] || s.name),
+          effekt: "Ladeeffekt", ladegrense: "Ladegrense", ladestatus: "Ladestatus", ladeport: "Ladeport", fart: "Fart", vindu: "Vinduer på gløtt", laas: "Lås", laas_omvendt: "Lås: «på» betyr åpen", bagasje: "Bagasjerom", frunk: "Frunk", tap_action: "Trykk" }[s.name] || s.name),
       };
     }
     setConfig(c) { this._c = { ...STANDARD, ...(c || {}) }; this._auto = null; this._bygget = false; if (this._hass) this._oppdater(); }
@@ -26966,10 +26980,10 @@ try {
         if (c[k] && h.states[c[k]]) { a[k] = c[k]; continue; }
         a[k] = kandidater.find((id) => mønstre.some((m) => m.test(id)));
       }
-      for (const k of ["batteri", "rekkevidde", "effekt", "ladestatus", "ladeport", "lader", "ladegrense", "laas", "bagasje", "defrost"]) a[k] = c[k];
+      for (const k of ["batteri", "rekkevidde", "effekt", "ladestatus", "ladeport", "lader", "ladegrense", "laas", "bagasje", "defrost", "vindu"]) a[k] = c[k];
       if (a.bagasje && a.frunk === a.bagasje) a.frunk = null;
       this._auto = a; this._autoTid = Date.now();
-      this._ids = Object.values(a).filter(Boolean);
+      this._ids = Object.values(a).flat().filter(Boolean);
     }
     _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
     _trykk() {
@@ -27025,11 +27039,12 @@ try {
       // bryter (on = åpen) eller cover (open/opening)
       const apen = (x) => !!x && ["open", "opening", "on"].includes(x.state);
       const bakApen = apen(s(a.bagasje)), frunkApen = apen(s(a.frunk));
-      const defrost = s(a.defrost) && s(a.defrost).state === "on";
+      const defrost = [].concat(a.defrost || []).some((id) => s(id) && s(id).state === "on");
+      const vindu = apen(s(a.vindu));
       const sentry = s(a.sentry) && s(a.sentry).state === "on";
       const lavt = batt < 20 && !lader;
 
-      const kl = { lader, tilkoblet, kjorer, ulast, "port-apen": portApen, "bak-apen": bakApen, "frunk-apen": frunkApen, defrost, sentry, lavt: lavt && !kjorer };
+      const kl = { lader, tilkoblet, kjorer, ulast, "port-apen": portApen, "bak-apen": bakApen, "frunk-apen": frunkApen, defrost, vindu, sentry, lavt: lavt && !kjorer };
       for (const [k, v] of Object.entries(kl)) kort.classList.toggle(k, !!v);
       kort.style.setProperty("--flyt", (isNaN(eff) ? 1 : klem(1.3 - eff / 20, 0.3, 1.3)).toFixed(2) + "s");
       const f = isNaN(fart) ? 40 : klem(fart, 5, 130);
@@ -27053,6 +27068,7 @@ try {
       else if (lader) { pt = isNaN(eff) ? "Lader" : `Lader · ${komma(eff, 1)} kW`; ik = "mdi:ev-station"; }
       else if (bakApen || frunkApen) { pt = frunkApen && bakApen ? "Frunk og bagasjerom åpne" : frunkApen ? "Frunken er åpen" : "Bagasjerommet er åpent"; ik = "mdi:car-back"; farge = "gul"; }
       else if (ulast) { pt = "Ulåst"; ik = "mdi:lock-open-variant"; farge = "gul"; }
+      else if (vindu) { pt = "Vinduer på gløtt"; ik = "mdi:car-door"; farge = "gul"; }
       else if (lavt) { pt = "Lavt batteri"; ik = "mdi:battery-alert-variant-outline"; farge = "rod"; }
       else if (tilkoblet) { pt = /complete|fullført/.test(lsSt) ? "Ferdig ladet" : "Tilkoblet"; ik = "mdi:power-plug"; }
       else if (portApen) { pt = "Ladeport åpen"; ik = "mdi:ev-plug-type2"; }
