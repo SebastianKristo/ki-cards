@@ -1,32 +1,34 @@
-# ki-cards 4.34.0
+# ki-cards 4.35.0
 
-## Dra virket ikke i etasjevelgeren
+## Dra i etasjevelgeren: nettleseren tok gesten
 
-Opptaket viste det tydelig: pilla **hoppet** mellom fanene og var aldri midt imellom, og
-den lot seg ikke dra.
+Pilla var der og satt riktig, men lot seg ikke dra. Årsaken var ikke koden min — det var
+at **rada er rullbar sidelengs**. `simple-tabs` har `overflow-x: auto` på `.tabs`, og da
+tolker nettleseren et horisontalt drag som en rulling, tar over gesten og sender oss
+`pointercancel`.
 
-`KI.pillefaner` ble koblet på **én gang** for `simple-tabs`, fra `injectTabsStyle`. Men
-simple-tabs er Lit-basert og tegner fanerada på nytt ved hver oppdatering — og da var
-både pilla og pekerlytterne våre borte. Ingen satte dem tilbake.
+Tre ting måtte til:
 
-Pilla vi så etterpå var en rest fra første tegning, ikke noe som fulgte med.
+* **`touch-action: none` på knappene.** Bare på knappene, ikke hele rada — rulling med
+  fingeren utenfor en fane skal fortsatt virke når det er flere faner enn det er plass
+  til.
+* **Pekerfangst ved trykk**, ikke først ved bevegelse. Ventet vi, rakk rada å starte sin
+  egen rulling, og vi mistet resten av gesten.
+* **Lyttere også på knappene.** Med pekerfangst går `pointermove` og `pointerup` til
+  knappen, ikke til rada — uten dette kom bevegelsen aldri fram.
 
-### En vakt som kobler på igjen
+Kalenderfanene var aldri berørt: de er `ki-tabs-card`, ikke `simple-tabs`, og der er rada
+ikke rullbar i samme form.
 
-Hjelperen ser nå på hele shadowRoot og setter pilla inn på nytt så snart den mangler.
-Lytterne følger med, så dra virker også etter en ombygging.
+### Hvis dette heller ikke virker
 
-Det er en generell rettelse: alle kort som tegner fanerada på nytt får den, ikke bare
-simple-tabs. Kort som beholder rada merker ingenting — vakta spør bare om pilla er der.
-
-### Kontrollert
-
-Første kall setter inn pilla og oppretter vakta på shadowRoot. Etter at rada er byttet ut
-er pilla borte, og vakta setter den inn igjen på riktig fane, 104 px for fane to.
+Da vil jeg heller bytte etasjevelgeren fra `simple-tabs` til `ki-tabs-card` enn å lappe
+videre. Der er pilla en del av malen, animasjonen har virket hele tiden, og du får
+UI-editoren på kjøpet. Det er den ene fanerada som står igjen, og hjelperen har kostet
+fem forsøk på den alene.
 
 ---
 
-# ki-cards 4.33.1
+# ki-cards 4.34.0
 
-Pilla hoppet i stedet for å gli i kort som tegner på nytt: sluttposisjonen ble satt med
-overgangen av.
+Vakt som kobler pilla på igjen når kortet tegner fanerada på nytt.

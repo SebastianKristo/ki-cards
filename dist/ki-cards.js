@@ -1,4 +1,4 @@
-/* ki-cards v4.34.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.35.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.34.0";
+  KI.VERSION = "4.35.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -521,7 +521,13 @@ window.KI = window.KI || {};
             transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
             pointer-events:none; z-index:0; }
           .ki-pille.drar { transition:none; }
-          ${kn} { position:relative; z-index:1;
+          /* touch-action none på knappene: rada er ofte rullbar sidelengs
+             (simple-tabs har overflow-x:auto), og da tolker nettleseren et horisontalt
+             drag som en rulling, tar over gesten og sender oss pointercancel.
+             Det var grunnen til at dra ikke virket i etasjevelgeren.
+             Bare knappene, ikke hele rada — rulling med finger utenfor en fane skal
+             fortsatt virke når det er flere faner enn det er plass til. */
+          ${kn} { position:relative; z-index:1; touch-action:none;
             transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
           ${kn}:active { transform:scale(.94); }
           /* Kortets egen aktivbakgrunn slås av — men FØRST når pilla faktisk har
@@ -612,8 +618,11 @@ window.KI = window.KI || {};
         ned = e.clientX;
         startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
         drar = false;
+        /* Fang pekeren med en gang. Gjorde vi det først ved bevegelse, rakk rada å
+           starte sin egen rulling, og vi mistet resten av gesten. */
+        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
       });
-      r.addEventListener("pointermove", (e) => {
+      const flyttMed = (e) => {
         if (!ned) return;
         const dx = e.clientX - ned;
         if (!drar && Math.abs(dx) < 6) return;
@@ -621,7 +630,8 @@ window.KI = window.KI || {};
         pille.classList.add("drar");
         const maks = r.scrollWidth - pille.offsetWidth - 4;
         pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
-      });
+      };
+      r.addEventListener("pointermove", flyttMed);
       const slipp = (e) => {
         if (!ned) return;
         const vardrar = drar;
@@ -642,6 +652,13 @@ window.KI = window.KI || {};
         if (best && !best.classList.contains(aktiv)) best.click();
         else flytt(false);
       };
+      /* Med pekerfangst går move/up til KNAPPEN, ikke til rada — derfor må lytterne
+         ligge der også. Uten dette kom bevegelsen aldri fram. */
+      for (const b of r.querySelectorAll(kn)) {
+        b.addEventListener("pointermove", flyttMed);
+        b.addEventListener("pointerup", slipp);
+        b.addEventListener("pointercancel", slipp);
+      }
       r.addEventListener("pointerup", slipp);
       r.addEventListener("pointercancel", slipp);
       return true;
