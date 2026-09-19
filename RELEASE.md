@@ -1,42 +1,35 @@
-# ki-cards 4.18.0
+# ki-cards 4.19.0
 
-## `ki-hjem-card`: editoren slettet `hjem.stov`
+## `ki-rom-card`: mellomrom nederst når rommet har få seksjoner
 
-Én endring i editoren, og hele `hjem`-blokka ble skrevet om — `stov` med kameraflisen og
-gjøremålskortet forsvant.
+Et rom uten media, klima eller gardiner gir et kort på noen få rader. I en popup står det
+da og flyter midt på skjermen i stedet for å begynne øverst.
 
-Årsaken er «Vis Hjem-fanen». Den er en av/på-bryter på veien `hjem`, og når den sto **på**
-skrev den `undefined` — som sletter veien. `hjem` er ikke et flagg, det er et objekt med
-lås, alarm, kalender, rom og `stov`, så ett trykk tok alt sammen.
+Mangler én eller flere av de åtte seksjonene — header, gardiner, scener, lys, enheter,
+klima, media, sensorer — legges det nå et mellomrom på 200 px nederst, som skyver
+innholdet opp.
 
-Nå røres et objekt aldri når bryteren står på: «på» er standarden, og da skal
-konfigurasjonen stå som den er. Slår du den **av**, settes `false` med vilje — det er den
-eneste gangen du faktisk har bedt om det.
+Har rommet alle åtte, er kortet høyt nok i seg selv, og mellomrommet blir som før.
 
-Kontrollert: med bryteren på overlever `stov`, `las_path` og `rom` uendret. Slått av blir
-`hjem: false`.
+### Den teller kort, ikke innstillinger
 
-## Og bokstaven som forsvant i `las_path`
+Et rom kan ha «Vis media» på uten å ha en eneste høyttaler. Da er kortet like kort som om
+seksjonen var av, og det er høyden som avgjør hvordan det ser ut — ikke hva som står i
+konfigurasjonen. Derfor telles seksjonene som faktisk **ga et kort**.
 
-`#alarm::laser` ble lagret som `#alarm::lase`. Samme årsak som hakkingen i fanekortet:
-editorens `set hass` fyres hver gang **én** tilstand i huset endrer seg, og den bygde hele
-skjemaet på nytt hver gang. Et `ha-form`-felt ble byttet ut mens du skrev i det, og siste
-tegn gikk tapt.
+### Styres selv
 
-Nå bygges skjemaet bare første gang; etterpå sendes `hass` videre til de fem feltene, som
-er det de trenger for entitetsvelgerne.
+```yaml
+bunn_gap: 300   # egen høyde
+bunn_gap: 0     # av, uansett hvor få seksjoner rommet har
+```
 
-M�lt: 200 tilstandsbytter ga **200 ombygginger før, 0 nå**.
-
-### Rekkefølgen i YAML-en
-
-Legg merke til at `hjem` flyttet nederst i den lagrede YAML-en. Det er ufarlig —
-nøkkelrekkefølge betyr ingenting — og skjer fordi editoren bygger objektet på nytt. Selve
-innholdet er nå intakt.
+Kontrollert for null til åtte seksjoner, og med `bunn_gap` satt til 0, 50 og 300.
 
 ---
 
-# ki-cards 4.17.1
+# ki-cards 4.18.0
 
-Backtick i en CSS-kommentar lukket mal-strengen i `ki-tabs-card`, og kalenderpopupen ble
-tom. Nytt byggeskritt `verifiser-kort.js` setter opp hvert kort og gir det hass.
+Editoren i `ki-hjem-card` slettet `hjem.stov`: «Vis Hjem-fanen» skrev `undefined` på veien
+`hjem`, som tok hele objektet. Og skjemaet ble bygget på nytt ved hvert tilstandsbytte, som
+er grunnen til at `#alarm::laser` ble lagret som `#alarm::lase`.

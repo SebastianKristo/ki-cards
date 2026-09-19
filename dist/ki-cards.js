@@ -1,4 +1,4 @@
-/* ki-cards v4.18.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.19.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.18.0";
+  KI.VERSION = "4.19.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -7844,6 +7844,7 @@ try {
  *    klima: true
  *    media: true
  *    sensorer: true
+ *  bunn_gap: 200          # mellomrom nederst; settes selv når noen seksjoner mangler
  *  temperatur: sensor.x           # overstyr (ellers første temp-sensor i rommet, ellers sensor.hus_temperature)
  *  reserve_temperatur / reserve_fuktighet: sensor.x   # annen reserve enn hus-sensorene
  *  fuktighet: sensor.x
@@ -8652,8 +8653,25 @@ try {
       sensorer: () => sectionSensorer(hass, ov, roomName),
     };
     const cards = [];
-    order.forEach((k) => { if (s[k] && builders[k]) { const c = builders[k](); if (c) cards.push(c); } });
-    cards.push({ type: 'custom:gap-card' });
+    /* Vi teller seksjonene som faktisk GA et kort, ikke de som er slått på. Et rom kan
+       ha «Vis media» på uten å ha en eneste høyttaler, og da er kortet like kort som om
+       seksjonen var av — det er høyden som avgjør, ikke innstillingen. */
+    let bygd = 0;
+    order.forEach((k) => {
+      if (!s[k] || !builders[k]) return;
+      const c = builders[k]();
+      if (c) { cards.push(c); bygd++; }
+    });
+
+    /* Er ikke alle seksjonene med, blir kortet kort, og i en popup står det da og
+       flyter midt på skjermen. Et høyt mellomrom nederst skyver innholdet opp til
+       toppen, der det hører hjemme.
+       `bunn_gap` overstyrer høyden, `bunn_gap: 0` slår det av. */
+    const alle = Object.keys(DEFAULT_SECTIONS).length;
+    const bunn = cfg.bunn_gap !== undefined ? Number(cfg.bunn_gap)
+      : (bygd < alle ? 200 : 0);
+    cards.push(bunn > 0 ? { type: 'custom:gap-card', height: bunn }
+                        : { type: 'custom:gap-card' });
     return cards;
   }
 
