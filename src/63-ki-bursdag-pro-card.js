@@ -14,7 +14,7 @@
  * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
  * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "3.0.0";
+const KI_BDP_VERSJON = "3.1.0";
 
 /* Ett kakeikon, brukt både i flisa og i pillene. Sto det to steder, ville de kommet ut
    av takt ved første endring. */
@@ -92,6 +92,11 @@ const KI_BDP_STIL = `
     from { transform:scale(.85) rotate(-6deg); opacity:.75 }
     to { transform:scale(1.1) rotate(6deg); opacity:1 }
   }
+
+  .avkryss { display:flex; align-items:center; gap:10px; font-size:14px; opacity:.8;
+    padding:2px 0 2px 2px; cursor:pointer; }
+  .avkryss input { width:18px; height:18px; accent-color:var(--active-big,#ee95ff); }
+  .skjemafeil { font-size:13px; color:var(--red,#e5706b); margin:2px 0 0; }
 
   .nyknapp { display:flex; align-items:center; justify-content:center; gap:8px;
     padding:13px; border-radius:999px; background:var(--gray200); opacity:.75;
@@ -227,17 +232,56 @@ class KiBursdagProCard extends HTMLElement {
     return ut.sort((a, b) => a.dager - b.dager).slice(0, Number(this._c.antall || 3));
   }
 
-  /* Skjema for å legge inn en ny bursdag i kalenderen */
+  /* Navn fra husets personer, så man slipper å skrive dem inn.
+     Det er også den vanligste feilkilden: «Cybele» og «cybele» blir to oppføringer. */
+  _personNavn() {
+    const ut = [];
+    for (const id of Object.keys((this._h && this._h.states) || {})) {
+      if (!id.startsWith("person.")) continue;
+      const n = (this._h.states[id].attributes || {}).friendly_name;
+      if (n) ut.push(n);
+    }
+    return ut.sort((a, b) => a.localeCompare(b, "nb"));
+  }
+
+  /* Skjema for å legge inn en ny bursdag i kalenderen.
+   *
+   * Endret fra å lage én oppføring per år: nå lages ÉN hendelse som gjentas årlig.
+   * Ti kopier i kalenderen var både rotete å rette i og noe som gikk tomt etter ti år,
+   * uten at noen fikk beskjed. En gjentakelse går aldri ut.
+   *
+   * Årstallet skrives for seg. En `type="date"` krever at man blar til 1985 i en
+   * månedsvelger, og det er tungt på mobil — de fleste vet årstallet og skriver det
+   * raskere enn de blar til det.
+   */
   _skjema() {
     const d = this._nytt || {};
+    const personer = this._personNavn();
+    const iAar = new Date().getFullYear();
+    const gjentas = d.gjentas !== false;
     return `<div class="skjema">
-      <div><label>Navn</label><input type="text" data-f="navn" value="${kiBdEsc(d.navn || "")}" placeholder="Rune"></div>
-      <div class="skjemarad">
-        <div><label>Fødselsdato</label><input type="date" data-f="fodt" value="${kiBdEsc(d.fodt || "")}"></div>
-        <div><label>År fram</label><input type="number" min="1" max="30" data-f="aar" value="${d.aar || this._c.aar_fram || 10}"></div>
+      <div><label>Navn</label>
+        <input type="text" data-f="navn" list="ki-bd-personer" autocomplete="off"
+               value="${kiBdEsc(d.navn || "")}" placeholder="Rune">
+        ${personer.length ? `<datalist id="ki-bd-personer">${
+          personer.map((n) => `<option value="${kiBdEsc(n)}"></option>`).join("")}</datalist>` : ""}
       </div>
-      <p class="hint">Datoen lagres i beskrivelsen på hendelsen, slik at alderen kan regnes ut.
-        Du kan redigere den senere i kalenderen.</p>
+      <div class="skjemarad">
+        <div><label>Dag og måned</label>
+          <input type="text" data-f="dagmnd" inputmode="numeric" autocomplete="off"
+                 value="${kiBdEsc(d.dagmnd || "")}" placeholder="12.04"></div>
+        <div><label>Fødselsår</label>
+          <input type="number" min="1900" max="${iAar}" data-f="fodtaar" inputmode="numeric"
+                 value="${kiBdEsc(d.fodtaar || "")}" placeholder="1985"></div>
+      </div>
+      <label class="avkryss">
+        <input type="checkbox" data-f="gjentas" ${gjentas ? "checked" : ""}>
+        <span>Gjentas hvert år</span>
+      </label>
+      <p class="hint">${gjentas
+        ? "Én oppføring som gjentas årlig. Fødselsåret lagres i beskrivelsen, slik at alderen kan regnes ut."
+        : `Lager ${this._c.aar_fram || 10} separate oppføringer, én per år.`}</p>
+      ${this._feil ? `<p class="skjemafeil">${kiBdEsc(this._feil)}</p>` : ""}
       <div class="sknapper">
         <button class="sk" data-s="avbryt">Avbryt</button>
         <button class="sk lagre" data-s="lagre">Legg til</button>
@@ -245,25 +289,76 @@ class KiBursdagProCard extends HTMLElement {
     </div>`;
   }
 
+  /* «12.04», «12/4», «12 4» eller «1204» → {dag, mnd}. Null når det ikke gir mening.
+     Folk skriver datoer på mange måter, og å avvise alle utenom én er unødig strengt. */
+  _tolkDagMnd(tekst) {
+    const t = String(tekst || "").trim();
+    let m = t.match(/^(\d{1,2})\s*[.\/-]\s*(\d{1,2})\.?$/);
+    if (!m && /^\d{4}$/.test(t)) m = [null, t.slice(0, 2), t.slice(2)];
+    if (!m) return null;
+    const dag = Number(m[1]), mnd = Number(m[2]);
+    if (dag < 1 || dag > 31 || mnd < 1 || mnd > 12) return null;
+    // 31. februar finnes ikke: la Date avgjøre om dagen er ekte i måneden
+    const prove = new Date(2024, mnd - 1, dag);   // skuddår, så 29.02 godtas
+    if (prove.getMonth() !== mnd - 1 || prove.getDate() !== dag) return null;
+    return { dag, mnd };
+  }
+
   async _lagre() {
     const d = this._nytt || {}, c = this._c, h = this._h;
-    if (!d.navn || !d.fodt || !c.kalender) { this._nytt = null; this._forrige = null; return this._tegn(); }
-    const fodt = new Date(d.fodt);
-    const aar = Math.max(1, Math.min(30, Number(d.aar || c.aar_fram || 10)));
-    const iAar = new Date().getFullYear();
-    const start = fodt.getFullYear() >= iAar ? fodt.getFullYear() : iAar;
-    for (let i = 0; i < aar; i++) {
-      const dag = new Date(start + i, fodt.getMonth(), fodt.getDate());
-      const slutt = new Date(dag); slutt.setDate(slutt.getDate() + 1);
-      const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-      /* eslint-disable no-await-in-loop */
-      await h.callService("calendar", "create_event", {
-        entity_id: c.kalender,
-        summary: `${d.navn} (${fodt.getFullYear()})`,
-        description: `Født ${d.fodt}`,
-        start_date: iso(dag), end_date: iso(slutt),
-      });
+    const dm = this._tolkDagMnd(d.dagmnd);
+    const fodtAar = Number(d.fodtaar);
+    if (!d.navn || !dm || !c.kalender) {
+      this._feil = !d.navn ? "Skriv et navn."
+        : !dm ? "Skriv dag og måned, som 12.04."
+        : "Ingen kalender er valgt i kortet.";
+      this._forrige = null; return this._tegn();
     }
+    this._feil = null;
+
+    const harAar = Number.isFinite(fodtAar) && fodtAar >= 1900 && fodtAar <= new Date().getFullYear();
+    const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    const tittel = harAar ? `${d.navn} (${fodtAar})` : d.navn;
+    const beskrivelse = harAar ? `Født ${fodtAar}-${String(dm.mnd).padStart(2, "0")}-${String(dm.dag).padStart(2, "0")}` : "";
+
+    /* Første forekomst: i år hvis datoen ikke er passert, ellers neste år. Legger vi
+       den i fortiden, dukker bursdagen opp som «passert» med en gang. */
+    const naa = new Date(); naa.setHours(0, 0, 0, 0);
+    let aar = naa.getFullYear();
+    if (new Date(aar, dm.mnd - 1, dm.dag) < naa) aar += 1;
+    if (harAar && fodtAar > aar) aar = fodtAar;
+
+    const lag = async (a2, rrule) => {
+      const dag = new Date(a2, dm.mnd - 1, dm.dag);
+      const slutt = new Date(dag); slutt.setDate(slutt.getDate() + 1);
+      const data = { entity_id: c.kalender, summary: tittel,
+        start_date: iso(dag), end_date: iso(slutt) };
+      if (beskrivelse) data.description = beskrivelse;
+      if (rrule) data.rrule = rrule;
+      await h.callService("calendar", "create_event", data);
+    };
+
+    if (d.gjentas !== false) {
+      /* Én hendelse som gjentas årlig. Støtter ikke kalenderen rrule, faller vi
+         tilbake til kopier — bedre enn å feile stille og ikke lagre noe. */
+      try {
+        await lag(aar, "FREQ=YEARLY");
+      } catch (e) {
+        this._feil = "Kalenderen støtter ikke årlig gjentakelse — la inn kopier i stedet.";
+        const n = Math.max(1, Math.min(30, Number(c.aar_fram || 10)));
+        for (let i = 0; i < n; i++) {
+          /* eslint-disable no-await-in-loop */
+          await lag(aar + i);
+        }
+      }
+    } else {
+      const n = Math.max(1, Math.min(30, Number(c.aar_fram || 10)));
+      for (let i = 0; i < n; i++) {
+        /* eslint-disable no-await-in-loop */
+        await lag(aar + i);
+      }
+    }
+
     this._nytt = null; this._forrige = null;
     await this._hentKalender();
     this._tegn();
@@ -277,7 +372,7 @@ class KiBursdagProCard extends HTMLElement {
         this.shadowRoot.innerHTML = html; this._forrige = html;
         const r = this.shadowRoot;
         r.querySelectorAll("[data-f]").forEach((el) => el.addEventListener("change", () => {
-          this._nytt[el.dataset.f] = el.value;
+          this._nytt[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value;
         }));
         r.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => {
           if (b.dataset.s === "avbryt") { this._nytt = null; this._forrige = null; return this._tegn(); }

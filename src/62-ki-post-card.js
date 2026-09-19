@@ -8,8 +8,10 @@
  * path: '#post'             # valgfritt: trykk navigerer hit
  * dager: [2, 4]             # valgfritt: ukedagene posten kommer (1 = mandag)
  * farge: '#8cbef5'          # sirkelens farge når leveringen er nær
+ * pakker: true              # finn pakker fra Norwegian Parcel Tracker selv
+ * pakker_leverte: false     # ta med ferdig leverte pakker
  */
-const KI_POST_VERSJON = "3.0.0";
+const KI_POST_VERSJON = "3.1.0";
 
 const KI_POST_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -52,6 +54,28 @@ const KI_POST_STIL = `
     font-style:normal; background:rgba(250,251,252,.09); opacity:.6; }
   .uke i.pa { background:var(--tone,#8cbef5); color:var(--black,#1b1b1b); opacity:1; }
   @media (max-width:520px) { .uke { display:none; } }
+
+  /* Pakkene under postraden. Samme pilleform, men lavere: de er underordnet, og
+     antallet varierer — står de like høye som postraden, tar fem pakker hele skjermen. */
+  .pakker { display:grid; gap:6px; margin-top:6px; }
+  .pakke { display:flex; align-items:center; gap:12px; width:100%; border:0; font:inherit;
+    text-align:left; cursor:pointer; border-radius:999px; background:var(--gray200);
+    color:var(--gray1000); padding:7px 18px 7px 7px;
+    transition:transform .12s var(--myk); }
+  .pakke:active { transform:scale(.995); }
+  .pring { width:44px; height:44px; flex:none; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:21px;
+    background:rgba(250,251,252,.10); }
+  .pakke.klar .pring { background:var(--green,#5ad18b); color:var(--black,#1b1b1b); }
+  .pakke.levert { opacity:.5; }
+  .pakke.stuck .pring { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
+  .ptekst { flex:1; min-width:0; display:grid; gap:1px; }
+  .pn { font-size:15px; font-weight:500; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pu { font-size:13px; opacity:.55; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pdag { font-size:12.5px; opacity:.45; flex:none; white-space:nowrap; }
+  @media (max-width:380px) { .pdag { display:none; } }
 
   .tom { padding:16px 18px; border-radius:24px; background:var(--gray200);
     color:var(--gray1000); font-size:14px; opacity:.7; }
@@ -107,6 +131,82 @@ class KiPostCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: c.entity }, bubbles: true, composed: true }));
   }
 
+  /* Pakker fra Norwegian Parcel Tracker, funnet selv.
+   *
+   * Integrasjonen lager én enhet per pakke, med `..._status` som hovedsensor og resten
+   * som attributter og søskensensorer. Vi finner statussensorene gjennom
+   * entitetsregisteret, så ingenting må listes opp i YAML-en — pakker kommer og går, og
+   * en liste man må vedlikeholde ville vært utdatert før den var skrevet.
+   *
+   * Vi grupperer per enhet (`device_id`) når registeret har det, ellers per
+   * entitetsnavn. Det er enheten som er «én pakke».
+   */
+  _pakker() {
+    const h = this._h;
+    if (!h || this._c.pakker === false) return [];
+    const reg = h.entities || {};
+    const ut = [];
+
+    for (const [id, e] of Object.entries(reg)) {
+      if (e.platform !== "norwegian_parcel_tracker") continue;
+      if (!id.startsWith("sensor.") || !/_status$/.test(id)) continue;
+      const st = h.states[id];
+      if (!st) continue;
+      const a = st.attributes || {};
+
+      /* Navnet: integrasjonen setter visningsnavn per pakke. Faller vi tilbake til
+         entitets-ID-en, får vi sporingsnummeret, som er bedre enn ingenting. */
+      const navn = (a.friendly_name || id.slice(7))
+        .replace(/\s*status\s*$/i, "").trim() || "Pakke";
+
+      const tilstand = String(st.state || "").toLowerCase();
+      const levert = /levert|delivered|utlevert/.test(tilstand);
+      const klar = /hentes|ready|klar|pickup|utleveringssted/.test(tilstand) && !levert;
+      const stuck = !!a.stale || !!a.stuck;
+
+      ut.push({ id, navn, tilstand: st.state, levert, klar, stuck,
+        hentested: a.pickup_point || a.hentested || "",
+        levering: a.estimated_delivery || a.forventet_levering || "",
+        siste: a.latest_event || a.siste_hendelse || "" });
+    }
+
+    const vis = this._c.pakker_leverte ? ut : ut.filter((p) => !p.levert);
+    /* Rekkefølgen er den man vil handle på: klar til henting først, så fastlåste,
+       så resten. En pakke som venter på deg er det eneste som haster. */
+    const rang = (p) => (p.klar ? 0 : p.stuck ? 1 : p.levert ? 3 : 2);
+    return vis.sort((a2, b) => rang(a2) - rang(b) || a2.navn.localeCompare(b.navn, "nb"));
+  }
+
+  _pakkerHtml() {
+    const pakker = this._pakker();
+    if (!pakker.length) return "";
+    const dato = (iso) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      const naa = new Date(); naa.setHours(0, 0, 0, 0);
+      const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - naa) / 86400000);
+      if (diff === 0) return "i dag";
+      if (diff === 1) return "i morgen";
+      if (diff > 1 && diff < 7) return d.toLocaleDateString("nb-NO", { weekday: "long" });
+      return d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+    };
+    return `<div class="pakker">${pakker.map((p) => {
+      const under = p.klar && p.hentested ? `Klar på ${p.hentested}`
+        : p.siste || p.tilstand;
+      return `<button class="pakke ${p.klar ? "klar" : ""} ${p.stuck ? "stuck" : ""}
+          ${p.levert ? "levert" : ""}" data-pakke="${kiPoEsc(p.id)}">
+        <span class="pring"><ha-icon icon="${p.klar ? "mdi:package-variant-closed-check"
+          : p.levert ? "mdi:check" : p.stuck ? "mdi:alert-outline" : "mdi:package-variant"}"></ha-icon></span>
+        <span class="ptekst">
+          <span class="pn">${kiPoEsc(p.navn)}</span>
+          <span class="pu">${kiPoEsc(under)}</span>
+        </span>
+        <span class="pdag">${kiPoEsc(dato(p.levering))}</span>
+      </button>`;
+    }).join("")}</div>`;
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const st = h.states[c.entity];
@@ -157,10 +257,15 @@ class KiPostCard extends HTMLElement {
         </span>
         ${uke ? `<span class="uke">${UKE.map((u, i) =>
           `<i class="${uke.includes(i + 1) ? "pa" : ""}">${u}</i>`).join("")}</span>` : ""}
-      </button>`;
+      </button>
+      ${this._pakkerHtml()}`;
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
     this.shadowRoot.querySelector(".kort").addEventListener("click", () => this._trykk());
+    for (const el of this.shadowRoot.querySelectorAll("[data-pakke]")) {
+      el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",
+        { detail: { entityId: el.dataset.pakke }, bubbles: true, composed: true })));
+    }
   }
 }
 if (!customElements.get("ki-post-card")) customElements.define("ki-post-card", KiPostCard);

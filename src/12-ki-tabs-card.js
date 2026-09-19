@@ -54,6 +54,9 @@
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
+        /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
+           unødig bred; her blir den rund og like høy som de andre. */
+        .tab.kun-ikon { padding:9px 11px; gap:0; }
         .tab:hover, .dd:hover { color:rgba(255,255,255,.95); }
         .tab.active, .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
@@ -79,15 +82,15 @@
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist">
-            ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <div class="scroller">
             <div class="spor" role="tablist">
-              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
-            ${tabs.map(t => `<button class="tab">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <button class="dd" aria-haspopup="listbox" aria-expanded="false"></button>
           <div class="menu" role="listbox">

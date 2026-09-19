@@ -224,7 +224,18 @@
   /* ─────────────── stil ─────────────── */
   const STIL = `
     :host { display:block; }
-    .tom { padding:16px 20px; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); color:var(--gray1000); font-size:14px; opacity:.8; }
+    .sokrad { display:flex; align-items:center; gap:10px; background:var(--gray100);
+    border-radius:999px; padding:0 8px 0 16px; height:44px; --mdc-icon-size:19px;
+    margin-bottom:8px; color:var(--gray1000); }
+  .sokrad > ha-icon { opacity:.5; }
+  .sokrad input { flex:1; min-width:0; border:0; background:none; color:inherit;
+    font:inherit; font-size:15px; outline:none; }
+  .sokrad input::placeholder { color:currentColor; opacity:.4; }
+  .sokrad button { width:30px; height:30px; flex:none; border:0; border-radius:50%;
+    background:rgba(128,128,128,.18); color:inherit; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:16px; }
+
+  .tom { padding:16px 20px; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); color:var(--gray1000); font-size:14px; opacity:.8; }
 
     /* scene */
     .hl { position:relative; height:180px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate; color:#e8f1ff;
@@ -645,10 +656,49 @@
 
     /* ── liste-rammeverk ── */
     _liste(rader, tomTekst) {
-      const rot = this._rot(), nokler = this._c.vis + "|" + rader.map((r) => r.id).join(",");
+      const rot = this._rot();
+      const alle = rader.length;
+
+      /* Søket filtrerer på navnet og undertittelen, som er der applikasjonsnavnet står —
+         «Plex», «Docker», «CT 104». Det ligger her og ikke i hver visning, så Proxmox,
+         Unraid, nettverk og lagring får det med samme oppførsel. */
+      const sok = (this._sok || "").trim().toLowerCase();
+      if (sok) {
+        rader = rader.filter((r) => (`${r.l} ${r.d || ""}`).toLowerCase().includes(sok));
+      }
+
+      const visSok = this._c.sok !== false && (alle >= (Number(this._c.sok_fra) || 8) || sok);
+      const nokler = this._c.vis + "|" + (visSok ? "s" : "") + sok + "|"
+        + rader.map((r) => r.id).join(",");
+
       if (!this._bygget || this._modus !== this._c.vis || nokler !== this._nokler) {
-        rot.innerHTML = `<style>${STIL}</style>` + (rader.length ? `<div class="liste">${rader.map((r) => this._radHtml(r)).join("")}</div>` : `<div class="tom">${esc(tomTekst)}</div>`);
+        const felt = visSok ? `<label class="sokrad">
+            <ha-icon icon="mdi:magnify"></ha-icon>
+            <input type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                   placeholder="Søk blant ${alle}" value="${esc(this._sok || "")}" />
+            ${sok ? `<button data-tomsok="1" aria-label="Tøm"><ha-icon icon="mdi:close"></ha-icon></button>` : ""}
+          </label>` : "";
+        const innhold = rader.length
+          ? `<div class="liste">${rader.map((r) => this._radHtml(r)).join("")}</div>`
+          : `<div class="tom">${esc(sok ? `Ingen treff på «${this._sok}».` : tomTekst)}</div>`;
+        rot.innerHTML = `<style>${STIL}</style>` + felt + innhold;
         this._bygget = true; this._modus = this._c.vis; this._nokler = nokler;
+
+        /* Søkefeltet tegnes bare når nøkkelen endrer seg, og tastetrykk endrer den.
+           Derfor settes markøren tilbake: uten det hopper den til slutten. */
+        const inp = rot.querySelector(".sokrad input");
+        if (inp) {
+          inp.addEventListener("input", (e) => {
+            const pos = e.target.selectionStart;
+            this._sok = e.target.value;
+            this._tegn();
+            const ny = this._rot().querySelector(".sokrad input");
+            if (ny) { ny.focus(); try { ny.setSelectionRange(pos, pos); } catch (x) { /* ok */ } }
+          });
+          if (this._sokFokus) { this._sokFokus = false; inp.focus(); }
+        }
+        const tom = rot.querySelector("[data-tomsok]");
+        if (tom) tom.addEventListener("click", () => { this._sok = ""; this._tegn(); });
       } else {
         rader.forEach((r) => {
           const el = rot.querySelector(`.rad[data-id="${r.id}"]`); if (!el) return;

@@ -1,50 +1,58 @@
-# ki-cards 4.12.0
+# ki-cards 4.14.0
 
-## Post og bursdager i romflisenes språk
+## `ki-post-card` 3.1.0: pakker fra Norwegian Parcel Tracker, funnet selv
 
-Begge kortene er bygget om etter skissen. Fire trekk er hentet rett fra romflisene i
-dashbordet:
+Postkortet viser nå pakkene under leveringsraden. Ingenting listes opp i YAML-en —
+kortet finner `_status`-sensorene gjennom entitetsregisteret, filtrert på plattformen
+`norwegian_parcel_tracker`.
 
-* navnet oppe til venstre, ikonet i en rund sirkel i motsatt hjørne
-* den store verdien nede til venstre, lett skrift, med en dempet hale ved siden av —
-  bygget som «23°» med «48%»
-* sirkelen er **farget bare når det haster**, nøytral ellers, slik et rom som er av ikke
-  lyser
-* de mindre radene er piller med rundt ikon og to linjer, som «Låst / Dørlås»
+Det måtte være automatisk: pakker kommer og går, og en liste man må vedlikeholde ville
+vært utdatert før den var skrevet.
 
-### `ki-post-card` 3.0.0
+### Rekkefølgen er den du vil handle på
 
-Én pille i stedet for et kort med dato-skive. Tittelen er **når**, underteksten **hva**:
-«I morgen» over «Post leveres». Det er når-delen man leser først.
+Klar for henting først, så fastlåste, så resten. **En pakke som venter på deg er det
+eneste som haster** — resten er bare informasjon.
 
-Sirkelen er blå når leveringen er i dag eller i morgen, nøytral ellers. På selve dagen
-faller brevet ned i kassa i en rolig løkke.
+Klar-pakker får grønn sirkel med hentestedet som undertekst. Fastlåste — der
+integrasjonen har satt `stale` — får oransje og siste hendelse. Leverte skjules, med
+`pakker_leverte: true` for å ta dem med dempet.
 
-`dager: [2, 4]` gir en ukestripe til høyre med ukedagene posten kommer, der 1 er mandag.
-**Uten den vises ingen stripe** — sensoren kjenner bare neste levering, og en gjettet
-stripe er verre enn ingen. Stripa skjules under 520 px.
+Datoen til høyre er lesbar: «i dag», «i morgen», ukedag innen en uke, ellers «14. okt».
 
-### `ki-bursdag-pro-card` 3.0.0
+Trykk på en pakke åpner den, der hele hendelsesloggen ligger som attributter.
 
-Den nærmeste bursdagen er en høy flis: navn, kakesirkel i hjørnet, dagene igjen i stort
-lett tall med «dager» dempet ved siden av, og en stripe langs underkanten som fylles jo
-nærmere man kommer — 60 dager er hele vinduet.
+`pakker: false` skrur det av.
 
-På selve dagen står det «I dag» i stedet for et tall, flata får personens farge, og
-flammen på kaka blafrer. Den blafrer **bare** da; ellers ville tre kort blinket samtidig.
+## `ki-bursdag-pro-card` 3.1.0: én oppføring i stedet for ti
 
-De neste blir piller med navn, dager og alder. Sirkelen deres farges når det er under 14
-dager igjen.
+Skjemaet lagde **én kalenderhendelse per år**, opptil tretti. Det var rotete å rette i,
+og det gikk tomt etter ti år uten at noen fikk beskjed.
 
-Kakeikonet er nå én konstant brukt begge steder. Sto det to steder, ville de kommet ut av
-takt ved første endring.
+Nå lages én hendelse med `rrule: FREQ=YEARLY`. Den går aldri ut.
 
-### Kontrollert
+Støtter ikke kalenderen gjentakelse, faller kortet tilbake til kopier og sier fra i
+skjemaet — bedre enn å feile stille og ikke lagre noe.
 
-Postkortet i fire tilstander: i dag, i morgen, om 3 dager («På mandag»), om 10 dager
-(«28. sep»), med riktige klasser. Ukestripa tennes på tirsdag og torsdag med `dager: [2,4]`
-og forsvinner uten.
+### Enklere å fylle ut
 
-Bursdagskortet med tre personer: flis for Cybele med «3 dager» og 95 % fylt stripe, to
-piller for Rune og Mormor med riktige datoer. På selve dagen: «I dag», `i_dag`-klasse og
-full stripe.
+* **Navn foreslås fra husets `person`-entiteter.** Det er også den vanligste feilkilden:
+  «Cybele» og «cybele» blir to oppføringer i kalenderen.
+* **Dag og måned skrives for seg,** som «12.04». En `type="date"` krever at man blar til
+  1985 i en månedsvelger, og det er tungt på mobil. Tolkningen tar «12.04», «12/4»,
+  «1204» og «12.4.», og avviser 31. februar.
+* **Fødselsåret er valgfritt.** Uten det lages bursdagen uten alder, i stedet for at
+  skjemaet nekter.
+* Første forekomst legges i år hvis datoen ikke er passert, ellers neste år — ellers
+  dukket bursdagen opp som «passert» med en gang.
+* Feil vises i skjemaet i stedet for at knappen ikke gjør noe.
+
+## `ki-tabs-card`: rene ikonfaner (var 4.13.1)
+
+En fane uten `title:` blir rund og kompakt i stedet for like bred som en med tekst, og
+får `aria-label` fra `aria:` eller ikonnavnet.
+
+## `ki-homelab-card`: søkefelt (var 4.13.0)
+
+I `_liste`, så det virker likt i alle fire visningene. Treffer navn og undertittel, vises
+fra åtte rader.

@@ -1,4 +1,4 @@
-/* ki-cards v4.12.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-18 */
+/* ki-cards v4.14.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.12.0";
+  KI.VERSION = "4.14.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -672,6 +672,9 @@ try {
         .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
           padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
+        /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
+           unødig bred; her blir den rund og like høy som de andre. */
+        .tab.kun-ikon { padding:9px 11px; gap:0; }
         .tab:hover, .dd:hover { color:rgba(255,255,255,.95); }
         .tab.active, .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
@@ -697,15 +700,15 @@ try {
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist">
-            ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <div class="scroller">
             <div class="spor" role="tablist">
-              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""}" role="tab" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
-            ${tabs.map(t => `<button class="tab">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <button class="dd" aria-haspopup="listbox" aria-expanded="false"></button>
           <div class="menu" role="listbox">
@@ -16222,8 +16225,10 @@ try {
  * path: '#post'             # valgfritt: trykk navigerer hit
  * dager: [2, 4]             # valgfritt: ukedagene posten kommer (1 = mandag)
  * farge: '#8cbef5'          # sirkelens farge når leveringen er nær
+ * pakker: true              # finn pakker fra Norwegian Parcel Tracker selv
+ * pakker_leverte: false     # ta med ferdig leverte pakker
  */
-const KI_POST_VERSJON = "3.0.0";
+const KI_POST_VERSJON = "3.1.0";
 
 const KI_POST_STIL = `
   :host { display:block; max-width:100%; --myk:cubic-bezier(.2,.8,.2,1); }
@@ -16266,6 +16271,28 @@ const KI_POST_STIL = `
     font-style:normal; background:rgba(250,251,252,.09); opacity:.6; }
   .uke i.pa { background:var(--tone,#8cbef5); color:var(--black,#1b1b1b); opacity:1; }
   @media (max-width:520px) { .uke { display:none; } }
+
+  /* Pakkene under postraden. Samme pilleform, men lavere: de er underordnet, og
+     antallet varierer — står de like høye som postraden, tar fem pakker hele skjermen. */
+  .pakker { display:grid; gap:6px; margin-top:6px; }
+  .pakke { display:flex; align-items:center; gap:12px; width:100%; border:0; font:inherit;
+    text-align:left; cursor:pointer; border-radius:999px; background:var(--gray200);
+    color:var(--gray1000); padding:7px 18px 7px 7px;
+    transition:transform .12s var(--myk); }
+  .pakke:active { transform:scale(.995); }
+  .pring { width:44px; height:44px; flex:none; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:21px;
+    background:rgba(250,251,252,.10); }
+  .pakke.klar .pring { background:var(--green,#5ad18b); color:var(--black,#1b1b1b); }
+  .pakke.levert { opacity:.5; }
+  .pakke.stuck .pring { background:var(--orange,#f0a952); color:var(--black,#1b1b1b); }
+  .ptekst { flex:1; min-width:0; display:grid; gap:1px; }
+  .pn { font-size:15px; font-weight:500; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pu { font-size:13px; opacity:.55; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pdag { font-size:12.5px; opacity:.45; flex:none; white-space:nowrap; }
+  @media (max-width:380px) { .pdag { display:none; } }
 
   .tom { padding:16px 18px; border-radius:24px; background:var(--gray200);
     color:var(--gray1000); font-size:14px; opacity:.7; }
@@ -16321,6 +16348,82 @@ class KiPostCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: c.entity }, bubbles: true, composed: true }));
   }
 
+  /* Pakker fra Norwegian Parcel Tracker, funnet selv.
+   *
+   * Integrasjonen lager én enhet per pakke, med `..._status` som hovedsensor og resten
+   * som attributter og søskensensorer. Vi finner statussensorene gjennom
+   * entitetsregisteret, så ingenting må listes opp i YAML-en — pakker kommer og går, og
+   * en liste man må vedlikeholde ville vært utdatert før den var skrevet.
+   *
+   * Vi grupperer per enhet (`device_id`) når registeret har det, ellers per
+   * entitetsnavn. Det er enheten som er «én pakke».
+   */
+  _pakker() {
+    const h = this._h;
+    if (!h || this._c.pakker === false) return [];
+    const reg = h.entities || {};
+    const ut = [];
+
+    for (const [id, e] of Object.entries(reg)) {
+      if (e.platform !== "norwegian_parcel_tracker") continue;
+      if (!id.startsWith("sensor.") || !/_status$/.test(id)) continue;
+      const st = h.states[id];
+      if (!st) continue;
+      const a = st.attributes || {};
+
+      /* Navnet: integrasjonen setter visningsnavn per pakke. Faller vi tilbake til
+         entitets-ID-en, får vi sporingsnummeret, som er bedre enn ingenting. */
+      const navn = (a.friendly_name || id.slice(7))
+        .replace(/\s*status\s*$/i, "").trim() || "Pakke";
+
+      const tilstand = String(st.state || "").toLowerCase();
+      const levert = /levert|delivered|utlevert/.test(tilstand);
+      const klar = /hentes|ready|klar|pickup|utleveringssted/.test(tilstand) && !levert;
+      const stuck = !!a.stale || !!a.stuck;
+
+      ut.push({ id, navn, tilstand: st.state, levert, klar, stuck,
+        hentested: a.pickup_point || a.hentested || "",
+        levering: a.estimated_delivery || a.forventet_levering || "",
+        siste: a.latest_event || a.siste_hendelse || "" });
+    }
+
+    const vis = this._c.pakker_leverte ? ut : ut.filter((p) => !p.levert);
+    /* Rekkefølgen er den man vil handle på: klar til henting først, så fastlåste,
+       så resten. En pakke som venter på deg er det eneste som haster. */
+    const rang = (p) => (p.klar ? 0 : p.stuck ? 1 : p.levert ? 3 : 2);
+    return vis.sort((a2, b) => rang(a2) - rang(b) || a2.navn.localeCompare(b.navn, "nb"));
+  }
+
+  _pakkerHtml() {
+    const pakker = this._pakker();
+    if (!pakker.length) return "";
+    const dato = (iso) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      const naa = new Date(); naa.setHours(0, 0, 0, 0);
+      const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - naa) / 86400000);
+      if (diff === 0) return "i dag";
+      if (diff === 1) return "i morgen";
+      if (diff > 1 && diff < 7) return d.toLocaleDateString("nb-NO", { weekday: "long" });
+      return d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+    };
+    return `<div class="pakker">${pakker.map((p) => {
+      const under = p.klar && p.hentested ? `Klar på ${p.hentested}`
+        : p.siste || p.tilstand;
+      return `<button class="pakke ${p.klar ? "klar" : ""} ${p.stuck ? "stuck" : ""}
+          ${p.levert ? "levert" : ""}" data-pakke="${kiPoEsc(p.id)}">
+        <span class="pring"><ha-icon icon="${p.klar ? "mdi:package-variant-closed-check"
+          : p.levert ? "mdi:check" : p.stuck ? "mdi:alert-outline" : "mdi:package-variant"}"></ha-icon></span>
+        <span class="ptekst">
+          <span class="pn">${kiPoEsc(p.navn)}</span>
+          <span class="pu">${kiPoEsc(under)}</span>
+        </span>
+        <span class="pdag">${kiPoEsc(dato(p.levering))}</span>
+      </button>`;
+    }).join("")}</div>`;
+  }
+
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     const st = h.states[c.entity];
@@ -16371,10 +16474,15 @@ class KiPostCard extends HTMLElement {
         </span>
         ${uke ? `<span class="uke">${UKE.map((u, i) =>
           `<i class="${uke.includes(i + 1) ? "pa" : ""}">${u}</i>`).join("")}</span>` : ""}
-      </button>`;
+      </button>
+      ${this._pakkerHtml()}`;
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
     this.shadowRoot.querySelector(".kort").addEventListener("click", () => this._trykk());
+    for (const el of this.shadowRoot.querySelectorAll("[data-pakke]")) {
+      el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",
+        { detail: { entityId: el.dataset.pakke }, bubbles: true, composed: true })));
+    }
   }
 }
 if (!customElements.get("ki-post-card")) window.KI.define("ki-post-card", KiPostCard);
@@ -16425,7 +16533,7 @@ try {
  * Fødselsåret leses fra hendelsen: skriv datoen i beskrivelsen («1985-04-12»,
  * «f. 1985» eller «født 1985»), eller sett den i tittelen: «Rune (1985)».
  */
-const KI_BDP_VERSJON = "3.0.0";
+const KI_BDP_VERSJON = "3.1.0";
 
 /* Ett kakeikon, brukt både i flisa og i pillene. Sto det to steder, ville de kommet ut
    av takt ved første endring. */
@@ -16503,6 +16611,11 @@ const KI_BDP_STIL = `
     from { transform:scale(.85) rotate(-6deg); opacity:.75 }
     to { transform:scale(1.1) rotate(6deg); opacity:1 }
   }
+
+  .avkryss { display:flex; align-items:center; gap:10px; font-size:14px; opacity:.8;
+    padding:2px 0 2px 2px; cursor:pointer; }
+  .avkryss input { width:18px; height:18px; accent-color:var(--active-big,#ee95ff); }
+  .skjemafeil { font-size:13px; color:var(--red,#e5706b); margin:2px 0 0; }
 
   .nyknapp { display:flex; align-items:center; justify-content:center; gap:8px;
     padding:13px; border-radius:999px; background:var(--gray200); opacity:.75;
@@ -16638,17 +16751,56 @@ class KiBursdagProCard extends HTMLElement {
     return ut.sort((a, b) => a.dager - b.dager).slice(0, Number(this._c.antall || 3));
   }
 
-  /* Skjema for å legge inn en ny bursdag i kalenderen */
+  /* Navn fra husets personer, så man slipper å skrive dem inn.
+     Det er også den vanligste feilkilden: «Cybele» og «cybele» blir to oppføringer. */
+  _personNavn() {
+    const ut = [];
+    for (const id of Object.keys((this._h && this._h.states) || {})) {
+      if (!id.startsWith("person.")) continue;
+      const n = (this._h.states[id].attributes || {}).friendly_name;
+      if (n) ut.push(n);
+    }
+    return ut.sort((a, b) => a.localeCompare(b, "nb"));
+  }
+
+  /* Skjema for å legge inn en ny bursdag i kalenderen.
+   *
+   * Endret fra å lage én oppføring per år: nå lages ÉN hendelse som gjentas årlig.
+   * Ti kopier i kalenderen var både rotete å rette i og noe som gikk tomt etter ti år,
+   * uten at noen fikk beskjed. En gjentakelse går aldri ut.
+   *
+   * Årstallet skrives for seg. En `type="date"` krever at man blar til 1985 i en
+   * månedsvelger, og det er tungt på mobil — de fleste vet årstallet og skriver det
+   * raskere enn de blar til det.
+   */
   _skjema() {
     const d = this._nytt || {};
+    const personer = this._personNavn();
+    const iAar = new Date().getFullYear();
+    const gjentas = d.gjentas !== false;
     return `<div class="skjema">
-      <div><label>Navn</label><input type="text" data-f="navn" value="${kiBdEsc(d.navn || "")}" placeholder="Rune"></div>
-      <div class="skjemarad">
-        <div><label>Fødselsdato</label><input type="date" data-f="fodt" value="${kiBdEsc(d.fodt || "")}"></div>
-        <div><label>År fram</label><input type="number" min="1" max="30" data-f="aar" value="${d.aar || this._c.aar_fram || 10}"></div>
+      <div><label>Navn</label>
+        <input type="text" data-f="navn" list="ki-bd-personer" autocomplete="off"
+               value="${kiBdEsc(d.navn || "")}" placeholder="Rune">
+        ${personer.length ? `<datalist id="ki-bd-personer">${
+          personer.map((n) => `<option value="${kiBdEsc(n)}"></option>`).join("")}</datalist>` : ""}
       </div>
-      <p class="hint">Datoen lagres i beskrivelsen på hendelsen, slik at alderen kan regnes ut.
-        Du kan redigere den senere i kalenderen.</p>
+      <div class="skjemarad">
+        <div><label>Dag og måned</label>
+          <input type="text" data-f="dagmnd" inputmode="numeric" autocomplete="off"
+                 value="${kiBdEsc(d.dagmnd || "")}" placeholder="12.04"></div>
+        <div><label>Fødselsår</label>
+          <input type="number" min="1900" max="${iAar}" data-f="fodtaar" inputmode="numeric"
+                 value="${kiBdEsc(d.fodtaar || "")}" placeholder="1985"></div>
+      </div>
+      <label class="avkryss">
+        <input type="checkbox" data-f="gjentas" ${gjentas ? "checked" : ""}>
+        <span>Gjentas hvert år</span>
+      </label>
+      <p class="hint">${gjentas
+        ? "Én oppføring som gjentas årlig. Fødselsåret lagres i beskrivelsen, slik at alderen kan regnes ut."
+        : `Lager ${this._c.aar_fram || 10} separate oppføringer, én per år.`}</p>
+      ${this._feil ? `<p class="skjemafeil">${kiBdEsc(this._feil)}</p>` : ""}
       <div class="sknapper">
         <button class="sk" data-s="avbryt">Avbryt</button>
         <button class="sk lagre" data-s="lagre">Legg til</button>
@@ -16656,25 +16808,76 @@ class KiBursdagProCard extends HTMLElement {
     </div>`;
   }
 
+  /* «12.04», «12/4», «12 4» eller «1204» → {dag, mnd}. Null når det ikke gir mening.
+     Folk skriver datoer på mange måter, og å avvise alle utenom én er unødig strengt. */
+  _tolkDagMnd(tekst) {
+    const t = String(tekst || "").trim();
+    let m = t.match(/^(\d{1,2})\s*[.\/-]\s*(\d{1,2})\.?$/);
+    if (!m && /^\d{4}$/.test(t)) m = [null, t.slice(0, 2), t.slice(2)];
+    if (!m) return null;
+    const dag = Number(m[1]), mnd = Number(m[2]);
+    if (dag < 1 || dag > 31 || mnd < 1 || mnd > 12) return null;
+    // 31. februar finnes ikke: la Date avgjøre om dagen er ekte i måneden
+    const prove = new Date(2024, mnd - 1, dag);   // skuddår, så 29.02 godtas
+    if (prove.getMonth() !== mnd - 1 || prove.getDate() !== dag) return null;
+    return { dag, mnd };
+  }
+
   async _lagre() {
     const d = this._nytt || {}, c = this._c, h = this._h;
-    if (!d.navn || !d.fodt || !c.kalender) { this._nytt = null; this._forrige = null; return this._tegn(); }
-    const fodt = new Date(d.fodt);
-    const aar = Math.max(1, Math.min(30, Number(d.aar || c.aar_fram || 10)));
-    const iAar = new Date().getFullYear();
-    const start = fodt.getFullYear() >= iAar ? fodt.getFullYear() : iAar;
-    for (let i = 0; i < aar; i++) {
-      const dag = new Date(start + i, fodt.getMonth(), fodt.getDate());
-      const slutt = new Date(dag); slutt.setDate(slutt.getDate() + 1);
-      const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-      /* eslint-disable no-await-in-loop */
-      await h.callService("calendar", "create_event", {
-        entity_id: c.kalender,
-        summary: `${d.navn} (${fodt.getFullYear()})`,
-        description: `Født ${d.fodt}`,
-        start_date: iso(dag), end_date: iso(slutt),
-      });
+    const dm = this._tolkDagMnd(d.dagmnd);
+    const fodtAar = Number(d.fodtaar);
+    if (!d.navn || !dm || !c.kalender) {
+      this._feil = !d.navn ? "Skriv et navn."
+        : !dm ? "Skriv dag og måned, som 12.04."
+        : "Ingen kalender er valgt i kortet.";
+      this._forrige = null; return this._tegn();
     }
+    this._feil = null;
+
+    const harAar = Number.isFinite(fodtAar) && fodtAar >= 1900 && fodtAar <= new Date().getFullYear();
+    const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    const tittel = harAar ? `${d.navn} (${fodtAar})` : d.navn;
+    const beskrivelse = harAar ? `Født ${fodtAar}-${String(dm.mnd).padStart(2, "0")}-${String(dm.dag).padStart(2, "0")}` : "";
+
+    /* Første forekomst: i år hvis datoen ikke er passert, ellers neste år. Legger vi
+       den i fortiden, dukker bursdagen opp som «passert» med en gang. */
+    const naa = new Date(); naa.setHours(0, 0, 0, 0);
+    let aar = naa.getFullYear();
+    if (new Date(aar, dm.mnd - 1, dm.dag) < naa) aar += 1;
+    if (harAar && fodtAar > aar) aar = fodtAar;
+
+    const lag = async (a2, rrule) => {
+      const dag = new Date(a2, dm.mnd - 1, dm.dag);
+      const slutt = new Date(dag); slutt.setDate(slutt.getDate() + 1);
+      const data = { entity_id: c.kalender, summary: tittel,
+        start_date: iso(dag), end_date: iso(slutt) };
+      if (beskrivelse) data.description = beskrivelse;
+      if (rrule) data.rrule = rrule;
+      await h.callService("calendar", "create_event", data);
+    };
+
+    if (d.gjentas !== false) {
+      /* Én hendelse som gjentas årlig. Støtter ikke kalenderen rrule, faller vi
+         tilbake til kopier — bedre enn å feile stille og ikke lagre noe. */
+      try {
+        await lag(aar, "FREQ=YEARLY");
+      } catch (e) {
+        this._feil = "Kalenderen støtter ikke årlig gjentakelse — la inn kopier i stedet.";
+        const n = Math.max(1, Math.min(30, Number(c.aar_fram || 10)));
+        for (let i = 0; i < n; i++) {
+          /* eslint-disable no-await-in-loop */
+          await lag(aar + i);
+        }
+      }
+    } else {
+      const n = Math.max(1, Math.min(30, Number(c.aar_fram || 10)));
+      for (let i = 0; i < n; i++) {
+        /* eslint-disable no-await-in-loop */
+        await lag(aar + i);
+      }
+    }
+
     this._nytt = null; this._forrige = null;
     await this._hentKalender();
     this._tegn();
@@ -16688,7 +16891,7 @@ class KiBursdagProCard extends HTMLElement {
         this.shadowRoot.innerHTML = html; this._forrige = html;
         const r = this.shadowRoot;
         r.querySelectorAll("[data-f]").forEach((el) => el.addEventListener("change", () => {
-          this._nytt[el.dataset.f] = el.value;
+          this._nytt[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value;
         }));
         r.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => {
           if (b.dataset.s === "avbryt") { this._nytt = null; this._forrige = null; return this._tegn(); }
@@ -24772,7 +24975,18 @@ try {
   /* ─────────────── stil ─────────────── */
   const STIL = `
     :host { display:block; }
-    .tom { padding:16px 20px; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); color:var(--gray1000); font-size:14px; opacity:.8; }
+    .sokrad { display:flex; align-items:center; gap:10px; background:var(--gray100);
+    border-radius:999px; padding:0 8px 0 16px; height:44px; --mdc-icon-size:19px;
+    margin-bottom:8px; color:var(--gray1000); }
+  .sokrad > ha-icon { opacity:.5; }
+  .sokrad input { flex:1; min-width:0; border:0; background:none; color:inherit;
+    font:inherit; font-size:15px; outline:none; }
+  .sokrad input::placeholder { color:currentColor; opacity:.4; }
+  .sokrad button { width:30px; height:30px; flex:none; border:0; border-radius:50%;
+    background:rgba(128,128,128,.18); color:inherit; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:16px; }
+
+  .tom { padding:16px 20px; border-radius:var(--ha-card-border-radius,24px); background:var(--gray200); color:var(--gray1000); font-size:14px; opacity:.8; }
 
     /* scene */
     .hl { position:relative; height:180px; border-radius:var(--ha-card-border-radius,24px); overflow:hidden; isolation:isolate; color:#e8f1ff;
@@ -25193,10 +25407,49 @@ try {
 
     /* ── liste-rammeverk ── */
     _liste(rader, tomTekst) {
-      const rot = this._rot(), nokler = this._c.vis + "|" + rader.map((r) => r.id).join(",");
+      const rot = this._rot();
+      const alle = rader.length;
+
+      /* Søket filtrerer på navnet og undertittelen, som er der applikasjonsnavnet står —
+         «Plex», «Docker», «CT 104». Det ligger her og ikke i hver visning, så Proxmox,
+         Unraid, nettverk og lagring får det med samme oppførsel. */
+      const sok = (this._sok || "").trim().toLowerCase();
+      if (sok) {
+        rader = rader.filter((r) => (`${r.l} ${r.d || ""}`).toLowerCase().includes(sok));
+      }
+
+      const visSok = this._c.sok !== false && (alle >= (Number(this._c.sok_fra) || 8) || sok);
+      const nokler = this._c.vis + "|" + (visSok ? "s" : "") + sok + "|"
+        + rader.map((r) => r.id).join(",");
+
       if (!this._bygget || this._modus !== this._c.vis || nokler !== this._nokler) {
-        rot.innerHTML = `<style>${STIL}</style>` + (rader.length ? `<div class="liste">${rader.map((r) => this._radHtml(r)).join("")}</div>` : `<div class="tom">${esc(tomTekst)}</div>`);
+        const felt = visSok ? `<label class="sokrad">
+            <ha-icon icon="mdi:magnify"></ha-icon>
+            <input type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                   placeholder="Søk blant ${alle}" value="${esc(this._sok || "")}" />
+            ${sok ? `<button data-tomsok="1" aria-label="Tøm"><ha-icon icon="mdi:close"></ha-icon></button>` : ""}
+          </label>` : "";
+        const innhold = rader.length
+          ? `<div class="liste">${rader.map((r) => this._radHtml(r)).join("")}</div>`
+          : `<div class="tom">${esc(sok ? `Ingen treff på «${this._sok}».` : tomTekst)}</div>`;
+        rot.innerHTML = `<style>${STIL}</style>` + felt + innhold;
         this._bygget = true; this._modus = this._c.vis; this._nokler = nokler;
+
+        /* Søkefeltet tegnes bare når nøkkelen endrer seg, og tastetrykk endrer den.
+           Derfor settes markøren tilbake: uten det hopper den til slutten. */
+        const inp = rot.querySelector(".sokrad input");
+        if (inp) {
+          inp.addEventListener("input", (e) => {
+            const pos = e.target.selectionStart;
+            this._sok = e.target.value;
+            this._tegn();
+            const ny = this._rot().querySelector(".sokrad input");
+            if (ny) { ny.focus(); try { ny.setSelectionRange(pos, pos); } catch (x) { /* ok */ } }
+          });
+          if (this._sokFokus) { this._sokFokus = false; inp.focus(); }
+        }
+        const tom = rot.querySelector("[data-tomsok]");
+        if (tom) tom.addEventListener("click", () => { this._sok = ""; this._tegn(); });
       } else {
         rader.forEach((r) => {
           const el = rot.querySelector(`.rad[data-id="${r.id}"]`); if (!el) return;
