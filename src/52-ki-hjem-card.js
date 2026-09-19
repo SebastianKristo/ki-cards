@@ -352,6 +352,10 @@
     const sr = el && el.shadowRoot;
     if (sr) {
       if (!sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = TABS_STYLE; sr.appendChild(st); }
+      /* Samme glidende pille og dra-funksjon som i ki-tabs-card. Den settes inn i
+         simple-tabs sin shadowRoot, ikke i fila — en lapp i den minifiserte koden
+         ville forsvunnet ved neste oppdatering av kortet. */
+      if (KI.pillefaner) KI.pillefaner(el);
       return;
     }
     if (tries < 40) setTimeout(() => injectTabsStyle(el, tries + 1), 50);

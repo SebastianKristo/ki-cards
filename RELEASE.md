@@ -1,33 +1,45 @@
-# ki-cards 4.25.1
+# ki-cards 4.26.0
 
-## Pilla lå tre piksler for langt til venstre
+## Glidende pille og dra på `simple-tabs` også
 
-«Kalender» stakk ut på høyre side av den rosa pilla.
+Etasjevelgeren i `ki-hjem-card`, kalenderfanene og «Framover» bruker alle
+**`simple-tabs`** — ikke `ki-tabs-card`. Animasjonen fra 4.25.0 gjaldt derfor ikke der.
 
-`offsetLeft` måles fra forelderens **kant**, mens `position:absolute; left:0` måles fra
-innsiden av padding-en. Fanerada har 1 px ramme og 2 px padding, så pilla havnet tre
-piksler feil — nok til å se skjevt ut på et ord som «Kalender».
+`simple-tabs.js` er minifisert tredjepartskode. En lapp i den fila ville forsvunnet ved
+neste oppdatering av kortet, så den er ikke rørt.
 
-M�lingen bruker nå `getBoundingClientRect`, som tar med ramme, padding og eventuell
-skalering. Da stemmer den uansett hva stilen gjør.
+I stedet settes pilla og håndtererne inn i kortets **shadowRoot** — samme vei
+`ki-hjem-card` alt injiserer CSS dit. Ny hjelper: `KI.pillefaner(element)`.
 
-## Og bredden som ikke fulgte med
+### Den tar ikke over valget
 
-To ting endrer fanebredden etter at pilla er plassert:
+Pilla følger kortets egen `.active`-klasse gjennom en `MutationObserver`, og ved slipp
+kaller vi knappens **egen** `click()`. Da virker deep-link, fanehukommelse og haptikk som
+før — vi legger bare bevegelsen oppå.
 
-* **Skrifta lastes ferdig.** Første måling skjer mot reservefonten, som er smalere.
-  Pilla sto igjen for kort. Nå måles den på nytt via `document.fonts.ready`.
-* **Kortet endrer størrelse.** En `ResizeObserver` måler på nytt, og kobles fra når
-  kortet fjernes.
+Kortets egen aktivbakgrunn slås av, siden pilla er den nå.
+
+### Virker nå i
+
+Etasjevelgeren, uten at du endrer noe. Den bygges av `ki-hjem-card`, og hjelperen kalles
+der CSS-en alt injiseres.
+
+**Kalender og Framover er dine egne `simple-tabs` i YAML**, så de får den ikke
+automatisk. To veier: bytt de to til `custom:ki-tabs-card`, som har animasjonen innebygd
+og i tillegg lar deg flytte faner i UI — eller si fra, så legger jeg inn en global
+oppgradering som tar alle `simple-tabs` på siden. Jeg gjorde ikke det siste uoppfordret:
+å endre kort du ikke har bedt om er for inngripende.
 
 ### Kontrollert
 
-M�lingen er lest gjennom mot rammebredden; `fonts.ready` og `ResizeObserver` er koblet
-til og fra. Selve pikslene må ses i nettleseren — riggen her har ingen layout.
+Pilla settes inn først i rada, stilen legges i shadowRoot, plasseringen måles fra
+rektangelet, kortets aktivbakgrunn slås av, og et nytt kall på samme element gir ikke to
+piller.
+
+Bygget stoppet først på at hjelperen lå utenfor modulen — `verifiser-styles` fanget det.
 
 ---
 
-# ki-cards 4.25.0
+# ki-cards 4.25.1
 
-`ki-tabs-card`: den aktive fyllingen glir mellom fanene og kan dras; trykk gir respons i
-selve øyeblikket.
+Pilla lå tre piksler for langt til venstre; måles nå med `getBoundingClientRect`.

@@ -1,4 +1,4 @@
-/* ki-cards v4.25.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.26.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.25.1";
+  KI.VERSION = "4.26.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -483,6 +483,121 @@ window.KI = window.KI || {};
   };
 
   console.info(`%c KI-CARDS %c v${KI.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
+  /* ------------------------------------------------------------------ pillefaner
+   *
+   * Legger den glidende pilla, dra-funksjonen og trykkeffekten fra ki-tabs-card på en
+   * fanerad som ikke er vår egen — `simple-tabs` bruker `.tabs` og `.tab-button`.
+   *
+   * Vi rører ikke tredjepartsfila: elementet og stilen settes inn i dens shadowRoot, slik
+   * ki-hjem-card alt gjør med CSS. En lapp i den minifiserte fila ville forsvunnet ved
+   * neste oppdatering av kortet.
+   */
+  KI.pillefaner = (vert, valg = {}) => {
+    const rad = valg.rad || "\.tabs";
+    const knapp = valg.knapp || "\.tab-button";
+    const aktiv = valg.aktiv || "active";
+
+    const start = (sr) => {
+      const r = sr.querySelector(rad.replace(/\\/g, ""));
+      if (!r || r.dataset.kiPille) return false;
+      r.dataset.kiPille = "1";
+
+      if (!sr.querySelector("style[data-ki-pille]")) {
+        const st = document.createElement("style");
+        st.dataset.kiPille = "1";
+        st.textContent = `
+          ${rad.replace(/\\/g, "")} { position:relative; }
+          .ki-pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
+            background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
+            transform:translateX(var(--x,0px)); width:var(--w,0px);
+            transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
+            pointer-events:none; z-index:0; }
+          .ki-pille.drar { transition:none; }
+          ${knapp.replace(/\\/g, "")} { position:relative; z-index:1;
+            transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
+          ${knapp.replace(/\\/g, "")}:active { transform:scale(.94); }
+          /* Kortets egen aktivbakgrunn slås av — pilla er den nå. */
+          ${knapp.replace(/\\/g, "")}.${aktiv} { background:transparent !important;
+            box-shadow:none !important; }
+          @media (prefers-reduced-motion: reduce) {
+            .ki-pille { transition:none; }
+            ${knapp.replace(/\\/g, "")}:active { transform:none; }
+          }`;
+        sr.appendChild(st);
+      }
+
+      const pille = document.createElement("span");
+      pille.className = "ki-pille";
+      r.insertBefore(pille, r.firstChild);
+
+      const flytt = (uten) => {
+        const a = r.querySelector(knapp.replace(/\\/g, "") + "." + aktiv);
+        if (!a) { pille.style.setProperty("--w", "0px"); return; }
+        pille.classList.toggle("drar", !!uten);
+        const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
+        const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
+        pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
+        pille.style.setProperty("--w", kk.width + "px");
+      };
+
+      /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
+      const mo = new MutationObserver(() => flytt(false));
+      mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"] });
+      r.addEventListener("scroll", () => flytt(true), { passive: true });
+      if (window.ResizeObserver) new ResizeObserver(() => flytt(true)).observe(r);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => flytt(true));
+      requestAnimationFrame(() => flytt(true));
+
+      /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
+         egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
+         haptikk som før. */
+      let ned = 0, startX = 0, drar = false;
+      r.addEventListener("pointerdown", (e) => {
+        const b = e.target.closest && e.target.closest(knapp.replace(/\\/g, ""));
+        if (!b) return;
+        ned = e.clientX;
+        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
+        drar = false;
+      });
+      r.addEventListener("pointermove", (e) => {
+        if (!ned) return;
+        const dx = e.clientX - ned;
+        if (!drar && Math.abs(dx) < 6) return;
+        drar = true;
+        pille.classList.add("drar");
+        const maks = r.scrollWidth - pille.offsetWidth - 4;
+        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
+      });
+      const slipp = (e) => {
+        if (!ned) return;
+        const vardrar = drar;
+        ned = 0; drar = false;
+        pille.classList.remove("drar");
+        if (!vardrar) return;
+        const rk = r.getBoundingClientRect();
+        const x = e.clientX - rk.left + r.scrollLeft;
+        let best = null, av = Infinity;
+        for (const b of r.querySelectorAll(knapp.replace(/\\/g, ""))) {
+          const m = b.offsetLeft + b.offsetWidth / 2;
+          if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
+        }
+        if (best && !best.classList.contains(aktiv)) best.click();
+        else flytt(false);
+      };
+      r.addEventListener("pointerup", slipp);
+      r.addEventListener("pointercancel", slipp);
+      return true;
+    };
+
+    /* Kortet bygger shadowRoot asynkront, så vi prøver til det er der. */
+    let n = 0;
+    const prov = () => {
+      const sr = vert && vert.shadowRoot;
+      if (sr && start(sr)) return;
+      if (n++ < 60) setTimeout(prov, 50);
+    };
+    prov();
+  };
 })(window.KI);
 } catch (e) { console.error("ki-cards: 00-ki-base feilet", e); }
 
@@ -9982,6 +10097,10 @@ try {
     const sr = el && el.shadowRoot;
     if (sr) {
       if (!sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = TABS_STYLE; sr.appendChild(st); }
+      /* Samme glidende pille og dra-funksjon som i ki-tabs-card. Den settes inn i
+         simple-tabs sin shadowRoot, ikke i fila — en lapp i den minifiserte koden
+         ville forsvunnet ved neste oppdatering av kortet. */
+      if (KI.pillefaner) KI.pillefaner(el);
       return;
     }
     if (tries < 40) setTimeout(() => injectTabsStyle(el, tries + 1), 50);
