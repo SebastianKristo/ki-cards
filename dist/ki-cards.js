@@ -1,4 +1,4 @@
-/* ki-cards v4.17.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.17.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.17.0";
+  KI.VERSION = "4.17.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -693,9 +693,10 @@ try {
            tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
            likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
            til resten og ikke et alternativ på linje med dem. */
-        /* `.bar` har allerede gap:10px, så egen margin ga 18 px til sammen og fikk
+        /* Rada har allerede gap 10 px, så egen margin ga 18 px til sammen og fikk
            knappen til å se løsrevet ut. Negativ margin trekker den inn til 4 px: rett
-           utenfor rammen, ikke et eget element lenger borte. */
+           utenfor rammen, ikke et eget element lenger borte.
+           INGEN backticks i denne kommentaren — CSS-en er en mal-streng. */
         .tab.utenfor { flex:0 0 auto; margin-left:-6px; width:40px; height:40px;
           padding:0; justify-content:center; border-radius:50%;
           border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;

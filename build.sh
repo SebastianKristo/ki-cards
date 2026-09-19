@@ -64,4 +64,11 @@ cp "$OUT" /tmp/sk-check.mjs && node --check /tmp/sk-check.mjs
 # css() og `styles` leses på hvert kort, som er nøyaktig der den slår ut.
 node "$(dirname "$0")/verifiser-styles.js" "$OUT" || {
   echo "BYGG STOPPET: et kort feiler når styles leses"; exit 1; }
+
+# verifiser-kort: styles-sjekken over leser bare `styles`-getteren. Mange kort bygger
+# CSS inne i _build eller _tegn, og en backtick i en kommentar DER lukker mal-strengen
+# uten at noe merkes før kortet tegnes i dashbordet. Her settes hvert kort opp og får
+# hass, som er nøyaktig det som skjer i en visning.
+node "$(dirname "$0")/verifiser-kort.js" "$OUT" || {
+  echo "BYGG STOPPET: et kort kan ikke bygges"; exit 1; }
 echo "$OUT OK (v$V, $(du -k "$OUT" | cut -f1) kB)"

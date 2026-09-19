@@ -75,9 +75,10 @@
            tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
            likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
            til resten og ikke et alternativ på linje med dem. */
-        /* `.bar` har allerede gap:10px, så egen margin ga 18 px til sammen og fikk
+        /* Rada har allerede gap 10 px, så egen margin ga 18 px til sammen og fikk
            knappen til å se løsrevet ut. Negativ margin trekker den inn til 4 px: rett
-           utenfor rammen, ikke et eget element lenger borte. */
+           utenfor rammen, ikke et eget element lenger borte.
+           INGEN backticks i denne kommentaren — CSS-en er en mal-streng. */
         .tab.utenfor { flex:0 0 auto; margin-left:-6px; width:40px; height:40px;
           padding:0; justify-content:center; border-radius:50%;
           border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;
