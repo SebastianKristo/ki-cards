@@ -404,13 +404,15 @@
   function sectionEnheter(hass, ov, roomName, palette, cfg) {
     const flyttet = new Set([].concat((cfg && cfg.klima_ekstra) || [])
       .map((x) => (typeof x === 'string' ? x : x && x.entity)).filter(Boolean));
+    /* Viftene ligger under Klima, ikke her. En vifte er noe man styrer sammen med
+       varmen, ikke en bryter på linje med stikkontakter.
+       Effektsummen over regner fortsatt med viftene, siden de trekker strøm i rommet
+       selv om de vises et annet sted. */
     ov = { ...ov, brytere: ov.brytere.filter((d) => !flyttet.has(d.entity)), vifter: ov.vifter.filter((d) => !flyttet.has(d.entity)) };
-    if (!ov.brytere.length && !ov.vifter.length) return null;
-    const wIds = unike([...ov.brytere, ...ov.vifter].map((d) => d.effekt).concat(ov.effekt_andre || []));
-    const cards = [
-      ...ov.brytere.map((d, i) => switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), palette[i % palette.length])),
-      ...ov.vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
-    ];
+    if (!ov.brytere.length) return null;
+    const wIds = unike(ov.brytere.map((d) => d.effekt).concat(ov.effekt_andre || []));
+    const cards = ov.brytere.map((d, i) =>
+      switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), palette[i % palette.length]));
     return expander(
       [headerTitle('Enheter', 'mdi:radio'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
       [{ square: false, type: 'grid', columns: 1, cards }]
@@ -548,14 +550,18 @@
       .filter((d) => d && d.entity && hass.states[d.entity])
       .map((d) => ({ ...d, effekt: d.effekt || finnEffekt(hass, d.entity) }));
     const enheter = [...ov.klima, ...ekstra.filter((d) => !ov.klima.some((k) => k.entity === d.entity))];
-    if (!enheter.length) return null;
+    /* Viftene hører hjemme her. De kommer sist, etter varmekildene: man ser etter
+       temperaturen først, og vifta er justeringen. */
+    const vifter = (ov.vifter || []).filter((d) => !enheter.some((k) => k.entity === d.entity));
+    if (!enheter.length && !vifter.length) return null;
     const hum = cfg.fuktighet || ov.fuktighet[0] || (hass.states[cfg.reserve_fuktighet || FALLBACK_HUM] ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
-    const wIds = unike(enheter.map((d) => d.effekt));
+    const wIds = unike([...enheter, ...vifter].map((d) => d.effekt));
     const cards = enheter.map((d) => (d.entity.startsWith('climate.')
       ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix,
           cfg.rom_tall === false ? null
             : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, [d.entity], roomName, cfg.rom)))
-      : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')));
+      : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')))
+      .concat(vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
       body = [{ square: false, type: 'grid', columns: 1, cards }];
@@ -910,7 +916,7 @@
   // ------------------------------------------------------------ editor (velg rom + seksjoner i UI)
   const SECTION_LABELS = {
     header: 'Vis header (temperatur, graf, måltemp)', gardiner: 'Vis gardiner / markise', scener: 'Vis scener og skript',
-    lys: 'Vis lys', enheter: 'Vis enheter (brytere, vifter)', klima: 'Vis klima', media: 'Vis media', sensorer: 'Vis sensorer',
+    lys: 'Vis lys', enheter: 'Vis enheter (brytere)', klima: 'Vis klima (varme og vifter)', media: 'Vis media', sensorer: 'Vis sensorer',
   };
   const LABELS = {
     rom: 'Rom (velg ett eller flere)', rom_modus: 'Romvalg', ekskluder_rom: 'Rom som ikke skal med', navn: 'Visningsnavn (valgfritt)', temperatur: 'Temperatursensor (overstyr)', fuktighet: 'Fuktighetssensor (overstyr)',

@@ -1,40 +1,33 @@
-# ki-cards 5.6.0
+# ki-cards 5.7.0
 
-## Nytt kort: `ki-robot-card`
+## `ki-rom-card`: viftene ligger under Klima
 
-Animert robotklipper eller robotstøvsuger, sett ovenfra.
+De lå i «Enheter» sammen med bryterne. En vifte er noe man styrer sammen med varmen, ikke
+en bryter på linje med stikkontakter.
 
-**Klipper:** roboten kjører i baner og etterlater et lysere, nyklippet spor. Posisjonen i
-banemønsteret følger fremdriften. I dokken lyser ladestasjonen, RTK-antennen pulserer og
-lynet blinker når den lader.
+Viftene kommer **sist** i Klima, etter varmekildene: man ser etter temperaturen først, og
+vifta er justeringen.
 
-**Støvsuger:** gulvet med sofa og teppe, sidebørsten snurrer, og støvkorn forsvinner i
-sporet.
+### Hva som fulgte med
 
-Felles: pause fryser roboten, «på vei hjem» viser pil mot dokken, og feil gir rødt blink
-med feilmeldingen. `varsel` kan peke på en binærsensor som gir et rødt varsel med egen
-tekst — for eksempel tom vanntank.
+**Effektsummen flyttet også.** Viftene telles nå i Klima-seksjonens sum i stedet for i
+Enheter. Summen for rommet er den samme; den står bare et annet sted.
 
-### Forhåndsvisningen var tom
+**Tomhetsreglene måtte endres begge veier.** «Enheter» skjules når det ikke er noen
+brytere, selv om rommet har vifter. «Klima» vises nå når det finnes vifter, selv uten
+varmekilde — et rom med bare en vifte ville ellers mistet den helt.
 
-`getStubConfig` ga `{ modell: "klipper" }`, men `setConfig` krever en entitet og kastet
-«Velg robot-entiteten». Kortet ville derfor stått tomt i kortvelgeren.
+**En vifte som også står i `klima_ekstra`** vises bare én gang.
 
-Byggeskrittet fanget det: kortantallet ble stående på 53 i stedet for å gå til 54.
-
-Stubben tar nå imot `hass` og velger en robot som faktisk finnes hos deg — første
-`lawn_mower.` eller `vacuum.` — og faller tilbake på et navn når ingen finnes.
+Etikettene i editoren sier nå «Vis enheter (brytere)» og «Vis klima (varme og vifter)».
 
 ### Kontrollert
 
-Klipperen i fem tilstander: klipper, pause, på vei hjem, i dokken med lading, og feil.
-Støvsugeren i tre: suger, dokket og med varsel. Alle tegner uten å kaste. Stubben gir
-`{modell: stovsuger, entity: vacuum.rolf}` når det er den roboten som finnes.
-
-Kortet fikk merkeikon og README-rad. Bundelen er nå 54 kort.
+Seks kombinasjoner: bare vifte, bare bryter, varme med vifte, og ingenting — hver med
+riktig seksjon synlig eller skjult. Og at en vifte i `klima_ekstra` ikke gjentas.
 
 ---
 
-# ki-cards 5.5.0
+# ki-cards 5.6.0
 
-`ki-tesla-card` med vinduer på gløtt; låsrettelsen båret over igjen.
+Nytt kort `ki-robot-card` for robotklipper og robotstøvsuger.
