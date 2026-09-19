@@ -1,31 +1,38 @@
+# ki-cards 5.1.0
+
+## `ki-tesla-card` oppdatert
+
+Erstattet med den nye fila. 142 linjer endret.
+
+### Tydeligere biltegning
+
+Lykter som lyser opp når bilen kjører eller står ulåst, røde baklys, vinduer, speil,
+dørlinjer, håndtak, kamera og skulderlinje. Sentrykameraet har fått sitt eget blinkende
+lys.
+
+### Frunk og bagasjerom har fått ekte standardentiteter
+
+`switch.tesla_model_y_car_trunk_front` og `switch.tesla_model_y_car_trunk_rear`. Før var
+frunk uten standard og bagasjerommet pekte på `cover.folkevogn_trunk`.
+
+Autooppdagelsen tar nå også `switch`-domenet for frunk, ikke bare `cover` — Tesla-brua
+gir dem som brytere.
+
+### Lading utledes fra tre kilder
+
+Ladestatusen, laderbryteren, **eller** en effekt over 0,3 kW. Det siste er verdt å vite
+om: viser ladeeffekten 2,3 kW mens ladestatusen sier «Stopped», regnes bilen som ladende.
+Det er riktig — det er effekten som forteller hva som faktisk skjer.
+
+### Kontrollert
+
+Seks tilstander mot de nye standardnavnene: står stille på 0 kW, lader på 2,3 kW, ulåst,
+bagasjerom åpent, frunk åpen og defrost. Alle gir riktig klasse på scenen, og kortet
+tåler at ingen entiteter finnes.
+
+---
+
 # ki-cards 5.0.0
 
-## Fire kort er fjernet
-
-`ki-klima-card`, `ki-energi-card`, `ki-stromregning-card` og `ki-vaer-card` er tatt ut av
-bundelen, sammen med README-radene, eksempelavsnittet for værkortet og merkefilene deres.
-
-Hovedversjonen er hevet til 5.0.0 fordi dette er en endring som **fjerner noe**: har du
-et av dem i et dashbord, slutter det å virke etter oppdateringen.
-
-### Kontrollert før sletting
-
-`ki-energi-card` var nevnt i fem andre filer, så jeg sjekket hver av dem før jeg rørte
-noe. Alle fem var kommentarer om designspråket — «i samme stil som ki-energi-card» — og
-ikke ekte avhengigheter. Ingen kode brøt.
-
-`ki-energi-card-strom` er et annet kort og er beholdt, med sin merkefil og README-rad.
-
-Bundelen er nå 52 kort, ned fra 55, og 156 kB mindre.
-
-## Nytt kort: `ki-tesla-card` (var 4.37.0)
-
-Animert Tesla Model Y sett fra siden: batteriet i dørterskelen fylles til batterinivået
-med markør for ladegrensen, energi strømmer gjennom kabelen ved lading, frunk og
-bagasjerom åpnes i tegningen, defrost gir varmebølger, sentry blinker og hjulene ruller
-når bilen kjører.
-
-Standardentitetene peker på Tesla-entitetene dine, og frunk, sentry, klima, innetemperatur,
-gir og fart finnes automatisk fra prefiksene `folkevogn` og `tesla_model_y`.
-
-Kortet fikk også et merkeikon og en README-rad, som de andre.
+Fire kort fjernet: `ki-klima-card`, `ki-energi-card`, `ki-stromregning-card` og
+`ki-vaer-card`.

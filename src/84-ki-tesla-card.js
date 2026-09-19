@@ -13,14 +13,14 @@
  *
  *  type: custom:ki-tesla-card
  *  navn: Tesla Model Y
- *  lakk: "#dfe3e8"          # bilens farge
+ *  lakk: "#7b92ac"          # bilens farge (standard: blågrå som på bildet)
  *  kapasitet: 75            # kWh, brukes til å anslå når ladingen er ferdig
  *  tap_action: { action: navigate, navigation_path: "#tesla" }
  */
 (() => {
   const STANDARD = {
     navn: "Tesla Model Y",
-    lakk: "#dfe3e8",
+    lakk: "#7b92ac",
     kapasitet: 75,
     prefiks: ["folkevogn", "tesla_model_y"],
     batteri: "sensor.tesla_model_y_batteri_batteriniva",
@@ -30,12 +30,12 @@
     lader: "switch.elbillader_charging",
     ladegrense: "input_number.tesla_model_y_ladegrense",
     laas: "lock.folkevogn_lock",
-    bagasje: "cover.folkevogn_trunk",
-    frunk: null, sentry: null, klima: null, innetemp: null, gir: null, fart: null,
+    bagasje: "switch.tesla_model_y_car_trunk_rear",
+    frunk: "switch.tesla_model_y_car_trunk_front", sentry: null, klima: null, innetemp: null, gir: null, fart: null,
     defrost: "switch.folkevogn_defrost",
   };
   const AUTO = {
-    frunk: [/^cover\..*(frunk|front_trunk|vehicle_state_ft)/],
+    frunk: [/^(switch|cover)\..*(frunk|trunk_front|front_trunk|vehicle_state_ft)/],
     sentry: [/^switch\..*sentry/],
     klima: [/^climate\./],
     innetemp: [/^sensor\..*(inside_temp|innetemp|inne_temp|interior)/],
@@ -82,17 +82,17 @@
     .glass { fill:#1c2530; }
     .glans { fill:none; stroke:rgba(255,255,255,.35); stroke-width:1; }
     .linje { fill:none; stroke:rgba(0,0,0,.18); stroke-width:1; }
-    .dekk { fill:#15181c; } .felg { fill:#5b636e; } .nav { fill:#2a2f36; }
+    .dekk { fill:#0d0f11; } .felg { fill:#2b3037; } .nav { fill:#1a1d21; }
     .eiker { transform-box:fill-box; transform-origin:center; }
     .tc.kjorer .eiker { animation:rull .45s linear infinite; }
     @keyframes rull { to { transform:rotate(-360deg); } }
-    .lys { fill:#fff6d6; opacity:.55; } .tc.kjorer .lys { opacity:1; filter:drop-shadow(0 0 3px #fff3c0); }
-    .baklys { fill:#ff4a3a; opacity:.5; } .tc.kjorer .baklys { opacity:1; filter:drop-shadow(0 0 3px #ff4a3a); }
+    .lys { fill:#f4f9ff; opacity:.7; } .tc.kjorer .lys, .tc.ulast .lys { opacity:1; filter:drop-shadow(0 0 3px #dfefff); }
+    .baklys { stroke:#ff3b30; opacity:.6; } .tc.kjorer .baklys, .tc.ulast .baklys { opacity:1; filter:drop-shadow(0 0 2px #ff3b30); }
     .lokk { transform-box:view-box; transition:transform .9s cubic-bezier(.3,1.2,.4,1); }
-    .frunk { transform-origin:58px 105px; } .tc.frunk-apen .frunk { transform:rotate(22deg); }
-    .bak { transform-origin:128px 84px; } .tc.bak-apen .bak { transform:rotate(-38deg); }
+    .frunk { transform-origin:56.3px 117px; } .tc.frunk-apen .frunk { transform:rotate(22deg); }
+    .bak { transform-origin:143px 102px; } .tc.bak-apen .bak { transform:rotate(-34deg); }
 
-    .terskel { fill:#0f141a; stroke:rgba(255,255,255,.12); stroke-width:.8; }
+    .terskel { fill:#0a0d10; }
     .celle { transition:width 1.4s cubic-bezier(.3,.8,.3,1), fill .6s; }
     .glitter { fill:url(#glitter); opacity:0; } .tc.lader .glitter { opacity:1; animation:glitter 1.6s linear infinite; }
     @keyframes glitter { from { transform:translateX(-30px); } to { transform:translateX(60px); } }
@@ -110,7 +110,7 @@
 
     .dfr { fill:none; stroke:#ff9a5c; stroke-width:1.3; stroke-linecap:round; opacity:0; }
     .tc.defrost .dfr { animation:stig 2.2s ease-out infinite; } .tc.defrost .dfr.d2 { animation-delay:.7s; } .tc.defrost .dfr.d3 { animation-delay:1.4s; }
-    @keyframes stig { 0% { opacity:0; transform:translateY(3px); } 30% { opacity:.9; } 100% { opacity:0; transform:translateY(-8px); } }
+    @keyframes stig { 0% { opacity:0; transform:translateY(2px); } 30% { opacity:.9; } 100% { opacity:0; transform:translateY(-4px); } }
     .dfr { transform-box:fill-box; }
     .sentrylys { fill:#ff3b30; opacity:0; } .tc.sentry .sentrylys { animation:sentry 1.6s ease-in-out infinite; }
     @keyframes sentry { 0%,100% { opacity:.25; } 50% { opacity:1; filter:drop-shadow(0 0 4px #ff3b30); } }
@@ -127,61 +127,100 @@
     @media (max-width:380px) { .scene { width:60%; } .tekst { max-width:42%; } }
   `;
 
-  // Model Y sett fra venstre side, fronten mot venstre. Bakken ligger på y=150.
+  // Model Y (2025, «Juniper») sett fra venstre side, fronten mot venstre. Bakken ligger på y≈157.
+  const EIKE = (x) => [0, 72, 144, 216, 288].map((a) => `<path d="M${x} 144.5 q2.2 -3.4 0.6 -8.4 l1.7 0.2 q1.3 5.2 -2.3 8.2z" fill="#4a515b" transform="rotate(${a} ${x} 144.5)"/>`).join("");
+  const HJUL = (x) => `<g><circle class="dekk" cx="${x}" cy="144.5" r="12.8"/><circle class="felg" cx="${x}" cy="144.5" r="9.3"/>
+      <g class="eiker"><circle cx="${x}" cy="144.5" r="9.3" fill="none"/>${EIKE(x)}</g>
+      <circle class="nav" cx="${x}" cy="144.5" r="2"/></g>`;
+  const KAROSSERI = "M11.5 148.6 L9.7 139 Q9.2 131 12.3 127.9 Q15 125 20.7 123.3 L55.9 116.1 Q72 104 91.1 99.8 Q112 96.6 143.1 101.9 Q158 104.5 169.9 110.3 L175.2 112.3 Q175.4 116 176 120.7 Q178.6 126 178.3 133.3 L179.1 146.3 L163.3 148.6 A15.3 15.3 0 1 0 133.7 148.6 L53.1 148.6 A15.3 15.3 0 1 0 23.5 148.6 Z";
   const SVG = `<svg viewBox="0 0 200 180" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
     <defs>
-      <linearGradient id="glitter" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-      <clipPath id="terskelklipp"><rect x="64" y="127" width="52" height="5" rx="2.5"/></clipPath>
+      <linearGradient id="glitter" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <linearGradient id="lakkskygge" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset=".3" stop-color="#fff" stop-opacity=".05"/>
+        <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></linearGradient>
+      <linearGradient id="lakkside" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#000" stop-opacity=".18"/><stop offset=".35" stop-color="#fff" stop-opacity=".08"/>
+        <stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>
+      <linearGradient id="frontrute" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#55606c"/><stop offset="1" stop-color="#262d35"/></linearGradient>
+      <linearGradient id="bakrute" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1b2027"/><stop offset=".6" stop-color="#0f1216"/><stop offset="1" stop-color="#1d2229"/></linearGradient>
+      <clipPath id="terskelklipp"><rect x="56" y="145.6" width="76" height="3.6" rx="1.8"/></clipPath>
     </defs>
-    <line class="vei" x1="0" y1="157" x2="200" y2="157"/>
-    <line class="veistriper" x1="0" y1="165" x2="200" y2="165"/>
-    <ellipse class="skygge" cx="90" cy="157" rx="86" ry="5"/>
+    <line class="vei" x1="0" y1="157.5" x2="200" y2="157.5"/>
+    <line class="veistriper" x1="0" y1="166" x2="200" y2="166"/>
+    <ellipse class="skygge" cx="95" cy="157.5" rx="88" ry="4.5"/>
 
     <!-- lader på veggen og kabel -->
-    <rect class="boks" x="184" y="92" width="14" height="26" rx="4"/><circle class="boks-led" cx="191" cy="99" r="1.8"/>
-    <path class="kabel" d="M191 118 C191 148, 176 150, 172 134 S167 114 163 112"/>
-    <path class="energi" d="M191 118 C191 148, 176 150, 172 134 S167 114 163 112"/>
+    <rect class="boks" x="186" y="98" width="12" height="24" rx="4"/><circle class="boks-led" cx="192" cy="104" r="1.7"/>
+    <path class="kabel" d="M192 122 C192 150, 183 154, 180 140 S176.5 122 172.5 119.5"/>
+    <path class="energi" d="M192 122 C192 150, 183 154, 180 140 S176.5 122 172.5 119.5"/>
 
     <!-- låseikon over taket -->
-    <g transform="translate(110 64)"><g class="laas">
+    <g transform="translate(112 84)"><g class="laas">
       <circle class="laas-sirkel" cx="0" cy="0" r="8"/>
       <path class="laas-bue" d="M-2.6 -1 v-2.2 a2.6 2.6 0 0 1 5.2 0 v2.2"/>
       <rect class="laas-kropp" x="-3.8" y="-1" width="7.6" height="5.6" rx="1.2"/>
     </g></g>
 
-    <!-- bagasjerom (bakluke) – tegnes før karosseriet så den ligger bak når den åpnes -->
-    <g class="lokk bak"><path class="karosseri" d="M128 83 Q150 88 164 103 L166 108 L158 108 Q146 94 127 87 Z"/><path class="glass" d="M130 87 Q146 92 155 103 L151 104 Q142 94 129 90Z"/></g>
+    <!-- bakluke: tegnes før karosseriet så den ligger bak når den åpnes -->
+    <g class="lokk bak">
+      <path class="karosseri" d="M143.1 101.9 Q158 104.5 169.9 110.3 L175.2 112.3 L176 120.7 L168.5 119.4 Q160 110 143.1 105.6 Z"/>
+      <path d="M143.1 101.9 Q158 104.5 169.9 110.3 L175.2 112.3 L176 120.7 L168.5 119.4 Q160 110 143.1 105.6 Z" fill="url(#lakkskygge)"/>
+      <path d="M145 103.3 Q156 105.6 164 110.2 L160.5 110.8 Q153 107 144.5 105Z" fill="#12161b"/>
+    </g>
 
-    <!-- karosseri -->
-    <path class="karosseri" d="M10 130 Q9 119 16 114 Q34 108 56 104 Q70 90 90 84 Q112 80 130 83 Q150 88 164 103 Q170 108 170 118 L169 136 L152 136 A17 17 0 0 0 118 136 L62 136 A17 17 0 0 0 28 136 L12 136 Z"/>
-    <path class="glass" d="M64 103 Q76 91 92 87 Q112 84 128 86 Q144 90 156 102 Q110 104 64 103 Z"/>
-    <rect class="karosseri" x="105.5" y="84" width="3" height="20"/>
-    <path class="glans" d="M20 113 Q36 109 54 106 M94 85 Q112 82 128 84"/>
-    <path class="linje" d="M107 104 V132 M66 106 L66 132 M150 106 Q152 118 150 130 M16 121 Q90 116 168 118"/>
-    <path class="lys" d="M11 118 Q15 115 22 114 L21 117 Q15 118 12 121Z"/>
-    <path class="baklys" d="M160 104 Q166 104 170 110 L168 112 Q164 107 159 107Z"/>
-    <circle class="port" cx="163" cy="112" r="1.8"/>
-    <circle class="sentrylys" cx="68" cy="112" r="2"/>
-    <text class="t-inne" x="118" y="98" text-anchor="middle"></text>
+    <!-- karosseri med lakk og skygge -->
+    <path class="karosseri" d="${KAROSSERI}"/>
+    <path d="${KAROSSERI}" fill="url(#lakkside)"/>
+    <path d="${KAROSSERI}" fill="url(#lakkskygge)"/>
+    <!-- svarte hjulbuer, terskel og støtfangere -->
+    <path d="M53.1 148.6 A15.3 15.3 0 1 0 23.5 148.6" fill="none" stroke="#15181c" stroke-width="2.4"/>
+    <path d="M163.3 148.6 A15.3 15.3 0 1 0 133.7 148.6" fill="none" stroke="#15181c" stroke-width="2.4"/>
+    <path d="M11.2 146 Q16 147.6 22.8 147.4 L22.8 149.6 Q15 150 11.6 148.6Z" fill="#15181c"/>
+    <path d="M164.8 142.6 L179.3 141.4 L179.1 146.3 L164.5 148.4Z" fill="#15181c"/>
+    <path d="M11.2 134.4 Q15 133.6 19.5 133.8 L19.2 135.6 Q15 135.6 11.4 136.2Z" fill="#15181c"/>
+    <!-- vinduer -->
+    <path d="M63.6 117 Q76 105 91 100.4 Q118 97.5 143 102.4 Q150 104 155 107.2 Q153 110.5 151.5 112.9 L63.6 117.2 Z" fill="#0d1014"/>
+    <path d="M65.5 116.4 Q77 105.8 91.5 101.6 L102.8 101 L102.8 115.8 Z" fill="url(#frontrute)"/>
+    <path d="M109 100.8 Q127 100.6 141.5 103.3 L141.5 113.6 L109 115.4 Z" fill="url(#bakrute)"/>
+    <path d="M144 103.8 Q150 105 153.2 107.6 Q151.8 110.4 150.4 112.2 L144 113.2 Z" fill="url(#bakrute)"/>
+    <path d="M67 115 Q76 107 88 103" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".8"/>
+    <!-- detaljer: dørlinjer, håndtak, speil, kamera, skulderlinje -->
+    <path class="linje" d="M58.2 118.9 Q55.4 132 57.6 147 M102.8 117.2 V146.4 M143.1 114.2 Q141.4 124 136.4 131.5"/>
+    <path d="M58 124.8 Q115 120.4 176.4 120" fill="none" stroke="rgba(255,255,255,.22)" stroke-width=".9"/>
+    <rect x="92.6" y="120.6" width="7.8" height="1.5" rx=".75" fill="rgba(0,0,0,.45)"/>
+    <rect x="131.6" y="118.4" width="7.8" height="1.5" rx=".75" fill="rgba(0,0,0,.45)"/>
+    <path d="M64.3 117.9 Q64.3 113.4 69.4 112.7 Q72.9 113 72.7 115.8 L68.4 118.4 Z" class="karosseri"/>
+    <path d="M64.3 117.9 Q64.3 113.4 69.4 112.7 Q72.9 113 72.7 115.8 L68.4 118.4 Z" fill="rgba(0,0,0,.22)"/>
+    <path d="M49.8 125.8 L55.9 125.5 L53 127.3 Z" fill="#101316"/>
+    <circle class="sentrylys" cx="53" cy="126.2" r="1.5"/>
+    <!-- lys -->
+    <path class="lys" d="M11.5 128.6 Q16 126.6 24 126.2 L23.5 127.4 Q17 128 12 129.8 Z"/>
+    <path d="M165.3 116.2 Q171 115.6 176.3 118.2 L176 121.4 Q170 120.2 165.6 118.6 Z" fill="#170d0d"/>
+    <path class="baklys" d="M166 117.4 Q171 117.2 176 119.6" fill="none" stroke-width="1.1"/>
+    <circle class="port" cx="172.5" cy="119.5" r="1.5"/>
+    <text class="t-inne" x="125" y="110.5" text-anchor="middle"></text>
 
     <!-- frunk (panser) -->
-    <g class="lokk frunk"><path class="karosseri" d="M16 114 Q34 108 56 104 L58 107 Q36 111 18 117 Z"/></g>
+    <g class="lokk frunk">
+      <path class="karosseri" d="M20.7 123.3 L55.9 116.1 L57 119.2 L21.8 126.6 Z"/>
+      <path d="M20.7 123.3 L55.9 116.1 L57 119.2 L21.8 126.6 Z" fill="rgba(255,255,255,.2)"/>
+    </g>
 
     <!-- defrost på frontruta -->
-    <path class="dfr" d="M70 98 q2-3 0-6 q-2-3 0-6"/><path class="dfr d2" d="M78 95 q2-3 0-6 q-2-3 0-6"/><path class="dfr d3" d="M86 92 q2-3 0-6 q-2-3 0-6"/>
+    <path class="dfr" d="M72 114.5 q1.5-2 0-4 q-1.5-2 0-4"/><path class="dfr d2" d="M79 112 q1.5-2 0-4 q-1.5-2 0-4"/><path class="dfr d3" d="M86 109.5 q1.5-2 0-4 q-1.5-2 0-4"/>
 
-    <!-- batteri i terskelen (mellom hjulene) -->
-    <rect class="terskel" x="64" y="127" width="52" height="5" rx="2.5"/>
+    <!-- batteriet i den svarte terskelen mellom hjulene -->
+    <rect x="54" y="144.4" width="80" height="6" rx="2" fill="#15181c"/>
+    <rect class="terskel" x="56" y="145.6" width="76" height="3.6" rx="1.8"/>
     <g clip-path="url(#terskelklipp)">
-      <rect class="celle" x="64" y="127" width="0" height="5" fill="#5be38a"/>
-      <rect class="glitter" x="64" y="127" width="24" height="5"/>
+      <rect class="celle" x="56" y="145.6" width="0" height="3.6" fill="#5be38a"/>
+      <rect class="glitter" x="56" y="145.6" width="24" height="3.6"/>
     </g>
-    <line class="grense" x1="0" y1="124" x2="0" y2="135"/>
+    <line class="grense" x1="0" y1="143" x2="0" y2="152"/>
 
     <!-- hjul -->
-    ${[45, 135].map((x) => `<g><circle class="dekk" cx="${x}" cy="140" r="14"/><circle class="felg" cx="${x}" cy="140" r="9"/>
-      <g class="eiker"><circle cx="${x}" cy="140" r="9" fill="none"/>${[0, 72, 144, 216, 288].map((a) => `<rect x="${x - 1}" y="${131.5}" width="2" height="8" rx="1" fill="#8a929c" transform="rotate(${a} ${x} 140)"/>`).join("")}</g>
-      <circle class="nav" cx="${x}" cy="140" r="2.4"/></g>`).join("")}
+    ${HJUL(38.3)}${HJUL(148.5)}
   </svg>`;
 
   class KiTeslaCard extends HTMLElement {
@@ -197,8 +236,8 @@
           { name: "effekt", selector: { entity: { domain: "sensor" } } },
           { name: "ladegrense", selector: { entity: {} } },
           { name: "laas", selector: { entity: { domain: "lock" } } },
-          { name: "bagasje", selector: { entity: { domain: "cover" } } },
-          { name: "frunk", selector: { entity: { domain: "cover" } } },
+          { name: "bagasje", selector: { entity: { domain: ["switch", "cover"] } } },
+          { name: "frunk", selector: { entity: { domain: ["switch", "cover"] } } },
           { name: "tap_action", selector: { ui_action: {} } },
         ],
         computeLabel: (s) => ({ navn: "Navn", lakk: "Lakkfarge (hex)", kapasitet: "Batterikapasitet", batteri: "Batterinivå", rekkevidde: "Rekkevidde",
@@ -266,8 +305,9 @@
       const fart = tall(s(a.fart));
       const kjorer = ["D", "R", "N"].includes(gir) || fart > 1;
       const ulast = s(a.laas) && s(a.laas).state === "unlocked";
-      const bakApen = s(a.bagasje) && ["open", "opening"].includes(s(a.bagasje).state);
-      const frunkApen = s(a.frunk) && ["open", "opening"].includes(s(a.frunk).state);
+      // bryter (on = åpen) eller cover (open/opening)
+      const apen = (x) => !!x && ["open", "opening", "on"].includes(x.state);
+      const bakApen = apen(s(a.bagasje)), frunkApen = apen(s(a.frunk));
       const defrost = s(a.defrost) && s(a.defrost).state === "on";
       const sentry = s(a.sentry) && s(a.sentry).state === "on";
       const lavt = batt < 20 && !lader;
@@ -279,10 +319,10 @@
       // batteri i terskelen + ladegrense-markør
       const b = isNaN(batt) ? 0 : klem(batt, 0, 100);
       const celle = $(".celle");
-      celle.setAttribute("width", (b / 100 * 52).toFixed(1));
+      celle.setAttribute("width", (b / 100 * 76).toFixed(1));
       celle.setAttribute("fill", lader ? "#5ae6a0" : b < 20 ? "#ff5a4a" : b < 31 ? "#ffb34a" : "#5be38a");
       const gl = $(".grense");
-      if (isNaN(grense)) gl.style.display = "none"; else { gl.style.display = ""; gl.style.transform = `translateX(${(64 + klem(grense, 0, 100) / 100 * 52).toFixed(1)}px)`; }
+      if (isNaN(grense)) gl.style.display = "none"; else { gl.style.display = ""; gl.style.transform = `translateX(${(56 + klem(grense, 0, 100) / 100 * 76).toFixed(1)}px)`; }
       const inne = tall(s(a.innetemp)), klimaPaa = s(a.klima) && s(a.klima).state !== "off" && ok(s(a.klima));
       $(".t-inne").textContent = !isNaN(inne) && (klimaPaa || kjorer) ? `${Math.round(inne)}°` : "";
 
