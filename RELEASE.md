@@ -1,31 +1,31 @@
-# ki-cards 4.36.1
+# ki-cards 5.0.0
 
-## Pilla endret seg synlig rett etter at kortet kom opp
+## Fire kort er fjernet
 
-Den var for bred et øyeblikk og krympet etterpå, mens fanerada flyttet seg litt.
+`ki-klima-card`, `ki-energi-card`, `ki-stromregning-card` og `ki-vaer-card` er tatt ut av
+bundelen, sammen med README-radene, eksempelavsnittet for værkortet og merkefilene deres.
 
-Det var min rettelse fra 4.33.1 som slo feil ut. Der gjorde jeg de sene målingene på 120
-og 400 ms **animerte**, for at en glidning ikke skulle stoppes midtveis. Men de
-målingene er korreksjoner av bredden når skrifta er ferdig lastet — og animert ser en
-korreksjon ut som en bevegelse.
+Hovedversjonen er hevet til 5.0.0 fordi dette er en endring som **fjerner noe**: har du
+et av dem i et dashbord, slutter det å virke etter oppdateringen.
 
-Regelen er nå presis: **pilla animerer bare når den aktive fanen faktisk er en annen.**
-Er målet det samme, rettes bredden stille.
+### Kontrollert før sletting
 
-Et fanebytte glir som før. Det samme gjør gjeninnsettingen etter at et kort har tegnet
-rada på nytt — der står pilla på forrige plass, og da ER det et bytte selv om vi ikke har
-sett den forrige fanen i denne oppkoblingen.
+`ki-energi-card` var nevnt i fem andre filer, så jeg sjekket hver av dem før jeg rørte
+noe. Alle fem var kommentarer om designspråket — «i samme stil som ki-energi-card» — og
+ikke ekte avhengigheter. Ingen kode brøt.
 
-Samme regel i `ki-tabs-card` og i `KI.pillefaner`.
+`ki-energi-card-strom` er et annet kort og er beholdt, med sin merkefil og README-rad.
 
-### Kontrollert
+Bundelen er nå 52 kort, ned fra 55, og 156 kB mindre.
 
-Frisk oppstart: stille, og korreksjonene etterpå stille. Fanebytte: glir, og
-korreksjonen etter stille. Gjeninnsetting etter ny tegning: glir, så stille.
+## Nytt kort: `ki-tesla-card` (var 4.37.0)
 
----
+Animert Tesla Model Y sett fra siden: batteriet i dørterskelen fylles til batterinivået
+med markør for ladegrensen, energi strømmer gjennom kabelen ved lading, frunk og
+bagasjerom åpnes i tegningen, defrost gir varmebølger, sentry blinker og hjulene ruller
+når bilen kjører.
 
-# ki-cards 4.36.0
+Standardentitetene peker på Tesla-entitetene dine, og frunk, sentry, klima, innetemperatur,
+gir og fart finnes automatisk fra prefiksene `folkevogn` og `tesla_model_y`.
 
-Ett kort per fane, redigert med Home Assistants egen kortredigerer. Rundt hundre linjer
-egen kortliste fjernet.
+Kortet fikk også et merkeikon og en README-rad, som de andre.

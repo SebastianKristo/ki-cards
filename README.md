@@ -43,11 +43,8 @@ Entitetene finnes ut fra `prefix`. Bommer gjetningen, kan du sette `framdrift`, 
 | | Kort | Navn | Bruk |
 |---|---|---|---|
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-pro-card.svg" width="28" align="absmiddle"> | `ki-klima-pro-card` | KI Klima Pro | Hele klima- og energisystemet: status, soner, energi, varmtvann, motorens resonnement og logg |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-klima-card.svg" width="28" align="absmiddle"> | `ki-klima-card` | KI Klima | Klimastyring med enkel og avansert visning, effektvakt og sonestyring |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card.svg" width="28" align="absmiddle"> | `ki-energi-card` | KI Energi | Timebudsjett, laster, beslutningslogg og innstillinger for KI-energimotoren |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energi-card-strom.svg" width="28" align="absmiddle"> | `ki-energi-card-strom` | KI Energi Strøm | Strømvariant av KI Energi-kortet |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-energy-card.svg" width="28" align="absmiddle"> | `ki-energy-card` | KI Energy | Energioversikt i Homey Energy-stil med graf og toppforbrukere |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-stromregning-card.svg" width="28" align="absmiddle"> | `ki-stromregning-card` | KI Strømregning | Strømregning, nettleie, kapasitetsledd og Norgespris |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vekkealarm-card.svg" width="28" align="absmiddle"> | `ki-vekkealarm-card` | KI Vekkealarm | Vekkealarm med ukeplan, nedtelling, lysinnstillinger og testkjøring |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-alarm-card.svg" width="28" align="absmiddle"> | `ki-alarm-card` | KI Alarm | Alarmsentral med soner, sensorstatus og kodetastatur |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-kamera-card.svg" width="28" align="absmiddle"> | `ki-kamera-card` | KI Kamera | Kameraoversikt med bryter mellom Frigate og direkte strøm |
@@ -58,7 +55,6 @@ Entitetene finnes ut fra `prefix`. Bommer gjetningen, kan du sette `framdrift`, 
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/family-status-card.svg" width="28" align="absmiddle"> | `family-status-card` | Family Status | Status for husstanden. Er personen hjemme, viser merket søvntilstanden i stedet for stedet. Langt trykk på en person åpner `hold_navigation_path` per person, ellers kortets `navigation_path` |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-bursdag-card.svg" width="28" align="absmiddle"> | `ki-bursdag-card` | KI Bursdag | Bursdager fra Birthdays-sensorer: «Kommende» (neste N) og «Hele året» gruppert per måned |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-natt-card.svg" width="28" align="absmiddle"> | `ki-natt-card` | KI Natt | Nattmodus og helgemodus. Om dagen to brytefliser, om natten ett kort med et hus som sovner |
-| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vaer-card.svg" width="28" align="absmiddle"> | `ki-vaer-card` | KI Vær | Vær med levende himmel, solbue, månefase, UV og time-/døgnprognoser |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fjernkontroll-card.svg" width="28" align="absmiddle"> | `ki-fjernkontroll-card` | KI Fjernkontroll | Apple TV: status, seertid, styreflate med sveip, knapper, volum og kilder |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-media-card.svg" width="28" align="absmiddle"> | `ki-media-card` | KI Media | Nå spilles med levende omslag, radiokanaler, transport og volum |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-prosa-card.svg" width="28" align="absmiddle"> | `ki-prosa-card` | KI Prosa | Forsidetekst som skriver seg selv, med levende piller for vær, pris, forbruk, apparater og varsler |
@@ -67,6 +63,7 @@ Entitetene finnes ut fra `prefix`. Bommer gjetningen, kan du sette `framdrift`, 
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-vanning-card.svg" width="28" align="absmiddle"> | `ki-vanning-card` | KI Vanning | OpenSprinkler: soner, programmer og hurtigvanning – setter seg opp selv |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-hytte-card.svg" width="28" align="absmiddle"> | `ki-hytte-card` | KI Hytte | Hyttebesøk fra [ki-hyttebesok](https://github.com/SebastianKristo/ki-hyttebes-k): månedskalender, opphold og statistikk |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-homelab-card.svg" width="28" align="absmiddle"> | `ki-homelab-card` | KI Homelab | Animert serverrack, nedlastingsgraf og autokonfigurerte lister fra Proxmox, UniFi, Unraid og qBittorrent |
+| <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-tesla-card.svg" width="28" align="absmiddle"> | `ki-tesla-card` | KI Tesla | Animert Tesla Model Y: batteri i dørterskelen, lading, lås, frunk, bagasjerom, defrost og sentry |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-fremover-card.svg" width="28" align="absmiddle"> | `ki-fremover-card` | KI Framover | Kommende hendelser fra kalenderne, gruppert per dag med filter per kalender |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-lansering-card.svg" width="28" align="absmiddle"> | `ki-lansering-card` | KI Lansering | Kommende episoder og filmer fra Sonarr og Radarr, med plakat og bakgrunnsbilde |
 | <img src="https://raw.githubusercontent.com/SebastianKristo/ki-cards/main/brand/ki-jul-card.svg" width="28" align="absmiddle"> | `ki-jul-card` | KI Jul | Julelys, nedtelling til julaften og sesongstyring |
@@ -875,29 +872,6 @@ Hold inne hjem-knappen for å sende `home_hold` – det er kommandoen som åpner
 Siri har tilsvarende lange varianter. Dempeknappen bruker `media_player.volume_mute` når spilleren støtter
 det, og faller tilbake på fjernkontrollkommandoen ellers.
 
-
-### ki-vaer-card
-```yaml
-type: custom:ki-vaer-card
-naa: sensor.weather_forecast_v2   # sensor med attributtet current (temperature, feels_like, condition, wind_desc, precipitation)
-vaer: weather.forecast_home       # prognoser og uv_index
-sol: sun.sun
-maane: sensor.oslo_moon_phase
-visning: alle                     # alle | naa | himmel | timer | dager
-timer: 24
-dager: 6
-hopp_forste: false
-tittel: Været nå
-```
-Fire faner i ett kort. **Nå** har samme oppsett som `universal_sensor_ny`-væreflisen – stor tynn temperatur med
-følt temperatur, tilstand, vind og nedbør – men den statiske met-ikonet er byttet ut med en levende himmel som
-leses av tilstandsteksten: sola pulserer med roterende stråler, skyer drifter, regndråper faller (tettere ved
-kraftig regn), snøfnugg daler og svinger, lynet blinker ved torden, tåkebanker glir forbi og vindkast stryker
-over. Etter solnedgang bytter scenen til måne og blinkende stjerner.
-**Sol og måne** viser en bue der sola står på dagens posisjon mellom oppgang og nedgang, månefasen tegnet som
-faktisk opplyst del, og UV-indeks med farge og markør. **Timer** og **Dager** henter prognosene via
-`weather/subscribe_forecast` (faller tilbake på `forecast`-attributtet) og tegner temperaturkurven inn med
-nedbørstolper, og døgnlista som min–maks-spenn. Har egen visuell editor.
 
 ### ki-natt-card
 ```yaml
