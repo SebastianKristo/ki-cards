@@ -1,4 +1,4 @@
-/* ki-cards v4.14.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.16.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.14.0";
+  KI.VERSION = "4.16.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -624,6 +624,12 @@ try {
 (function (KI) {
   class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
+    static getConfigElement() { return document.createElement("ki-tabs-card-editor"); }
+    static getStubConfig() {
+      return { align: "center",
+        tabs: [{ title: "Fane 1", cards: [] }, { title: "Fane 2", cards: [] }] };
+    }
+
     setConfig(config) {
       if (!config.tabs || !config.tabs.length) throw new Error("tabs mangler");
       this._active = config.default || 0;
@@ -675,6 +681,32 @@ try {
         /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
            unødig bred; her blir den rund og like høy som de andre. */
         .tab.kun-ikon { padding:9px 11px; gap:0; }
+        /* utenfor: true tar fanen ut av pillegruppa og gir den egen kant, slik
+           tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
+           likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
+           til resten og ikke et alternativ på linje med dem. */
+        .tab.utenfor { flex:0 0 auto; margin-left:8px; width:40px; height:40px;
+          padding:0; justify-content:center; border-radius:50%;
+          border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;
+          transition:background .15s, color .15s, transform .25s cubic-bezier(.2,.8,.2,1); }
+        .tab.utenfor.active { transform:scale(1.04); }
+        .bar.scroll .tab.utenfor { margin-left:8px; }
+        /* Panelet glir inn fra den siden man kom fra. Retningen er poenget: uten den
+           ser det ut som innholdet bare blinker, og man mister følelsen av hvor i rada
+           man er. */
+        .panel.inn-hoyre { animation:ki-tab-hoyre .22s cubic-bezier(.2,.8,.2,1); }
+        .panel.inn-venstre { animation:ki-tab-venstre .22s cubic-bezier(.2,.8,.2,1); }
+        @keyframes ki-tab-hoyre {
+          from { opacity:0; transform:translateX(14px); }
+          to { opacity:1; transform:none; }
+        }
+        @keyframes ki-tab-venstre {
+          from { opacity:0; transform:translateX(-14px); }
+          to { opacity:1; transform:none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .panel.inn-hoyre, .panel.inn-venstre { animation:none; }
+        }
         .tab:hover, .dd:hover { color:rgba(255,255,255,.95); }
         .tab.active, .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
@@ -700,15 +732,16 @@ try {
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist">
-            ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
+          ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
           <div class="scroller">
             <div class="spor" role="tablist">
-              ${tabs.map((t, i) => `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+              ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
-            ${tabs.map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.filter((t) => !t.utenfor).map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <button class="dd" aria-haspopup="listbox" aria-expanded="false"></button>
           <div class="menu" role="listbox">
@@ -831,10 +864,23 @@ try {
       }
     }
     _select(i) {
+      const forrige = this._active;
       this._active = i; const r = this.shadowRoot;
       r.querySelectorAll(".tab[data-i]").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
       r.querySelectorAll(".item").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
       r.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", +p.dataset.i === i));
+
+      /* Glideretningen følger hvilken vei du gikk i rada. Animasjonen fjernes etterpå,
+         ellers spilles den ikke om igjen neste gang samme fane velges. */
+      const panel = r.querySelector(`.panel[data-i="${i}"]`);
+      if (panel && forrige !== i && forrige !== undefined) {
+        const klasse = i > forrige ? "inn-hoyre" : "inn-venstre";
+        panel.classList.remove("inn-hoyre", "inn-venstre");
+        void panel.offsetWidth;                       // tvinger omstart av animasjonen
+        panel.classList.add(klasse);
+        panel.addEventListener("animationend",
+          () => panel.classList.remove(klasse), { once: true });
+      }
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
       /* andre kort kan følge fanevalget – sendes både oppover og på window */
@@ -845,6 +891,194 @@ try {
     }
     getCardSize() { return 4; }
   }
+
+  /* ------------------------------------------------------------------ editor
+   *
+   * To ting den gjør som en `ha-form` ikke kan:
+   *
+   *  1. Fanene kan legges til, fjernes og flyttes. Rekkefølgen er en del av designet,
+   *     og å redigere en liste i YAML for å bytte to faner er unødig tungt.
+   *
+   *  2. Kortene i hver fane redigeres med Home Assistants egen kortvelger og editor —
+   *     `hui-card-element-editor`, den samme som brukes i en vanlig visning.
+   *
+   * Det andre er verdt en advarsel: den editoren er intern i HA og ikke et offentlig
+   * API. Finnes den ikke, faller vi tilbake til YAML for kortene i stedet for å vise et
+   * tomt felt. Fanene kan redigeres uansett.
+   */
+  class SkTabsEditor extends HTMLElement {
+    setConfig(c) { this._c = JSON.parse(JSON.stringify(c || {})); this._valgt = this._valgt ?? 0; this._r(); }
+    set hass(h) { this._h = h; this._r(); }
+
+    _ut() {
+      KI.fire(this, "config-changed", { config: this._c });
+      this._r();
+    }
+    _tabs() { return (this._c.tabs = this._c.tabs || []); }
+
+    _flytt(i, d) {
+      const t = this._tabs(), j = i + d;
+      if (j < 0 || j >= t.length) return;
+      [t[i], t[j]] = [t[j], t[i]];
+      if (this._valgt === i) this._valgt = j;
+      else if (this._valgt === j) this._valgt = i;
+      this._ut();
+    }
+    _slett(i) {
+      const t = this._tabs();
+      if (t.length <= 1) return;                 // ett kort uten faner gir ingen mening
+      t.splice(i, 1);
+      this._valgt = Math.max(0, Math.min(this._valgt, t.length - 1));
+      this._ut();
+    }
+    _nyFane() {
+      this._tabs().push({ title: `Fane ${this._tabs().length + 1}`, cards: [] });
+      this._valgt = this._tabs().length - 1;
+      this._ut();
+    }
+
+    _r() {
+      if (!this._h || !this._c) return;
+      const t = this._tabs();
+      const v = Math.max(0, Math.min(this._valgt || 0, t.length - 1));
+      this._valgt = v;
+
+      if (!this._bygd) {
+        this.attachShadow({ mode: "open" });
+        this._bygd = true;
+      }
+      const rot = this.shadowRoot;
+      rot.innerHTML = `<style>
+        :host { display:block; }
+        .liste { display:grid; gap:6px; margin-bottom:12px; }
+        .fane { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px;
+          border-radius:14px; background:var(--secondary-background-color); }
+        .fane.valgt { outline:2px solid var(--primary-color); }
+        .navn { flex:1; min-width:0; cursor:pointer; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; }
+        .navn small { opacity:.6; margin-left:8px; }
+        .ikn { border:0; background:none; color:var(--primary-text-color); cursor:pointer;
+          padding:4px; border-radius:50%; display:flex; --mdc-icon-size:20px; opacity:.75; }
+        .ikn:hover { opacity:1; background:rgba(128,128,128,.18); }
+        .ikn[disabled] { opacity:.25; cursor:default; }
+        .legg { width:100%; padding:10px; border-radius:14px; border:1px dashed
+          var(--divider-color); background:none; color:var(--primary-text-color);
+          cursor:pointer; font:inherit; }
+        h4 { margin:14px 0 6px; font-size:15px; }
+        .merk { font-size:13px; opacity:.7; line-height:1.5; }
+        .felt { display:grid; gap:8px; margin-bottom:8px; }
+      </style>
+      <div class="liste">${t.map((x, i) => `
+        <div class="fane ${i === v ? "valgt" : ""}">
+          <span class="navn" data-velg="${i}">${KI.esc(x.title || "")
+            || `<em>uten tittel</em>`}<small>${(x.cards || (x.card ? [x.card] : [])).length} kort</small></span>
+          <button class="ikn" data-opp="${i}" ${i === 0 ? "disabled" : ""}
+            title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+          <button class="ikn" data-ned="${i}" ${i === t.length - 1 ? "disabled" : ""}
+            title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
+          <button class="ikn" data-slett="${i}" ${t.length <= 1 ? "disabled" : ""}
+            title="Fjern"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+        </div>`).join("")}</div>
+      <button class="legg" data-ny="1">+ Legg til fane</button>
+      <h4>Fanen «${KI.esc(t[v] && t[v].title || "")}»</h4>
+      <div class="felt" id="faneform"></div>
+      <h4>Kort i fanen</h4>
+      <div id="kort"></div>`;
+
+      rot.querySelectorAll("[data-velg]").forEach((el) =>
+        el.addEventListener("click", () => { this._valgt = +el.dataset.velg; this._r(); }));
+      rot.querySelectorAll("[data-opp]").forEach((el) =>
+        el.addEventListener("click", () => this._flytt(+el.dataset.opp, -1)));
+      rot.querySelectorAll("[data-ned]").forEach((el) =>
+        el.addEventListener("click", () => this._flytt(+el.dataset.ned, 1)));
+      rot.querySelectorAll("[data-slett]").forEach((el) =>
+        el.addEventListener("click", () => this._slett(+el.dataset.slett)));
+      rot.querySelector("[data-ny]").addEventListener("click", () => this._nyFane());
+
+      this._faneform(rot.querySelector("#faneform"), t[v] || {});
+      this._kortform(rot.querySelector("#kort"), v);
+    }
+
+    _faneform(vert, fane) {
+      const f = document.createElement("ha-form");
+      f.hass = this._h;
+      f.data = { title: fane.title || "", icon: fane.icon || "", aria: fane.aria || "" };
+      f.schema = [
+        { name: "title", selector: { text: {} } },
+        { name: "icon", selector: { icon: {} } },
+        { name: "aria", selector: { text: {} } },
+      ];
+      const navn = { title: "Tittel (tom = bare ikon)", icon: "Ikon",
+                     aria: "Skjermlesertekst (for faner uten tittel)" };
+      f.computeLabel = (x) => navn[x.name] || x.name;
+      f.addEventListener("value-changed", (e) => {
+        Object.assign(this._tabs()[this._valgt], e.detail.value);
+        /* Tomme strenger fjernes, ellers står `icon: ""` igjen i YAML-en og ser ut som
+           en innstilling man har gjort. */
+        for (const k of ["title", "icon", "aria"]) {
+          if (!this._tabs()[this._valgt][k]) delete this._tabs()[this._valgt][k];
+        }
+        KI.fire(this, "config-changed", { config: this._c });
+      });
+      vert.appendChild(f);
+    }
+
+    _kortform(vert, i) {
+      const fane = this._tabs()[i] || {};
+      const kort = fane.cards || (fane.card ? [fane.card] : []);
+      const ed = document.createElement("hui-card-element-editor");
+      if (!customElements.get("hui-card-element-editor")) {
+        vert.innerHTML = `<p class="merk">Home Assistant-versjonen din tilbyr ikke
+          kortredigereren her. Kortene i fanen redigeres i YAML — bytt til YAML-visning
+          med de tre prikkene øverst. Fanene over kan redigeres som vanlig.</p>`;
+        return;
+      }
+      /* Én kortvelger per kort, pluss en tom for å legge til. Vi holder oss til HAs egen
+         editor i stedet for å bygge en kortvelger selv: den kjenner alle korttyper,
+         også de som installeres senere. */
+      kort.forEach((k, ki) => {
+        const rad = document.createElement("div");
+        rad.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:8px";
+        const e = document.createElement("hui-card-element-editor");
+        e.hass = this._h; e.lovelace = this._lovelace; e.value = k;
+        e.style.flex = "1";
+        e.addEventListener("config-changed", (ev) => {
+          ev.stopPropagation();
+          const liste = this._tabs()[i].cards || [];
+          liste[ki] = ev.detail.config;
+          this._tabs()[i].cards = liste;
+          delete this._tabs()[i].card;
+          KI.fire(this, "config-changed", { config: this._c });
+        });
+        const slett = document.createElement("button");
+        slett.className = "ikn";
+        slett.innerHTML = `<ha-icon icon="mdi:delete-outline"></ha-icon>`;
+        slett.addEventListener("click", () => {
+          (this._tabs()[i].cards || []).splice(ki, 1);
+          this._ut();
+        });
+        rad.append(e, slett);
+        vert.appendChild(rad);
+      });
+
+      const ny = document.createElement("button");
+      ny.className = "legg";
+      ny.textContent = "+ Legg til kort";
+      ny.addEventListener("click", () => {
+        const liste = this._tabs()[i].cards || [];
+        liste.push({ type: "markdown", content: "Nytt kort" });
+        this._tabs()[i].cards = liste;
+        delete this._tabs()[i].card;
+        this._ut();
+      });
+      vert.appendChild(ny);
+      ed.remove();
+    }
+  }
+  if (!customElements.get("ki-tabs-card-editor")) {
+    window.KI.define("ki-tabs-card-editor", SkTabsEditor);
+  }
+
   window.KI.define("ki-tabs-card", SkTabsCard);
   KI.register("ki-tabs-card", "KI Tabs", "Faner som piller, rullbar rad eller nedtrekksmeny, med kort i hver fane");
 })(window.KI);

@@ -1,58 +1,40 @@
+# ki-cards 4.16.0
+
+## `utenfor: true` — en fane utenfor pillegruppa
+
+```yaml
+- icon: mdi:gift-outline
+  aria: Post og bursdager
+  utenfor: true
+  cards: [...]
+```
+
+Fanen tas ut av pillerammen og får egen rund kant ved siden av, slik tannhjulet i
+bassengkortet står.
+
+Det skiller **et vedlegg** fra fanene som er likeverdige valg. Kalender og Framover er to
+måter å se det samme på; post og bursdager er noe annet man stikker innom. Inne i samme
+ramme ser de ut som tre jevnbyrdige alternativer, og det er ikke det de er.
+
+### Tre detaljer
+
+* Fanen **teller ikke i bredderegningen**. Kortet måler pillene for å avgjøre om de får
+  plass eller må rulle — en knapp utenfor rammen skal ikke påvirke den avgjørelsen.
+* Den er heller ikke med i den rullbare rada eller nedtrekksmenyen, av samme grunn.
+* `data-i` beholdes, så fanevalg, animasjon og `ki-tab-changed` virker som for de andre.
+
+Kontrollert: to piller i gruppa, én knapp utenfor i `.bar`, to i bredderegningen, tre
+paneler, og `data-i="2"` på knappen.
+
+---
+
+# ki-cards 4.15.0
+
+UI-editor for `ki-tabs-card`: faner kan flyttes, legges til og fjernes, kortene i hver
+fane redigeres med Home Assistants egen kortvelger, og panelet glir inn fra den siden du
+kom fra.
+
 # ki-cards 4.14.0
 
-## `ki-post-card` 3.1.0: pakker fra Norwegian Parcel Tracker, funnet selv
-
-Postkortet viser nå pakkene under leveringsraden. Ingenting listes opp i YAML-en —
-kortet finner `_status`-sensorene gjennom entitetsregisteret, filtrert på plattformen
-`norwegian_parcel_tracker`.
-
-Det måtte være automatisk: pakker kommer og går, og en liste man må vedlikeholde ville
-vært utdatert før den var skrevet.
-
-### Rekkefølgen er den du vil handle på
-
-Klar for henting først, så fastlåste, så resten. **En pakke som venter på deg er det
-eneste som haster** — resten er bare informasjon.
-
-Klar-pakker får grønn sirkel med hentestedet som undertekst. Fastlåste — der
-integrasjonen har satt `stale` — får oransje og siste hendelse. Leverte skjules, med
-`pakker_leverte: true` for å ta dem med dempet.
-
-Datoen til høyre er lesbar: «i dag», «i morgen», ukedag innen en uke, ellers «14. okt».
-
-Trykk på en pakke åpner den, der hele hendelsesloggen ligger som attributter.
-
-`pakker: false` skrur det av.
-
-## `ki-bursdag-pro-card` 3.1.0: én oppføring i stedet for ti
-
-Skjemaet lagde **én kalenderhendelse per år**, opptil tretti. Det var rotete å rette i,
-og det gikk tomt etter ti år uten at noen fikk beskjed.
-
-Nå lages én hendelse med `rrule: FREQ=YEARLY`. Den går aldri ut.
-
-Støtter ikke kalenderen gjentakelse, faller kortet tilbake til kopier og sier fra i
-skjemaet — bedre enn å feile stille og ikke lagre noe.
-
-### Enklere å fylle ut
-
-* **Navn foreslås fra husets `person`-entiteter.** Det er også den vanligste feilkilden:
-  «Cybele» og «cybele» blir to oppføringer i kalenderen.
-* **Dag og måned skrives for seg,** som «12.04». En `type="date"` krever at man blar til
-  1985 i en månedsvelger, og det er tungt på mobil. Tolkningen tar «12.04», «12/4»,
-  «1204» og «12.4.», og avviser 31. februar.
-* **Fødselsåret er valgfritt.** Uten det lages bursdagen uten alder, i stedet for at
-  skjemaet nekter.
-* Første forekomst legges i år hvis datoen ikke er passert, ellers neste år — ellers
-  dukket bursdagen opp som «passert» med en gang.
-* Feil vises i skjemaet i stedet for at knappen ikke gjør noe.
-
-## `ki-tabs-card`: rene ikonfaner (var 4.13.1)
-
-En fane uten `title:` blir rund og kompakt i stedet for like bred som en med tekst, og
-får `aria-label` fra `aria:` eller ikonnavnet.
-
-## `ki-homelab-card`: søkefelt (var 4.13.0)
-
-I `_liste`, så det virker likt i alle fire visningene. Treffer navn og undertittel, vises
-fra åtte rader.
+Pakker fra Norwegian Parcel Tracker i `ki-post-card`, funnet selv. Bursdagsskjemaet lager
+én gjentakende oppføring i stedet for ti kopier.
