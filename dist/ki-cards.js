@@ -1,4 +1,4 @@
-/* ki-cards v4.21.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.22.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.21.0";
+  KI.VERSION = "4.22.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26129,6 +26129,8 @@ try {
  * type: custom:ki-varsling-card
  * grupper: [varsling, sikkerhet]     # egne faner; utelates = alt i én liste
  * ekstra: [automation.vaermelding_ai]   # automasjoner som ikke hører til integrasjonen
+ * master: true                       # bare hovedbryteren per regel (standard)
+ * kjente: false                      # slå av innebygde navn og forklaringer
  * enheter: [Autolås, Dørlås]         # bare disse reglene (treff i enhetsnavnet)
  * ikke_enheter: [Alarm]              # alt unntatt disse
  * bare: [autolas_autolas]            # bare disse entitetene, i denne rekkefølgen
@@ -26202,6 +26204,26 @@ const kiVaEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
 
 /* Ikon gjettes fra navnet når integrasjonen ikke gir et. Rekkefølgen betyr noe:
    «dorlas_fastkjort» skal treffe låsen, ikke varselet, så de mest spesifikke først. */
+/* Navn og beskrivelse per regel, slik de sto i det håndskrevne oppsettet.
+   Integrasjonens egne navn er tekniske («Alarm - Alle varsler»), og disse er de som
+   faktisk forklarer hva bryteren gjør. `navn:` og `undertekst:` overstyrer. */
+const KI_VARS_TEKST = [
+  [/vekking|vekke/, "Vekking", "Lys og lyd på vekketidspunkt", "mdi:alarm"],
+  [/ansikt/, "Ansiktsgjenkjenning", "Låser opp ved gjenkjent ansikt", "mdi:face-recognition"],
+  [/autolas|autolås/, "Autolås", "Låser døra automatisk etter lukking", "mdi:lock-clock"],
+  [/fastkjort|fastkjørt/, "Fastkjørt lås", "Varsel hvis låsen ikke går i lås", "mdi:lock-alert"],
+  [/blink|dorlys|dørlys/, "Dørlys", "Blinker med lyset når døra åpnes", "mdi:monitor-shimmer"],
+  [/familie|hjemme.?borte/, "Hjemme / borte", "Varsler når noen kommer eller drar", "mdi:home-account"],
+  [/^alarm|alarm_/, "Alarm", "Aktiverer alarmsystemet", "mdi:shield-home"],
+  [/heimdall|alarmo/, "Heimdall", "Synk mellom Heimdall og Alarmo", "mdi:sync"],
+  [/ruter|skolen/, "Ruter fra skolen", "Avgangstider hjem etter forelesning", "mdi:bus-clock"],
+  [/planter/, "Planter", "Varsel når plantene trenger vann", "mdi:flower-tulip"],
+  [/stovsug|støvsug/, "Støvsuger", "Varsel om feil og fullført runde", "mdi:robot-vacuum"],
+  [/home.?assistant|oppstart|startet/, "Home Assistant", "Varsel etter omstart av HA", "mdi:home-assistant"],
+  [/vaermelding|værmelding|vaer_ai/, "Værmelding", "Daglig værvarsel fra AI", "mdi:weather-partly-cloudy"],
+  [/stromforbruk|strømforbruk|forbruk.?rapport/, "Strømforbruk", "Daglig rapport", "mdi:chart-bar"],
+];
+
 const KI_VARS_IKON = [
   [/fastkjort|fastkj/, "mdi:lock-alert"],
   [/autolas|autolås/, "mdi:lock-clock"],
@@ -26282,6 +26304,16 @@ class KiVarslingCard extends HTMLElement {
         navn = enhet;
         under = helt.slice(enhet.length + 1).trim();
       }
+      /* Kjente regler får navnet og forklaringen fra tabellen over. Den er mer presis
+         enn integrasjonens tekniske navn, og sparer deg for å skrive dem i YAML-en. */
+      let kjentIkon = null;
+      if (c.kjente !== false) {
+        const n = `${slug} ${enhet} ${helt}`.toLowerCase();
+        for (const [m, kn, ku, ki] of KI_VARS_TEKST) {
+          if (!m.test(n)) continue;
+          navn = kn; under = ku; kjentIkon = ki; break;
+        }
+      }
       if (eget) navn = eget;
       if (egenUnder) under = egenUnder;
       ut.push({
@@ -26289,7 +26321,7 @@ class KiVarslingCard extends HTMLElement {
         navn: navn.trim() || slug,
         under,
         ikon: (c.ikoner || {})[slug] || (c.ikoner || {})[id]
-          || a.icon || kiVarsIkon(`${slug} ${navn}`),
+          || kjentIkon || a.icon || kiVarsIkon(`${slug} ${navn}`),
         pa: st.state === "on",
         borte: ["unavailable", "unknown"].includes(st.state),
       });
@@ -26301,6 +26333,36 @@ class KiVarslingCard extends HTMLElement {
       legg(id, "integrasjon");
     }
     for (const id of (c.ekstra || [])) legg(id, "ekstra");
+
+    /* Én bryter per regel: hovedbryteren.
+     *
+     * «Alarm» har åtte entiteter og «Familie – hjemme/borte» ti, men bare én av dem er
+     * den man vil ha i en oversikt — den som slår hele regelen av og på. Resten er
+     * finjustering som hører hjemme i more-info, ikke i en liste man skummer.
+     *
+     * Hovedbryteren kjennes på navnet: «alle varsler», «aktivert», «varsling», eller
+     * at den heter det samme som regelen. Finner vi ingen, viser vi alle bryterne for
+     * den regelen — det er bedre enn å skjule noe vi ikke forstod. */
+    if (c.master !== false) {
+      const erMaster = (b) => /alle[ _-]?varsler|_aktivert$|_varsling$|_aktiv$/.test(b.id)
+        || b.slug === b.enhet.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+        || /^(alle varsler|aktivert|varsling|aktiv)$/i.test(b.under || "");
+      const perEnhet = new Map();
+      for (const b of ut) {
+        if (b.kilde === "ekstra") continue;
+        if (!perEnhet.has(b.enhet)) perEnhet.set(b.enhet, []);
+        perEnhet.get(b.enhet).push(b);
+      }
+      const behold = new Set();
+      for (const [, liste] of perEnhet) {
+        if (liste.length <= 1) { liste.forEach((b) => behold.add(b.id)); continue; }
+        const m = liste.filter(erMaster);
+        (m.length ? m : liste).forEach((b) => behold.add(b.id));
+      }
+      for (let i = ut.length - 1; i >= 0; i--) {
+        if (ut[i].kilde !== "ekstra" && !behold.has(ut[i].id)) ut.splice(i, 1);
+      }
+    }
 
     /* Filtrering på ENHETSNAVN, ikke entitets-ID.
      *

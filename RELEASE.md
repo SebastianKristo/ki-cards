@@ -1,45 +1,42 @@
-# ki-cards 4.21.0
+# ki-cards 4.22.0
 
-## `ki-varsling-card`: filtrer på regelnavn, ikke entitets-ID
+## Én bryter per regel
 
-`bare:` slo av hele autokonfigurasjonen — kortet viste nøyaktig de tre entitetene som sto
-der, og ingenting annet. Det var feil råd fra min side.
+«Alarm» har åtte entiteter og «Familie – hjemme/borte» ti, men bare én av dem hører
+hjemme i en oversikt: den som slår hele regelen av og på. Resten er finjustering.
 
-Nye valg som filtrerer på **enhetsnavnet**, altså navnet på regelen i integrasjonen:
+Kortet viser nå bare hovedbryteren. Den kjennes på navnet — «alle varsler», «aktivert»,
+«varsling», eller at den heter det samme som regelen.
 
-```yaml
-enheter: [lås, dørlys, alarm]      # bare disse reglene
-ikke_enheter: [lås, dørlys, alarm] # alt unntatt disse
-```
+Finner kortet ingen hovedbryter for en regel, viser det alle bryterne for den. **Å skjule
+noe vi ikke forstod er verre enn å vise for mye**, særlig når man ikke ser at det er
+skjult.
 
-Treffet er delvis og uten hensyn til store bokstaver, så `lås` finner «Autolås»,
-«Dørlås fastkjørt» og «Ansiktsgjenkjenning – dørlås».
+`master: false` viser alle. Undertogglene ligger uansett under langt trykk.
 
-### Hvorfor navnet og ikke ID-en
+Testet: åtte brytere fordelt på tre regler blir tre rader, og `master: false` gir alle
+åtte.
 
-Reglene heter det samme i alle tre installasjonene, mens entitets-ID-ene varierer — og
-Toten har bare noen av reglene. Et navnefilter overlever flyttingen mellom Oslo, Toten og
-Strömstad; en entitetsliste gjør det ikke.
+## Navnene dine er lagt inn i kortet
 
-Og en regel du legger til i morgen dukker opp av seg selv i riktig fane. Det var hele
-poenget med å finne dem automatisk, og `bare:` tok det bort igjen.
+Fjorten regler med navn, forklaring og ikon — vekking, ansiktsgjenkjenning, autolås,
+fastkjørt lås, dørlys, hjemme/borte, alarm, Heimdall, Ruter, planter, støvsuger, Home
+Assistant, værmelding og strømforbruk.
 
-`bare:` finnes fortsatt for den som vil styre rekkefølgen nøyaktig, men er ikke lenger
-veien jeg anbefaler.
+Integrasjonens egne navn er tekniske («Alarm - Alle varsler»). Disse er de som faktisk
+forklarer hva bryteren gjør, og nå slipper du å skrive dem i hver installasjon.
 
-### Kontrollert
+`navn:` og `undertekst:` overstyrer som før, `kjente: false` slår tabellen av.
 
-Mot alle elleve reglene dine: uten filter finnes alle elleve, `enheter: [autolås, dørlås,
-dørlys]` gir fire, `ikke_enheter` med de samme gir de sju andre, og et navn som ikke
-finnes gir en tom liste uten å feile.
+### Resultatet
+
+Hele popupen er 71 linjer, mot rundt 240 i det håndskrevne oppsettet — og **uten en
+eneste entitets-ID, navn eller ikon**. Alle tretten reglene kommer opp med riktig tekst
+og ikon av seg selv.
 
 ---
 
-# ki-cards 4.20.2
+# ki-cards 4.21.0
 
-Overskriften per gruppe er av som standard; `grupper: true` og `teller: true` slår dem på.
-
-# ki-cards 4.20.1
-
-Radene bruker målene fra `template_toggle_card_small`, og `friendly_name` deles på
-bindestrek som malen gjør.
+Filtrering på regelnavn med `enheter:` og `ikke_enheter:`, som overlever mellom
+installasjonene der entitets-ID-ene varierer.
