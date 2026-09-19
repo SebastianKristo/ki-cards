@@ -43,6 +43,27 @@ global.window = { customCards: [], addEventListener() {}, dispatchEvent() {},
 try { new Function(fs.readFileSync(fil, "utf8"))(); }
 catch (e) { global.console = { ...console, error: ekte }; ekte("  bundelen kastet: " + e.message); process.exit(1); }
 
+/* KI-hjelpere som kortene kaller: de kjøres her, ellers oppdages en feil som
+   «Cannot access 'kn' before initialization» først i dashbordet. `node --check` ser
+   den ikke, fordi koden er gyldig helt til funksjonen faktisk kalles. */
+const hjelpere = [];
+global.getComputedStyle = global.getComputedStyle || (() => ({ borderLeftWidth: "0px" }));
+global.MutationObserver = global.MutationObserver || class { observe() {} disconnect() {} };
+const KIg = global.window && global.window.KI;
+if (KIg && typeof KIg.pillefaner === "function") {
+  const sr = dom.document.createElement("div");
+  const rad = dom.document.createElement("div");
+  rad.className = "tabs";
+  const b = dom.document.createElement("button");
+  b.className = "tab-button active";
+  rad.appendChild(b);
+  rad.getBoundingClientRect = () => ({ left: 0, width: 300 });
+  b.getBoundingClientRect = () => ({ left: 2, width: 90 });
+  sr.appendChild(rad);
+  try { KIg.pillefaner({ shadowRoot: sr }); }
+  catch (e) { hjelpere.push("KI.pillefaner: " + e.message); }
+}
+
 const hass = { states: {}, entities: {}, devices: {}, callService() {}, callWS: async () => ({}),
   formatEntityState: (s) => (s && s.state) || "", localize: (k) => k, language: "nb" };
 
@@ -99,6 +120,7 @@ for (const [navn, K] of Object.entries(reg)) {
 /* Vent én runde på microtasks, så asynkrone byggefeil rekker å bli fanget. */
 await tikk();
 global.console = { ...console, error: ekte };
+for (const h of hjelpere) problemer.push(h);
 if (problemer.length) {
   ekte("  " + problemer.length + " kort kan ikke bygges:");
   for (const p of problemer) ekte("    " + p.slice(0, 140));

@@ -112,6 +112,10 @@
       </div>`;
       KI.wirePro(this, this.shadowRoot);
       this.shadowRoot.querySelectorAll("[data-tab]").forEach(el => el.addEventListener("click", () => { this._tab = el.dataset.tab; this._lastKey = null; this._maybeRender(); }));
+      /* Glidende pille og dra på Søvn/Vekking-rada, som i de andre kortene. */
+      if (KI.pillefaner) {
+        KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv" });
+      }
       this._loadHist(persons);
     }
     /* Tidslinje per person: bånd der personen sov */

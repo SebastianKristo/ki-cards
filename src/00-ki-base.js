@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.27.0";
+  KI.VERSION = "4.30.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -467,7 +467,8 @@ window.KI = window.KI || {};
     const knapp = valg.knapp || "\.tab-button";
     const aktiv = valg.aktiv || "active";
 
-    const kn = kn;
+    /* Velgeren uten escaping, brukt både i stilen og i oppslagene under. */
+    const kn = knapp.replace(/\\/g, "");
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
       if (!r || r.dataset.kiPille) return false;
@@ -501,6 +502,19 @@ window.KI = window.KI || {};
       pille.className = "ki-pille";
       r.insertBefore(pille, r.firstChild);
 
+      /* Kort som tegner hele markupen på nytt ved klikk får en HELT NY rad, og pilla
+         ville da stått ferdig i endeposisjonen uten å gli — nettopp det animasjonen
+         skal vise.
+         Vi husker forrige plassering på vertselementet og starter derfra, så
+         overgangen blir den samme som når rada overlever. */
+      const husk = vert._kiPilleSist;
+      if (husk) {
+        pille.classList.add("drar");          // hopp til forrige plass uten overgang
+        pille.style.setProperty("--x", husk.x);
+        pille.style.setProperty("--w", husk.w);
+        requestAnimationFrame(() => pille.classList.remove("drar"));
+      }
+
       const flytt = (uten) => {
         const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
@@ -509,6 +523,8 @@ window.KI = window.KI || {};
         const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
         pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
         pille.style.setProperty("--w", kk.width + "px");
+        vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
+                              w: pille.style.getPropertyValue("--w") };
       };
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
@@ -561,6 +577,10 @@ window.KI = window.KI || {};
         const x = e.clientX - rk.left + r.scrollLeft;
         let best = null, av = Infinity;
         for (const b of r.querySelectorAll(kn)) {
+          /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
+             morgendagens priser er klare, for eksempel. Uten dette ville dra landet
+             på den, og klikket blitt avvist uten at brukeren forsto hvorfor. */
+          if (b.hasAttribute("disabled") || b.classList.contains(valg.av || "tom")) continue;
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }

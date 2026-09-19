@@ -486,6 +486,13 @@ class KiAvfallCard extends HTMLElement {
 
     for (const b of this.shadowRoot.querySelectorAll("[data-vis]"))
       b.addEventListener("click", () => { this._visKal = b.dataset.vis === "kal"; this._tegn(); });
+
+    /* Samme glidende pille og dra som i faneradene ellers. `KI.pillefaner` setter den
+       inn i vår egen shadowRoot og tar ikke over valget — den kaller knappens click. */
+    if (KI.pillefaner) {
+      KI.pillefaner(this, { rad: ".bytt", knapp: ".bytt button", aktiv: "valgt" });
+    }
+
     for (const b of this.shadowRoot.querySelectorAll("[data-mnd]"))
       b.addEventListener("click", () => {
         this._mnd = (this._mnd || 0) + Number(b.dataset.mnd);

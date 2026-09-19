@@ -1,4 +1,4 @@
-/* ki-cards v4.27.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.30.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.27.0";
+  KI.VERSION = "4.30.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -497,7 +497,8 @@ window.KI = window.KI || {};
     const knapp = valg.knapp || "\.tab-button";
     const aktiv = valg.aktiv || "active";
 
-    const kn = kn;
+    /* Velgeren uten escaping, brukt både i stilen og i oppslagene under. */
+    const kn = knapp.replace(/\\/g, "");
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
       if (!r || r.dataset.kiPille) return false;
@@ -531,6 +532,19 @@ window.KI = window.KI || {};
       pille.className = "ki-pille";
       r.insertBefore(pille, r.firstChild);
 
+      /* Kort som tegner hele markupen på nytt ved klikk får en HELT NY rad, og pilla
+         ville da stått ferdig i endeposisjonen uten å gli — nettopp det animasjonen
+         skal vise.
+         Vi husker forrige plassering på vertselementet og starter derfra, så
+         overgangen blir den samme som når rada overlever. */
+      const husk = vert._kiPilleSist;
+      if (husk) {
+        pille.classList.add("drar");          // hopp til forrige plass uten overgang
+        pille.style.setProperty("--x", husk.x);
+        pille.style.setProperty("--w", husk.w);
+        requestAnimationFrame(() => pille.classList.remove("drar"));
+      }
+
       const flytt = (uten) => {
         const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
@@ -539,6 +553,8 @@ window.KI = window.KI || {};
         const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
         pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
         pille.style.setProperty("--w", kk.width + "px");
+        vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
+                              w: pille.style.getPropertyValue("--w") };
       };
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
@@ -591,6 +607,10 @@ window.KI = window.KI || {};
         const x = e.clientX - rk.left + r.scrollLeft;
         let best = null, av = Infinity;
         for (const b of r.querySelectorAll(kn)) {
+          /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
+             morgendagens priser er klare, for eksempel. Uten dette ville dra landet
+             på den, og klikket blitt avvist uten at brukeren forsto hvorfor. */
+          if (b.hasAttribute("disabled") || b.classList.contains(valg.av || "tom")) continue;
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }
@@ -787,10 +807,26 @@ try {
       this._built = true;
       const c = this._config; const tabs = c.tabs; const style = c.style || "auto";
       const sticky = !!c.sticky;
+      /* px/em/rem eller et tall (som blir px). Et tall alene er den vanligste
+         skrivemåten i YAML, og å kreve enhet ville bare gitt feilsøking. */
+      const enhet = (v) => (v === undefined || v === null || v === "" ? null
+        : (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v))) ? v + "px" : String(v));
+      const vars = [
+        ["--ki-fane-py", enhet(c.fane_hoyde)],
+        ["--ki-fane-px", enhet(c.fane_sidepadding)],
+        ["--ki-fane-bredde", enhet(c.fane_bredde)],
+        ["--ki-fane-tekst", enhet(c.fane_tekst)],
+        ["--ki-rad-bredde", c.rad_bredde === "full" ? "100%" : enhet(c.rad_bredde)],
+        ["--ki-fane-flex", c.fane_lik ? "1 1 0" : null],
+      ].filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(";");
+      if (vars) this.style.cssText = vars;
+
       this.shadowRoot.innerHTML = `<style>${KI.css}
         :host { overflow:visible; position:relative; }
         :host(.ki-meny-apen) { z-index:99; }
         .wrap { display:flex; flex-direction:column; gap:${c.gap ?? 12}px; max-width:100%; }
+        .tabs { width:var(--ki-rad-bredde, auto); max-width:100%; }
+        .tabs .tab { flex:var(--ki-fane-flex, 0 0 auto); }
         .bar { display:flex; align-items:center; justify-content:${c.tittel ? "space-between" : KI_JUST(c.align)};
           gap:10px; position:relative; z-index:6; max-width:100%;
           ${sticky ? `position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; border-radius:0 0 18px 18px;
@@ -812,8 +848,16 @@ try {
           -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px); }
         .scroller.mer-v.mer-h .spor { mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%);
           -webkit-mask-image:linear-gradient(to right, transparent 0, #000 46px, #000 calc(100% - 46px), transparent 100%); }
-        .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit; font-size:14px; font-weight:500;
-          padding:9px 20px; border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
+        /* Målene styres av variabler, med dagens verdier som standard. Kortet finner
+           fortsatt plassen selv; fane_hoyde og fane_bredde overstyrer bare når man vil
+           ha noe annet enn det innholdet krever.
+           INGEN backticks her — dette er inne i en mal-streng. */
+        .tab, .dd { border:0; background:transparent; color:rgba(255,255,255,.72); font:inherit;
+          font-size:var(--ki-fane-tekst, 14px); font-weight:500;
+          padding:var(--ki-fane-py, 9px) var(--ki-fane-px, 20px);
+          min-width:var(--ki-fane-bredde, auto);
+          border-radius:999px; cursor:pointer; display:flex; align-items:center;
+          justify-content:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
         /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
            unødig bred; her blir den rund og like høy som de andre. */
@@ -1321,6 +1365,9 @@ try {
       const f = document.createElement("ha-form");
       f.hass = this._h;
       f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
+        fane_hoyde: this._c.fane_hoyde ?? 9, fane_sidepadding: this._c.fane_sidepadding ?? 20,
+        fane_bredde: this._c.fane_bredde ?? 0, fane_tekst: this._c.fane_tekst ?? 14,
+        fane_lik: !!this._c.fane_lik, rad_bredde: this._c.rad_bredde || "",
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
         sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under };
@@ -1339,6 +1386,15 @@ try {
             { name: "gap", selector: { number: { min: 0, max: 48, mode: "slider" } } },
             { name: "bg", selector: { text: {} } },
           ] },
+        { name: "mal", type: "expandable", flatten: true, icon: "mdi:ruler",
+          schema: [
+            { name: "fane_hoyde", selector: { number: { min: 2, max: 28, mode: "slider" } } },
+            { name: "fane_sidepadding", selector: { number: { min: 4, max: 60, mode: "slider" } } },
+            { name: "fane_bredde", selector: { number: { min: 0, max: 240, mode: "slider" } } },
+            { name: "fane_tekst", selector: { number: { min: 10, max: 24, mode: "slider" } } },
+            { name: "fane_lik", selector: { boolean: {} } },
+            { name: "rad_bredde", selector: { text: {} } },
+          ] },
         { name: "oppforsel", type: "expandable", flatten: true, icon: "mdi:cog-outline",
           schema: [
             { name: "style", selector: { select: { mode: "dropdown", options: [
@@ -1350,7 +1406,13 @@ try {
             { name: "dropdown_under", selector: { boolean: {} } },
           ] },
       ];
-      const navn = { utseende: "Utseende", oppforsel: "Oppførsel",
+      const navn = { utseende: "Utseende", oppforsel: "Oppførsel", mal: "Mål",
+        fane_hoyde: "Høyde over og under teksten (px)",
+        fane_sidepadding: "Bredde på sidene (px)",
+        fane_bredde: "Minste fanebredde (px, 0 = auto)",
+        fane_tekst: "Tekststørrelse (px)",
+        fane_lik: "Like brede faner",
+        rad_bredde: "Bredde på rada (px, % eller «full»)",
         align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)",
         tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
         gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
@@ -1369,6 +1431,13 @@ try {
         }
         if (this._c.style === "auto") delete this._c.style;
         if (this._c.gap === 12 || this._c.gap === undefined) delete this._c.gap;
+        /* Målene skrives bare når de avviker fra det kortet gjør selv. */
+        if (this._c.fane_hoyde === 9) delete this._c.fane_hoyde;
+        if (this._c.fane_sidepadding === 20) delete this._c.fane_sidepadding;
+        if (!this._c.fane_bredde) delete this._c.fane_bredde;
+        if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
+        if (!this._c.fane_lik) delete this._c.fane_lik;
+        if (!this._c.rad_bredde) delete this._c.rad_bredde;
         KI.fire(this, "config-changed", { config: this._c });
       });
       (this._underEl = this._underEl || []).push(f);
@@ -4897,6 +4966,10 @@ try {
       </div>`;
       KI.wirePro(this, this.shadowRoot);
       this.shadowRoot.querySelectorAll("[data-tab]").forEach(el => el.addEventListener("click", () => { this._tab = el.dataset.tab; this._lastKey = null; this._maybeRender(); }));
+      /* Glidende pille og dra på Søvn/Vekking-rada, som i de andre kortene. */
+      if (KI.pillefaner) {
+        KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv" });
+      }
       this._loadHist(persons);
     }
     /* Tidslinje per person: bånd der personen sov */
@@ -8065,6 +8138,20 @@ class KiStromprisCard extends HTMLElement {
       this._dag = el.dataset.d; this._valgt = null; this._tegn(); };
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
+
+    /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
+     *
+     * Kortet er frittstående og skal virke uten ki-cards, så vi kan ikke slå opp `KI`
+     * direkte — den finnes ikke når fila brukes alene fra /local/. Vi leter på window,
+     * og lar animasjonen være hvis den ikke er der. Kortet virker likt uansett; det er
+     * bare bevegelsen som mangler.
+     *
+     * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
+     * ved dra. */
+    const ki = (typeof window !== "undefined" && window.KI) || null;
+    if (ki && ki.pillefaner) {
+      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: "tom" });
+    }
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
@@ -22226,6 +22313,13 @@ class KiAvfallCard extends HTMLElement {
 
     for (const b of this.shadowRoot.querySelectorAll("[data-vis]"))
       b.addEventListener("click", () => { this._visKal = b.dataset.vis === "kal"; this._tegn(); });
+
+    /* Samme glidende pille og dra som i faneradene ellers. `KI.pillefaner` setter den
+       inn i vår egen shadowRoot og tar ikke over valget — den kaller knappens click. */
+    if (KI.pillefaner) {
+      KI.pillefaner(this, { rad: ".bytt", knapp: ".bytt button", aktiv: "valgt" });
+    }
+
     for (const b of this.shadowRoot.querySelectorAll("[data-mnd]"))
       b.addEventListener("click", () => {
         this._mnd = (this._mnd || 0) + Number(b.dataset.mnd);

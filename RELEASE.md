@@ -1,45 +1,33 @@
-# ki-cards 4.27.0
+# ki-cards 4.30.0
 
-## Pilla satt feil helt til du byttet fane
+## Dra-animasjon på «I dag / I morgen» i strømpriskortet
 
-Du så det presist: feil ved første visning, riktig etter en tur til fane 2 og tilbake.
+`ki-strompris-card` har nå samme glidende pille, dra og trykkeffekt som de andre
+faneradene.
 
-Ett `requestAnimationFrame` er ikke nok. Ved oppstart kan kortet fortsatt legge ut,
-skrifta er ikke byttet fra reservefonten — som er smalere — og i en popup animeres hele
-flata inn mens vi måler. Første måling traff derfor et mellomstadium, og først ved
-fanebytte ble den gjort på nytt.
+### To ting måtte håndteres
 
-Nå måles det flere ganger: to bilder på rad, og igjen etter 120 og 400 ms. Det er billig,
-usynlig når målingen alt er riktig, og dekker både treg fontlasting og en popup som glir
-inn.
+**Kortet er frittstående med vilje.** Det skal kunne legges i `/local/` og brukes uten
+ki-cards, og et direkte oppslag på `KI` kastet da «KI is not defined» — kortet forsvant
+fra bundelen. Nå leter det på `window.KI` og lar animasjonen være hvis den ikke er der.
+Kortet virker likt uansett; det er bare bevegelsen som mangler.
 
-`ResizeObserver` ser nå også på **hver enkelt fane**, ikke bare rada. Rada kan ha samme
-bredde mens en fane inni vokser, og da fikk pilla gammel bredde uten at noe varslet oss.
+Byggeskrittet fanget det: kortantallet falt fra 54 til 53.
 
-Samme rettelse i `KI.pillefaner`, som gir simple-tabs den samme pilla.
+**«I morgen» kan være tom** før morgendagens priser er klare. `KI.pillefaner` hopper nå
+over faner som er `disabled` eller har en «av»-klasse — uten det ville dra landet på den,
+og klikket blitt avvist uten at man forsto hvorfor. Klassen oppgis med `av:` i valgene.
 
-## Editoren for `ki-tabs-card` viser alle valgene
+### Nå med glidende pille
 
-Den hadde to felt. Kortet leser åtte.
+`ki-tabs-card`, `ki-hjem-card` (etasjevelgeren), `ki-avfall-card`, `ki-sovn-pro-card` og
+`ki-strompris-card`.
 
-Nå er de gruppert i to sammenleggbare seksjoner, som i simple-tabs' editor — utseende
-først, så oppførsel. Det er den rekkefølgen man leter i.
-
-**Utseende:** plassering, tittel, tittelstørrelse, avstand under rada, bakgrunn når rada
-er festet.
-**Oppførsel:** form (automatisk, piller, rullbar, nedtrekk), fest rada ved rulling,
-nedtrekk under rada.
-
-Standardverdier skrives ikke til YAML-en. Uten det ville `bg: ""` og `sticky: false` stått
-igjen og sett ut som noe du hadde valgt.
-
-### Kontrollert
-
-Begge gruppene med riktige felt og norske etiketter, og en lagring med bare
-standardverdier gir en konfigurasjon uten støy.
+`ki-klima-strom-kort` er fortsatt et eget repo uten tilgang til hjelperen.
 
 ---
 
-# ki-cards 4.26.0
+# ki-cards 4.29.0
 
-`KI.pillefaner` gir simple-tabs samme glidende pille, uten å røre den minifiserte fila.
+Seks nye mål på fanerada — høyde, sidepadding, fanebredde, tekststørrelse, like brede
+faner og radbredde — som bare slår inn når de settes.

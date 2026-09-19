@@ -475,6 +475,20 @@ class KiStromprisCard extends HTMLElement {
       this._dag = el.dataset.d; this._valgt = null; this._tegn(); };
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
+
+    /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
+     *
+     * Kortet er frittstående og skal virke uten ki-cards, så vi kan ikke slå opp `KI`
+     * direkte — den finnes ikke når fila brukes alene fra /local/. Vi leter på window,
+     * og lar animasjonen være hvis den ikke er der. Kortet virker likt uansett; det er
+     * bare bevegelsen som mangler.
+     *
+     * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
+     * ved dra. */
+    const ki = (typeof window !== "undefined" && window.KI) || null;
+    if (ki && ki.pillefaner) {
+      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: "tom" });
+    }
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
