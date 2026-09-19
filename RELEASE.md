@@ -1,44 +1,45 @@
-# ki-cards 4.20.1
+# ki-cards 4.21.0
 
-## `ki-varsling-card` bruker malen din, ikke min egen form
+## `ki-varsling-card`: filtrer på regelnavn, ikke entitets-ID
 
-Jeg lagde en egen radform i 4.20.0. Den skulle sett ut som
-`template_toggle_card_small`, og gjør det nå — målene er hentet rett fra malen i
-dashbordet:
+`bare:` slo av hele autokonfigurasjonen — kortet viste nøyaktig de tre entitetene som sto
+der, og ingenting annet. Det var feil råd fra min side.
 
-| | |
-| --- | --- |
-| Høyde | 66 px |
-| Hjørner | 75 px |
-| Rutenett | `76px 1fr min-content` |
-| Navn | 16 px, vekt 500 |
-| Etikett | 14 px, dekning 0,7 |
-| Bryter | `mdi:toggle-switch`, 50 × 40 px |
-| Av | rød flate, svart tekst og ikon |
+Nye valg som filtrerer på **enhetsnavnet**, altså navnet på regelen i integrasjonen:
 
-Ikonet står i en rund flate på `rgba(var(--highlight))` som før, og bryteren til høyre er
-den samme `toggle-switch`-ikonet malen bruker — ikke tekst.
+```yaml
+enheter: [lås, dørlys, alarm]      # bare disse reglene
+ikke_enheter: [lås, dørlys, alarm] # alt unntatt disse
+```
 
-## Navn og beskrivelse deles som i malen
+Treffet er delvis og uten hensyn til store bokstaver, så `lås` finner «Autolås»,
+«Dørlås fastkjørt» og «Ansiktsgjenkjenning – dørlås».
 
-`friendly_name` deles på et skilletegn: navnet foran, beskrivelsen bak. «Vekking - Lys og
-lyd på vekketidspunkt» blir to linjer, akkurat som i dashbordet. `skille: '/'` endrer
-tegnet.
+### Hvorfor navnet og ikke ID-en
 
-Uten skilletegn faller kortet tilbake til enhetsnavnet som overskrift og resten som
-beskrivelse, så «Autolås Autolås» ikke står to ganger på samme rad.
+Reglene heter det samme i alle tre installasjonene, mens entitets-ID-ene varierer — og
+Toten har bare noen av reglene. Et navnefilter overlever flyttingen mellom Oslo, Toten og
+Strömstad; en entitetsliste gjør det ikke.
 
-`navn:` og `undertekst:` overstyrer begge deler.
+Og en regel du legger til i morgen dukker opp av seg selv i riktig fane. Det var hele
+poenget med å finne dem automatisk, og `bare:` tok det bort igjen.
+
+`bare:` finnes fortsatt for den som vil styre rekkefølgen nøyaktig, men er ikke lenger
+veien jeg anbefaler.
 
 ### Kontrollert
 
-Fire navneformer: med bindestrek, uten, med enhetsnavn som prefiks, og et enkeltord.
-Alle sju målene fra malen kontrollert mot den genererte CSS-en.
+Mot alle elleve reglene dine: uten filter finnes alle elleve, `enheter: [autolås, dørlås,
+dørlys]` gir fire, `ikke_enheter` med de samme gir de sju andre, og et navn som ikke
+finnes gir en tom liste uten å feile.
 
 ---
 
-# ki-cards 4.20.0
+# ki-cards 4.20.2
 
-Nytt kort `ki-varsling-card`: bryterne fra KI Varslinger og sikkerhet finnes gjennom
-entitetsregisteret og grupperes per regel. `bare:`, `ekstra:`, `skjul:`, søk fra åtte
-brytere, og langt trykk for å åpne entiteten.
+Overskriften per gruppe er av som standard; `grupper: true` og `teller: true` slår dem på.
+
+# ki-cards 4.20.1
+
+Radene bruker målene fra `template_toggle_card_small`, og `friendly_name` deles på
+bindestrek som malen gjør.

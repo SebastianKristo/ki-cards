@@ -7,13 +7,17 @@
  * type: custom:ki-varsling-card
  * grupper: [varsling, sikkerhet]     # egne faner; utelates = alt i én liste
  * ekstra: [automation.vaermelding_ai]   # automasjoner som ikke hører til integrasjonen
- * bare: [autolas_autolas]            # bare disse, i denne rekkefølgen
+ * enheter: [Autolås, Dørlås]         # bare disse reglene (treff i enhetsnavnet)
+ * ikke_enheter: [Alarm]              # alt unntatt disse
+ * bare: [autolas_autolas]            # bare disse entitetene, i denne rekkefølgen
  * skjul: [autolas_autolas]           # bryter-slugger som ikke skal vises
  * navn: { autolas_autolas: 'Autolås' }
  * undertekst: { autolas_autolas: 'Låser døra etter lukking' }
  * skille: '-'                        # skilletegn i friendly_name: navn - beskrivelse
  * ikoner: { autolas_autolas: 'mdi:lock-clock' }
  * sok: true                          # søkefelt når det er mange
+ * grupper: true                      # overskrift per enhet (av som standard)
+ * teller: true                        # «2 av 5 på» nederst (av som standard)
  */
 const KI_VARS_VERSJON = "1.0.0";
 const KI_VARS_PLATTFORM = "ki_notifications";
@@ -176,6 +180,28 @@ class KiVarslingCard extends HTMLElement {
     }
     for (const id of (c.ekstra || [])) legg(id, "ekstra");
 
+    /* Filtrering på ENHETSNAVN, ikke entitets-ID.
+     *
+     * Reglene heter det samme i alle installasjonene dine — «Autolås», «Alarm»,
+     * «Ruter – fra skolen» — mens entitets-ID-ene varierer, og en installasjon har
+     * bare noen av reglene. Et navnefilter overlever derfor flyttingen mellom Oslo,
+     * Toten og Strömstad; en entitetsliste gjør det ikke.
+     *
+     * Treffet er delvis og uten hensyn til store bokstaver: «autolås» finner både
+     * «Autolås» og «Autolås garasje». */
+    const treff = (navn, liste) => liste.some((m) =>
+      String(navn).toLowerCase().includes(String(m).toLowerCase()));
+    if (c.enheter && c.enheter.length) {
+      for (let i = ut.length - 1; i >= 0; i--) {
+        if (!treff(ut[i].enhet, c.enheter) && ut[i].kilde !== "ekstra") ut.splice(i, 1);
+      }
+    }
+    if (c.ikke_enheter && c.ikke_enheter.length) {
+      for (let i = ut.length - 1; i >= 0; i--) {
+        if (treff(ut[i].enhet, c.ikke_enheter)) ut.splice(i, 1);
+      }
+    }
+
     /* `bare:` er motsatt av `skjul:` og styrer også rekkefølgen. Med to faner som deler
        de samme bryterne er det langt enklere enn at hver fane må kjenne den andres
        innhold for å skjule det. */
@@ -209,7 +235,10 @@ class KiVarslingCard extends HTMLElement {
       if (!grupper.has(b.enhet)) grupper.set(b.enhet, []);
       grupper.get(b.enhet).push(b);
     }
-    const flereGrupper = grupper.size > 1;
+    /* Overskriften er av. Den fortalte «Autolås — 1 av 1 på» over én enkelt rad, og
+       da sier den ingenting raden ikke alt viser. `grupper: true` slår den på for den
+       som har mange regler og vil ha dem delt opp. */
+    const flereGrupper = this._c.grupper === true && grupper.size > 1;
     const visSok = c.sok !== false && (alle >= (Number(c.sok_fra) || 8) || sok);
 
     const paa = brytere.filter((b) => b.pa).length;
@@ -243,7 +272,7 @@ class KiVarslingCard extends HTMLElement {
                   b.pa ? "mdi:toggle-switch" : "mdi:toggle-switch-off"}"></ha-icon></span>
               </button>`).join("")}
           </div>`).join("")}
-        ${alle && !flereGrupper && brytere.length ? `<div class="hode">
+        ${this._c.teller === true && brytere.length ? `<div class="hode">
           <span class="s">${paa} av ${brytere.length} på</span></div>` : ""}
       </div>`;
 
