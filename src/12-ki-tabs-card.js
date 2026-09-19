@@ -390,13 +390,13 @@
         this._sistePille = i;
         if (!bytte) uten = true;
 
-        const rk = rad.getBoundingClientRect();
-        const kk = knapp.getBoundingClientRect();
-        const stil = getComputedStyle(rad);
-        const venstre = parseFloat(stil.borderLeftWidth) || 0;
-        pille.style.setProperty("--x", (kk.left - rk.left - venstre) + "px");
-        pille.style.setProperty("--w", kk.width + "px");
-        pille.classList.toggle("klar", kk.width > 0 && this._fontKlar !== false);
+        /* offsetLeft/offsetWidth, ikke rektangelet: det regner med transformer, og en
+           popup som glir inn med scale gir da en skalert bredde. `clientLeft` er
+           rammebredden, som er forskjellen mellom offsetLeft og `left:0`. */
+        const venstre = rad.clientLeft || 0;
+        pille.style.setProperty("--x", (knapp.offsetLeft - venstre) + "px");
+        pille.style.setProperty("--w", knapp.offsetWidth + "px");
+        pille.classList.toggle("klar", knapp.offsetWidth > 0 && this._fontKlar !== false);
       }
     }
 

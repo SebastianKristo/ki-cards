@@ -1,33 +1,33 @@
-# ki-cards 5.9.0
+# ki-cards 5.9.1
 
-## Nytt kort: `ki-eksempler-card`
+## Blinket var transformer, ikke fontlasting
 
-Hva hverdagslige ting koster ved dagens strømpris — lading, dusj, tørketrommel,
-panelovn — som **én liste** i stedet for ett knappekort per eksempel.
+Jeg har jaget dette i flere runder med feil forklaring. Her er den riktige:
 
-Elleve eksempler følger med. Egne settes med `eksempler:`, der hver linje er navn, ikon,
-kWh og en note.
+`getBoundingClientRect` regner med transformer. En popup som glir inn med `scale`
+returnerer derfor **skalerte** mål mens animasjonen går. Pilla ble målt mot et
+mellomstadium — for bred og uten innrykk — og rettet seg når animasjonen var ferdig.
 
-### Noten er poenget
+M�lingen bruker nå `offsetLeft` og `offsetWidth`, som er layoutverdier og ikke påvirkes
+av transformer. `clientLeft` gir rammebredden, som er forskjellen mellom `offsetLeft` og
+`left: 0`.
 
-Et anslag uten forutsetninger ser ut som fasit. «Dusj 10 min · 3,24 kr» sier lite uten
-«8 l/min, 30 °C oppvarming» under — da kan man justere tallet selv om ens egen dusj er
-en annen. `vis_note: false` skjuler dem.
+Jeg byttet feil vei i 4.25.1: da gikk jeg fra offset til rektangel for å få med ramma,
+og dro transformproblemet med på kjøpet.
 
-Beløp over ti kroner vises uten desimaler. 99 kr er lettere å lese enn 98,83 kr, og
-presisjonen er likevel ikke der.
+### Hva det betyr for de forrige rettelsene
 
-Kortet tegner bare om når prisen endrer seg, ikke ved hver tilstandsendring i huset.
+Ventetiden på skrifta fra 5.8.0 står, og er fortsatt riktig — skrifta endrer faktisk
+bredden. Men den var ikke årsaken til det du så.
 
 ### Kontrollert
 
-Elleve eksempler med riktig regnestykke — 85,2 kWh mot 1,16 kr/kWh gir 99 kr. Egne
-eksempler, skjulte noter, og en tydelig melding når prissensoren mangler.
-
-Bundelen er nå 55 kort.
+Samme rad målt midt i en innglidning på `scale(0.8)` og ferdig animert gir nå identiske
+verdier: 2 px inn og 95 px bred. Med den gamle målingen ville den fått 76 px under
+animasjonen.
 
 ---
 
-# ki-cards 5.8.0
+# ki-cards 5.9.0
 
-Pilla holdes skjult til skrifta er lastet, så den ikke vises et øyeblikk med feil bredde.
+Nytt kort `ki-eksempler-card`, og strømpopupen omskrevet fra ~1100 til 169 linjer.

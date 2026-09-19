@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.9.0";
+  KI.VERSION = "5.9.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -564,17 +564,25 @@ window.KI = window.KI || {};
         const bytte = sisteFane !== null && sisteFane !== a;
         sisteFane = a;
         pille.classList.toggle("drar", !!uten || !bytte);
-        const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
-        const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
-        pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
-        pille.style.setProperty("--w", kk.width + "px");
+        /* offsetLeft/offsetWidth, IKKE getBoundingClientRect.
+         *
+         * Rektangelet regner med transformer. En popup som glir inn med scale gir
+         * derfor en skalert bredde, og pilla ble målt mot et mellomstadium — for bred
+         * og uten innrykk — før den rettet seg når animasjonen var ferdig. Det var
+         * blinket, ikke fontlastingen.
+         *
+         * offsetLeft er avstanden til forelderens KANT, mens `left:0` måles fra
+         * innsiden av ramma. `clientLeft` er nøyaktig den rammebredden. */
+        const kant = r.clientLeft || 0;
+        pille.style.setProperty("--x", (a.offsetLeft - kant) + "px");
+        pille.style.setProperty("--w", a.offsetWidth + "px");
         vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
                               w: pille.style.getPropertyValue("--w") };
         /* Først nå tør vi slå av kortets egen bakgrunn. */
         /* Først når vi har en ekte bredde tør vi vise pilla og slå av kortets egen
            bakgrunn. De to henger sammen: skjer det ene uten det andre, står enten
            ingenting merket, eller begge deler samtidig. */
-        const harMaal = kk.width > 0 && fontKlar;
+        const harMaal = a.offsetWidth > 0 && fontKlar;
         r.classList.toggle("ki-pille-klar", harMaal);
         pille.classList.toggle("klar", harMaal);
       };
