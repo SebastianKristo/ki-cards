@@ -1,34 +1,35 @@
-# ki-cards 4.35.0
+# ki-cards 4.36.0
 
-## Dra i etasjevelgeren: nettleseren tok gesten
+## Ett kort per fane, redigert med Home Assistants egen editor
 
-Pilla var der og satt riktig, men lot seg ikke dra. Årsaken var ikke koden min — det var
-at **rada er rullbar sidelengs**. `simple-tabs` har `overflow-x: auto` på `.tabs`, og da
-tolker nettleseren et horisontalt drag som en rulling, tar over gesten og sender oss
-`pointercancel`.
+«+ Legg til kort» legger nå inn et **vertical-stack**, og du redigerer det som et hvilket
+som helst kort i HA.
 
-Tre ting måtte til:
+Editoren hadde en egen kortliste med opp, ned, blyant og slett. Det var å bygge om igjen
+noe HA gjør bedre: med et vertical-stack i fanen får du HAs kortvelger, dra-og-slipp,
+forhåndsvisning og alle korttyper — også de du installerer senere.
 
-* **`touch-action: none` på knappene.** Bare på knappene, ikke hele rada — rulling med
-  fingeren utenfor en fane skal fortsatt virke når det er flere faner enn det er plass
-  til.
-* **Pekerfangst ved trykk**, ikke først ved bevegelse. Ventet vi, rakk rada å starte sin
-  egen rulling, og vi mistet resten av gesten.
-* **Lyttere også på knappene.** Med pekerfangst går `pointermove` og `pointerup` til
-  knappen, ikke til rada — uten dette kom bevegelsen aldri fram.
+Rundt hundre linjer egen kode er borte: kortlista, flytting, sletting og navnetolkningen
+`custom:ki-varsling-card` → «Ki varsling card».
 
-Kalenderfanene var aldri berørt: de er `ki-tabs-card`, ikke `simple-tabs`, og der er rada
-ikke rullbar i samme form.
+### Gamle oppsett virker som før
 
-### Hvis dette heller ikke virker
+Kortet leser fortsatt `cards:` som liste i YAML, og den tegnes uendret. Åpner du en slik
+fane i editoren, vises kortene som ett vertical-stack, med en merknad om at de lagres
+slik når du endrer noe.
 
-Da vil jeg heller bytte etasjevelgeren fra `simple-tabs` til `ki-tabs-card` enn å lappe
-videre. Der er pilla en del av malen, animasjonen har virket hele tiden, og du får
-UI-editoren på kjøpet. Det er den ene fanerada som står igjen, og hjelperen har kostet
-fem forsøk på den alene.
+Har fanen nøyaktig ett kort, brukes det direkte uten innpakning.
+
+### Kontrollert
+
+Tom fane gir «+ Legg til kort», som skriver
+`card: {type: vertical-stack, cards: []}`. En fane med et vertical-stack gir HAs editor
+og en fjern-knapp. En gammel `cards:`-liste med to kort gir merknaden og sendes til
+editoren som ett vertical-stack.
 
 ---
 
-# ki-cards 4.34.0
+# ki-cards 4.35.0
 
-Vakt som kobler pilla på igjen når kortet tegner fanerada på nytt.
+Dra i etasjevelgeren: rada er rullbar sidelengs, så nettleseren tok gesten.
+`touch-action: none` på knappene, pekerfangst ved trykk, og lyttere der pekeren fanges.

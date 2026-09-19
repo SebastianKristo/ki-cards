@@ -1,4 +1,4 @@
-/* ki-cards v4.35.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.35.0";
+  KI.VERSION = "4.36.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1358,35 +1358,6 @@ try {
       this._valgt = Math.max(0, Math.min(this._valgt, t.length - 1));
       this._ut();
     }
-    /* Lesbart navn på et kort. `custom:ki-varsling-card` blir «Ki varsling card» —
-       det er slik HA selv skriver dem i kortvelgeren, og det er lettere å kjenne igjen
-       enn den rå typen. */
-    _korttype(k) {
-      const t = String((k && k.type) || "ukjent").replace(/^custom:/, "");
-      const ord = t.replace(/[-_]/g, " ").trim();
-      return ord.charAt(0).toUpperCase() + ord.slice(1);
-    }
-
-    _flyttKort(fane, i, d) {
-      const liste = this._tabs()[fane].cards || [];
-      const j = i + d;
-      if (j < 0 || j >= liste.length) return;
-      [liste[i], liste[j]] = [liste[j], liste[i]];
-      this._tabs()[fane].cards = liste;
-      delete this._tabs()[fane].card;
-      /* Redigerer man et kort, følger markøren med når det flyttes. */
-      if (this._redigerer === i) this._redigerer = j;
-      else if (this._redigerer === j) this._redigerer = i;
-      this._ut();
-    }
-
-    _slettKort(fane, i) {
-      (this._tabs()[fane].cards || []).splice(i, 1);
-      if (this._redigerer === i) this._redigerer = null;
-      else if (this._redigerer > i) this._redigerer -= 1;
-      this._ut();
-    }
-
     _nyFane() {
       this._tabs().push({ title: `Fane ${this._tabs().length + 1}`, cards: [] });
       this._valgt = this._tabs().length - 1;
@@ -1433,11 +1404,7 @@ try {
         .fanekort .fane { background:none; border-radius:0; }
         .faneinnhold { padding:0 12px 12px; }
         .kortoverskrift { font-size:14px; font-weight:500; margin:10px 0 6px; }
-        .kortrad { display:flex; align-items:center; gap:6px; padding:6px 4px 6px 10px;
-          border-radius:10px; background:rgba(128,128,128,.12); margin-bottom:6px; }
-        .kortrad .nr { opacity:.5; font-size:13px; min-width:16px; }
-        .kortrad .korttype { flex:1; min-width:0; overflow:hidden;
-          text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+
       </style>
       <h4>Kortet</h4>
       <div class="felt" id="kortform2"></div>
@@ -1463,19 +1430,6 @@ try {
             <div class="felt" id="faneform"></div>
             <div class="kortliste">
               <div class="kortoverskrift">Kort</div>
-              ${kort.map((k, ki) => `
-                <div class="kortrad">
-                  <span class="nr">${ki + 1}</span>
-                  <span class="korttype">${KI.esc(this._korttype(k))}</span>
-                  <button class="ikn" data-kopp="${ki}" ${ki === 0 ? "disabled" : ""}
-                    title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
-                  <button class="ikn" data-kned="${ki}" ${ki === kort.length - 1 ? "disabled" : ""}
-                    title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
-                  <button class="ikn" data-kred="${ki}" title="Rediger">
-                    <ha-icon icon="mdi:pencil"></ha-icon></button>
-                  <button class="ikn" data-kslett="${ki}" title="Fjern">
-                    <ha-icon icon="mdi:delete-outline"></ha-icon></button>
-                </div>`).join("") || `<div class="merk">Ingen kort ennå.</div>`}
               <div id="kort"></div>
             </div>
           </div>` : ""}
@@ -1497,18 +1451,6 @@ try {
       /* Kortlista: flytt, rediger og fjern der kortet står. Tidligere lå alle
          kortredigererne utbrettet under hverandre, og med fire kort i en fane fylte de
          hele skjermen. Nå åpnes ett om gangen. */
-      rot.querySelectorAll("[data-kopp]").forEach((el) =>
-        el.addEventListener("click", () => this._flyttKort(v, +el.dataset.kopp, -1)));
-      rot.querySelectorAll("[data-kned]").forEach((el) =>
-        el.addEventListener("click", () => this._flyttKort(v, +el.dataset.kned, 1)));
-      rot.querySelectorAll("[data-kslett]").forEach((el) =>
-        el.addEventListener("click", () => this._slettKort(v, +el.dataset.kslett)));
-      rot.querySelectorAll("[data-kred]").forEach((el) =>
-        el.addEventListener("click", () => {
-          this._redigerer = this._redigerer === +el.dataset.kred ? null : +el.dataset.kred;
-          this._r();
-        }));
-
       this._kortform2(rot.querySelector("#kortform2"));
       const ff = rot.querySelector("#faneform");
       if (ff) this._faneform(ff, t[v] || {});
@@ -1634,54 +1576,77 @@ try {
       vert.appendChild(f);
     }
 
+    /* Ett kort per fane, redigert med Home Assistants egen kortredigerer.
+     *
+     * Tidligere hadde editoren sin egen liste med opp, ned, rediger og slett per kort.
+     * Det var å bygge om igjen noe HA allerede gjør bedre: legger du et
+     * `vertical-stack` i fanen, får du HAs kortvelger, dra-og-slipp og forhåndsvisning
+     * — alt vi ellers måtte etterligne.
+     *
+     * Kortet støtter fortsatt `cards:` som liste i YAML. Editoren pakker den inn i et
+     * vertical-stack når du redigerer, og sier fra at den gjør det.
+     */
     _kortform(vert, i) {
       const fane = this._tabs()[i] || {};
-      const kort = fane.cards || (fane.card ? [fane.card] : []);
-      const ed = document.createElement("hui-card-element-editor");
+
       if (!customElements.get("hui-card-element-editor")) {
         vert.innerHTML = `<p class="merk">Home Assistant-versjonen din tilbyr ikke
-          kortredigereren her. Kortene i fanen redigeres i YAML — bytt til YAML-visning
+          kortredigereren her. Kortet i fanen redigeres i YAML — bytt til YAML-visning
           med de tre prikkene øverst. Fanene over kan redigeres som vanlig.</p>`;
         return;
       }
-      /* Én kortvelger per kort, pluss en tom for å legge til. Vi holder oss til HAs egen
-         editor i stedet for å bygge en kortvelger selv: den kjenner alle korttyper,
-         også de som installeres senere. */
-      kort.forEach((k, ki) => {
-        /* Bare kortet man har trykket blyanten på. Alle utbrettet samtidig gjorde
-           editoren uoversiktlig så snart en fane hadde mer enn to kort. */
-        if (this._redigerer !== ki) return;
-        const rad = document.createElement("div");
-        rad.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin:8px 0";
-        const e = document.createElement("hui-card-element-editor");
-        e.hass = this._h; e.lovelace = this._lovelace; e.value = k;
-        e.style.flex = "1";
-        (this._underEl = this._underEl || []).push(e);
-        e.addEventListener("config-changed", (ev) => {
-          ev.stopPropagation();
-          const liste = this._tabs()[i].cards || [];
-          liste[ki] = ev.detail.config;
-          this._tabs()[i].cards = liste;
-          delete this._tabs()[i].card;
-          this._send();
-        });
-        rad.append(e);
-        vert.appendChild(rad);
-      });
 
-      const ny = document.createElement("button");
-      ny.className = "legg";
-      ny.textContent = "+ Legg til kort";
-      ny.addEventListener("click", () => {
-        const liste = this._tabs()[i].cards || [];
-        liste.push({ type: "markdown", content: "Nytt kort" });
-        this._tabs()[i].cards = liste;
+      const liste = fane.cards || [];
+      const vertikal = fane.card
+        || (liste.length === 1 ? liste[0]
+          : liste.length ? { type: "vertical-stack", cards: liste } : null);
+
+      if (!vertikal) {
+        const ny = document.createElement("button");
+        ny.className = "legg";
+        ny.textContent = "+ Legg til kort";
+        ny.addEventListener("click", () => {
+          this._tabs()[i].card = { type: "vertical-stack", cards: [] };
+          delete this._tabs()[i].cards;
+          this._ut();
+        });
+        vert.appendChild(ny);
+        return;
+      }
+
+      if (liste.length > 1) {
+        const merk = document.createElement("p");
+        merk.className = "merk";
+        merk.textContent = "Fanen har flere kort fra YAML. De vises her som ett "
+          + "vertical-stack, og lagres slik når du endrer noe.";
+        vert.appendChild(merk);
+      }
+
+      const e = document.createElement("hui-card-element-editor");
+      e.hass = this._h;
+      e.lovelace = this._lovelace;
+      e.value = vertikal;
+      e.addEventListener("config-changed", (ev) => {
+        ev.stopPropagation();
+        this._tabs()[i].card = ev.detail.config;
+        delete this._tabs()[i].cards;
+        this._send();
+      });
+      (this._underEl = this._underEl || []).push(e);
+      vert.appendChild(e);
+
+      const fjern = document.createElement("button");
+      fjern.className = "legg";
+      fjern.style.marginTop = "8px";
+      fjern.textContent = "Fjern kortet";
+      fjern.addEventListener("click", () => {
         delete this._tabs()[i].card;
+        delete this._tabs()[i].cards;
         this._ut();
       });
-      vert.appendChild(ny);
-      ed.remove();
+      vert.appendChild(fjern);
     }
+
   }
   if (!customElements.get("ki-tabs-card-editor")) {
     window.KI.define("ki-tabs-card-editor", SkTabsEditor);
