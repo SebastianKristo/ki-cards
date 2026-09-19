@@ -1,40 +1,37 @@
-# ki-cards 4.16.0
+# ki-cards 4.17.0
 
-## `utenfor: true` — en fane utenfor pillegruppa
+## Editoren hakket fordi den bygde seg selv på nytt 200 ganger i minuttet
 
-```yaml
-- icon: mdi:gift-outline
-  aria: Post og bursdager
-  utenfor: true
-  cards: [...]
-```
+`set hass` fyres hver gang **én** tilstand i huset endrer seg. Editoren bygde hele DOM-en
+på nytt hver gang — nye `ha-form`, nye kortredigerere, alt sammen. Det var derfor den
+hakket mens du skrev.
 
-Fanen tas ut av pillerammen og får egen rund kant ved siden av, slik tannhjulet i
-bassengkortet står.
+Nå sendes `hass` bare videre til underelementene, som er det de faktisk trenger.
 
-Det skiller **et vedlegg** fra fanene som er likeverdige valg. Kalender og Framover er to
-måter å se det samme på; post og bursdager er noe annet man stikker innom. Inne i samme
-ramme ser de ut som tre jevnbyrdige alternativer, og det er ikke det de er.
+M�lt i testrigg: 200 tilstandsbytter ga **200 ombygginger før, 0 nå**. Fanebytte bygger
+fortsatt, som det skal.
 
-### Tre detaljer
+## Ikonet står inntil rada nå
 
-* Fanen **teller ikke i bredderegningen**. Kortet måler pillene for å avgjøre om de får
-  plass eller må rulle — en knapp utenfor rammen skal ikke påvirke den avgjørelsen.
-* Den er heller ikke med i den rullbare rada eller nedtrekksmenyen, av samme grunn.
-* `data-i` beholdes, så fanevalg, animasjon og `ki-tab-changed` virker som for de andre.
+`.bar` har `gap: 10px` fra før, og jeg la på `margin-left: 8px` i tillegg — 18 px til
+sammen, som fikk knappen til å se løsrevet ut. Negativ margin trekker den inn til 4 px:
+rett utenfor rammen, ikke et eget element lenger borte.
 
-Kontrollert: to piller i gruppa, én knapp utenfor i `.bar`, to i bredderegningen, tre
-paneler, og `data-i="2"` på knappen.
+## Velg hvor fanerada står
 
----
+Nytt felt i editoren: **Venstre, Midten, Høyre**.
 
-# ki-cards 4.15.0
+`align` tar nå både norske ord og CSS-verdier — `venstre`, `midten`, `hoyre`, `høyre`,
+og fortsatt `flex-start`, `center`, `flex-end`. Den som alt har skrevet `flex-start`
+trenger ikke endre noe.
 
-UI-editor for `ki-tabs-card`: faner kan flyttes, legges til og fjernes, kortene i hver
-fane redigeres med Home Assistants egen kortvelger, og panelet glir inn fra den siden du
-kom fra.
+## Editoren har fått en seksjon for kortet
 
-# ki-cards 4.14.0
+Øverst: plassering av fanerada og valgfri tittel til venstre. Under: fanene, og så den
+valgte fanen. Tomme felt fjernes fra YAML-en i stedet for å stå igjen som `tittel: ""`.
 
-Pakker fra Norwegian Parcel Tracker i `ki-post-card`, funnet selv. Bursdagsskjemaet lager
-én gjentakende oppføring i stedet for ti kopier.
+### Kontrollert
+
+To `ha-form` i editoren — én for kortet, én for fanen — begge får `hass` ved endring.
+Fire overskrifter i riktig rekkefølge, tre plasseringsvalg, og `align` lagres som valgt
+mens tom tittel forsvinner.

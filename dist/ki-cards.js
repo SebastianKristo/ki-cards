@@ -1,4 +1,4 @@
-/* ki-cards v4.16.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.17.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.16.0";
+  KI.VERSION = "4.17.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -622,6 +622,14 @@ try {
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
 (function (KI) {
+  /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
+     «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
+  const KI_JUST = (v) => ({
+    venstre: "flex-start", midten: "center", midt: "center", senter: "center",
+    hoyre: "flex-end", høyre: "flex-end",
+    left: "flex-start", center: "center", right: "flex-end",
+  }[String(v || "").toLowerCase()] || v || "center");
+
   class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
     static getConfigElement() { return document.createElement("ki-tabs-card-editor"); }
@@ -654,7 +662,7 @@ try {
         :host { overflow:visible; position:relative; }
         :host(.ki-meny-apen) { z-index:99; }
         .wrap { display:flex; flex-direction:column; gap:${c.gap ?? 12}px; max-width:100%; }
-        .bar { display:flex; align-items:center; justify-content:${c.tittel ? "space-between" : (c.align || "center")};
+        .bar { display:flex; align-items:center; justify-content:${c.tittel ? "space-between" : KI_JUST(c.align)};
           gap:10px; position:relative; z-index:6; max-width:100%;
           ${sticky ? `position:sticky; top:0; padding:6px 0 8px; margin:-6px 0 -8px; border-radius:0 0 18px 18px;
             background:${c.bg || "var(--ki-tabs-bg, transparent)"}; ${c.bg ? "" : "backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);"}` : ""} }
@@ -685,12 +693,15 @@ try {
            tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
            likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
            til resten og ikke et alternativ på linje med dem. */
-        .tab.utenfor { flex:0 0 auto; margin-left:8px; width:40px; height:40px;
+        /* `.bar` har allerede gap:10px, så egen margin ga 18 px til sammen og fikk
+           knappen til å se løsrevet ut. Negativ margin trekker den inn til 4 px: rett
+           utenfor rammen, ikke et eget element lenger borte. */
+        .tab.utenfor { flex:0 0 auto; margin-left:-6px; width:40px; height:40px;
           padding:0; justify-content:center; border-radius:50%;
           border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;
           transition:background .15s, color .15s, transform .25s cubic-bezier(.2,.8,.2,1); }
         .tab.utenfor.active { transform:scale(1.04); }
-        .bar.scroll .tab.utenfor { margin-left:8px; }
+        .bar.scroll .tab.utenfor { margin-left:-6px; }
         /* Panelet glir inn fra den siden man kom fra. Retningen er poenget: uten den
            ser det ut som innholdet bare blinker, og man mister følelsen av hvor i rada
            man er. */
@@ -907,8 +918,22 @@ try {
    * tomt felt. Fanene kan redigeres uansett.
    */
   class SkTabsEditor extends HTMLElement {
-    setConfig(c) { this._c = JSON.parse(JSON.stringify(c || {})); this._valgt = this._valgt ?? 0; this._r(); }
-    set hass(h) { this._h = h; this._r(); }
+    setConfig(c) {
+      this._c = JSON.parse(JSON.stringify(c || {}));
+      this._valgt = this._valgt ?? 0;
+      this._r();
+    }
+
+    /* `set hass` fyres hver gang EN tilstand i huset endrer seg — mange ganger i
+       minuttet. Den bygde hele editoren på nytt hver gang, med nye ha-form- og
+       kortelementer, og det var derfor den hakket mens man skrev.
+       Nå sendes hass bare videre til underelementene, som er det de faktisk trenger. */
+    set hass(h) {
+      const forst = !this._h;
+      this._h = h;
+      if (forst) { this._r(); return; }
+      for (const el of this._underEl || []) el.hass = h;
+    }
 
     _ut() {
       KI.fire(this, "config-changed", { config: this._c });
@@ -939,6 +964,7 @@ try {
 
     _r() {
       if (!this._h || !this._c) return;
+      this._underEl = [];
       const t = this._tabs();
       const v = Math.max(0, Math.min(this._valgt || 0, t.length - 1));
       this._valgt = v;
@@ -968,6 +994,9 @@ try {
         .merk { font-size:13px; opacity:.7; line-height:1.5; }
         .felt { display:grid; gap:8px; margin-bottom:8px; }
       </style>
+      <h4>Kortet</h4>
+      <div class="felt" id="kortform2"></div>
+      <h4>Faner</h4>
       <div class="liste">${t.map((x, i) => `
         <div class="fane ${i === v ? "valgt" : ""}">
           <span class="navn" data-velg="${i}">${KI.esc(x.title || "")
@@ -987,6 +1016,8 @@ try {
 
       rot.querySelectorAll("[data-velg]").forEach((el) =>
         el.addEventListener("click", () => { this._valgt = +el.dataset.velg; this._r(); }));
+      /* Alle knappene under bygger fanelista på nytt, som er billig. Det dyre er
+         ha-form og kortredigererne, og de røres bare når valgt fane faktisk endres. */
       rot.querySelectorAll("[data-opp]").forEach((el) =>
         el.addEventListener("click", () => this._flytt(+el.dataset.opp, -1)));
       rot.querySelectorAll("[data-ned]").forEach((el) =>
@@ -995,8 +1026,34 @@ try {
         el.addEventListener("click", () => this._slett(+el.dataset.slett)));
       rot.querySelector("[data-ny]").addEventListener("click", () => this._nyFane());
 
+      this._kortform2(rot.querySelector("#kortform2"));
       this._faneform(rot.querySelector("#faneform"), t[v] || {});
       this._kortform(rot.querySelector("#kort"), v);
+      this._sistBygd = v;
+    }
+
+    /* Innstillinger for hele kortet, ikke for én fane. */
+    _kortform2(vert) {
+      if (!vert) return;
+      const f = document.createElement("ha-form");
+      f.hass = this._h;
+      f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "" };
+      f.schema = [
+        { name: "align", selector: { select: { mode: "dropdown", options: [
+          { value: "venstre", label: "Venstre" },
+          { value: "midten", label: "Midten" },
+          { value: "hoyre", label: "Høyre" }] } } },
+        { name: "tittel", selector: { text: {} } },
+      ];
+      const navn = { align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)" };
+      f.computeLabel = (x) => navn[x.name] || x.name;
+      f.addEventListener("value-changed", (e) => {
+        Object.assign(this._c, e.detail.value);
+        if (!this._c.tittel) delete this._c.tittel;
+        KI.fire(this, "config-changed", { config: this._c });
+      });
+      (this._underEl = this._underEl || []).push(f);
+      vert.appendChild(f);
     }
 
     _faneform(vert, fane) {
@@ -1011,6 +1068,7 @@ try {
       const navn = { title: "Tittel (tom = bare ikon)", icon: "Ikon",
                      aria: "Skjermlesertekst (for faner uten tittel)" };
       f.computeLabel = (x) => navn[x.name] || x.name;
+      (this._underEl = this._underEl || []).push(f);
       f.addEventListener("value-changed", (e) => {
         Object.assign(this._tabs()[this._valgt], e.detail.value);
         /* Tomme strenger fjernes, ellers står `icon: ""` igjen i YAML-en og ser ut som
@@ -1042,6 +1100,7 @@ try {
         const e = document.createElement("hui-card-element-editor");
         e.hass = this._h; e.lovelace = this._lovelace; e.value = k;
         e.style.flex = "1";
+        (this._underEl = this._underEl || []).push(e);
         e.addEventListener("config-changed", (ev) => {
           ev.stopPropagation();
           const liste = this._tabs()[i].cards || [];
