@@ -176,7 +176,21 @@
          `requestAnimationFrame` fordi offsetWidth er 0 før første layout, og pilla da
          ville fått bredde null og stått usynlig til første fanebytte. */
       for (const rad of r.querySelectorAll(".tabs.pills, .spor")) this._koblDra(rad);
-      requestAnimationFrame(() => this._flyttPille(this._active, true));
+
+      /* Måling ved oppstart er vanskeligere enn den ser ut.
+       *
+       * Ett `requestAnimationFrame` er ikke nok: kortet kan fortsatt være i ferd med å
+       * legge ut, skrifta er ikke byttet fra reservefonten, og i en popup animeres
+       * hele flata inn mens vi måler. Pilla ble derfor riktig først etter et fanebytte
+       * — som er nøyaktig det du så.
+       *
+       * Vi måler flere ganger: to bilder på rad, og igjen etter 120 og 400 ms. Det er
+       * billig, det er usynlig når målingen alt er riktig, og det dekker både treg
+       * fontlasting og en popup som glir inn. */
+      const mal = () => this._flyttPille(this._active, true);
+      requestAnimationFrame(() => { mal(); requestAnimationFrame(mal); });
+      setTimeout(mal, 120);
+      setTimeout(mal, 400);
 
       /* Fanebredden endrer seg når skrifta er ferdig lastet og når kortet endrer
          størrelse. Uten disse to sto pilla igjen på gammel bredde — målt mot
@@ -187,8 +201,12 @@
       if (this._ro) this._ro.disconnect();
       if (window.ResizeObserver) {
         this._ro = new ResizeObserver(() => this._flyttPille(this._active, true));
+        /* Vi ser på rada OG på hver enkelt fane. Rada kan ha samme bredde mens en fane
+           inni vokser — for eksempel når skrifta byttes — og da fikk pilla gammel
+           bredde uten at noe varslet oss. */
         const rad = r.querySelector(".tabs.pills") || r.querySelector(".spor");
         if (rad) this._ro.observe(rad);
+        for (const b of r.querySelectorAll(".tab[data-i]")) this._ro.observe(b);
       }
       const spor = r.querySelector(".spor"), scroller = r.querySelector(".scroller");
       const kanter = () => {
@@ -556,19 +574,55 @@
       if (!vert) return;
       const f = document.createElement("ha-form");
       f.hass = this._h;
-      f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "" };
+      f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
+        tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
+        bg: this._c.bg || "", style: this._c.style || "auto",
+        sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under };
+      /* Alle valgene kortet faktisk leser, ikke bare to. Feltene er gruppert som i
+         simple-tabs' editor: utseende først, så oppførsel — det er den rekkefølgen man
+         leter i når man skal endre noe. */
       f.schema = [
-        { name: "align", selector: { select: { mode: "dropdown", options: [
-          { value: "venstre", label: "Venstre" },
-          { value: "midten", label: "Midten" },
-          { value: "hoyre", label: "Høyre" }] } } },
-        { name: "tittel", selector: { text: {} } },
+        { name: "utseende", type: "expandable", flatten: true, icon: "mdi:palette",
+          schema: [
+            { name: "align", selector: { select: { mode: "dropdown", options: [
+              { value: "venstre", label: "Venstre" },
+              { value: "midten", label: "Midten" },
+              { value: "hoyre", label: "Høyre" }] } } },
+            { name: "tittel", selector: { text: {} } },
+            { name: "tittel_storrelse", selector: { text: {} } },
+            { name: "gap", selector: { number: { min: 0, max: 48, mode: "slider" } } },
+            { name: "bg", selector: { text: {} } },
+          ] },
+        { name: "oppforsel", type: "expandable", flatten: true, icon: "mdi:cog-outline",
+          schema: [
+            { name: "style", selector: { select: { mode: "dropdown", options: [
+              { value: "auto", label: "Automatisk" },
+              { value: "pills", label: "Piller" },
+              { value: "scroll", label: "Rullbar rad" },
+              { value: "dropdown", label: "Nedtrekksmeny" }] } } },
+            { name: "sticky", selector: { boolean: {} } },
+            { name: "dropdown_under", selector: { boolean: {} } },
+          ] },
       ];
-      const navn = { align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)" };
+      const navn = { utseende: "Utseende", oppforsel: "Oppførsel",
+        align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)",
+        tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
+        gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
+        style: "Form", sticky: "Fest rada øverst ved rulling",
+        dropdown_under: "Nedtrekk under rada i stedet for over" };
       f.computeLabel = (x) => navn[x.name] || x.name;
       f.addEventListener("value-changed", (e) => {
         Object.assign(this._c, e.detail.value);
-        if (!this._c.tittel) delete this._c.tittel;
+        /* Tomme og standardverdier ut av YAML-en. Ellers står `bg: ""` og
+           `sticky: false` igjen og ser ut som noe man har valgt. */
+        for (const k of ["tittel", "tittel_storrelse", "bg"]) {
+          if (!this._c[k]) delete this._c[k];
+        }
+        for (const k of ["sticky", "dropdown_under"]) {
+          if (!this._c[k]) delete this._c[k];
+        }
+        if (this._c.style === "auto") delete this._c.style;
+        if (this._c.gap === 12 || this._c.gap === undefined) delete this._c.gap;
         KI.fire(this, "config-changed", { config: this._c });
       });
       (this._underEl = this._underEl || []).push(f);

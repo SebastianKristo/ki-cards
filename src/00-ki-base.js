@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.26.0";
+  KI.VERSION = "4.27.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -467,6 +467,7 @@ window.KI = window.KI || {};
     const knapp = valg.knapp || "\.tab-button";
     const aktiv = valg.aktiv || "active";
 
+    const kn = kn;
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
       if (!r || r.dataset.kiPille) return false;
@@ -483,15 +484,15 @@ window.KI = window.KI || {};
             transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
             pointer-events:none; z-index:0; }
           .ki-pille.drar { transition:none; }
-          ${knapp.replace(/\\/g, "")} { position:relative; z-index:1;
+          ${kn} { position:relative; z-index:1;
             transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
-          ${knapp.replace(/\\/g, "")}:active { transform:scale(.94); }
+          ${kn}:active { transform:scale(.94); }
           /* Kortets egen aktivbakgrunn slås av — pilla er den nå. */
-          ${knapp.replace(/\\/g, "")}.${aktiv} { background:transparent !important;
+          ${kn}.${aktiv} { background:transparent !important;
             box-shadow:none !important; }
           @media (prefers-reduced-motion: reduce) {
             .ki-pille { transition:none; }
-            ${knapp.replace(/\\/g, "")}:active { transform:none; }
+            ${kn}:active { transform:none; }
           }`;
         sr.appendChild(st);
       }
@@ -501,7 +502,7 @@ window.KI = window.KI || {};
       r.insertBefore(pille, r.firstChild);
 
       const flytt = (uten) => {
-        const a = r.querySelector(knapp.replace(/\\/g, "") + "." + aktiv);
+        const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
         pille.classList.toggle("drar", !!uten);
         const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
@@ -514,16 +515,28 @@ window.KI = window.KI || {};
       const mo = new MutationObserver(() => flytt(false));
       mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"] });
       r.addEventListener("scroll", () => flytt(true), { passive: true });
-      if (window.ResizeObserver) new ResizeObserver(() => flytt(true)).observe(r);
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => flytt(true));
+        ro.observe(r);
+        /* Også hver knapp: rada kan ha samme bredde mens en fane inni vokser når
+           skrifta byttes fra reservefonten. */
+        for (const b of r.querySelectorAll(kn)) ro.observe(b);
+      }
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => flytt(true));
-      requestAnimationFrame(() => flytt(true));
+
+      /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
+         ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble
+         pilla riktig først etter et fanebytte. */
+      requestAnimationFrame(() => { flytt(true); requestAnimationFrame(() => flytt(true)); });
+      setTimeout(() => flytt(true), 120);
+      setTimeout(() => flytt(true), 400);
 
       /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
          egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
          haptikk som før. */
       let ned = 0, startX = 0, drar = false;
       r.addEventListener("pointerdown", (e) => {
-        const b = e.target.closest && e.target.closest(knapp.replace(/\\/g, ""));
+        const b = e.target.closest && e.target.closest(kn);
         if (!b) return;
         ned = e.clientX;
         startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
@@ -547,7 +560,7 @@ window.KI = window.KI || {};
         const rk = r.getBoundingClientRect();
         const x = e.clientX - rk.left + r.scrollLeft;
         let best = null, av = Infinity;
-        for (const b of r.querySelectorAll(knapp.replace(/\\/g, ""))) {
+        for (const b of r.querySelectorAll(kn)) {
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }

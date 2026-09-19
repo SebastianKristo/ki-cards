@@ -1,45 +1,45 @@
-# ki-cards 4.26.0
+# ki-cards 4.27.0
 
-## Glidende pille og dra på `simple-tabs` også
+## Pilla satt feil helt til du byttet fane
 
-Etasjevelgeren i `ki-hjem-card`, kalenderfanene og «Framover» bruker alle
-**`simple-tabs`** — ikke `ki-tabs-card`. Animasjonen fra 4.25.0 gjaldt derfor ikke der.
+Du så det presist: feil ved første visning, riktig etter en tur til fane 2 og tilbake.
 
-`simple-tabs.js` er minifisert tredjepartskode. En lapp i den fila ville forsvunnet ved
-neste oppdatering av kortet, så den er ikke rørt.
+Ett `requestAnimationFrame` er ikke nok. Ved oppstart kan kortet fortsatt legge ut,
+skrifta er ikke byttet fra reservefonten — som er smalere — og i en popup animeres hele
+flata inn mens vi måler. Første måling traff derfor et mellomstadium, og først ved
+fanebytte ble den gjort på nytt.
 
-I stedet settes pilla og håndtererne inn i kortets **shadowRoot** — samme vei
-`ki-hjem-card` alt injiserer CSS dit. Ny hjelper: `KI.pillefaner(element)`.
+Nå måles det flere ganger: to bilder på rad, og igjen etter 120 og 400 ms. Det er billig,
+usynlig når målingen alt er riktig, og dekker både treg fontlasting og en popup som glir
+inn.
 
-### Den tar ikke over valget
+`ResizeObserver` ser nå også på **hver enkelt fane**, ikke bare rada. Rada kan ha samme
+bredde mens en fane inni vokser, og da fikk pilla gammel bredde uten at noe varslet oss.
 
-Pilla følger kortets egen `.active`-klasse gjennom en `MutationObserver`, og ved slipp
-kaller vi knappens **egen** `click()`. Da virker deep-link, fanehukommelse og haptikk som
-før — vi legger bare bevegelsen oppå.
+Samme rettelse i `KI.pillefaner`, som gir simple-tabs den samme pilla.
 
-Kortets egen aktivbakgrunn slås av, siden pilla er den nå.
+## Editoren for `ki-tabs-card` viser alle valgene
 
-### Virker nå i
+Den hadde to felt. Kortet leser åtte.
 
-Etasjevelgeren, uten at du endrer noe. Den bygges av `ki-hjem-card`, og hjelperen kalles
-der CSS-en alt injiseres.
+Nå er de gruppert i to sammenleggbare seksjoner, som i simple-tabs' editor — utseende
+først, så oppførsel. Det er den rekkefølgen man leter i.
 
-**Kalender og Framover er dine egne `simple-tabs` i YAML**, så de får den ikke
-automatisk. To veier: bytt de to til `custom:ki-tabs-card`, som har animasjonen innebygd
-og i tillegg lar deg flytte faner i UI — eller si fra, så legger jeg inn en global
-oppgradering som tar alle `simple-tabs` på siden. Jeg gjorde ikke det siste uoppfordret:
-å endre kort du ikke har bedt om er for inngripende.
+**Utseende:** plassering, tittel, tittelstørrelse, avstand under rada, bakgrunn når rada
+er festet.
+**Oppførsel:** form (automatisk, piller, rullbar, nedtrekk), fest rada ved rulling,
+nedtrekk under rada.
+
+Standardverdier skrives ikke til YAML-en. Uten det ville `bg: ""` og `sticky: false` stått
+igjen og sett ut som noe du hadde valgt.
 
 ### Kontrollert
 
-Pilla settes inn først i rada, stilen legges i shadowRoot, plasseringen måles fra
-rektangelet, kortets aktivbakgrunn slås av, og et nytt kall på samme element gir ikke to
-piller.
-
-Bygget stoppet først på at hjelperen lå utenfor modulen — `verifiser-styles` fanget det.
+Begge gruppene med riktige felt og norske etiketter, og en lagring med bare
+standardverdier gir en konfigurasjon uten støy.
 
 ---
 
-# ki-cards 4.25.1
+# ki-cards 4.26.0
 
-Pilla lå tre piksler for langt til venstre; måles nå med `getBoundingClientRect`.
+`KI.pillefaner` gir simple-tabs samme glidende pille, uten å røre den minifiserte fila.

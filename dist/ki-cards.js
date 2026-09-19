@@ -1,4 +1,4 @@
-/* ki-cards v4.26.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.27.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.26.0";
+  KI.VERSION = "4.27.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -497,6 +497,7 @@ window.KI = window.KI || {};
     const knapp = valg.knapp || "\.tab-button";
     const aktiv = valg.aktiv || "active";
 
+    const kn = kn;
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
       if (!r || r.dataset.kiPille) return false;
@@ -513,15 +514,15 @@ window.KI = window.KI || {};
             transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
             pointer-events:none; z-index:0; }
           .ki-pille.drar { transition:none; }
-          ${knapp.replace(/\\/g, "")} { position:relative; z-index:1;
+          ${kn} { position:relative; z-index:1;
             transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
-          ${knapp.replace(/\\/g, "")}:active { transform:scale(.94); }
+          ${kn}:active { transform:scale(.94); }
           /* Kortets egen aktivbakgrunn slås av — pilla er den nå. */
-          ${knapp.replace(/\\/g, "")}.${aktiv} { background:transparent !important;
+          ${kn}.${aktiv} { background:transparent !important;
             box-shadow:none !important; }
           @media (prefers-reduced-motion: reduce) {
             .ki-pille { transition:none; }
-            ${knapp.replace(/\\/g, "")}:active { transform:none; }
+            ${kn}:active { transform:none; }
           }`;
         sr.appendChild(st);
       }
@@ -531,7 +532,7 @@ window.KI = window.KI || {};
       r.insertBefore(pille, r.firstChild);
 
       const flytt = (uten) => {
-        const a = r.querySelector(knapp.replace(/\\/g, "") + "." + aktiv);
+        const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
         pille.classList.toggle("drar", !!uten);
         const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
@@ -544,16 +545,28 @@ window.KI = window.KI || {};
       const mo = new MutationObserver(() => flytt(false));
       mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"] });
       r.addEventListener("scroll", () => flytt(true), { passive: true });
-      if (window.ResizeObserver) new ResizeObserver(() => flytt(true)).observe(r);
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => flytt(true));
+        ro.observe(r);
+        /* Også hver knapp: rada kan ha samme bredde mens en fane inni vokser når
+           skrifta byttes fra reservefonten. */
+        for (const b of r.querySelectorAll(kn)) ro.observe(b);
+      }
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => flytt(true));
-      requestAnimationFrame(() => flytt(true));
+
+      /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
+         ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble
+         pilla riktig først etter et fanebytte. */
+      requestAnimationFrame(() => { flytt(true); requestAnimationFrame(() => flytt(true)); });
+      setTimeout(() => flytt(true), 120);
+      setTimeout(() => flytt(true), 400);
 
       /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
          egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
          haptikk som før. */
       let ned = 0, startX = 0, drar = false;
       r.addEventListener("pointerdown", (e) => {
-        const b = e.target.closest && e.target.closest(knapp.replace(/\\/g, ""));
+        const b = e.target.closest && e.target.closest(kn);
         if (!b) return;
         ned = e.clientX;
         startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
@@ -577,7 +590,7 @@ window.KI = window.KI || {};
         const rk = r.getBoundingClientRect();
         const x = e.clientX - rk.left + r.scrollLeft;
         let best = null, av = Infinity;
-        for (const b of r.querySelectorAll(knapp.replace(/\\/g, ""))) {
+        for (const b of r.querySelectorAll(kn)) {
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }
@@ -909,7 +922,21 @@ try {
          `requestAnimationFrame` fordi offsetWidth er 0 før første layout, og pilla da
          ville fått bredde null og stått usynlig til første fanebytte. */
       for (const rad of r.querySelectorAll(".tabs.pills, .spor")) this._koblDra(rad);
-      requestAnimationFrame(() => this._flyttPille(this._active, true));
+
+      /* Måling ved oppstart er vanskeligere enn den ser ut.
+       *
+       * Ett `requestAnimationFrame` er ikke nok: kortet kan fortsatt være i ferd med å
+       * legge ut, skrifta er ikke byttet fra reservefonten, og i en popup animeres
+       * hele flata inn mens vi måler. Pilla ble derfor riktig først etter et fanebytte
+       * — som er nøyaktig det du så.
+       *
+       * Vi måler flere ganger: to bilder på rad, og igjen etter 120 og 400 ms. Det er
+       * billig, det er usynlig når målingen alt er riktig, og det dekker både treg
+       * fontlasting og en popup som glir inn. */
+      const mal = () => this._flyttPille(this._active, true);
+      requestAnimationFrame(() => { mal(); requestAnimationFrame(mal); });
+      setTimeout(mal, 120);
+      setTimeout(mal, 400);
 
       /* Fanebredden endrer seg når skrifta er ferdig lastet og når kortet endrer
          størrelse. Uten disse to sto pilla igjen på gammel bredde — målt mot
@@ -920,8 +947,12 @@ try {
       if (this._ro) this._ro.disconnect();
       if (window.ResizeObserver) {
         this._ro = new ResizeObserver(() => this._flyttPille(this._active, true));
+        /* Vi ser på rada OG på hver enkelt fane. Rada kan ha samme bredde mens en fane
+           inni vokser — for eksempel når skrifta byttes — og da fikk pilla gammel
+           bredde uten at noe varslet oss. */
         const rad = r.querySelector(".tabs.pills") || r.querySelector(".spor");
         if (rad) this._ro.observe(rad);
+        for (const b of r.querySelectorAll(".tab[data-i]")) this._ro.observe(b);
       }
       const spor = r.querySelector(".spor"), scroller = r.querySelector(".scroller");
       const kanter = () => {
@@ -1289,19 +1320,55 @@ try {
       if (!vert) return;
       const f = document.createElement("ha-form");
       f.hass = this._h;
-      f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "" };
+      f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
+        tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
+        bg: this._c.bg || "", style: this._c.style || "auto",
+        sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under };
+      /* Alle valgene kortet faktisk leser, ikke bare to. Feltene er gruppert som i
+         simple-tabs' editor: utseende først, så oppførsel — det er den rekkefølgen man
+         leter i når man skal endre noe. */
       f.schema = [
-        { name: "align", selector: { select: { mode: "dropdown", options: [
-          { value: "venstre", label: "Venstre" },
-          { value: "midten", label: "Midten" },
-          { value: "hoyre", label: "Høyre" }] } } },
-        { name: "tittel", selector: { text: {} } },
+        { name: "utseende", type: "expandable", flatten: true, icon: "mdi:palette",
+          schema: [
+            { name: "align", selector: { select: { mode: "dropdown", options: [
+              { value: "venstre", label: "Venstre" },
+              { value: "midten", label: "Midten" },
+              { value: "hoyre", label: "Høyre" }] } } },
+            { name: "tittel", selector: { text: {} } },
+            { name: "tittel_storrelse", selector: { text: {} } },
+            { name: "gap", selector: { number: { min: 0, max: 48, mode: "slider" } } },
+            { name: "bg", selector: { text: {} } },
+          ] },
+        { name: "oppforsel", type: "expandable", flatten: true, icon: "mdi:cog-outline",
+          schema: [
+            { name: "style", selector: { select: { mode: "dropdown", options: [
+              { value: "auto", label: "Automatisk" },
+              { value: "pills", label: "Piller" },
+              { value: "scroll", label: "Rullbar rad" },
+              { value: "dropdown", label: "Nedtrekksmeny" }] } } },
+            { name: "sticky", selector: { boolean: {} } },
+            { name: "dropdown_under", selector: { boolean: {} } },
+          ] },
       ];
-      const navn = { align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)" };
+      const navn = { utseende: "Utseende", oppforsel: "Oppførsel",
+        align: "Plassering av fanerada", tittel: "Tittel til venstre (valgfri)",
+        tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
+        gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
+        style: "Form", sticky: "Fest rada øverst ved rulling",
+        dropdown_under: "Nedtrekk under rada i stedet for over" };
       f.computeLabel = (x) => navn[x.name] || x.name;
       f.addEventListener("value-changed", (e) => {
         Object.assign(this._c, e.detail.value);
-        if (!this._c.tittel) delete this._c.tittel;
+        /* Tomme og standardverdier ut av YAML-en. Ellers står `bg: ""` og
+           `sticky: false` igjen og ser ut som noe man har valgt. */
+        for (const k of ["tittel", "tittel_storrelse", "bg"]) {
+          if (!this._c[k]) delete this._c[k];
+        }
+        for (const k of ["sticky", "dropdown_under"]) {
+          if (!this._c[k]) delete this._c[k];
+        }
+        if (this._c.style === "auto") delete this._c.style;
+        if (this._c.gap === 12 || this._c.gap === undefined) delete this._c.gap;
         KI.fire(this, "config-changed", { config: this._c });
       });
       (this._underEl = this._underEl || []).push(f);
