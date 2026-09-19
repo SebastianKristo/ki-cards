@@ -563,6 +563,16 @@ class KiLanseringCard extends HTMLElement {
     }
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
+
+    /* Glidende pille på fanerada. Rett etter innerHTML, så den settes på hver gang
+       markupen byttes — ellers står ingen fane merket, siden stilen slår av kortets
+       egen aktivbakgrunn. */
+    {
+      const ki = (typeof window !== "undefined" && window.KI) || null;
+      if (ki && ki.pillefaner) {
+        ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
+      }
+    }
     // detaljlaget: lukk og lenkeknapper
     for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
       b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });

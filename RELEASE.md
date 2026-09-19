@@ -1,33 +1,40 @@
-# ki-cards 4.30.0
+# ki-cards 4.31.0
 
-## Dra-animasjon på «I dag / I morgen» i strømpriskortet
+## Glidende pille i hyttekortet og lanseringskortet
 
-`ki-strompris-card` har nå samme glidende pille, dra og trykkeffekt som de andre
-faneradene.
+`ki-hytte-card` (Kalender/Opphold/Statistikk) og `ki-lansering-card` har nå samme pille,
+dra og trykkeffekt som de andre.
 
-### To ting måtte håndteres
+Hyttekortet får den også på **stedsvelgeren** når flere steder vises.
 
-**Kortet er frittstående med vilje.** Det skal kunne legges i `/local/` og brukes uten
-ki-cards, og et direkte oppslag på `KI` kastet da «KI is not defined» — kortet forsvant
-fra bundelen. Nå leter det på `window.KI` og lar animasjonen være hvis den ikke er der.
-Kortet virker likt uansett; det er bare bevegelsen som mangler.
+### Kallet ligger der begge tegneveiene går gjennom
 
-Byggeskrittet fanget det: kortantallet falt fra 54 til 53.
+Hyttekortet har to veier til skjermen — vi fant det tidligere i dag da søkefeltet ikke
+kom opp ved ikonklikk. Her kunne samme deling gitt at pilla forsvant ved neste
+oppdatering, og da står ingen fane merket, siden stilen slår av kortets egen
+aktivbakgrunn.
 
-**«I morgen» kan være tom** før morgendagens priser er klare. `KI.pillefaner` hopper nå
-over faner som er `disabled` eller har en «av»-klasse — uten det ville dra landet på den,
-og klikket blitt avvist uten at man forsto hvorfor. Klassen oppgis med `av:` i valgene.
+`_pille()` kalles derfor fra `_kobl()`, som begge veiene bruker. Den tredje veien — «Fant
+ingen oversikt» — tegner ingen faner i det hele tatt, så den trenger den ikke.
+
+Lanseringskortet har én vei, og kallet ligger rett etter `innerHTML`.
 
 ### Nå med glidende pille
 
-`ki-tabs-card`, `ki-hjem-card` (etasjevelgeren), `ki-avfall-card`, `ki-sovn-pro-card` og
-`ki-strompris-card`.
+`ki-tabs-card`, `ki-hjem-card`, `ki-avfall-card`, `ki-sovn-pro-card`,
+`ki-strompris-card`, `ki-hytte-card` og `ki-lansering-card`.
 
-`ki-klima-strom-kort` er fortsatt et eget repo uten tilgang til hjelperen.
+De tre siste slår opp `window.KI` i stedet for `KI`, siden de skal kunne brukes
+frittstående fra `/local/`.
+
+### Kontrollert
+
+Dekningen gjennomgått kort for kort: begge tegneveiene i hyttekortet, «tom»-veien som
+returnerer før fanene, og at stedsvelgeren er med.
 
 ---
 
-# ki-cards 4.29.0
+# ki-cards 4.30.2
 
-Seks nye mål på fanerada — høyde, sidepadding, fanebredde, tekststørrelse, like brede
-faner og radbredde — som bare slår inn når de settes.
+Strømpriskortet mistet markeringen ved døgnbytte: pilla ble bare satt på én gang, og
+stilen hadde alt slått av kortets egen bakgrunn.

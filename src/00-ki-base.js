@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.30.0";
+  KI.VERSION = "4.31.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -488,8 +488,11 @@ window.KI = window.KI || {};
           ${kn} { position:relative; z-index:1;
             transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
           ${kn}:active { transform:scale(.94); }
-          /* Kortets egen aktivbakgrunn slås av — pilla er den nå. */
-          ${kn}.${aktiv} { background:transparent !important;
+          /* Kortets egen aktivbakgrunn slås av — men FØRST når pilla faktisk har
+             fått bredde. Uten den betingelsen sto alt umerket hvis pilla av en eller
+             annen grunn ikke ble plassert: vi hadde skrudd av det gamle uten å sette
+             noe i stedet. */
+          .ki-pille-klar ${kn}.${aktiv} { background:transparent !important;
             box-shadow:none !important; }
           @media (prefers-reduced-motion: reduce) {
             .ki-pille { transition:none; }
@@ -525,6 +528,8 @@ window.KI = window.KI || {};
         pille.style.setProperty("--w", kk.width + "px");
         vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
                               w: pille.style.getPropertyValue("--w") };
+        /* Først nå tør vi slå av kortets egen bakgrunn. */
+        r.classList.toggle("ki-pille-klar", kk.width > 0);
       };
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */

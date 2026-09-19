@@ -476,15 +476,21 @@ class KiStromprisCard extends HTMLElement {
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
 
-    /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
-     *
-     * Kortet er frittstående og skal virke uten ki-cards, så vi kan ikke slå opp `KI`
-     * direkte — den finnes ikke når fila brukes alene fra /local/. Vi leter på window,
-     * og lar animasjonen være hvis den ikke er der. Kortet virker likt uansett; det er
-     * bare bevegelsen som mangler.
-     *
-     * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
-     * ved dra. */
+  }
+
+  /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
+   *
+   * MÅ kalles etter HVER tegning, ikke bare fra `_koble()`. `.ramme` byttes ut i sin
+   * helhet når dagen skifter, så rada er en ny node — og siden stilen slår av kortets
+   * egen aktivbakgrunn, sto begge fanene umerket til pilla kom tilbake.
+   *
+   * Kortet er frittstående og skal virke uten ki-cards, så vi slår opp på window i
+   * stedet for å bruke `KI` direkte: den finnes ikke når fila brukes alene fra
+   * /local/. Uten den er kortet som før, bare uten bevegelsen.
+   *
+   * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
+   * ved dra. */
+  _pille() {
     const ki = (typeof window !== "undefined" && window.KI) || null;
     if (ki && ki.pillefaner) {
       ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: "tom" });
@@ -505,10 +511,11 @@ class KiStromprisCard extends HTMLElement {
       this._bygget = false; this._forrige = null;
       return;
     }
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; }
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; this._pille(); }
     else if (html !== this._forrige) {
       this.shadowRoot.querySelector(".ramme").outerHTML = html;
       this._forrige = html;
+      this._pille();
       // .ramme byttes ut i sin helhet, så elementet observeren så på finnes ikke lenger
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       this._maalevakt();

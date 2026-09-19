@@ -1,4 +1,4 @@
-/* ki-cards v4.30.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.31.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.30.0";
+  KI.VERSION = "4.31.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -518,8 +518,11 @@ window.KI = window.KI || {};
           ${kn} { position:relative; z-index:1;
             transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
           ${kn}:active { transform:scale(.94); }
-          /* Kortets egen aktivbakgrunn slås av — pilla er den nå. */
-          ${kn}.${aktiv} { background:transparent !important;
+          /* Kortets egen aktivbakgrunn slås av — men FØRST når pilla faktisk har
+             fått bredde. Uten den betingelsen sto alt umerket hvis pilla av en eller
+             annen grunn ikke ble plassert: vi hadde skrudd av det gamle uten å sette
+             noe i stedet. */
+          .ki-pille-klar ${kn}.${aktiv} { background:transparent !important;
             box-shadow:none !important; }
           @media (prefers-reduced-motion: reduce) {
             .ki-pille { transition:none; }
@@ -555,6 +558,8 @@ window.KI = window.KI || {};
         pille.style.setProperty("--w", kk.width + "px");
         vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
                               w: pille.style.getPropertyValue("--w") };
+        /* Først nå tør vi slå av kortets egen bakgrunn. */
+        r.classList.toggle("ki-pille-klar", kk.width > 0);
       };
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
@@ -1246,7 +1251,19 @@ try {
    */
   class SkTabsEditor extends HTMLElement {
     setConfig(c) {
-      this._c = JSON.parse(JSON.stringify(c || {}));
+      const tekst = JSON.stringify(c || {});
+
+      /* Home Assistant kaller setConfig på nytt etter HVER endring vi sender.
+       *
+       * Bygget vi editoren om da, lukket «Mål» og «Utseende» seg hver gang man dro i
+       * en glidebryter — man måtte åpne seksjonen på nytt for hvert steg.
+       *
+       * Kommer konfigurasjonen tilbake uendret fra det vi nettopp sendte, er det vårt
+       * eget ekko, og da rører vi ingenting. Er den endret utenfra — YAML-fanen, en
+       * annen editor — bygger vi som før. */
+      if (this._sisteUt === tekst) { this._c = JSON.parse(tekst); return; }
+
+      this._c = JSON.parse(tekst);
       this._valgt = this._valgt ?? 0;
       this._r();
     }
@@ -1263,6 +1280,9 @@ try {
     }
 
     _ut() {
+      /* Fanelista er endret — da SKAL editoren bygges om, ellers står den gamle lista.
+         Vi merker likevel ekkoet, så `setConfig` ikke bygger den om en gang til. */
+      this._sisteUt = JSON.stringify(this._c);
       KI.fire(this, "config-changed", { config: this._c });
       this._r();
     }
@@ -1438,10 +1458,17 @@ try {
         if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
         if (!this._c.fane_lik) delete this._c.fane_lik;
         if (!this._c.rad_bredde) delete this._c.rad_bredde;
-        KI.fire(this, "config-changed", { config: this._c });
+        this._send();
       });
       (this._underEl = this._underEl || []).push(f);
       vert.appendChild(f);
+    }
+
+    /* Ett sted som sender endringen ut, og som husker hva vi sendte — så `setConfig`
+       kan kjenne igjen sitt eget ekko. */
+    _send() {
+      this._sisteUt = JSON.stringify(this._c);
+      KI.fire(this, "config-changed", { config: this._c });
     }
 
     _faneform(vert, fane) {
@@ -1464,7 +1491,7 @@ try {
         for (const k of ["title", "icon", "aria"]) {
           if (!this._tabs()[this._valgt][k]) delete this._tabs()[this._valgt][k];
         }
-        KI.fire(this, "config-changed", { config: this._c });
+        this._send();
       });
       vert.appendChild(f);
     }
@@ -1495,7 +1522,7 @@ try {
           liste[ki] = ev.detail.config;
           this._tabs()[i].cards = liste;
           delete this._tabs()[i].card;
-          KI.fire(this, "config-changed", { config: this._c });
+          this._send();
         });
         const slett = document.createElement("button");
         slett.className = "ikn";
@@ -8139,15 +8166,21 @@ class KiStromprisCard extends HTMLElement {
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
 
-    /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
-     *
-     * Kortet er frittstående og skal virke uten ki-cards, så vi kan ikke slå opp `KI`
-     * direkte — den finnes ikke når fila brukes alene fra /local/. Vi leter på window,
-     * og lar animasjonen være hvis den ikke er der. Kortet virker likt uansett; det er
-     * bare bevegelsen som mangler.
-     *
-     * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
-     * ved dra. */
+  }
+
+  /* Glidende pille og dra på I dag / I morgen, som i faneradene ellers.
+   *
+   * MÅ kalles etter HVER tegning, ikke bare fra `_koble()`. `.ramme` byttes ut i sin
+   * helhet når dagen skifter, så rada er en ny node — og siden stilen slår av kortets
+   * egen aktivbakgrunn, sto begge fanene umerket til pilla kom tilbake.
+   *
+   * Kortet er frittstående og skal virke uten ki-cards, så vi slår opp på window i
+   * stedet for å bruke `KI` direkte: den finnes ikke når fila brukes alene fra
+   * /local/. Uten den er kortet som før, bare uten bevegelsen.
+   *
+   * «I morgen» har klassen `tom` før morgendagens priser er klare, og hoppes over
+   * ved dra. */
+  _pille() {
     const ki = (typeof window !== "undefined" && window.KI) || null;
     if (ki && ki.pillefaner) {
       ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: "tom" });
@@ -8168,10 +8201,11 @@ class KiStromprisCard extends HTMLElement {
       this._bygget = false; this._forrige = null;
       return;
     }
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; }
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._maalevakt(); this._bygget = true; this._forrige = html; this._pille(); }
     else if (html !== this._forrige) {
       this.shadowRoot.querySelector(".ramme").outerHTML = html;
       this._forrige = html;
+      this._pille();
       // .ramme byttes ut i sin helhet, så elementet observeren så på finnes ikke lenger
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       this._maalevakt();
@@ -13628,6 +13662,20 @@ class KiHytteCard extends HTMLElement {
     this._bygget = true;
   }
 
+  /* Glidende pille på fanerada, og på stedsvelgeren når flere steder vises.
+   *
+   * Kalles fra `_kobl()`, som kjører etter HVER tegning — kortet har to tegneveier, og
+   * begge går gjennom den. Ligger kallet bare ett sted, forsvinner pilla ved neste
+   * oppdatering, og da står ingen fane merket i det hele tatt. */
+  _pille() {
+    const ki = (typeof window !== "undefined" && window.KI) || null;
+    if (!ki || !ki.pillefaner) return;
+    ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
+    if (this.shadowRoot.querySelector(".stedskinne")) {
+      ki.pillefaner(this, { rad: ".stedskinne", knapp: ".stedskinne .fane", aktiv: "valgt" });
+    }
+  }
+
   _kobl() {
     const r = this.shadowRoot;
     const hero = r.querySelector(".hero");
@@ -13652,6 +13700,8 @@ class KiHytteCard extends HTMLElement {
       r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
     }));
     this._koblPaneler(r);
+
+    this._pille();
   }
 }
 if (!customElements.get("ki-hytte-card")) window.KI.define("ki-hytte-card", KiHytteCard);
@@ -16897,6 +16947,16 @@ class KiLanseringCard extends HTMLElement {
     }
     if (html === this._forrige) return;
     this.shadowRoot.innerHTML = html; this._forrige = html;
+
+    /* Glidende pille på fanerada. Rett etter innerHTML, så den settes på hver gang
+       markupen byttes — ellers står ingen fane merket, siden stilen slår av kortets
+       egen aktivbakgrunn. */
+    {
+      const ki = (typeof window !== "undefined" && window.KI) || null;
+      if (ki && ki.pillefaner) {
+        ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
+      }
+    }
     // detaljlaget: lukk og lenkeknapper
     for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
       b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });

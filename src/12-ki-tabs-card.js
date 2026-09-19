@@ -480,7 +480,19 @@
    */
   class SkTabsEditor extends HTMLElement {
     setConfig(c) {
-      this._c = JSON.parse(JSON.stringify(c || {}));
+      const tekst = JSON.stringify(c || {});
+
+      /* Home Assistant kaller setConfig på nytt etter HVER endring vi sender.
+       *
+       * Bygget vi editoren om da, lukket «Mål» og «Utseende» seg hver gang man dro i
+       * en glidebryter — man måtte åpne seksjonen på nytt for hvert steg.
+       *
+       * Kommer konfigurasjonen tilbake uendret fra det vi nettopp sendte, er det vårt
+       * eget ekko, og da rører vi ingenting. Er den endret utenfra — YAML-fanen, en
+       * annen editor — bygger vi som før. */
+      if (this._sisteUt === tekst) { this._c = JSON.parse(tekst); return; }
+
+      this._c = JSON.parse(tekst);
       this._valgt = this._valgt ?? 0;
       this._r();
     }
@@ -497,6 +509,9 @@
     }
 
     _ut() {
+      /* Fanelista er endret — da SKAL editoren bygges om, ellers står den gamle lista.
+         Vi merker likevel ekkoet, så `setConfig` ikke bygger den om en gang til. */
+      this._sisteUt = JSON.stringify(this._c);
       KI.fire(this, "config-changed", { config: this._c });
       this._r();
     }
@@ -672,10 +687,17 @@
         if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
         if (!this._c.fane_lik) delete this._c.fane_lik;
         if (!this._c.rad_bredde) delete this._c.rad_bredde;
-        KI.fire(this, "config-changed", { config: this._c });
+        this._send();
       });
       (this._underEl = this._underEl || []).push(f);
       vert.appendChild(f);
+    }
+
+    /* Ett sted som sender endringen ut, og som husker hva vi sendte — så `setConfig`
+       kan kjenne igjen sitt eget ekko. */
+    _send() {
+      this._sisteUt = JSON.stringify(this._c);
+      KI.fire(this, "config-changed", { config: this._c });
     }
 
     _faneform(vert, fane) {
@@ -698,7 +720,7 @@
         for (const k of ["title", "icon", "aria"]) {
           if (!this._tabs()[this._valgt][k]) delete this._tabs()[this._valgt][k];
         }
-        KI.fire(this, "config-changed", { config: this._c });
+        this._send();
       });
       vert.appendChild(f);
     }
@@ -729,7 +751,7 @@
           liste[ki] = ev.detail.config;
           this._tabs()[i].cards = liste;
           delete this._tabs()[i].card;
-          KI.fire(this, "config-changed", { config: this._c });
+          this._send();
         });
         const slett = document.createElement("button");
         slett.className = "ikn";

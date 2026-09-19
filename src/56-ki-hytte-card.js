@@ -1018,6 +1018,20 @@ class KiHytteCard extends HTMLElement {
     this._bygget = true;
   }
 
+  /* Glidende pille på fanerada, og på stedsvelgeren når flere steder vises.
+   *
+   * Kalles fra `_kobl()`, som kjører etter HVER tegning — kortet har to tegneveier, og
+   * begge går gjennom den. Ligger kallet bare ett sted, forsvinner pilla ved neste
+   * oppdatering, og da står ingen fane merket i det hele tatt. */
+  _pille() {
+    const ki = (typeof window !== "undefined" && window.KI) || null;
+    if (!ki || !ki.pillefaner) return;
+    ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
+    if (this.shadowRoot.querySelector(".stedskinne")) {
+      ki.pillefaner(this, { rad: ".stedskinne", knapp: ".stedskinne .fane", aktiv: "valgt" });
+    }
+  }
+
   _kobl() {
     const r = this.shadowRoot;
     const hero = r.querySelector(".hero");
@@ -1042,6 +1056,8 @@ class KiHytteCard extends HTMLElement {
       r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
     }));
     this._koblPaneler(r);
+
+    this._pille();
   }
 }
 if (!customElements.get("ki-hytte-card")) customElements.define("ki-hytte-card", KiHytteCard);
