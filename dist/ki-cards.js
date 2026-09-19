@@ -1,4 +1,4 @@
-/* ki-cards v4.31.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.33.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.31.0";
+  KI.VERSION = "4.33.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -501,7 +501,13 @@ window.KI = window.KI || {};
     const kn = knapp.replace(/\\/g, "");
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
-      if (!r || r.dataset.kiPille) return false;
+      if (!r) return false;
+
+      /* Flagget hindrer dobbel oppsett på SAMME rad. Men noen kort beholder rada og
+         bytter bare innmaten — da er pilla slettet mens flagget står igjen, og uten
+         denne sjekken ble den aldri satt inn på nytt. Resultatet var en fanerad helt
+         uten markering, siden stilen slår av kortets egen bakgrunn. */
+      if (r.dataset.kiPille && r.querySelector(".ki-pille")) return false;
       r.dataset.kiPille = "1";
 
       if (!sr.querySelector("style[data-ki-pille]")) {
@@ -1303,6 +1309,35 @@ try {
       this._valgt = Math.max(0, Math.min(this._valgt, t.length - 1));
       this._ut();
     }
+    /* Lesbart navn på et kort. `custom:ki-varsling-card` blir «Ki varsling card» —
+       det er slik HA selv skriver dem i kortvelgeren, og det er lettere å kjenne igjen
+       enn den rå typen. */
+    _korttype(k) {
+      const t = String((k && k.type) || "ukjent").replace(/^custom:/, "");
+      const ord = t.replace(/[-_]/g, " ").trim();
+      return ord.charAt(0).toUpperCase() + ord.slice(1);
+    }
+
+    _flyttKort(fane, i, d) {
+      const liste = this._tabs()[fane].cards || [];
+      const j = i + d;
+      if (j < 0 || j >= liste.length) return;
+      [liste[i], liste[j]] = [liste[j], liste[i]];
+      this._tabs()[fane].cards = liste;
+      delete this._tabs()[fane].card;
+      /* Redigerer man et kort, følger markøren med når det flyttes. */
+      if (this._redigerer === i) this._redigerer = j;
+      else if (this._redigerer === j) this._redigerer = i;
+      this._ut();
+    }
+
+    _slettKort(fane, i) {
+      (this._tabs()[fane].cards || []).splice(i, 1);
+      if (this._redigerer === i) this._redigerer = null;
+      else if (this._redigerer > i) this._redigerer -= 1;
+      this._ut();
+    }
+
     _nyFane() {
       this._tabs().push({ title: `Fane ${this._tabs().length + 1}`, cards: [] });
       this._valgt = this._tabs().length - 1;
@@ -1340,26 +1375,63 @@ try {
         h4 { margin:14px 0 6px; font-size:15px; }
         .merk { font-size:13px; opacity:.7; line-height:1.5; }
         .felt { display:grid; gap:8px; margin-bottom:8px; }
+
+        /* Fanen utvides der den står, med sitt eget innhold under — i stedet for at
+           alt lå i egne seksjoner langt nede på siden. */
+        .fanekort { border-radius:14px; background:var(--secondary-background-color);
+          overflow:hidden; }
+        .fanekort.apen { outline:2px solid var(--primary-color); }
+        .fanekort .fane { background:none; border-radius:0; }
+        .faneinnhold { padding:0 12px 12px; }
+        .kortoverskrift { font-size:14px; font-weight:500; margin:10px 0 6px; }
+        .kortrad { display:flex; align-items:center; gap:6px; padding:6px 4px 6px 10px;
+          border-radius:10px; background:rgba(128,128,128,.12); margin-bottom:6px; }
+        .kortrad .nr { opacity:.5; font-size:13px; min-width:16px; }
+        .kortrad .korttype { flex:1; min-width:0; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
       </style>
       <h4>Kortet</h4>
       <div class="felt" id="kortform2"></div>
       <h4>Faner</h4>
-      <div class="liste">${t.map((x, i) => `
-        <div class="fane ${i === v ? "valgt" : ""}">
-          <span class="navn" data-velg="${i}">${KI.esc(x.title || "")
-            || `<em>uten tittel</em>`}<small>${(x.cards || (x.card ? [x.card] : [])).length} kort</small></span>
-          <button class="ikn" data-opp="${i}" ${i === 0 ? "disabled" : ""}
-            title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
-          <button class="ikn" data-ned="${i}" ${i === t.length - 1 ? "disabled" : ""}
-            title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
-          <button class="ikn" data-slett="${i}" ${t.length <= 1 ? "disabled" : ""}
-            title="Fjern"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
-        </div>`).join("")}</div>
-      <button class="legg" data-ny="1">+ Legg til fane</button>
-      <h4>Fanen «${KI.esc(t[v] && t[v].title || "")}»</h4>
-      <div class="felt" id="faneform"></div>
-      <h4>Kort i fanen</h4>
-      <div id="kort"></div>`;
+      <div class="liste">${t.map((x, i) => {
+        const kort = x.cards || (x.card ? [x.card] : []);
+        const apen = i === v;
+        return `
+        <div class="fanekort ${apen ? "apen" : ""}">
+          <div class="fane">
+            <span class="navn" data-velg="${i}">${KI.esc(x.title || "")
+              || `<em>uten tittel</em>`}<small>${kort.length} kort</small></span>
+            <button class="ikn" data-opp="${i}" ${i === 0 ? "disabled" : ""}
+              title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+            <button class="ikn" data-ned="${i}" ${i === t.length - 1 ? "disabled" : ""}
+              title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
+            <button class="ikn" data-slett="${i}" ${t.length <= 1 ? "disabled" : ""}
+              title="Fjern"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+            <button class="ikn" data-velg="${i}" title="${apen ? "Lukk" : "Åpne"}">
+              <ha-icon icon="mdi:chevron-${apen ? "up" : "down"}"></ha-icon></button>
+          </div>
+          ${apen ? `<div class="faneinnhold">
+            <div class="felt" id="faneform"></div>
+            <div class="kortliste">
+              <div class="kortoverskrift">Kort</div>
+              ${kort.map((k, ki) => `
+                <div class="kortrad">
+                  <span class="nr">${ki + 1}</span>
+                  <span class="korttype">${KI.esc(this._korttype(k))}</span>
+                  <button class="ikn" data-kopp="${ki}" ${ki === 0 ? "disabled" : ""}
+                    title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+                  <button class="ikn" data-kned="${ki}" ${ki === kort.length - 1 ? "disabled" : ""}
+                    title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
+                  <button class="ikn" data-kred="${ki}" title="Rediger">
+                    <ha-icon icon="mdi:pencil"></ha-icon></button>
+                  <button class="ikn" data-kslett="${ki}" title="Fjern">
+                    <ha-icon icon="mdi:delete-outline"></ha-icon></button>
+                </div>`).join("") || `<div class="merk">Ingen kort ennå.</div>`}
+              <div id="kort"></div>
+            </div>
+          </div>` : ""}
+        </div>`; }).join("")}</div>
+      <button class="legg" data-ny="1">+ Legg til fane</button>`;
 
       rot.querySelectorAll("[data-velg]").forEach((el) =>
         el.addEventListener("click", () => { this._valgt = +el.dataset.velg; this._r(); }));
@@ -1373,9 +1445,26 @@ try {
         el.addEventListener("click", () => this._slett(+el.dataset.slett)));
       rot.querySelector("[data-ny]").addEventListener("click", () => this._nyFane());
 
+      /* Kortlista: flytt, rediger og fjern der kortet står. Tidligere lå alle
+         kortredigererne utbrettet under hverandre, og med fire kort i en fane fylte de
+         hele skjermen. Nå åpnes ett om gangen. */
+      rot.querySelectorAll("[data-kopp]").forEach((el) =>
+        el.addEventListener("click", () => this._flyttKort(v, +el.dataset.kopp, -1)));
+      rot.querySelectorAll("[data-kned]").forEach((el) =>
+        el.addEventListener("click", () => this._flyttKort(v, +el.dataset.kned, 1)));
+      rot.querySelectorAll("[data-kslett]").forEach((el) =>
+        el.addEventListener("click", () => this._slettKort(v, +el.dataset.kslett)));
+      rot.querySelectorAll("[data-kred]").forEach((el) =>
+        el.addEventListener("click", () => {
+          this._redigerer = this._redigerer === +el.dataset.kred ? null : +el.dataset.kred;
+          this._r();
+        }));
+
       this._kortform2(rot.querySelector("#kortform2"));
-      this._faneform(rot.querySelector("#faneform"), t[v] || {});
-      this._kortform(rot.querySelector("#kort"), v);
+      const ff = rot.querySelector("#faneform");
+      if (ff) this._faneform(ff, t[v] || {});
+      const kf = rot.querySelector("#kort");
+      if (kf) this._kortform(kf, v);
       this._sistBygd = v;
     }
 
@@ -1510,8 +1599,11 @@ try {
          editor i stedet for å bygge en kortvelger selv: den kjenner alle korttyper,
          også de som installeres senere. */
       kort.forEach((k, ki) => {
+        /* Bare kortet man har trykket blyanten på. Alle utbrettet samtidig gjorde
+           editoren uoversiktlig så snart en fane hadde mer enn to kort. */
+        if (this._redigerer !== ki) return;
         const rad = document.createElement("div");
-        rad.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:8px";
+        rad.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin:8px 0";
         const e = document.createElement("hui-card-element-editor");
         e.hass = this._h; e.lovelace = this._lovelace; e.value = k;
         e.style.flex = "1";
@@ -1524,14 +1616,7 @@ try {
           delete this._tabs()[i].card;
           this._send();
         });
-        const slett = document.createElement("button");
-        slett.className = "ikn";
-        slett.innerHTML = `<ha-icon icon="mdi:delete-outline"></ha-icon>`;
-        slett.addEventListener("click", () => {
-          (this._tabs()[i].cards || []).splice(ki, 1);
-          this._ut();
-        });
-        rad.append(e, slett);
+        rad.append(e);
         vert.appendChild(rad);
       });
 
@@ -19756,6 +19841,18 @@ class KiSikkerhetCard extends HTMLElement {
     this._sett(".fanerad", faner.length < 2 ? "" : faner.map((f) => `
       <button class="fane ${f === this._fane ? "valgt" : ""}" data-fane="${f}">${
         { sikkerhet: "Sikkerhet", laser: "Dørlåser", logg: "Logg" }[f]}</button>`).join(""));
+
+    /* Glidende pille på fanerada. Rett etter `_sett`, som skriver ny innmat ved hver
+       oppdatering — knappene er da nye noder, og pilla må festes på nytt. Ligger den
+       bare ett sted, forsvinner markeringen helt, siden stilen slår av kortets egen
+       aktivbakgrunn.
+       Er det bare én fane, tegnes ingen rad, og da er det ingenting å feste til. */
+    if (faner.length > 1) {
+      const ki = (typeof window !== "undefined" && window.KI) || null;
+      if (ki && ki.pillefaner) {
+        ki.pillefaner(this, { rad: ".fanerad", knapp: ".fanerad .fane", aktiv: "valgt" });
+      }
+    }
 
     const vis = (v, p) => { const el = this.shadowRoot.querySelector(v); if (el) el.style.display = p ? "" : "none"; };
     vis(".hero", this._fane === "sikkerhet");

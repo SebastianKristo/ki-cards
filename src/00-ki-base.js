@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.31.0";
+  KI.VERSION = "4.33.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -471,7 +471,13 @@ window.KI = window.KI || {};
     const kn = knapp.replace(/\\/g, "");
     const start = (sr) => {
       const r = sr.querySelector(rad.replace(/\\/g, ""));
-      if (!r || r.dataset.kiPille) return false;
+      if (!r) return false;
+
+      /* Flagget hindrer dobbel oppsett på SAMME rad. Men noen kort beholder rada og
+         bytter bare innmaten — da er pilla slettet mens flagget står igjen, og uten
+         denne sjekken ble den aldri satt inn på nytt. Resultatet var en fanerad helt
+         uten markering, siden stilen slår av kortets egen bakgrunn. */
+      if (r.dataset.kiPille && r.querySelector(".ki-pille")) return false;
       r.dataset.kiPille = "1";
 
       if (!sr.querySelector("style[data-ki-pille]")) {

@@ -1,40 +1,36 @@
-# ki-cards 4.31.0
+# ki-cards 4.33.0
 
-## Glidende pille i hyttekortet og lanseringskortet
+## Editoren for `ki-tabs-card` er bygget om
 
-`ki-hytte-card` (Kalender/Opphold/Statistikk) og `ki-lansering-card` har nå samme pille,
-dra og trykkeffekt som de andre.
+Før: en flat liste med faner øverst, og «Fanen «Tv»» og «Kort i fanen» som egne
+seksjoner langt nede. Man måtte rulle fram og tilbake for å se hva man redigerte.
 
-Hyttekortet får den også på **stedsvelgeren** når flere steder vises.
+Nå utvides fanen **der den står**, med sitt eget innhold under — samme form som i
+simple-tabs' editor.
 
-### Kallet ligger der begge tegneveiene går gjennom
+### Kortlista
 
-Hyttekortet har to veier til skjermen — vi fant det tidligere i dag da søkefeltet ikke
-kom opp ved ikonklikk. Her kunne samme deling gitt at pilla forsvant ved neste
-oppdatering, og da står ingen fane merket, siden stilen slår av kortets egen
-aktivbakgrunn.
+Nummererte rader med lesbart navn: `custom:ki-varsling-card` vises som «Ki varsling
+card», slik HA selv skriver dem i kortvelgeren.
 
-`_pille()` kalles derfor fra `_kobl()`, som begge veiene bruker. Den tredje veien — «Fant
-ingen oversikt» — tegner ingen faner i det hele tatt, så den trenger den ikke.
+Hver rad har opp, ned, blyant og søppelbøtte.
 
-Lanseringskortet har én vei, og kallet ligger rett etter `innerHTML`.
+**Bare kortet du trykker blyanten på åpnes.** Tidligere lå alle kortredigererne
+utbrettet samtidig, og med fire kort i en fane fylte de hele skjermen.
 
-### Nå med glidende pille
-
-`ki-tabs-card`, `ki-hjem-card`, `ki-avfall-card`, `ki-sovn-pro-card`,
-`ki-strompris-card`, `ki-hytte-card` og `ki-lansering-card`.
-
-De tre siste slår opp `window.KI` i stedet for `KI`, siden de skal kunne brukes
-frittstående fra `/local/`.
+Flytter du et kort du holder på å redigere, følger redigereren med. Sletter du et over
+det, flyttes markøren ned — ellers ville du plutselig redigert et annet kort enn du
+trodde.
 
 ### Kontrollert
 
-Dekningen gjennomgått kort for kort: begge tegneveiene i hyttekortet, «tom»-veien som
-returnerer før fanene, og at stedsvelgeren er med.
+To faner, én åpen. Kortrader nummerert med riktige navn. Flytting endrer rekkefølgen i
+konfigurasjonen, sletting fjerner riktig kort, og et klikk på en annen fane bytter hvilken
+som er åpen.
 
 ---
 
-# ki-cards 4.30.2
+# ki-cards 4.32.0
 
-Strømpriskortet mistet markeringen ved døgnbytte: pilla ble bare satt på én gang, og
-stilen hadde alt slått av kortets egen bakgrunn.
+Glidende pille i sikkerhetskortet, og hjelperen håndterer nå at rada overlever mens
+knappene byttes.

@@ -621,6 +621,18 @@ class KiSikkerhetCard extends HTMLElement {
       <button class="fane ${f === this._fane ? "valgt" : ""}" data-fane="${f}">${
         { sikkerhet: "Sikkerhet", laser: "Dørlåser", logg: "Logg" }[f]}</button>`).join(""));
 
+    /* Glidende pille på fanerada. Rett etter `_sett`, som skriver ny innmat ved hver
+       oppdatering — knappene er da nye noder, og pilla må festes på nytt. Ligger den
+       bare ett sted, forsvinner markeringen helt, siden stilen slår av kortets egen
+       aktivbakgrunn.
+       Er det bare én fane, tegnes ingen rad, og da er det ingenting å feste til. */
+    if (faner.length > 1) {
+      const ki = (typeof window !== "undefined" && window.KI) || null;
+      if (ki && ki.pillefaner) {
+        ki.pillefaner(this, { rad: ".fanerad", knapp: ".fanerad .fane", aktiv: "valgt" });
+      }
+    }
+
     const vis = (v, p) => { const el = this.shadowRoot.querySelector(v); if (el) el.style.display = p ? "" : "none"; };
     vis(".hero", this._fane === "sikkerhet");
     vis(".tastatur", this._fane === "sikkerhet");
