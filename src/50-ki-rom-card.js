@@ -578,10 +578,14 @@
        noe annet, og blandet inn ville den forsvunnet bak et sveip man ikke visste om.
        Er det ingen ovner, er lista alt som vises. */
     if (vifter.length) {
-      body = (enheter.length ? body : []).concat([{
-        square: false, type: 'grid', columns: 1,
-        cards: vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
-      }]);
+      /* Luft mellom ovnene og viftene. Uten den klistrer viftekortet seg til
+         undersiden av ovnen, og de ser ut som ett element. Samme avstand som mellom
+         mediekortene lenger nede. */
+      body = (enheter.length ? body.concat([{ type: 'custom:gap-card', height: 8 }]) : [])
+        .concat([{
+          square: false, type: 'grid', columns: 1,
+          cards: vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
+        }]);
     }
 
     return expander(

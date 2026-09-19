@@ -108,7 +108,13 @@
           padding:0; justify-content:center; border-radius:50%;
           border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;
           transition:background .15s, color .15s, transform .25s cubic-bezier(.2,.8,.2,1); }
-        .tab.utenfor.active { transform:scale(1.04); }
+        /* Fanen utenfor gruppa får fyllingen SELV. Pilla glir bare inne i pillegruppa
+           og kan ikke nå hit, og siden den er markeringen ellers, sto denne fanen helt
+           umerket når den var valgt. Den hadde bakgrunnen fra .tab.active før pilla
+           kom, og mistet den da den regelen ble fjernet. */
+        .tab.utenfor.active { transform:scale(1.04); background:var(--active-big);
+          color:rgba(70,58,64,.95); border-color:transparent;
+          box-shadow:0 1px 6px rgba(0,0,0,.35); }
         .bar.scroll .tab.utenfor { margin-left:-6px; }
         /* Panelet glir inn fra den siden man kom fra. Retningen er poenget: uten den
            ser det ut som innholdet bare blinker, og man mister følelsen av hvor i rada
@@ -133,6 +139,10 @@
            fingeren og lander på fanen du slipper over.
            Fanene ligger over pilla, så teksten er lesbar mens den glir under. */
         .tabs, .spor { position:relative; }
+        /* Samme som i KI.pillefaner: pilla holdes skjult til skrifta er lastet, så
+           den ikke vises et øyeblikk med feil bredde. */
+        .pille { opacity:0; }
+        .pille.klar { opacity:1; }
         .pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
           background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
           transform:translateX(var(--x, 0px)); width:var(--w, 0px);
@@ -211,6 +221,15 @@
        * Vi måler flere ganger: to bilder på rad, og igjen etter 120 og 400 ms. Det er
        * billig, det er usynlig når målingen alt er riktig, og det dekker både treg
        * fontlasting og en popup som glir inn. */
+      /* Skrifta avgjør fanebredden og lastes etter tegningen. Se kommentaren i
+         KI.pillefaner: vises pilla før det, er den målt mot reservefonten. */
+      this._fontKlar = !(document.fonts && document.fonts.ready);
+      if (!this._fontKlar) {
+        document.fonts.ready.then(() => {
+          this._fontKlar = true;
+          this._flyttPille(this._active, true);
+        });
+      }
       const mal = () => this._flyttPille(this._active, true);
       requestAnimationFrame(() => { mal(); requestAnimationFrame(mal); });
       setTimeout(mal, 120);
@@ -350,6 +369,9 @@
         const pille = rad.querySelector(".pille");
         const knapp = rad.querySelector(`.tab[data-i="${i}"]`);
         if (!pille) continue;
+        /* Er den valgte fanen utenfor denne rada — en `utenfor: true`-fane — skjules
+           pilla. Ellers ville den blitt stående på fanen man kom fra, som om to var
+           valgt samtidig. */
         if (!knapp) { pille.style.setProperty("--w", "0px"); continue; }
         pille.classList.toggle("drar", uten);
 
@@ -374,6 +396,7 @@
         const venstre = parseFloat(stil.borderLeftWidth) || 0;
         pille.style.setProperty("--x", (kk.left - rk.left - venstre) + "px");
         pille.style.setProperty("--w", kk.width + "px");
+        pille.classList.toggle("klar", kk.width > 0 && this._fontKlar !== false);
       }
     }
 

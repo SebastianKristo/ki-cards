@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.7.1";
+  KI.VERSION = "5.9.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -485,6 +485,14 @@ window.KI = window.KI || {};
         st.dataset.kiPille = "1";
         st.textContent = `
           ${rad.replace(/\\/g, "")} { position:relative; }
+          /* Pilla er usynlig til første ekte måling er gjort.
+             Måles den før skrifta er byttet fra reservefonten, er fanen en annen
+             bredde, og pilla sto et øyeblikk for bred og uten innrykk før den rettet
+             seg. Å vise ingenting i det halve sekundet er bedre enn å vise noe feil.
+             Kortets egen aktivbakgrunn står så lenge, siden ki-pille-klar settes
+             samtidig. INGEN backticks her — dette er inne i en mal-streng. */
+          .ki-pille { opacity:0; }
+          .ki-pille.klar { opacity:1; }
           .ki-pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
             background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
             transform:translateX(var(--x,0px)); width:var(--w,0px);
@@ -542,6 +550,14 @@ window.KI = window.KI || {};
          bytte, selv om vi ikke har sett den forrige fanen i DENNE oppkoblingen —
          derfor starter vi på et tomt objekt og ikke på fanen selv. */
       let sisteFane = vert._kiPilleSist ? {} : null;
+      /* Skrifta avgjør fanebredden, og den lastes etter at kortet er tegnet.
+         Viser vi pilla på første måling, er den målt mot reservefonten — for bred og
+         uten innrykk — og retter seg et halvt sekund senere. Det er nettopp blinket
+         man ser. Derfor venter vi på at skrifta er ferdig.
+         Finnes ikke API-et, viser vi med en gang: bedre enn aldri. */
+      let fontKlar = !(document.fonts && document.fonts.ready);
+      if (!fontKlar) document.fonts.ready.then(() => { fontKlar = true; flytt(true); });
+
       const flytt = (uten) => {
         const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
@@ -555,7 +571,12 @@ window.KI = window.KI || {};
         vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
                               w: pille.style.getPropertyValue("--w") };
         /* Først nå tør vi slå av kortets egen bakgrunn. */
-        r.classList.toggle("ki-pille-klar", kk.width > 0);
+        /* Først når vi har en ekte bredde tør vi vise pilla og slå av kortets egen
+           bakgrunn. De to henger sammen: skjer det ene uten det andre, står enten
+           ingenting merket, eller begge deler samtidig. */
+        const harMaal = kk.width > 0 && fontKlar;
+        r.classList.toggle("ki-pille-klar", harMaal);
+        pille.classList.toggle("klar", harMaal);
       };
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
@@ -569,7 +590,6 @@ window.KI = window.KI || {};
            skrifta byttes fra reservefonten. */
         for (const b of r.querySelectorAll(kn)) ro.observe(b);
       }
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => flytt(true));
 
       /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
          ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble

@@ -1,27 +1,33 @@
-# ki-cards 5.7.1
+# ki-cards 5.9.0
 
-## Viftene ut av sveipekortet
+## Nytt kort: `ki-eksempler-card`
 
-I 5.7.0 la jeg viftene i samme kortliste som panelovnene, og da havnet de inne i
-sveipekortet.
+Hva hverdagslige ting koster ved dagens strømpris — lading, dusj, tørketrommel,
+panelovn — som **én liste** i stedet for ett knappekort per eksempel.
 
-Sveipet er til for å bla mellom flere av **samme** slag. En vifte er noe annet, og
-blandet inn ville den forsvunnet bak et sveip man ikke visste om.
+Elleve eksempler følger med. Egne settes med `eksempler:`, der hver linje er navn, ikon,
+kWh og en note.
 
-Panelovnene beholder sveipekortet som før. Viftene ligger nå i en egen liste **under**
-det.
+### Noten er poenget
 
-Er det ingen ovner i rommet, er viftelista alt som vises — da er det ikke noe tomt
-sveipekort over.
+Et anslag uten forutsetninger ser ut som fasit. «Dusj 10 min · 3,24 kr» sier lite uten
+«8 l/min, 30 °C oppvarming» under — da kan man justere tallet selv om ens egen dusj er
+en annen. `vis_note: false` skjuler dem.
+
+Beløp over ti kroner vises uten desimaler. 99 kr er lettere å lese enn 98,83 kr, og
+presisjonen er likevel ikke der.
+
+Kortet tegner bare om når prisen endrer seg, ikke ved hver tilstandsendring i huset.
 
 ### Kontrollert
 
-Fem sammensetninger: tre ovner uten vifter gir bare sveipet; tre ovner med to vifter gir
-sveip pluss liste; én ovn med én vifte gir to lister; ingen ovner med to vifter gir bare
-viftelista; og `klima_layout: liste` gir to lister.
+Elleve eksempler med riktig regnestykke — 85,2 kWh mot 1,16 kr/kWh gir 99 kr. Egne
+eksempler, skjulte noter, og en tydelig melding når prissensoren mangler.
+
+Bundelen er nå 55 kort.
 
 ---
 
-# ki-cards 5.7.0
+# ki-cards 5.8.0
 
-`ki-rom-card`: viftene flyttet fra Enheter til Klima, med effektsummen og tomhetsreglene.
+Pilla holdes skjult til skrifta er lastet, så den ikke vises et øyeblikk med feil bredde.
