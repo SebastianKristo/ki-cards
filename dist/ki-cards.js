@@ -1,4 +1,4 @@
-/* ki-cards v4.25.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.25.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.25.0";
+  KI.VERSION = "4.25.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -647,6 +647,7 @@ try {
     set hass(h) { this._hass = h; if (!this._built) this._build(); (this._panels || []).forEach(p => p.hass = h); }
     get hass() { return this._hass; }
     disconnectedCallback() {
+      if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._ro) this._ro.disconnect();
       if (this._docClick) document.removeEventListener("click", this._docClick, true);
       if (this._lukk) { window.removeEventListener("resize", this._flytt); window.removeEventListener("scroll", this._lukk, true); }
@@ -794,6 +795,19 @@ try {
          ville fått bredde null og stått usynlig til første fanebytte. */
       for (const rad of r.querySelectorAll(".tabs.pills, .spor")) this._koblDra(rad);
       requestAnimationFrame(() => this._flyttPille(this._active, true));
+
+      /* Fanebredden endrer seg når skrifta er ferdig lastet og når kortet endrer
+         størrelse. Uten disse to sto pilla igjen på gammel bredde — målt mot
+         reservefonten, som er smalere enn den ekte. */
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => this._flyttPille(this._active, true));
+      }
+      if (this._ro) this._ro.disconnect();
+      if (window.ResizeObserver) {
+        this._ro = new ResizeObserver(() => this._flyttPille(this._active, true));
+        const rad = r.querySelector(".tabs.pills") || r.querySelector(".spor");
+        if (rad) this._ro.observe(rad);
+      }
       const spor = r.querySelector(".spor"), scroller = r.querySelector(".scroller");
       const kanter = () => {
         if (!spor) return;
@@ -912,10 +926,24 @@ try {
         const pille = rad.querySelector(".pille");
         const knapp = rad.querySelector(`.tab[data-i="${i}"]`);
         if (!pille) continue;
-        if (!knapp) { pille.style.width = "0px"; continue; }
+        if (!knapp) { pille.style.setProperty("--w", "0px"); continue; }
         pille.classList.toggle("drar", uten);
-        pille.style.setProperty("--x", (knapp.offsetLeft - rad.scrollLeft) + "px");
-        pille.style.setProperty("--w", knapp.offsetWidth + "px");
+
+        /* Målt med getBoundingClientRect, ikke offsetLeft.
+         *
+         * `offsetLeft` måles fra forelderens KANT, mens `position:absolute; left:0`
+         * måles fra innsiden av padding-en. Rada har 1 px ramme og 2 px padding, så
+         * pilla lå tre piksler for langt til venstre — nok til at «Kalender» stakk ut
+         * på høyre side.
+         *
+         * Rektangelet tar med ramme, padding og eventuell skalering, så det stemmer
+         * uansett hva stilen gjør. */
+        const rk = rad.getBoundingClientRect();
+        const kk = knapp.getBoundingClientRect();
+        const stil = getComputedStyle(rad);
+        const venstre = parseFloat(stil.borderLeftWidth) || 0;
+        pille.style.setProperty("--x", (kk.left - rk.left - venstre) + "px");
+        pille.style.setProperty("--w", kk.width + "px");
       }
     }
 
