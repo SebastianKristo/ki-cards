@@ -1,4 +1,4 @@
-/* ki-cards v4.23.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.23.0";
+  KI.VERSION = "4.24.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -26597,6 +26597,7 @@ const DEFAULT_CONFIG = {
   done_label: "Ferdig",
   persons: [],
   locations: [],
+  auto_zones: true,
   profiles: [],
   debug: false,
 };
@@ -26791,6 +26792,39 @@ class FamilyStatusCard extends LitElement {
    * Matcher mot sonens friendly_name, entity_id, eller slug for å tåle
    * ulike varianter.
    */
+  /* Sonene kortet kjenner: de du har satt opp, pluss alle andre `zone.*` funnet selv.
+   *
+   * Uten dette måtte hver nye sone legges inn manuelt, og den som glemte det fikk
+   * standardikonet — et fly — for en person som sto på skolen. Sonene i Home Assistant
+   * har allerede både navn og ikon; vi bruker dem.
+   *
+   * `locations:` overstyrer fortsatt: har du gitt zone.toten en traktor, vinner den
+   * over sonens eget ikon. `auto_zones: false` slår oppdagelsen av.
+   */
+  _alleSoner(cfg) {
+    const satt = cfg.locations || [];
+    if (cfg.auto_zones === false || !this.hass) return satt;
+
+    const sattZones = new Set(satt.map((l) => l.zone).filter(Boolean));
+    const ekstra = [];
+    for (const id of Object.keys(this.hass.states)) {
+      if (!id.startsWith("zone.") || id === "zone.home") continue;
+      if (sattZones.has(id)) continue;
+      const a = this.hass.states[id].attributes || {};
+      ekstra.push({
+        zone: id,
+        /* Sonens eget ikon. Har sonen ingen, bruker vi et kartmerke og ikke flyet:
+           personen er på et kjent sted, og et fly sier det motsatte. */
+        icon: a.icon || "mdi:map-marker",
+        color: cfg.zone_color || "var(--blue)",
+        navn: a.friendly_name || id.slice(5),
+        auto: true,
+      });
+    }
+    ekstra.sort((x, y) => String(x.navn).localeCompare(String(y.navn), "nb"));
+    return satt.concat(ekstra);
+  }
+
   _resolveStatus(personConfig) {
     const cfg = this.cfg;
     const presenceState = personConfig.presence_switch
@@ -26813,7 +26847,7 @@ class FamilyStatusCard extends LitElement {
     const personState = this.hass.states[personConfig.person];
     const currentValue = personState ? personState.state : null;
 
-    const match = (cfg.locations || []).find((l) => {
+    const match = this._alleSoner(cfg).find((l) => {
       if (!currentValue) return false;
       if (l.zone) {
         const zoneEntity = this.hass.states[l.zone];
