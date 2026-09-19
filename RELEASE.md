@@ -1,30 +1,40 @@
-# ki-cards 5.5.0
+# ki-cards 5.6.0
 
-## `ki-tesla-card`: vinduer på gløtt
+## Nytt kort: `ki-robot-card`
 
-Nytt felt `vindu`, som standard `switch.tesla_model_y_klima_climate_window_vent`. Står
-den på, tegnes vinduene med en glipe og kortet får klassen `vindu`.
+Animert robotklipper eller robotstøvsuger, sett ovenfra.
 
-## Låsrettelsen måtte bæres over igjen
+**Klipper:** roboten kjører i baner og etterlater et lysere, nyklippet spor. Posisjonen i
+banemønsteret følger fremdriften. I dokken lyser ladestasjonen, RTK-antennen pulserer og
+lynet blinker når den lader.
 
-Også denne fila hadde `lock.folkevogn_lock` med `state === "unlocked"`, som aldri slår
-til for en `on`/`off`-bryter — bilen ville vist seg som låst uansett.
+**Støvsuger:** gulvet med sofa og teppe, sidebørsten snurrer, og støvkorn forsvinner i
+sporet.
 
-Denne gangen kontrollerte jeg hver av de fire erstatningene enkeltvis i stedet for å anta
-at de traff. Alle fire gjorde det: standardentiteten, utregningen, editorfeltet og
-etiketten.
+Felles: pause fryser roboten, «på vei hjem» viser pil mot dokken, og feil gir rødt blink
+med feilmeldingen. `varsel` kan peke på en binærsensor som gir et rødt varsel med egen
+tekst — for eksempel tom vanntank.
 
-Det er andre gang på rad. Henter du siste versjon fra repoet før du redigerer videre,
-slipper vi runden — men jeg sjekker uansett.
+### Forhåndsvisningen var tom
+
+`getStubConfig` ga `{ modell: "klipper" }`, men `setConfig` krever en entitet og kastet
+«Velg robot-entiteten». Kortet ville derfor stått tomt i kortvelgeren.
+
+Byggeskrittet fanget det: kortantallet ble stående på 53 i stedet for å gå til 54.
+
+Stubben tar nå imot `hass` og velger en robot som faktisk finnes hos deg — første
+`lawn_mower.` eller `vacuum.` — og faller tilbake på et navn når ingen finnes.
 
 ### Kontrollert
 
-Låsen i fire former: `on` gir åpen, `off` gir låst, en ekte `lock.`-entitet virker, og
-`laas_omvendt: false` snur tolkningen. Vindusbryteren gir klassen `vindu` og fire glipe-
-elementer i tegningen. Lading, bagasjerom, frunk og defrost som før.
+Klipperen i fem tilstander: klipper, pause, på vei hjem, i dokken med lading, og feil.
+Støvsugeren i tre: suger, dokket og med varsel. Alle tegner uten å kaste. Stubben gir
+`{modell: stovsuger, entity: vacuum.rolf}` når det er den roboten som finnes.
+
+Kortet fikk merkeikon og README-rad. Bundelen er nå 54 kort.
 
 ---
 
-# ki-cards 5.4.0
+# ki-cards 5.5.0
 
-`ki-tesla-card` med ladescene, vei og rullende hjul. Nytt kort `ki-strom-card`.
+`ki-tesla-card` med vinduer på gløtt; låsrettelsen båret over igjen.
