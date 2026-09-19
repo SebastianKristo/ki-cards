@@ -362,6 +362,12 @@
          *
          * Rektangelet tar med ramme, padding og eventuell skalering, så det stemmer
          * uansett hva stilen gjør. */
+        /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut
+           som en bevegelse. Vi animerer bare når målet er en annen fane. */
+        const bytte = this._sistePille !== undefined && this._sistePille !== i;
+        this._sistePille = i;
+        if (!bytte) uten = true;
+
         const rk = rad.getBoundingClientRect();
         const kk = knapp.getBoundingClientRect();
         const stil = getComputedStyle(rad);

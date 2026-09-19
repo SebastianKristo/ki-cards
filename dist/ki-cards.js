@@ -1,4 +1,4 @@
-/* ki-cards v4.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.36.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.36.0";
+  KI.VERSION = "4.36.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -562,10 +562,22 @@ window.KI = window.KI || {};
         pille.style.setProperty("--w", husk.w);
       }
 
+      /* Animerer BARE når den aktive fanen faktisk har endret seg.
+       *
+       * De sene målingene på 120 og 400 ms retter bredden når skrifta er ferdig lastet.
+       * Gjøres de animert, ser en ren korreksjon ut som en bevegelse — pilla var for
+       * bred et øyeblikk og krympet synlig etterpå. Det skal skje stille.
+       * Et fanebytte skal derimot gli, og det kjennes på at målet er et annet. */
+      /* Etter en ny tegning står pilla på forrige plass fra `husk`. Da ER det et
+         bytte, selv om vi ikke har sett den forrige fanen i DENNE oppkoblingen —
+         derfor starter vi på et tomt objekt og ikke på fanen selv. */
+      let sisteFane = vert._kiPilleSist ? {} : null;
       const flytt = (uten) => {
         const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
-        pille.classList.toggle("drar", !!uten);
+        const bytte = sisteFane !== null && sisteFane !== a;
+        sisteFane = a;
+        pille.classList.toggle("drar", !!uten || !bytte);
         const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
         const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
         pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
@@ -1188,6 +1200,12 @@ try {
          *
          * Rektangelet tar med ramme, padding og eventuell skalering, så det stemmer
          * uansett hva stilen gjør. */
+        /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut
+           som en bevegelse. Vi animerer bare når målet er en annen fane. */
+        const bytte = this._sistePille !== undefined && this._sistePille !== i;
+        this._sistePille = i;
+        if (!bytte) uten = true;
+
         const rk = rad.getBoundingClientRect();
         const kk = knapp.getBoundingClientRect();
         const stil = getComputedStyle(rad);

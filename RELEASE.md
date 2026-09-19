@@ -1,35 +1,31 @@
-# ki-cards 4.36.0
+# ki-cards 4.36.1
 
-## Ett kort per fane, redigert med Home Assistants egen editor
+## Pilla endret seg synlig rett etter at kortet kom opp
 
-«+ Legg til kort» legger nå inn et **vertical-stack**, og du redigerer det som et hvilket
-som helst kort i HA.
+Den var for bred et øyeblikk og krympet etterpå, mens fanerada flyttet seg litt.
 
-Editoren hadde en egen kortliste med opp, ned, blyant og slett. Det var å bygge om igjen
-noe HA gjør bedre: med et vertical-stack i fanen får du HAs kortvelger, dra-og-slipp,
-forhåndsvisning og alle korttyper — også de du installerer senere.
+Det var min rettelse fra 4.33.1 som slo feil ut. Der gjorde jeg de sene målingene på 120
+og 400 ms **animerte**, for at en glidning ikke skulle stoppes midtveis. Men de
+målingene er korreksjoner av bredden når skrifta er ferdig lastet — og animert ser en
+korreksjon ut som en bevegelse.
 
-Rundt hundre linjer egen kode er borte: kortlista, flytting, sletting og navnetolkningen
-`custom:ki-varsling-card` → «Ki varsling card».
+Regelen er nå presis: **pilla animerer bare når den aktive fanen faktisk er en annen.**
+Er målet det samme, rettes bredden stille.
 
-### Gamle oppsett virker som før
+Et fanebytte glir som før. Det samme gjør gjeninnsettingen etter at et kort har tegnet
+rada på nytt — der står pilla på forrige plass, og da ER det et bytte selv om vi ikke har
+sett den forrige fanen i denne oppkoblingen.
 
-Kortet leser fortsatt `cards:` som liste i YAML, og den tegnes uendret. Åpner du en slik
-fane i editoren, vises kortene som ett vertical-stack, med en merknad om at de lagres
-slik når du endrer noe.
-
-Har fanen nøyaktig ett kort, brukes det direkte uten innpakning.
+Samme regel i `ki-tabs-card` og i `KI.pillefaner`.
 
 ### Kontrollert
 
-Tom fane gir «+ Legg til kort», som skriver
-`card: {type: vertical-stack, cards: []}`. En fane med et vertical-stack gir HAs editor
-og en fjern-knapp. En gammel `cards:`-liste med to kort gir merknaden og sendes til
-editoren som ett vertical-stack.
+Frisk oppstart: stille, og korreksjonene etterpå stille. Fanebytte: glir, og
+korreksjonen etter stille. Gjeninnsetting etter ny tegning: glir, så stille.
 
 ---
 
-# ki-cards 4.35.0
+# ki-cards 4.36.0
 
-Dra i etasjevelgeren: rada er rullbar sidelengs, så nettleseren tok gesten.
-`touch-action: none` på knappene, pekerfangst ved trykk, og lyttere der pekeren fanges.
+Ett kort per fane, redigert med Home Assistants egen kortredigerer. Rundt hundre linjer
+egen kortliste fjernet.

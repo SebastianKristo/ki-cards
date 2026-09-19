@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.36.0";
+  KI.VERSION = "4.36.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -532,10 +532,22 @@ window.KI = window.KI || {};
         pille.style.setProperty("--w", husk.w);
       }
 
+      /* Animerer BARE når den aktive fanen faktisk har endret seg.
+       *
+       * De sene målingene på 120 og 400 ms retter bredden når skrifta er ferdig lastet.
+       * Gjøres de animert, ser en ren korreksjon ut som en bevegelse — pilla var for
+       * bred et øyeblikk og krympet synlig etterpå. Det skal skje stille.
+       * Et fanebytte skal derimot gli, og det kjennes på at målet er et annet. */
+      /* Etter en ny tegning står pilla på forrige plass fra `husk`. Da ER det et
+         bytte, selv om vi ikke har sett den forrige fanen i DENNE oppkoblingen —
+         derfor starter vi på et tomt objekt og ikke på fanen selv. */
+      let sisteFane = vert._kiPilleSist ? {} : null;
       const flytt = (uten) => {
         const a = r.querySelector(kn + "." + aktiv);
         if (!a) { pille.style.setProperty("--w", "0px"); return; }
-        pille.classList.toggle("drar", !!uten);
+        const bytte = sisteFane !== null && sisteFane !== a;
+        sisteFane = a;
+        pille.classList.toggle("drar", !!uten || !bytte);
         const rk = r.getBoundingClientRect(), kk = a.getBoundingClientRect();
         const kant = parseFloat(getComputedStyle(r).borderLeftWidth) || 0;
         pille.style.setProperty("--x", (kk.left - rk.left - kant) + "px");
