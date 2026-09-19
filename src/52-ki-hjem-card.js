@@ -434,15 +434,46 @@
       skriv: (cfg, v) => skriv(cfg, vei, v === standard ? undefined : v) }),
     /* Bryter der «på» er standard og lagres som ingenting. `nei` er verdien som
        skrives når den slås av — `false` for hjem/etasjer, `true` for rom.skjul. */
+    /* Av/på-bryter på en vei som også kan holde et HELT objekt.
+     *
+     * Den gamle skrev `undefined` når bryteren sto på, og `skriv` sletter da veien.
+     * For `hjem` — som er et objekt med lås, alarm, kalender, rom og `stov` — betød
+     * det at ett trykk i editoren slettet hele oppsettet. Det er nettopp det som
+     * skjedde: `hjem.stov` forsvant ved hver lagring.
+     *
+     * Nå røres et objekt aldri når bryteren står på: «på» er standarden, og da skal
+     * konfigurasjonen bare la veien være som den er. Slår man den AV, settes `nei`
+     * (vanligvis `false`), og det erstatter objektet med vilje — det er den eneste
+     * gangen man faktisk har bedt om det. */
     bryter: (vei, etikett, { nei = false, snudd = false } = {}) => ({ vei, etikett,
       selector: { boolean: {} },
-      les: (cfg) => (snudd ? les(cfg, vei) !== nei : les(cfg, vei) !== nei),
-      skriv: (cfg, v) => skriv(cfg, vei, v ? undefined : nei) }),
+      les: (cfg) => les(cfg, vei) !== nei,
+      skriv: (cfg, v) => {
+        if (v) {
+          const naa = les(cfg, vei);
+          /* Er verdien allerede et objekt eller en liste, er den «på» og skal stå.
+             Bare en eksplisitt `false` fjernes, så standarden gjelder igjen. */
+          if (naa && typeof naa === 'object') return cfg;
+          return skriv(cfg, vei, undefined);
+        }
+        return skriv(cfg, vei, nei);
+      } }),
   };
 
   class KiHjemEditor extends HTMLElement {
     setConfig(config) { this._config = JSON.parse(JSON.stringify(config || {})); this._render(); }
-    set hass(hass) { this._hass = hass; this._render(); }
+    /* `set hass` fyres hver gang EN tilstand i huset endrer seg — mange ganger i
+       minuttet. Bygget vi skjemaet på nytt hver gang, ble et ha-form-felt byttet ut
+       mens man skrev i det, og siste tegn gikk tapt. Det er grunnen til at
+       `#alarm::laser` ble lagret som `#alarm::lase`.
+       Første gang må vi bygge; etterpå sendes hass bare videre til feltene, som er
+       det de trenger for entitetsvelgerne. */
+    set hass(hass) {
+      const forst = !this._hass;
+      this._hass = hass;
+      if (forst) { this._render(); return; }
+      for (const el of this._feltEl || []) el.hass = hass;
+    }
 
     _endre(endring) {
       const ut = JSON.parse(JSON.stringify(this._config || {}));
@@ -662,6 +693,7 @@
       const cfg = this._config || {};
       if (!b.f) {
         b.f = document.createElement('ha-form');
+        (this._feltEl = this._feltEl || []).push(b.f);
         b.f.computeLabel = (sc) => (gr.felt.find((x) => x.vei === sc.name) || {}).etikett || sc.name;
         b.f.addEventListener('value-changed', (ev) => {
           ev.stopPropagation();
@@ -718,6 +750,7 @@
         if (erSwipe) {
           // gruppens egne innstillinger
           const f = document.createElement('ha-form');
+          (this._feltEl = this._feltEl || []).push(f);
           f.hass = this._hass;
           f.schema = [{ name: 'height', selector: { text: {} } },
             { name: 'type', selector: { select: { mode: 'dropdown', options: [
@@ -743,6 +776,8 @@
         }
 
         const f = document.createElement('ha-form');
+
+        (this._feltEl = this._feltEl || []).push(f);
         f.hass = this._hass;
         f.schema = this._stovSkjema(el || {});
         f.data = el || {};
@@ -799,6 +834,7 @@
           const boks = document.createElement('div');
           boks.className = 'fform';
           const f = document.createElement('ha-form');
+          (this._feltEl = this._feltEl || []).push(f);
           f.hass = this._hass;
           f.schema = L.skjema(el);
           f.data = el;
@@ -937,6 +973,7 @@
 
     _render() {
       if (!this._hass || !this._config) return;
+      this._feltEl = [];
       this._renderLayout();
       if (!this._skall) {
         this._skall = document.createElement('div');
