@@ -1,33 +1,27 @@
-# ki-cards 5.7.0
+# ki-cards 5.7.1
 
-## `ki-rom-card`: viftene ligger under Klima
+## Viftene ut av sveipekortet
 
-De lå i «Enheter» sammen med bryterne. En vifte er noe man styrer sammen med varmen, ikke
-en bryter på linje med stikkontakter.
+I 5.7.0 la jeg viftene i samme kortliste som panelovnene, og da havnet de inne i
+sveipekortet.
 
-Viftene kommer **sist** i Klima, etter varmekildene: man ser etter temperaturen først, og
-vifta er justeringen.
+Sveipet er til for å bla mellom flere av **samme** slag. En vifte er noe annet, og
+blandet inn ville den forsvunnet bak et sveip man ikke visste om.
 
-### Hva som fulgte med
+Panelovnene beholder sveipekortet som før. Viftene ligger nå i en egen liste **under**
+det.
 
-**Effektsummen flyttet også.** Viftene telles nå i Klima-seksjonens sum i stedet for i
-Enheter. Summen for rommet er den samme; den står bare et annet sted.
-
-**Tomhetsreglene måtte endres begge veier.** «Enheter» skjules når det ikke er noen
-brytere, selv om rommet har vifter. «Klima» vises nå når det finnes vifter, selv uten
-varmekilde — et rom med bare en vifte ville ellers mistet den helt.
-
-**En vifte som også står i `klima_ekstra`** vises bare én gang.
-
-Etikettene i editoren sier nå «Vis enheter (brytere)» og «Vis klima (varme og vifter)».
+Er det ingen ovner i rommet, er viftelista alt som vises — da er det ikke noe tomt
+sveipekort over.
 
 ### Kontrollert
 
-Seks kombinasjoner: bare vifte, bare bryter, varme med vifte, og ingenting — hver med
-riktig seksjon synlig eller skjult. Og at en vifte i `klima_ekstra` ikke gjentas.
+Fem sammensetninger: tre ovner uten vifter gir bare sveipet; tre ovner med to vifter gir
+sveip pluss liste; én ovn med én vifte gir to lister; ingen ovner med to vifter gir bare
+viftelista; og `klima_layout: liste` gir to lister.
 
 ---
 
-# ki-cards 5.6.0
+# ki-cards 5.7.0
 
-Nytt kort `ki-robot-card` for robotklipper og robotstøvsuger.
+`ki-rom-card`: viftene flyttet fra Enheter til Klima, med effektsummen og tomhetsreglene.

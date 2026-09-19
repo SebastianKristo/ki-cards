@@ -1,4 +1,4 @@
-/* ki-cards v5.7.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v5.7.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.7.0";
+  KI.VERSION = "5.7.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8475,8 +8475,7 @@ try {
       ? climateCard(hass, d.entity, d.effekt, hum, friendly(hass, d.entity, roomName), cfg.teller_suffix,
           cfg.rom_tall === false ? null
             : (typeof cfg.rom_tall === 'string' ? cfg.rom_tall : kiRomTall(hass, [d.entity], roomName, cfg.rom)))
-      : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')))
-      .concat(vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))));
+      : switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), 'var(--orange)')));
     let body;
     if (cards.length === 1 || cfg.klima_layout === 'liste') {
       body = [{ square: false, type: 'grid', columns: 1, cards }];
@@ -8488,6 +8487,18 @@ try {
         cards,
       }];
     }
+
+    /* Viftene står i en egen liste under ovnene, ikke inne i sveipekortet.
+       Sveipet er til for å bla mellom flere av samme slag — panelovner. En vifte er
+       noe annet, og blandet inn ville den forsvunnet bak et sveip man ikke visste om.
+       Er det ingen ovner, er lista alt som vises. */
+    if (vifter.length) {
+      body = (enheter.length ? body : []).concat([{
+        square: false, type: 'grid', columns: 1,
+        cards: vifter.map((d) => fanCard(hass, d.entity, friendly(hass, d.entity, roomName))),
+      }]);
+    }
+
     return expander(
       [headerTitle('Klima', 'mdi:thermostat'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
       body
