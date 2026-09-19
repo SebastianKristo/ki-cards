@@ -1,33 +1,43 @@
-# ki-cards 5.9.1
+# ki-cards 5.10.0
 
-## Blinket var transformer, ikke fontlasting
+## `fast_hoyde`: paneldelen holder høyden
 
-Jeg har jaget dette i flere runder med feil forklaring. Her er den riktige:
+Panelene byttes med `display:none` og `block`, så høyden endret seg brått ved fanebytte.
+I en popup flytter da hele flata seg — «Renhold» er lang, «Kart» er kort, og innholdet
+hopper.
 
-`getBoundingClientRect` regner med transformer. En popup som glir inn med `scale`
-returnerer derfor **skalerte** mål mens animasjonen går. Pilla ble målt mot et
-mellomstadium — for bred og uten innrykk — og rettet seg når animasjonen var ferdig.
+```yaml
+type: custom:ki-tabs-card
+fast_hoyde: true
+```
 
-M�lingen bruker nå `offsetLeft` og `offsetWidth`, som er layoutverdier og ikke påvirkes
-av transformer. `clientLeft` gir rammebredden, som er forskjellen mellom `offsetLeft` og
-`left: 0`.
+Paneldelen får høyden til den **høyeste** fanen, og beholder den. Bytte mellom faner
+endrer ikke lenger størrelsen på popupen.
 
-Jeg byttet feil vei i 4.25.1: da gikk jeg fra offset til rektangel for å få med ramma,
-og dro transformproblemet med på kjøpet.
+### Høyden krymper ikke igjen
 
-### Hva det betyr for de forrige rettelsene
+Et kort som laster sent — et bilde, en graf — ville ellers gjort flata kortere etterpå,
+og da hopper det på nytt. Vi husker den største høyden vi har sett. Vokser en fane,
+følger høyden med opp; blir den kortere, står den.
 
-Ventetiden på skrifta fra 5.8.0 står, og er fortsatt riktig — skrifta endrer faktisk
-bredden. Men den var ikke årsaken til det du så.
+M�lingen gjentas etter 100 og 600 ms og ved hver størrelsesendring, siden kortene ikke er
+ferdige med en gang.
+
+Valget ligger i editoren under Oppførsel.
+
+### Merk om YAML-en din
+
+`card_mod` med `.tabs-container` og `.tab-button` gjør ingenting på `ki-tabs-card` —
+det er simple-tabs sine klassenavn. Formen kommer fra kortet selv, og målene settes med
+`fane_hoyde`, `fane_sidepadding` og `rad_bredde`, som du alt bruker.
 
 ### Kontrollert
 
-Samme rad målt midt i en innglidning på `scale(0.8)` og ferdig animert gir nå identiske
-verdier: 2 px inn og 95 px bred. Med den gamle målingen ville den fått 76 px under
-animasjonen.
+To faner på 1240 og 320 px: låses til 1240. En fane krymper til 900: høyden står. En
+fane vokser til 1500: høyden følger med. Uten `fast_hoyde` settes ingenting.
 
 ---
 
-# ki-cards 5.9.0
+# ki-cards 5.9.1
 
-Nytt kort `ki-eksempler-card`, og strømpopupen omskrevet fra ~1100 til 169 linjer.
+Pillemålingen bruker layoutverdier i stedet for rektangler, som regner med transformer.

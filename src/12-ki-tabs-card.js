@@ -30,6 +30,7 @@
     get hass() { return this._hass; }
     disconnectedCallback() {
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
+      if (this._hro) { this._hro.disconnect(); this._hro = null; }
       if (this._ro) this._ro.disconnect();
       if (this._docClick) document.removeEventListener("click", this._docClick, true);
       if (this._lukk) { window.removeEventListener("resize", this._flytt); window.removeEventListener("scroll", this._lukk, true); }
@@ -178,6 +179,11 @@
         .tittel { font-size:${c.tittel_storrelse || "16px"}; font-weight:500; color:var(--gray1000); flex:0 1 auto;
           min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:2px; }
         .panel { display:none; min-width:0; max-width:100%; } .panel.active { display:block; }
+        /* fast_hoyde: paneldelen holder høyden til den høyeste fanen, så popupen
+           ikke endrer størrelse når man bytter. Uten den hopper innholdet under —
+           og i en popup flytter hele flata seg. */
+        .paneler { min-height:var(--ki-panel-h, auto);
+          transition:min-height .25s cubic-bezier(.2,.8,.2,1); }
         .stack { display:grid; gap:8px; min-width:0; }
         @media (prefers-reduced-motion: reduce) { .tab, .dd, .dd .chev { transition:none; } }
       </style>
@@ -201,7 +207,7 @@
             ${tabs.map((t, i) => `<div class="item ${i === this._active ? "active" : ""}" role="option" tabindex="0" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}<span class="n">${KI.esc(t.title || "")}</span></div>`).join("")}
           </div>
         </div>
-        ${tabs.map((t, i) => `<div class="panel ${i === this._active ? "active" : ""}" data-i="${i}"><div class="stack"></div></div>`).join("")}
+        <div class="paneler">${tabs.map((t, i) => `<div class="panel ${i === this._active ? "active" : ""}" data-i="${i}"><div class="stack"></div></div>`).join("")}</div>
       </div>`;
       const r = this.shadowRoot;
       r.querySelectorAll(".tab[data-i]").forEach(b => b.addEventListener("click", () => this._select(+b.dataset.i)));
@@ -230,6 +236,30 @@
           this._flyttPille(this._active, true);
         });
       }
+      /* Fast høyde: paneldelen får høyden til den høyeste fanen, så popupen ikke
+         endrer størrelse ved fanebytte. Høyden måles etter hvert som kortene laster,
+         og vi beholder den største vi har sett — et kort som laster sent ville ellers
+         gjort flata kortere igjen. */
+      if (this._config.fast_hoyde) {
+        const boks = r.querySelector(".paneler");
+        this._maksH = 0;
+        const mål = () => {
+          if (!boks) return;
+          for (const pa of r.querySelectorAll(".panel")) {
+            const h = pa.scrollHeight;
+            if (h > this._maksH) this._maksH = h;
+          }
+          if (this._maksH) boks.style.setProperty("--ki-panel-h", this._maksH + "px");
+        };
+        if (this._hro) this._hro.disconnect();
+        if (window.ResizeObserver) {
+          this._hro = new ResizeObserver(mål);
+          for (const pa of r.querySelectorAll(".panel")) this._hro.observe(pa);
+        }
+        setTimeout(mål, 100);
+        setTimeout(mål, 600);
+      }
+
       const mal = () => this._flyttPille(this._active, true);
       requestAnimationFrame(() => { mal(); requestAnimationFrame(mal); });
       setTimeout(mal, 120);
@@ -673,7 +703,8 @@
         fane_lik: !!this._c.fane_lik, rad_bredde: this._c.rad_bredde || "",
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
-        sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under };
+        sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under,
+        fast_hoyde: !!this._c.fast_hoyde };
       /* Alle valgene kortet faktisk leser, ikke bare to. Feltene er gruppert som i
          simple-tabs' editor: utseende først, så oppførsel — det er den rekkefølgen man
          leter i når man skal endre noe. */
@@ -706,6 +737,7 @@
               { value: "scroll", label: "Rullbar rad" },
               { value: "dropdown", label: "Nedtrekksmeny" }] } } },
             { name: "sticky", selector: { boolean: {} } },
+            { name: "fast_hoyde", selector: { boolean: {} } },
             { name: "dropdown_under", selector: { boolean: {} } },
           ] },
       ];
@@ -720,6 +752,7 @@
         tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
         gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
         style: "Form", sticky: "Fest rada øverst ved rulling",
+        fast_hoyde: "Lås høyden til den høyeste fanen",
         dropdown_under: "Nedtrekk under rada i stedet for over" };
       f.computeLabel = (x) => navn[x.name] || x.name;
       f.addEventListener("value-changed", (e) => {
@@ -729,7 +762,7 @@
         for (const k of ["tittel", "tittel_storrelse", "bg"]) {
           if (!this._c[k]) delete this._c[k];
         }
-        for (const k of ["sticky", "dropdown_under"]) {
+        for (const k of ["sticky", "dropdown_under", "fast_hoyde"]) {
           if (!this._c[k]) delete this._c[k];
         }
         if (this._c.style === "auto") delete this._c.style;
