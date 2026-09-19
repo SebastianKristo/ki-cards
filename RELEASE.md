@@ -1,38 +1,31 @@
-# ki-cards 5.1.0
+# ki-cards 5.4.0
 
 ## `ki-tesla-card` oppdatert
 
-Erstattet med den nye fila. 142 linjer endret.
+Ny versjon med mer detaljert ladescene, vei og skygge under bilen, og rullende hjul.
+Nye tilstander `port-apen` (ladeporten) og `kjorer`. Ladestatus, ladeport og fart har
+fått egne felt i editoren.
 
-### Tydeligere biltegning
+### Låsrettelsen fra 5.2.0 måtte bæres over
 
-Lykter som lyser opp når bilen kjører eller står ulåst, røde baklys, vinduer, speil,
-dørlinjer, håndtak, kamera og skulderlinje. Sentrykameraet har fått sitt eget blinkende
-lys.
+Den nye fila var bygget videre på en eldre gren og hadde `lock.folkevogn_lock` med
+`state === "unlocked"` igjen. Hadde jeg lagt den inn rått, ville bilen alltid vist seg
+som låst — sjekken slår aldri til for en `on`/`off`-bryter.
 
-### Frunk og bagasjerom har fått ekte standardentiteter
+`switch.tesla_model_y_car_doors_locked` og `laas_omvendt` er derfor lagt inn på nytt,
+sammen med editorfeltene.
 
-`switch.tesla_model_y_car_trunk_front` og `switch.tesla_model_y_car_trunk_rear`. Før var
-frunk uten standard og bagasjerommet pekte på `cover.folkevogn_trunk`.
+Kontrollert etterpå: `on` gir åpen, `off` gir låst, en ekte `lock.`-entitet virker, og
+`laas_omvendt: false` snur tolkningen.
 
-Autooppdagelsen tar nå også `switch`-domenet for frunk, ikke bare `cover` — Tesla-brua
-gir dem som brytere.
+## Nytt kort: `ki-strom-card` (var 5.3.0)
 
-### Lading utledes fra tre kilder
+Animert hus koblet til en strømmast: strømmen renner fortere jo mer huset trekker,
+ledningene farges etter spotprisen, vinduene lyser med forbruket, og huset blinker
+oransje når du nærmer deg neste effekttrinn. Nederst ligger dagens spotpris time for
+time med Norgespris som stiplet linje.
 
-Ladestatusen, laderbryteren, **eller** en effekt over 0,3 kW. Det siste er verdt å vite
-om: viser ladeeffekten 2,3 kW mens ladestatusen sier «Stopped», regnes bilen som ladende.
-Det er riktig — det er effekten som forteller hva som faktisk skjer.
+Mangler `raw_today` på spotprissensoren, droppes pristimene og resten tegnes som før —
+grafen krever attributtet, ikke bare tilstanden.
 
-### Kontrollert
-
-Seks tilstander mot de nye standardnavnene: står stille på 0 kW, lader på 2,3 kW, ulåst,
-bagasjerom åpent, frunk åpen og defrost. Alle gir riktig klasse på scenen, og kortet
-tåler at ingen entiteter finnes.
-
----
-
-# ki-cards 5.0.0
-
-Fire kort fjernet: `ki-klima-card`, `ki-energi-card`, `ki-stromregning-card` og
-`ki-vaer-card`.
+Kortet fikk merkeikon og README-rad. Bundelen er nå 53 kort.

@@ -5,7 +5,8 @@
  *   – ved lading strømmer energi fra laderen gjennom kabelen, og batteriet glitrer
  *   – frunk og bagasjerom åpnes i tegningen når de står åpne
  *   – defrost gir varmebølger på frontruta, sentry blinker rødt
- *   – når bilen kjører, ruller hjulene og veien glir forbi
+ *   – når bilen kjører, ruller hjulene og veien glir forbi i takt med farten
+ *   – ladeporten i baklyset åpnes og lyser når porten er åpen, grønt når kabelen står i
  *   – låseikonet over taket er oransje og vipper når bilen er ulåst
  *
  *  Alle entiteter har standardverdier. Frunk, sentry, klima, innetemperatur, gir og fart
@@ -26,12 +27,17 @@
     batteri: "sensor.tesla_model_y_batteri_batteriniva",
     rekkevidde: "sensor.tesla_model_y_batteri_estimert_batterirekkevidde",
     effekt: "sensor.tesla_model_y_batteri_charge_power",
-    ladestatus: "select.tesla_model_y_ev_charging_state",
+    ladestatus: "select.tesla_model_y_batteri_charging_state",
+    ladeport: "switch.tesla_model_y_batteri_charging_port",
     lader: "switch.elbillader_charging",
     ladegrense: "input_number.tesla_model_y_ladegrense",
-    laas: "lock.folkevogn_lock",
+    laas: "switch.tesla_model_y_car_doors_locked",
+    /* Bryteren heter «doors_locked», men `on` betyr ÅPEN. Navnet sier altså det
+       motsatte av verdien, og derfor er tolkningen et eget valg i stedet for noe koden
+       gjetter seg til. Bruker du en ekte `lock.`-entitet, sett `laas_omvendt: false`. */
+    laas_omvendt: true,
     bagasje: "switch.tesla_model_y_car_trunk_rear",
-    frunk: "switch.tesla_model_y_car_trunk_front", sentry: null, klima: null, innetemp: null, gir: null, fart: null,
+    frunk: "switch.tesla_model_y_car_trunk_front", sentry: null, klima: null, innetemp: null, gir: null, fart: "sensor.tesla_model_y_car_drive_speed",
     defrost: "switch.folkevogn_defrost",
   };
   const AUTO = {
@@ -75,7 +81,7 @@
 
     .vei { stroke:rgba(255,255,255,.12); stroke-width:1.5; }
     .veistriper { stroke:rgba(255,255,255,.28); stroke-width:1.5; stroke-dasharray:10 14; opacity:0; }
-    .tc.kjorer .veistriper { opacity:1; animation:vei .6s linear infinite; }
+    .tc.kjorer .veistriper { opacity:1; animation:vei var(--vei,.6s) linear infinite; }
     @keyframes vei { to { stroke-dashoffset:24; } }
     .skygge { fill:rgba(0,0,0,.35); }
     .karosseri { fill:var(--lakk); }
@@ -84,7 +90,15 @@
     .linje { fill:none; stroke:rgba(0,0,0,.18); stroke-width:1; }
     .dekk { fill:#0d0f11; } .felg { fill:#2b3037; } .nav { fill:#1a1d21; }
     .eiker { transform-box:fill-box; transform-origin:center; }
-    .tc.kjorer .eiker { animation:rull .45s linear infinite; }
+    .tc.kjorer .eiker { animation:rull var(--hjul,.45s) linear infinite; }
+    .tc.kjorer .skygge { animation:dump .9s ease-in-out infinite; }
+    @keyframes dump { 0%,100% { transform:scaleX(1); } 50% { transform:scaleX(.985); } }
+    .skygge { transform-box:fill-box; transform-origin:center; }
+    .boks, .boks-led { transition:opacity .6s; } .tc.kjorer .boks, .tc.kjorer .boks-led { opacity:0; }
+    .fartlinjer { stroke:rgba(255,255,255,.35); stroke-width:1; stroke-linecap:round; opacity:0; }
+    .tc.kjorer .fartlinjer { animation:fartlinje var(--vei,.6s) linear infinite; }
+    .tc.kjorer .fl2 { animation-delay:calc(var(--vei,.6s) / -3); } .tc.kjorer .fl3 { animation-delay:calc(var(--vei,.6s) / -1.5); }
+    @keyframes fartlinje { 0% { opacity:0; transform:translateX(0); } 20% { opacity:.8; } 100% { opacity:0; transform:translateX(26px); } }
     @keyframes rull { to { transform:rotate(-360deg); } }
     .lys { fill:#f4f9ff; opacity:.7; } .tc.kjorer .lys, .tc.ulast .lys { opacity:1; filter:drop-shadow(0 0 3px #dfefff); }
     .baklys { stroke:#ff3b30; opacity:.6; } .tc.kjorer .baklys, .tc.ulast .baklys { opacity:1; filter:drop-shadow(0 0 2px #ff3b30); }
@@ -106,7 +120,12 @@
     .energi { fill:none; stroke:#5ae6a0; stroke-width:2.2; stroke-linecap:round; stroke-dasharray:2 7; opacity:0; }
     .tc.lader .energi { opacity:1; animation:flyt var(--flyt,1s) linear infinite; }
     @keyframes flyt { to { stroke-dashoffset:-18; } }
-    .port { fill:#2c333d; } .tc.tilkoblet .port { fill:#5be38a; filter:drop-shadow(0 0 2px #5be38a); }
+    .port { fill:#8fd0ff; opacity:0; transition:opacity .5s, fill .5s; }
+    .tc.port-apen .port { opacity:1; filter:drop-shadow(0 0 2.5px #8fd0ff); }
+    .tc.tilkoblet .port { fill:#5be38a; filter:drop-shadow(0 0 2.5px #5be38a); }
+    .tc.lader .port { animation:blink 1.2s ease-in-out infinite; }
+    .portluke { transform-box:fill-box; transform-origin:right center; transition:transform .7s cubic-bezier(.3,1.3,.4,1); }
+    .tc.port-apen .portluke { transform:translateX(1.2px) scaleX(.22); }
 
     .dfr { fill:none; stroke:#ff9a5c; stroke-width:1.3; stroke-linecap:round; opacity:0; }
     .tc.defrost .dfr { animation:stig 2.2s ease-out infinite; } .tc.defrost .dfr.d2 { animation-delay:.7s; } .tc.defrost .dfr.d3 { animation-delay:1.4s; }
@@ -148,6 +167,7 @@
     </defs>
     <line class="vei" x1="0" y1="157.5" x2="200" y2="157.5"/>
     <line class="veistriper" x1="0" y1="166" x2="200" y2="166"/>
+    <line class="fartlinjer" x1="180" y1="126" x2="192" y2="126"/><line class="fartlinjer fl2" x1="182" y1="134" x2="196" y2="134"/><line class="fartlinjer fl3" x1="180" y1="142" x2="190" y2="142"/>
     <ellipse class="skygge" cx="95" cy="157.5" rx="88" ry="4.5"/>
 
     <!-- lader på veggen og kabel -->
@@ -198,7 +218,8 @@
     <path class="lys" d="M11.5 128.6 Q16 126.6 24 126.2 L23.5 127.4 Q17 128 12 129.8 Z"/>
     <path d="M165.3 116.2 Q171 115.6 176.3 118.2 L176 121.4 Q170 120.2 165.6 118.6 Z" fill="#170d0d"/>
     <path class="baklys" d="M166 117.4 Q171 117.2 176 119.6" fill="none" stroke-width="1.1"/>
-    <circle class="port" cx="172.5" cy="119.5" r="1.5"/>
+    <circle class="port" cx="172.3" cy="119.2" r="1.6"/>
+    <g class="portluke"><rect class="karosseri" x="170.3" y="117.3" width="4.2" height="3.8" rx="1"/><rect x="170.3" y="117.3" width="4.2" height="3.8" rx="1" fill="rgba(0,0,0,.28)"/></g>
     <text class="t-inne" x="125" y="110.5" text-anchor="middle"></text>
 
     <!-- frunk (panser) -->
@@ -235,13 +256,17 @@
           { name: "rekkevidde", selector: { entity: { domain: "sensor" } } },
           { name: "effekt", selector: { entity: { domain: "sensor" } } },
           { name: "ladegrense", selector: { entity: {} } },
-          { name: "laas", selector: { entity: { domain: "lock" } } },
+          { name: "ladestatus", selector: { entity: {} } },
+          { name: "ladeport", selector: { entity: {} } },
+          { name: "fart", selector: { entity: { domain: "sensor" } } },
+          { name: "laas", selector: { entity: { domain: ["lock", "switch", "binary_sensor"] } } },
+          { name: "laas_omvendt", selector: { boolean: {} } },
           { name: "bagasje", selector: { entity: { domain: ["switch", "cover"] } } },
           { name: "frunk", selector: { entity: { domain: ["switch", "cover"] } } },
           { name: "tap_action", selector: { ui_action: {} } },
         ],
         computeLabel: (s) => ({ navn: "Navn", lakk: "Lakkfarge (hex)", kapasitet: "Batterikapasitet", batteri: "Batterinivå", rekkevidde: "Rekkevidde",
-          effekt: "Ladeeffekt", ladegrense: "Ladegrense", laas: "Lås", bagasje: "Bagasjerom", frunk: "Frunk", tap_action: "Trykk" }[s.name] || s.name),
+          effekt: "Ladeeffekt", ladegrense: "Ladegrense", ladestatus: "Ladestatus", ladeport: "Ladeport", fart: "Fart", laas: "Lås", laas_omvendt: "Lås: «på» betyr åpen", bagasje: "Bagasjerom", frunk: "Frunk", tap_action: "Trykk" }[s.name] || s.name),
       };
     }
     setConfig(c) { this._c = { ...STANDARD, ...(c || {}) }; this._auto = null; this._bygget = false; if (this._hass) this._oppdater(); }
@@ -264,7 +289,7 @@
         if (c[k] && h.states[c[k]]) { a[k] = c[k]; continue; }
         a[k] = kandidater.find((id) => mønstre.some((m) => m.test(id)));
       }
-      for (const k of ["batteri", "rekkevidde", "effekt", "ladestatus", "lader", "ladegrense", "laas", "bagasje", "defrost"]) a[k] = c[k];
+      for (const k of ["batteri", "rekkevidde", "effekt", "ladestatus", "ladeport", "lader", "ladegrense", "laas", "bagasje", "defrost"]) a[k] = c[k];
       if (a.bagasje && a.frunk === a.bagasje) a.frunk = null;
       this._auto = a; this._autoTid = Date.now();
       this._ids = Object.values(a).filter(Boolean);
@@ -299,12 +324,27 @@
       const batt = tall(s(a.batteri)), rekk = tall(s(a.rekkevidde)), grense = tall(s(a.ladegrense));
       let eff = tall(s(a.effekt)); if (!isNaN(eff) && s(a.effekt).attributes.unit_of_measurement === "W") eff /= 1000;
       const lsSt = ok(s(a.ladestatus)) ? String(s(a.ladestatus).state).toLowerCase() : "";
-      const lader = (/charging/.test(lsSt) && !/not|complete|stopped/.test(lsSt)) || (s(a.lader) && s(a.lader).state === "on") || eff > 0.3;
-      const tilkoblet = lader || /plugged|connected|complete|stopped/.test(lsSt) && !/disconnected|unplugged/.test(lsSt) || (s(a.kabel) && s(a.kabel).state === "on");
+      // ladestatus: charging/starting = lader, complete/stopped/no_power/plugged = tilkoblet, disconnected = frakoblet
+      const lader = ((/charging|starting|lader/.test(lsSt)) && !/not|complete|stopped|disconnected/.test(lsSt)) || (s(a.lader) && s(a.lader).state === "on") || eff > 0.3;
+      const tilkoblet = lader || (/plugged|connected|complete|stopped|no_power|nopower|fullført|stoppet/.test(lsSt) && !/disconnected|unplugged|frakoblet/.test(lsSt)) || (s(a.kabel) && s(a.kabel).state === "on");
+      const portApen = tilkoblet || (s(a.ladeport) && ["on", "open"].includes(s(a.ladeport).state));
       const gir = ok(s(a.gir)) ? String(s(a.gir).state).toUpperCase() : "";
-      const fart = tall(s(a.fart));
-      const kjorer = ["D", "R", "N"].includes(gir) || fart > 1;
-      const ulast = s(a.laas) && s(a.laas).state === "unlocked";
+      let fart = tall(s(a.fart));
+      if (!isNaN(fart) && /mph|mi\/h/i.test(String(s(a.fart).attributes.unit_of_measurement || ""))) fart *= 1.609;
+      const kjorer = fart > 0.5 || ["D", "R"].includes(gir);
+      /* Tre former i praksis:
+         · `lock.` gir "locked" / "unlocked"
+         · en bryter der `on` betyr LÅST
+         · en bryter der `on` betyr ÅPEN (Tesla-brua, `doors_locked`)
+         Den siste kan ikke utledes fra navnet, så `laas_omvendt` avgjør.
+         Ukjent verdi regnes som låst: å vippe på låseikonet fordi en entitet ikke
+         svarer, ville vært en påstand uten dekning. */
+      const laasSt = s(a.laas) && s(a.laas).state;
+      const ulast = laasSt === "unlocked" ? true
+        : laasSt === "locked" ? false
+        : laasSt === "on" ? c.laas_omvendt !== false
+        : laasSt === "off" ? c.laas_omvendt === false
+        : false;
       // bryter (on = åpen) eller cover (open/opening)
       const apen = (x) => !!x && ["open", "opening", "on"].includes(x.state);
       const bakApen = apen(s(a.bagasje)), frunkApen = apen(s(a.frunk));
@@ -312,9 +352,12 @@
       const sentry = s(a.sentry) && s(a.sentry).state === "on";
       const lavt = batt < 20 && !lader;
 
-      const kl = { lader, tilkoblet, kjorer, ulast, "bak-apen": bakApen, "frunk-apen": frunkApen, defrost, sentry, lavt: lavt && !kjorer };
+      const kl = { lader, tilkoblet, kjorer, ulast, "port-apen": portApen, "bak-apen": bakApen, "frunk-apen": frunkApen, defrost, sentry, lavt: lavt && !kjorer };
       for (const [k, v] of Object.entries(kl)) kort.classList.toggle(k, !!v);
       kort.style.setProperty("--flyt", (isNaN(eff) ? 1 : klem(1.3 - eff / 20, 0.3, 1.3)).toFixed(2) + "s");
+      const f = isNaN(fart) ? 40 : klem(fart, 5, 130);
+      kort.style.setProperty("--hjul", (18 / f).toFixed(3) + "s");   // 50 km/t ≈ 0,36 s per omdreining
+      kort.style.setProperty("--vei", (36 / f).toFixed(3) + "s");
 
       // batteri i terskelen + ladegrense-markør
       const b = isNaN(batt) ? 0 : klem(batt, 0, 100);
@@ -329,12 +372,13 @@
       // tekst
       $(".n").textContent = c.navn;
       let pt, ik, farge = "";
-      if (kjorer) { pt = !isNaN(fart) && fart > 1 ? `Kjører · ${Math.round(fart)} km/t` : "Kjører"; ik = "mdi:steering"; }
+      if (kjorer) { pt = !isNaN(fart) && fart > 0.5 ? `Kjører · ${Math.round(fart)} km/t` : "Kjører"; ik = "mdi:steering"; }
       else if (lader) { pt = isNaN(eff) ? "Lader" : `Lader · ${komma(eff, 1)} kW`; ik = "mdi:ev-station"; }
       else if (bakApen || frunkApen) { pt = frunkApen && bakApen ? "Frunk og bagasjerom åpne" : frunkApen ? "Frunken er åpen" : "Bagasjerommet er åpent"; ik = "mdi:car-back"; farge = "gul"; }
       else if (ulast) { pt = "Ulåst"; ik = "mdi:lock-open-variant"; farge = "gul"; }
       else if (lavt) { pt = "Lavt batteri"; ik = "mdi:battery-alert-variant-outline"; farge = "rod"; }
-      else if (tilkoblet) { pt = "Tilkoblet"; ik = "mdi:power-plug"; }
+      else if (tilkoblet) { pt = /complete|fullført/.test(lsSt) ? "Ferdig ladet" : "Tilkoblet"; ik = "mdi:power-plug"; }
+      else if (portApen) { pt = "Ladeport åpen"; ik = "mdi:ev-plug-type2"; }
       else if (sentry) { pt = "Sentry på"; ik = "mdi:cctv"; }
       else { pt = "Låst"; ik = "mdi:lock"; }
       const pille = $(".pille"); pille.className = "pille " + farge;

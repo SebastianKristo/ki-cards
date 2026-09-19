@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
+<rect width="64" height="64" rx="16" fill="#463a40"/>
+<!-- strømmast til venstre, huset til høyre, ledning mellom dem -->
+<path d="M13 46V20l5-6 5 6v26" fill="none" stroke="#fafbfc" stroke-width="2.2"
+      stroke-linejoin="round" opacity=".55"/>
+<path d="M13 26h10M13 33h10" stroke="#fafbfc" stroke-width="1.8" opacity=".4"/>
+<!-- ledningen henger i en bue bort til huset -->
+<path d="M23 24q10 7 15 2" fill="none" stroke="#5ad18b" stroke-width="2.2"
+      stroke-linecap="round"/>
+<!-- huset -->
+<path d="M34 30l9-8 9 8" fill="none" stroke="#fafbfc" stroke-width="2.4"
+      stroke-linejoin="round" opacity=".85"/>
+<rect x="36" y="30" width="14" height="16" rx="2" fill="none" stroke="#fafbfc"
+      stroke-width="2.2" opacity=".85"/>
+<!-- vinduet lyser -->
+<rect x="39.5" y="34" width="7" height="6" rx="1.5" fill="#f0d682"/>
+<!-- bakken -->
+<path d="M9 48h46" stroke="#fafbfc" stroke-width="2" stroke-linecap="round" opacity=".25"/>
+</svg>
