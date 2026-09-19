@@ -1,35 +1,32 @@
-# ki-cards 4.33.1
+# ki-cards 4.34.0
 
-## Pilla hoppet i stedet for å gli
+## Dra virket ikke i etasjevelgeren
 
-Den var på plass og riktig plassert i alle kortene — men i strømpriskortet og
-etasjevelgeren **flyttet den seg uten animasjon**.
+Opptaket viste det tydelig: pilla **hoppet** mellom fanene og var aldri midt imellom, og
+den lot seg ikke dra.
 
-Årsaken var min egen plassering. Kort som tegner markupen på nytt får en ny pille, og den
-settes først på forrige plass med overgangen AV, så den ikke blinker. Deretter skal den
-gli til den nye fanen — men alle målingene etterpå kalte `flytt(true)`, som slår av
-overgangen. Sluttposisjonen ble altså satt uten animasjon, og pilla hoppet.
+`KI.pillefaner` ble koblet på **én gang** for `simple-tabs`, fra `injectTabsStyle`. Men
+simple-tabs er Lit-basert og tegner fanerada på nytt ved hver oppdatering — og da var
+både pilla og pekerlytterne våre borte. Ingen satte dem tilbake.
 
-Nå er det bare **første** plassering som er stille, der det ikke finnes noen forrige
-posisjon å gli fra. Har vi en, animeres flyttingen.
+Pilla vi så etterpå var en rest fra første tegning, ikke noe som fulgte med.
 
-De to sene målingene på 120 og 400 ms — de som retter bredden når skrifta er byttet —
-animeres også. Med `flytt(true)` slo 120 ms-målingen av overgangen midt i glidningen, og
-pilla hoppet resten av veien.
+### En vakt som kobler på igjen
 
-### Hvorfor `ki-tabs-card` alltid virket
+Hjelperen ser nå på hele shadowRoot og setter pilla inn på nytt så snart den mangler.
+Lytterne følger med, så dra virker også etter en ombygging.
 
-Der overlever fanerada, så pilla er den samme noden hele veien. Den fikk aldri den
-stille gjeninnsettingen, og `_select` animerer som normalt.
+Det er en generell rettelse: alle kort som tegner fanerada på nytt får den, ikke bare
+simple-tabs. Kort som beholder rada merker ingenting — vakta spør bare om pilla er der.
 
 ### Kontrollert
 
-Første tegning: pilla settes stille på 4 px. Ny tegning etter fanebytte: den står først
-på 4 px med overgangen av, og glir så til 154 px med den på.
+Første kall setter inn pilla og oppretter vakta på shadowRoot. Etter at rada er byttet ut
+er pilla borte, og vakta setter den inn igjen på riktig fane, 104 px for fane to.
 
 ---
 
-# ki-cards 4.33.0
+# ki-cards 4.33.1
 
-Editoren for `ki-tabs-card` bygget om: fanen utvides der den står, med nummerert
-kortliste.
+Pilla hoppet i stedet for å gli i kort som tegner på nytt: sluttposisjonen ble satt med
+overgangen av.

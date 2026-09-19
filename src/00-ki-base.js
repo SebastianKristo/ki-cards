@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.33.1";
+  KI.VERSION = "4.34.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -621,9 +621,27 @@ window.KI = window.KI || {};
     let n = 0;
     const prov = () => {
       const sr = vert && vert.shadowRoot;
-      if (sr && start(sr)) return;
+      if (sr && start(sr)) { vakt(sr); return; }
       if (n++ < 60) setTimeout(prov, 50);
     };
+
+    /* Kortet kan tegne fanerada på nytt når som helst — Lit-baserte kort som
+     * simple-tabs gjør det ved hver oppdatering. Da er både pilla og lytterne våre
+     * borte, og uten dette ble de aldri satt tilbake: pilla hoppet mellom fanene i
+     * stedet for å gli, og dra virket ikke i det hele tatt.
+     *
+     * Vakta ser på hele shadowRoot og kobler på igjen når pilla mangler. `start()`
+     * gjør ingenting når alt er på plass, så det koster ikke noe å spørre.
+     */
+    const vakt = (sr) => {
+      if (vert._kiPilleVakt || !window.MutationObserver) return;
+      vert._kiPilleVakt = new MutationObserver(() => {
+        const r = sr.querySelector(rad.replace(/\\/g, ""));
+        if (r && !r.querySelector(".ki-pille")) start(sr);
+      });
+      vert._kiPilleVakt.observe(sr, { childList: true, subtree: true });
+    };
+
     prov();
   };
 })(window.KI);
