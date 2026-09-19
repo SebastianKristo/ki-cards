@@ -1,54 +1,44 @@
-# ki-cards 4.20.0
+# ki-cards 4.20.1
 
-## Nytt kort: `ki-varsling-card`
+## `ki-varsling-card` bruker malen din, ikke min egen form
 
-Bryterne fra **KI Varslinger og sikkerhet** finnes automatisk gjennom entitetsregisteret,
-filtrert på plattformen `ki_notifications`.
+Jeg lagde en egen radform i 4.20.0. Den skulle sett ut som
+`template_toggle_card_small`, og gjør det nå — målene er hentet rett fra malen i
+dashbordet:
 
-Det erstatter `auto-entities`-lista der hver bryter måtte skrives inn med entitets-ID,
-navn, ikon, tekst og seks linjer `variables`. **Legger du til en regel i integrasjonen,
-dukker den opp av seg selv** — lista i YAML-en var utdatert i samme øyeblikk du la til
-noe.
+| | |
+| --- | --- |
+| Høyde | 66 px |
+| Hjørner | 75 px |
+| Rutenett | `76px 1fr min-content` |
+| Navn | 16 px, vekt 500 |
+| Etikett | 14 px, dekning 0,7 |
+| Bryter | `mdi:toggle-switch`, 50 × 40 px |
+| Av | rød flate, svart tekst og ikon |
 
-### Hvorfor registeret og ikke tilstandene
+Ikonet står i en rund flate på `rgba(var(--highlight))` som før, og bryteren til høyre er
+den samme `toggle-switch`-ikonet malen bruker — ikke tekst.
 
-Plattformen står bare i entitetsregisteret. To brytere kan hete det samme og komme fra
-hver sin integrasjon, og da er navnet ikke nok til å skille dem.
+## Navn og beskrivelse deles som i malen
 
-### Grupperes per regel
+`friendly_name` deles på et skilletegn: navnet foran, beskrivelsen bak. «Vekking - Lys og
+lyd på vekketidspunkt» blir to linjer, akkurat som i dashbordet. `skille: '/'` endrer
+tegnet.
 
-Integrasjonen lager ett config entry per regel, med én enhet hver. Kortet grupperer per
-enhet og viser «2 av 3 på» per gruppe. Er det bare én gruppe, droppes overskriften — en
-overskrift over alt er ikke en gruppering.
+Uten skilletegn faller kortet tilbake til enhetsnavnet som overskrift og resten som
+beskrivelse, så «Autolås Autolås» ikke står to ganger på samme rad.
 
-Enhetsnavnet fjernes når det gjentas i entitetsnavnet: «Autolås Autolås» blir «Autolås».
-
-### Ikoner gjettes
-
-Fra navnet, med de mest spesifikke først: «fastkjort» treffer låsevarselet og ikke låsen.
-Tretten mønstre dekker låser, alarm, familie, støvsuger, vær, Ruter, strøm og oppstart.
-`ikoner:` overstyrer.
-
-### Valg
-
-* `bare:` — bare disse, i den rekkefølgen. Med to faner som deler de samme bryterne
-  slipper hver fane å kjenne den andres innhold for å skjule det.
-* `ekstra:` — automasjoner utenfor integrasjonen
-* `skjul:`, `navn:`, `undertekst:`, `ikoner:`
-* Søkefelt fra åtte brytere; `sok: false` slår det av
-
-Kort trykk veksler, langt trykk åpner entiteten — ellers må man inn i innstillingene for
-å se hvilken automasjon en bryter egentlig styrer.
+`navn:` og `undertekst:` overstyrer begge deler.
 
 ### Kontrollert
 
-Seks brytere fra seks enheter: sensorer og brytere fra andre integrasjoner utelates,
-ikonene treffer, enhetsnavn-duplikater fjernes, og `bare` styrer både utvalg og
-rekkefølge. Ukjente navn i `bare` hoppes over uten å feile.
+Fire navneformer: med bindestrek, uten, med enhetsnavn som prefiks, og et enkeltord.
+Alle sju målene fra malen kontrollert mot den genererte CSS-en.
 
 ---
 
-# ki-cards 4.19.0
+# ki-cards 4.20.0
 
-`ki-rom-card` legger 200 px mellomrom nederst når rommet mangler seksjoner, så korte kort
-ikke flyter midt i popupen. `bunn_gap` styrer det.
+Nytt kort `ki-varsling-card`: bryterne fra KI Varslinger og sikkerhet finnes gjennom
+entitetsregisteret og grupperes per regel. `bare:`, `ekstra:`, `skjul:`, søk fra åtte
+brytere, og langt trykk for å åpne entiteten.

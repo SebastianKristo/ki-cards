@@ -11,6 +11,7 @@
  * skjul: [autolas_autolas]           # bryter-slugger som ikke skal vises
  * navn: { autolas_autolas: 'Autolås' }
  * undertekst: { autolas_autolas: 'Låser døra etter lukking' }
+ * skille: '-'                        # skilletegn i friendly_name: navn - beskrivelse
  * ikoner: { autolas_autolas: 'mdi:lock-clock' }
  * sok: true                          # søkefelt når det er mange
  */
@@ -31,35 +32,44 @@ const KI_VARS_STIL = `
     background:rgba(128,128,128,.18); color:inherit; cursor:pointer; display:flex;
     align-items:center; justify-content:center; --mdc-icon-size:16px; }
 
-  .gruppe { display:grid; gap:6px; }
+  .gruppe { display:grid; gap:8px; }
   .hode { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
     padding:6px 6px 0; }
   .hode .h { font-size:13px; font-weight:600; }
   .hode .s { font-size:11.5px; opacity:.5; }
 
-  /* Pilleform med rundt ikonfelt, som radene ellers i dashbordet. */
-  .rad { display:flex; align-items:center; gap:13px; width:100%; border:0; font:inherit;
-    text-align:left; cursor:pointer; border-radius:22px; background:var(--gray200);
-    color:var(--gray1000); padding:8px 16px 8px 8px;
-    transition:transform .12s var(--myk); }
-  .rad:active { transform:scale(.995); }
-  .ring { width:46px; height:46px; flex:none; border-radius:50%; display:flex;
-    align-items:center; justify-content:center; --mdc-icon-size:22px;
-    background:rgba(250,251,252,.10); color:var(--gray1000);
-    transition:background .35s var(--myk), color .3s; }
-  .rad.pa .ring { background:var(--active-big,#ee95ff); color:var(--black,#1b1b1b); }
+  /* Målene er hentet fra template_toggle_card_small i dashbordet: 66 px høy,
+     75 px hjørner, 76 px ikonkolonne, navn 16/500 og etikett 14 med 0.7 i dekning.
+     Ingen egne verdier her — det er den malen kortet skal se ut som. */
+  .rad { display:grid; align-items:center; width:100%; border:0; cursor:pointer;
+    font:inherit; text-align:left; height:66px; border-radius:75px;
+    padding:4px 20px 4px 4px; background:var(--gray200); color:var(--gray1000);
+    grid-template-columns:76px 1fr min-content;
+    grid-template-areas:"i n bryter" "i l bryter"; }
+  .rad .ikon { grid-area:i; justify-self:start; width:58px; height:58px;
+    border-radius:50%; background:rgba(var(--highlight)); display:flex;
+    align-items:center; justify-content:center; --mdc-icon-size:30px; }
+  .rad .n { grid-area:n; justify-self:start; font-size:16px; font-weight:500;
+    padding-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    max-width:100%; }
+  .rad .l { grid-area:l; justify-self:start; font-size:14px; opacity:.7;
+    padding-bottom:7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    max-width:100%; }
+  .rad .bryter { grid-area:bryter; justify-self:end; display:flex;
+    align-items:center; --mdc-icon-size:40px; }
+  .rad .bryter ha-icon { width:50px; height:40px; }
+
+  /* Av er rød, som i malen: fargen sier «dette skjer ikke nå», og den er lettere å
+     se i en lang liste enn en grå bryter. */
+  .rad.av { background:var(--red); }
+  .rad.av .n, .rad.av .l, .rad.av .ikon, .rad.av .bryter { color:var(--black); }
+  .rad.av .ikon { background:rgba(0,0,0,.1); }
   .rad.borte { opacity:.45; }
-  .tekst { flex:1; min-width:0; display:grid; gap:1px; }
-  .n { font-size:15px; font-weight:500; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; }
-  .u { font-size:13px; opacity:.55; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; }
-  .verdi { font-size:13px; opacity:.5; flex:none; white-space:nowrap; }
 
   .tom { padding:16px 18px; border-radius:22px; background:var(--gray200);
     font-size:14px; opacity:.7; line-height:1.5; }
-  @media (prefers-reduced-motion: reduce) { .rad, .ring { transition:none; } }
 `;
+
 
 const kiVaEsc = (s) => String(s ?? "").replace(/[&<>"]/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -129,16 +139,29 @@ class KiVarslingCard extends HTMLElement {
         || (dev[e.device_id] || {}).name || "";
       const a = st.attributes || {};
       const eget = (c.navn || {})[slug] || (c.navn || {})[id];
-      /* Enhetsnavnet står ofte foran entitetsnavnet — «Autolås Autolås». Er de like,
-         holder det med ett. */
-      let navn = eget || a.friendly_name || slug;
-      if (enhet && navn.toLowerCase().startsWith(enhet.toLowerCase() + " ")) {
-        navn = navn.slice(enhet.length + 1);
+      const egenUnder = (c.undertekst || {})[slug] || (c.undertekst || {})[id];
+
+      /* Navn og undertekst hentes som i template_toggle_card_small: `friendly_name`
+         deles på et skilletegn, navnet foran og beskrivelsen bak.
+         «Vekking - Lys og lyd på vekketidspunkt» blir to linjer. */
+      const skille = c.skille || "-";
+      const helt = a.friendly_name || slug;
+      const deler = helt.split(skille);
+      let navn = deler[0].trim() || slug;
+      let under = deler.length > 1 ? deler.slice(1).join(skille).trim() : "";
+
+      /* Uten skilletegn i navnet faller vi tilbake til enhetsnavnet som overskrift og
+         resten som beskrivelse — «Autolås Autolås» skal ikke stå to ganger. */
+      if (!under && enhet && helt.toLowerCase().startsWith(enhet.toLowerCase() + " ")) {
+        navn = enhet;
+        under = helt.slice(enhet.length + 1).trim();
       }
+      if (eget) navn = eget;
+      if (egenUnder) under = egenUnder;
       ut.push({
         id, slug, kilde, enhet: enhet || "Annet",
         navn: navn.trim() || slug,
-        under: (c.undertekst || {})[slug] || (c.undertekst || {})[id] || "",
+        under,
         ikon: (c.ikoner || {})[slug] || (c.ikoner || {})[id]
           || a.icon || kiVarsIkon(`${slug} ${navn}`),
         pa: st.state === "on",
@@ -211,14 +234,13 @@ class KiVarslingCard extends HTMLElement {
               <span class="s">${liste.filter((b) => b.pa).length} av ${liste.length} på</span>
             </div>` : ""}
             ${liste.map((b) => `
-              <button class="rad ${b.pa ? "pa" : ""} ${b.borte ? "borte" : ""}"
+              <button class="rad ${b.pa ? "" : "av"} ${b.borte ? "borte" : ""}"
                       data-veksle="${kiVaEsc(b.id)}" data-mer="${kiVaEsc(b.id)}">
-                <span class="ring"><ha-icon icon="${kiVaEsc(b.ikon)}"></ha-icon></span>
-                <span class="tekst">
-                  <span class="n">${kiVaEsc(b.navn)}</span>
-                  ${b.under ? `<span class="u">${kiVaEsc(b.under)}</span>` : ""}
-                </span>
-                <span class="verdi">${b.borte ? "uten svar" : b.pa ? "På" : "Av"}</span>
+                <span class="ikon"><ha-icon icon="${kiVaEsc(b.ikon)}"></ha-icon></span>
+                <span class="n">${kiVaEsc(b.navn)}</span>
+                <span class="l">${kiVaEsc(b.under || (b.borte ? "Svarer ikke" : ""))}</span>
+                <span class="bryter"><ha-icon icon="${
+                  b.pa ? "mdi:toggle-switch" : "mdi:toggle-switch-off"}"></ha-icon></span>
               </button>`).join("")}
           </div>`).join("")}
         ${alle && !flereGrupper && brytere.length ? `<div class="hode">
