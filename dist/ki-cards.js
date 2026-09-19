@@ -1,4 +1,4 @@
-/* ki-cards v4.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
+/* ki-cards v4.25.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-19 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "4.24.0";
+  KI.VERSION = "4.25.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -720,7 +720,31 @@ try {
           .panel.inn-hoyre, .panel.inn-venstre { animation:none; }
         }
         .tab:hover, .dd:hover { color:rgba(255,255,255,.95); }
-        .tab.active, .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+
+        /* Den aktive fyllingen er ett element som GLIR mellom fanene, ikke en bakgrunn
+           som skrus av og på. Det er det som gjør at man kan dra i den: pilla følger
+           fingeren og lander på fanen du slipper over.
+           Fanene ligger over pilla, så teksten er lesbar mens den glir under. */
+        .tabs, .spor { position:relative; }
+        .pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
+          background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
+          transform:translateX(var(--x, 0px)); width:var(--w, 0px);
+          transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
+          pointer-events:none; z-index:0; }
+        .pille.drar { transition:none; }
+        .tab, .dd { position:relative; z-index:1; }
+        .tab.active { color:rgba(70,58,64,.95); }
+        .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
+
+        /* Trykk: fanen synker litt, og pilla med den. Uten dette er det ingen respons
+           i øyeblikket man trykker — bare et resultat et kvart sekund senere. */
+        .tab { transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
+        .tab:active { transform:scale(.94); }
+        .pille.trykk { transform:translateX(var(--x, 0px)) scaleX(.97); }
+        @media (prefers-reduced-motion: reduce) {
+          .pille { transition:none; }
+          .tab:active { transform:none; }
+        }
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
         .dd .chev { transition:transform .15s; --mdc-icon-size:20px; margin-right:-6px; }
         .dd.open .chev { transform:rotate(180deg); }
@@ -743,12 +767,12 @@ try {
       <div class="wrap">
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
-          <div class="tabs pills" role="tablist">
+          <div class="tabs pills" role="tablist"><span class="pille"></span>
             ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
           <div class="scroller">
-            <div class="spor" role="tablist">
+            <div class="spor" role="tablist"><span class="pille"></span>
               ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
@@ -764,6 +788,12 @@ try {
       </div>`;
       const r = this.shadowRoot;
       r.querySelectorAll(".tab[data-i]").forEach(b => b.addEventListener("click", () => this._select(+b.dataset.i)));
+
+      /* Dra-håndtering på begge faneradene, og pilla plasseres når bredden er kjent.
+         `requestAnimationFrame` fordi offsetWidth er 0 før første layout, og pilla da
+         ville fått bredde null og stått usynlig til første fanebytte. */
+      for (const rad of r.querySelectorAll(".tabs.pills, .spor")) this._koblDra(rad);
+      requestAnimationFrame(() => this._flyttPille(this._active, true));
       const spor = r.querySelector(".spor"), scroller = r.querySelector(".scroller");
       const kanter = () => {
         if (!spor) return;
@@ -875,6 +905,83 @@ try {
         if (this._esc) document.removeEventListener("keydown", this._esc);
       }
     }
+    /* Flytter pilla til en fane. Kalles etter hver tegning og ved hvert valg. */
+    _flyttPille(i, uten = false) {
+      const r = this.shadowRoot;
+      for (const rad of r.querySelectorAll(".tabs.pills, .spor")) {
+        const pille = rad.querySelector(".pille");
+        const knapp = rad.querySelector(`.tab[data-i="${i}"]`);
+        if (!pille) continue;
+        if (!knapp) { pille.style.width = "0px"; continue; }
+        pille.classList.toggle("drar", uten);
+        pille.style.setProperty("--x", (knapp.offsetLeft - rad.scrollLeft) + "px");
+        pille.style.setProperty("--w", knapp.offsetWidth + "px");
+      }
+    }
+
+    /* Dra: pilla følger fingeren, og fanen under den blir valgt når du slipper.
+     *
+     * Vi flytter pilla fritt mens du drar — ikke fane for fane — fordi det er det som
+     * gjør at den føles festet til fingeren. Den snapper til nærmeste fane først ved
+     * slipp. Et lite utslag teller som trykk, ikke som dra, ellers ville et vanlig
+     * trykk med litt skjelv blitt tolket som en dratt bevegelse. */
+    _koblDra(rad) {
+      const pille = rad.querySelector(".pille");
+      if (!pille) return;
+      let drar = false, start = 0, startX = 0, bredde = 0;
+
+      const fanen = (klientX) => {
+        const kasse = rad.getBoundingClientRect();
+        const x = klientX - kasse.left + rad.scrollLeft;
+        let best = null, avstand = Infinity;
+        for (const b of rad.querySelectorAll(".tab[data-i]")) {
+          const midt = b.offsetLeft + b.offsetWidth / 2;
+          const d = Math.abs(midt - x);
+          if (d < avstand) { avstand = d; best = +b.dataset.i; }
+        }
+        return best;
+      };
+
+      rad.addEventListener("pointerdown", (e) => {
+        const b = e.target.closest && e.target.closest(".tab[data-i]");
+        if (!b) return;
+        start = e.clientX;
+        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
+        bredde = pille.offsetWidth;
+        drar = false;
+        pille.classList.add("trykk");
+      });
+
+      rad.addEventListener("pointermove", (e) => {
+        if (!start) return;
+        const dx = e.clientX - start;
+        if (!drar && Math.abs(dx) < 6) return;      // skjelv er ikke en dra
+        drar = true;
+        pille.classList.remove("trykk");
+        pille.classList.add("drar");
+        const maks = rad.scrollWidth - bredde - 4;
+        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
+        rad.setPointerCapture && e.pointerId !== undefined
+          && rad.setPointerCapture(e.pointerId);
+      });
+
+      const slipp = (e) => {
+        if (!start) return;
+        pille.classList.remove("trykk", "drar");
+        const valgt = drar ? fanen(e.clientX) : null;
+        start = 0;
+        if (valgt !== null && valgt !== undefined && valgt !== this._active) {
+          this._select(valgt);
+        } else {
+          this._flyttPille(this._active);           // snapp tilbake
+        }
+        drar = false;
+      };
+      rad.addEventListener("pointerup", slipp);
+      rad.addEventListener("pointercancel", slipp);
+      rad.addEventListener("scroll", () => this._flyttPille(this._active, true));
+    }
+
     _select(i) {
       const forrige = this._active;
       this._active = i; const r = this.shadowRoot;
@@ -893,6 +1000,7 @@ try {
         panel.addEventListener("animationend",
           () => panel.classList.remove(klasse), { once: true });
       }
+      this._flyttPille(i);
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
       /* andre kort kan følge fanevalget – sendes både oppover og på window */

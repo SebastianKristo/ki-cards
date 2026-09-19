@@ -1,39 +1,47 @@
-# ki-cards 4.24.0
+# ki-cards 4.25.0
 
-## `family-status-card` finner sonene selv
+## `ki-tabs-card`: pilla glir, og den kan dras
 
-Hver sone måtte listes opp i `locations:`. Glemte du en, fikk personen
-standardikonet — **et fly** — mens hun sto på skolen.
+### Den aktive fyllingen er nå ett element
 
-Kortet leser nå alle `zone.*` fra Home Assistant og bruker **sonens eget ikon**. Sonene
-har allerede både navn og ikon; det var ingen grunn til å skrive dem inn en gang til.
+Før var `background` på den aktive fanen skrudd av og på. Nå er det **én pille som glir**
+mellom fanene, med fanene liggende over så teksten er lesbar mens den passerer under.
 
-### `locations:` er nå overstyringer
+Det var ikke bare pynt: en bakgrunn som skrus av og på kan ikke dras i.
 
-Din `zone.toten` med traktor vinner fortsatt over sonens eget låveikon. Det du har satt
-opp beholdes uendret — oppdagelsen fyller bare på med resten.
+### Dra
 
-Det betyr at du kan korte ned lista til de sonene der du vil ha et annet ikon eller en
-annen farge enn sonen selv har, og la resten komme av seg selv.
+Hold på pilla og dra — den følger fingeren fritt, ikke fane for fane, og det er det som
+gjør at den føles festet til fingeren. Den snapper til nærmeste fane først når du
+slipper.
+
+Under seks piksler teller som **trykk, ikke dra**. Uten den terskelen ville et vanlig
+trykk med litt skjelv blitt tolket som en bevegelse, og du kunne endt på nabofanen.
+
+Slipper du utenfor en fane, eller avbryter, snapper pilla tilbake dit den var.
+
+### Trykk
+
+Fanen synker til 94 % mens fingeren er nede, og pilla klemmes litt sammen. Uten det er
+det ingen respons i det øyeblikket man trykker — bare et resultat et kvart sekund senere.
 
 ### Detaljer
 
-* `zone.home` utelates — hjemme har sin egen `home_icon`.
-* En sone uten ikon får `mdi:map-marker`, ikke flyet. Personen er på et **kjent** sted,
-  og et fly sier det motsatte.
-* Fargen på oppdagede soner er `--blue`; `zone_color:` endrer den for alle.
-* `auto_zones: false` slår oppdagelsen av og gir den gamle oppførselen.
+* Pilla plasseres i `requestAnimationFrame` etter bygging. `offsetWidth` er 0 før første
+  layout, og uten dette sto pilla usynlig til første fanebytte.
+* Den følger med når den rullbare rada scrolles.
+* `prefers-reduced-motion` slår av både glidningen og trykket.
 
 ### Kontrollert
 
-Med `zone.toten` satt opp: traktoren vinner, og skole, treningssenter og en sone uten
-ikon kommer med. Uten oppsett: alle fire med sine egne ikoner. `auto_zones: false` gir
-bare den ene fra YAML-en. `zone.home` er aldri med, og ingenting annet enn `zone.*`
-plukkes opp.
+Stilen: glidende pille, ingen overgang under dra, trykk som krymper, fanene over pilla.
+Logikken: terskel mot skjelv, snapping til nærmeste, avbrudd håndtert, klemt innenfor
+rada. Snapping testet mot tre faner — slipp ved x = 47 gir fane 0, 136 gir fane 1, 300
+gir fane 2.
 
 ---
 
-# ki-cards 4.23.0
+# ki-cards 4.24.0
 
-`ki-varsling-card` tar også varslene fra KI Energi, med egen filtrering og uten
-mastermodus der alle bryterne ligger på én enhet.
+`family-status-card` finner sonene selv og bruker sonens eget ikon; `locations:` er nå
+overstyringer.
