@@ -251,26 +251,30 @@ class KiVarslingCard extends HTMLElement {
      * at den heter det samme som regelen. Finner vi ingen, viser vi alle bryterne for
      * den regelen — det er bedre enn å skjule noe vi ikke forstod. */
     if (c.master !== false) {
-      const erMaster = (b) => /alle[ _-]?varsler|_aktivert$|_varsling$|_aktiv$/.test(b.id)
+      const erMaster = (b) => /alle[ _-]?varsler|_aktivert$|_varsling$|_aktiv$|_auto$|_automatikk$/.test(b.id)
         || b.slug === b.enhet.toLowerCase().replace(/[^a-z0-9]+/g, "_")
         || /^(alle varsler|aktivert|varsling|aktiv)$/i.test(b.under || "");
-      /* Mastermodus gjelder bare der én enhet ER én regel. KI Energi har alle sine
-         varslingsbrytere på samme enhet, og da ville «hovedbryteren» skjult fem av seks
-         — de er sidestilte valg, ikke underinnstillinger. */
+      /* Vi samler til hovedbryteren når enheten FAKTISK har en — ikke ut fra hvilken
+       * integrasjon det er.
+       *
+       * Det har vært feil begge veier: først hardkodet til ki_energi, så begrenset til
+       * ki_notifications. Ingen av delene tålte at du legger til en ny integrasjon.
+       *
+       * KI Energi er unntaket, og det er et ekte unntak: de seks bryterne der er
+       * sidestilte valg — effektgrense, hjemkomst, varmtvann — ikke underinnstillinger
+       * under en hovedbryter. `ikke_master:` lar deg gjøre det samme for andre.
+       */
+      const utenMaster = [].concat(c.ikke_master || ["ki_energi"]);
       const perEnhet = new Map();
       for (const b of ut) {
-        /* Mastermodus gjelder BARE der én enhet er én regel, som i ki_notifications.
-           Før var unntaket hardkodet til ki_energi, og da falt enhver ny integrasjon
-           med flere brytere på samme enhet sammen til én rad — KI Utelys sine tre
-           viste seg som «KI Utelys» tre ganger. */
-        if (b.kilde === "ekstra" || b.plattform !== "ki_notifications") continue;
+        if (b.kilde === "ekstra" || utenMaster.includes(b.plattform)) continue;
         if (!perEnhet.has(b.enhet)) perEnhet.set(b.enhet, []);
         perEnhet.get(b.enhet).push(b);
       }
 
       const behold = new Set();
-      /* Brytere fra KI Energi beholdes alltid: de er sidestilte valg på én enhet. */
-      for (const b of ut) if (b.plattform !== "ki_notifications") behold.add(b.id);
+      /* Brytere fra unntatte integrasjoner beholdes alltid. */
+      for (const b of ut) if (utenMaster.includes(b.plattform)) behold.add(b.id);
       for (const [, liste] of perEnhet) {
         if (liste.length <= 1) { liste.forEach((b) => behold.add(b.id)); continue; }
         const m = liste.filter(erMaster);

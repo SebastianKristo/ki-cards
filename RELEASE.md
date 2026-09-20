@@ -1,45 +1,43 @@
-# ki-cards 5.15.0
+# ki-cards 5.16.0
 
-## Mastermodus gjaldt feil vei
+## Mastermodus samler når enheten faktisk har en hovedbryter
 
-La du til en ny integrasjon i `ki-varsling-card`, falt alle bryterne fra samme enhet
-sammen til én rad. KI Utelys sine tre viste seg som «KI Utelys» tre ganger.
+KI Utelys har en hovedbryter — Automatikk — og det er som regel bare den man vil se.
 
-Unntaket var hardkodet til `ki_energi`. Regelen skal være omvendt: mastermodus gir bare
-mening der **én enhet er én regel**, som i `ki_notifications`. Alt annet vises som
-sidestilte brytere.
+Regelen er nå: samle til hovedbryteren når enheten **har** en. Hovedbryteren kjennes på
+navnet, og `_auto` og `_automatikk` er lagt til i mønsteret.
 
-Nå gjelder det enhver integrasjon du legger til, ikke bare de to jeg rakk å tenke på.
+Jeg har hatt dette feil begge veier. Først var unntaket hardkodet til `ki_energi`, så
+begrenset jeg det til `ki_notifications` — og ingen av delene tålte at du legger til en
+ny integrasjon, som var hele poenget med editoren.
 
-## Navn for KI Utelys
+### KI Energi er fortsatt unntatt, og det er et ekte unntak
 
-Automatikk, Morgen og Kveld, med hvert sitt ikon og en forklaring.
+De seks bryterne der er **sidestilte valg** — effektgrense, hjemkomst, varmtvann — ikke
+underinnstillinger under en hovedbryter. Samlet ville fem av seks forsvunnet.
 
-## Og en ting som ikke var en feil
+`ikke_master:` lar deg gjøre det samme for andre integrasjoner, og `ikke_master: []`
+slår av unntaket helt.
 
-`enheter:` er en **hviteliste** som filtrerer på regelnavn. Står det
-`lås, ansikt, vekking, dørlys` der, slipper ingenting annet gjennom — heller ikke en
-plattform du nettopp la til.
+### Resultat med dine tre integrasjoner
 
-Legg `utelys` til i lista, eller fjern filteret:
-
-```yaml
-enheter:
-  - lås
-  - ansikt
-  - vekking
-  - dørlys
-  - utelys
 ```
+Dørlås                 ← samlet til hovedbryteren
+Effektgrense           ← KI Energi, sidestilt
+Varmtvann              ← KI Energi, sidestilt
+Utelys automatikk      ← samlet, morgen og kveld skjult
+```
+
+`master: false` viser alle sju.
 
 ### Kontrollert
 
-Tre plattformer samtidig gir seks rader: dørlåsen samlet til hovedbryteren, to fra KI
-Energi og tre fra KI Utelys, hver med eget navn og ikon. `ki_notifications` alene gir
-fortsatt én rad.
+Tre plattformer samtidig gir fire rader. `master: false` gir sju. `ikke_master: []`
+endrer ikke KI Energi her, siden ingen av de to bryterne i testen er en hovedbryter —
+i praksis ville `ki_energi_varsler` blitt samlingspunktet.
 
 ---
 
-# ki-cards 5.14.0
+# ki-cards 5.15.0
 
-`ki-utelys-card` oppdatert med fire lag i scenen og tydeligere tilstandsklasser.
+Navn for KI Utelys, og mastermodus begrenset til `ki_notifications` — rettet igjen her.
