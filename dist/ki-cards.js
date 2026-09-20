@@ -1,4 +1,4 @@
-/* ki-cards v5.23.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.24.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.23.0";
+  KI.VERSION = "5.24.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -29209,12 +29209,15 @@ function toCssSize(value, fallbackPx) {
 
 class FamilyStatusCard extends LitElement {
   static get properties() {
-    return { hass: {}, config: {}, _dialogIndex: {} };
+    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {} };
   }
 
   constructor() {
     super();
     this._dialogIndex = null;
+    this._lukker = false;
+    /* Valget man nettopp gjorde, til entiteten svarer. Se _aktiv(). */
+    this._opt = {};
     this._openedAt = 0;
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onResize = () => this.requestUpdate();
@@ -29501,9 +29504,140 @@ class FamilyStatusCard extends LitElement {
     this._closeDialog();
   }
 
+  /* Lukking i to trinn: først klassen som spiller utgangen, så borte.
+     Uten dette forsvant popupen momentant mens den kom inn med animasjon — det
+     leses som at noe gikk galt, ikke som at man lukket den. */
   _closeDialog() {
-    this._dialogIndex = null;
+    if (this._lukker) return;
     window.removeEventListener("keydown", this._onKeyDown);
+    this._lukker = true;
+    window.setTimeout(() => {
+      this._dialogIndex = null;
+      this._lukker = false;
+      this._opt = {};
+    }, 170);
+  }
+
+  /* Hvilken side av bryteren som står aktiv.
+   *
+   * Rett etter et trykk stoler vi på valget i stedet for på entiteten: Home Assistant
+   * bruker et øyeblikk på å svare, og uten dette spratt pilla tilbake til utgangspunktet
+   * før den kom fram igjen — nettopp det bevegelsen skal skjule. Vi slipper taket så
+   * snart entiteten er enig, eller etter tre sekunder. */
+  _aktiv(nokkel, faktisk) {
+    const o = this._opt[nokkel];
+    if (!o) return faktisk;
+    if (o.idx === faktisk || Date.now() - o.t > 3000) {
+      delete this._opt[nokkel];
+      return faktisk;
+    }
+    return o.idx;
+  }
+
+  _velg(nokkel, idx, sett) {
+    this._opt[nokkel] = { idx, t: Date.now() };
+    this.requestUpdate();
+    sett();
+  }
+
+  /* Trykk og dra på en bryter.
+   *
+   * Pilla ligger som eget element i sporet, og flyttes med transform. Fingeren ned:
+   * pilla klemmes flat. Dra: den følger fingeren mellom de to plassene. Slipp: den går
+   * til den nærmeste, og det valget settes — akkurat som et trykk ville gjort.
+   *
+   * Klemmen ligger på ::before, ikke på pilla selv: pilla eier transform til
+   * plasseringen, og en skalering på samme element ville overskrevet den. */
+  _segDown(ev, nokkel, idx, valg) {
+    const spor = ev.currentTarget;
+    const pille = spor.querySelector(".pill");
+    if (!pille) return;
+    const bredde = pille.offsetWidth;
+    const gap = 6;
+    this._drag = {
+      spor, pille, nokkel, idx, valg,
+      x0: ev.clientX,
+      base: idx === 1 ? bredde + gap : 0,
+      maks: bredde + gap,
+      flyttet: false,
+    };
+    pille.style.setProperty("--sx", 0.94);
+    pille.style.setProperty("--sy", 0.86);
+    try { spor.setPointerCapture(ev.pointerId); } catch (e) { /* ok */ }
+  }
+
+  _segMove(ev) {
+    const d = this._drag;
+    if (!d) return;
+    const dx = ev.clientX - d.x0;
+    if (!d.flyttet && Math.abs(dx) < 5) return;
+    d.flyttet = true;
+    d.x = Math.max(0, Math.min(d.maks, d.base + dx));
+    d.pille.style.transition = "none";
+    d.pille.style.transform = `translateX(${d.x}px)`;
+    const strekk = Math.min(0.12, Math.abs(dx) / 420);
+    d.pille.style.setProperty("--sx", 1 + strekk);
+    d.pille.style.setProperty("--sy", 1 - strekk * 0.7);
+  }
+
+  _segUp() {
+    const d = this._drag;
+    if (!d) return;
+    this._drag = null;
+    const pille = d.pille;
+    pille.style.transition = "";
+    pille.style.removeProperty("--sx");
+    pille.style.removeProperty("--sy");
+    const ny = d.flyttet ? (d.x > d.maks / 2 ? 1 : 0) : d.idx;
+    /* Sett sluttplassen selv. Lit skriver bare style-attributtet på nytt når verdien
+       har endret seg, så et dra som ender der det startet ville blitt stående på
+       piksel-verdien fra fingeren. */
+    pille.style.transform = ny === 1 ? "translateX(calc(100% + 6px))" : "";
+    pille.classList.remove("land");
+    void pille.offsetWidth;
+    pille.classList.add("land");
+    if (d.flyttet) {
+      /* Et dra ender i et klikk på knappen under fingeren. Uten denne sperren ville
+         det klikket satt tilbake verdien man nettopp dro bort fra. */
+      this._dro = Date.now();
+      if (ny !== d.idx) this._velg(d.nokkel, ny, d.valg[ny].sett);
+    }
+  }
+
+  /* Én bryter: spor, glidende pille og to valg. */
+  _segment(nokkel, aktiv, valg) {
+    const v = valg[aktiv] || valg[0];
+    return html`
+      <div
+        class="segment"
+        @pointerdown=${(e) => this._segDown(e, nokkel, aktiv, valg)}
+        @pointermove=${(e) => this._segMove(e)}
+        @pointerup=${() => this._segUp()}
+        @pointercancel=${() => this._segUp()}
+      >
+        <span
+          class="pill"
+          style="${aktiv === 1 ? "transform:translateX(calc(100% + 6px));" : ""}${
+            v.farge ? `--pf:${v.farge};` : ""}"
+        ></span>
+        ${valg.map(
+          (o, i) => html`
+            <button
+              class="seg ${i === aktiv ? "active" : ""}"
+              style=${i === aktiv && o.tekstfarge ? `color:${o.tekstfarge}` : ""}
+              @click=${() => {
+                if (this._dro && Date.now() - this._dro < 400) return;
+                if (i === aktiv) { this._haptic("selection"); return; }
+                this._velg(nokkel, i, o.sett);
+              }}
+            >
+              <ha-icon icon=${o.ikon}></ha-icon>
+              <span>${o.tekst}</span>
+            </button>
+          `
+        )}
+      </div>
+    `;
   }
 
   _onKeyDown(ev) {
@@ -29678,78 +29812,80 @@ class FamilyStatusCard extends LitElement {
     ].join(" ");
 
     return html`
-      <div class="backdrop" @click=${(e) => this._onBackdropClick(e)}>
+      <div
+        class="backdrop ${this._lukker ? "ut" : ""}"
+        @click=${(e) => this._onBackdropClick(e)}
+      >
         <div
-          class="dialog"
+          class="dialog ${this._lukker ? "ut" : ""}"
           role="dialog"
           aria-label=${name}
           style=${dialogStyle}
           @click=${(e) => e.stopPropagation()}
         >
-          <div
-            class="dialog-avatar"
-            style=${picture ? `background-image:url(${picture})` : ""}
-          ></div>
+          <div class="glans"></div>
+          <div class="avatarring ${isHome ? "hjemme" : "borte"} ${isAsleep ? "sover" : ""}">
+            <div
+              class="dialog-avatar"
+              style=${picture ? `background-image:url(${picture})` : ""}
+            ></div>
+          </div>
           <div class="dialog-name">${name}</div>
+          <div class="dialog-sub">
+            ${isHome ? cfg.home_label : cfg.away_label}${
+              personConfig.sleep_switch
+                ? html` · ${isAsleep ? cfg.asleep_label : cfg.awake_label}`
+                : ""}
+          </div>
 
           ${personConfig.presence_switch
-            ? html`
-                <div class="segment">
-                  <button
-                    class="seg ${isHome ? "active" : ""}"
-                    style=${isHome
-                      ? segStyle(cfg.home_active_color, cfg.home_active_text_color)
-                      : ""}
-                    @click=${() => this._setEntity(personConfig.presence_switch, true)}
-                  >
-                    <ha-icon icon=${cfg.dialog_home_icon}></ha-icon>
-                    <span>${cfg.home_label}</span>
-                  </button>
-                  <button
-                    class="seg ${!isHome ? "active" : ""}"
-                    style=${!isHome
-                      ? segStyle(cfg.away_active_color, cfg.away_active_text_color)
-                      : ""}
-                    @click=${() => this._setEntity(personConfig.presence_switch, false)}
-                  >
-                    <ha-icon icon=${cfg.dialog_away_icon}></ha-icon>
-                    <span>${cfg.away_label}</span>
-                  </button>
-                </div>
-              `
+            ? this._segment("pres", this._aktiv("pres", isHome ? 0 : 1), [
+                {
+                  ikon: cfg.dialog_home_icon,
+                  tekst: cfg.home_label,
+                  farge: cfg.home_active_color,
+                  tekstfarge: cfg.home_active_text_color,
+                  sett: () => this._setEntity(personConfig.presence_switch, true),
+                },
+                {
+                  ikon: cfg.dialog_away_icon,
+                  tekst: cfg.away_label,
+                  farge: cfg.away_active_color,
+                  tekstfarge: cfg.away_active_text_color,
+                  sett: () => this._setEntity(personConfig.presence_switch, false),
+                },
+              ])
             : ""}
           ${personConfig.sleep_switch
-            ? html`
-                <div class="segment">
-                  <button
-                    class="seg ${!isAsleep ? "active" : ""}"
-                    style=${!isAsleep
-                      ? segStyle(cfg.awake_active_color, cfg.awake_active_text_color)
-                      : ""}
-                    @click=${() => this._setEntity(personConfig.sleep_switch, false)}
-                  >
-                    <ha-icon icon=${cfg.dialog_awake_icon}></ha-icon>
-                    <span>${cfg.awake_label}</span>
-                  </button>
-                  <button
-                    class="seg ${isAsleep ? "active" : ""}"
-                    style=${isAsleep
-                      ? segStyle(cfg.asleep_active_color, cfg.asleep_active_text_color)
-                      : ""}
-                    @click=${() => this._setEntity(personConfig.sleep_switch, true)}
-                  >
-                    <ha-icon icon=${cfg.dialog_asleep_icon}></ha-icon>
-                    <span>${cfg.asleep_label}</span>
-                  </button>
-                </div>
-              `
+            ? this._segment("sovn", this._aktiv("sovn", isAsleep ? 1 : 0), [
+                {
+                  ikon: cfg.dialog_awake_icon,
+                  tekst: cfg.awake_label,
+                  farge: cfg.awake_active_color,
+                  tekstfarge: cfg.awake_active_text_color,
+                  sett: () => this._setEntity(personConfig.sleep_switch, false),
+                },
+                {
+                  ikon: cfg.dialog_asleep_icon,
+                  tekst: cfg.asleep_label,
+                  farge: cfg.asleep_active_color,
+                  tekstfarge: cfg.asleep_active_text_color,
+                  sett: () => this._setEntity(personConfig.sleep_switch, true),
+                },
+              ])
             : ""}
 
           <button
             class="done"
-            @click=${() => {
+            @click=${(e) => {
               this._haptic(this.cfg.haptic_tap);
-              this._closeDialog();
+              /* Knappen får sin egen lille sprett før popupen lukkes. Lukker vi med en
+                 gang, rekker trykket aldri å bli sett. */
+              const b = e.currentTarget;
+              b.classList.remove("trykk");
+              void b.offsetWidth;
+              b.classList.add("trykk");
+              window.setTimeout(() => this._closeDialog(), 130);
             }}
           >
             ${cfg.done_label}
@@ -29868,29 +30004,68 @@ class FamilyStatusCard extends LitElement {
         -webkit-backdrop-filter: blur(6px);
         animation: fsc-fade 160ms ease-out;
       }
+      .backdrop.ut {
+        animation: fsc-fade 160ms ease-in reverse forwards;
+      }
       .dialog {
         position: relative;
         width: min(340px, 100%);
-        margin-top: 44px;
-        padding: 60px 20px 20px;
-        border-radius: 28px;
+        margin-top: 46px;
+        padding: 62px 18px 18px;
+        border-radius: 32px;
         background: var(
           --fsc-dialog-bg,
           var(--gray000, var(--ha-card-background, var(--card-background-color)))
         );
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        animation: fsc-pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+        gap: 10px;
+        /* Fjærkurve: popupen kommer opp og setter seg, i stedet for å tone inn. */
+        animation: fsc-pop 260ms cubic-bezier(0.2, 1.2, 0.3, 1);
+      }
+      .dialog.ut {
+        animation: fsc-vekk 160ms ease-in forwards;
+      }
+      /* Svakt skjær øverst, i samme farge som den aktive pilla. Gir popupen en topp
+         uten å tegne en strek. */
+      /* Skjæret må ligge INNE i popupen: avataren henger utenfor toppen, så
+         overflow:hidden på dialogen ville klippet den vekk. Derfor egen
+         border-radius i toppen i stedet. */
+      .glans {
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 130px;
+        pointer-events: none;
+        border-radius: 32px 32px 0 0;
+        background: radial-gradient(
+          70% 100% at 50% 0%,
+          var(--fsc-dialog-active, var(--active-big, var(--primary-color))),
+          transparent 70%
+        );
+        opacity: 0.15;
+      }
+      .avatarring {
+        position: absolute;
+        top: -46px;
+        left: 50%;
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        transform: translateX(-50%);
+        padding: 3px;
+        background: var(--gray400, rgba(255, 255, 255, 0.25));
+        animation: fsc-drypp 320ms cubic-bezier(0.2, 1.3, 0.3, 1) 40ms backwards;
+      }
+      .avatarring.hjemme {
+        background: var(--fsc-dialog-active, var(--active-big, var(--primary-color)));
+      }
+      .avatarring.sover {
+        background: var(--purple, #6f6bd8);
       }
       .dialog-avatar {
-        position: absolute;
-        top: -44px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 88px;
-        height: 88px;
+        width: 100%;
+        height: 100%;
         border-radius: 50%;
         background-size: cover;
         background-position: center;
@@ -29900,17 +30075,54 @@ class FamilyStatusCard extends LitElement {
         text-align: center;
         font-size: 24px;
         font-weight: 700;
+        line-height: 1.15;
         color: var(--fsc-dialog-text, var(--gray1000, var(--primary-text-color)));
-        margin-bottom: 4px;
+      }
+      .dialog-sub {
+        text-align: center;
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0.55;
+        margin: -4px 0 6px;
+        color: var(--fsc-dialog-text, var(--gray1000, var(--primary-text-color)));
       }
       .segment {
+        position: relative;
         display: flex;
         gap: 6px;
         padding: 5px;
         border-radius: 999px;
         background: var(--fsc-dialog-track, var(--gray100, var(--secondary-background-color)));
+        touch-action: pan-y;
+      }
+      /* Den glidende pilla. To like brede valg, så plassen kan regnes i prosent —
+         ingen måling, ingenting som må rettes når skrifta byttes. */
+      .pill {
+        position: absolute;
+        top: 5px;
+        bottom: 5px;
+        left: 5px;
+        width: calc(50% - 8px);
+        border-radius: 999px;
+        pointer-events: none;
+        transition: transform 320ms cubic-bezier(0.2, 1.25, 0.35, 1);
+      }
+      .pill::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: var(--pf, var(--fsc-dialog-active, var(--active-big, var(--primary-color))));
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+        transform: scale(var(--sx, 1), var(--sy, 1));
+        transition: transform 300ms cubic-bezier(0.2, 1.35, 0.35, 1), background 200ms ease;
+      }
+      .pill.land::before {
+        animation: fsc-sprett 420ms cubic-bezier(0.2, 0.9, 0.25, 1);
       }
       .seg {
+        position: relative;
+        z-index: 1;
         flex: 1;
         min-width: 0;
         display: flex;
@@ -29926,7 +30138,12 @@ class FamilyStatusCard extends LitElement {
         font-size: 16px;
         font-weight: 500;
         cursor: pointer;
-        transition: background 140ms ease, color 140ms ease;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: color 160ms ease, transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .seg:active {
+        transform: scale(0.96);
       }
       .seg ha-icon {
         --mdc-icon-size: 20px;
@@ -29938,7 +30155,6 @@ class FamilyStatusCard extends LitElement {
         white-space: nowrap;
       }
       .seg.active {
-        background: var(--fsc-dialog-active, var(--active-big, var(--primary-color)));
         color: var(--fsc-dialog-active-text, var(--black, var(--primary-text-color)));
         font-weight: 600;
       }
@@ -29957,6 +30173,14 @@ class FamilyStatusCard extends LitElement {
         font-size: 17px;
         font-weight: 600;
         cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 160ms cubic-bezier(0.2, 1.3, 0.3, 1);
+      }
+      .done:active {
+        transform: scale(0.96);
+      }
+      .done.trykk {
+        animation: fsc-sprett 360ms cubic-bezier(0.2, 0.9, 0.25, 1);
       }
       .done:focus-visible {
         outline: 2px solid var(--fsc-dialog-text, var(--gray1000, var(--primary-text-color)));
@@ -29970,13 +30194,48 @@ class FamilyStatusCard extends LitElement {
       @keyframes fsc-pop {
         from {
           opacity: 0;
-          transform: scale(0.94);
+          transform: scale(0.92) translateY(14px);
+        }
+      }
+      @keyframes fsc-vekk {
+        to {
+          opacity: 0;
+          transform: scale(0.94) translateY(8px);
+        }
+      }
+      @keyframes fsc-drypp {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) scale(0.6);
+        }
+      }
+      @keyframes fsc-sprett {
+        0% {
+          transform: scale(0.9, 1.08);
+        }
+        45% {
+          transform: scale(1.04, 0.97);
+        }
+        75% {
+          transform: scale(0.99, 1.01);
+        }
+        100% {
+          transform: scale(1, 1);
         }
       }
       @media (prefers-reduced-motion: reduce) {
         .backdrop,
-        .dialog {
+        .dialog,
+        .avatarring,
+        .pill.land::before,
+        .done.trykk {
           animation: none;
+        }
+        .pill,
+        .pill::before,
+        .seg,
+        .done {
+          transition: none;
         }
       }
     `;

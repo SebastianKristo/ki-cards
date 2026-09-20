@@ -1,32 +1,41 @@
-# ki-cards 5.23.0
+# ki-cards 5.24.0
 
-## Pilla ser ut som før, men oppfører seg som en dråpe
+## Popupen i family-status-card er bygget om
 
-5.22.0 gjorde pilla til glass å se på — uskarphet, gjennomskinnelighet og et lysstrøk. Det er
-tatt bort. Pilla er igjen den samme fylte pillen som i `ki-tabs-card`; det som er nytt er hvordan
-den **beveger** seg:
+Bryterne hoppet: den aktive knappen fikk bakgrunn, den andre mistet den, uten noe imellom.
+Nå ligger det en glidende pille i sporet, med samme oppførsel som i `ki-tabs-card`.
 
-- **Trykk:** pilla klemmes flat under fingeren (0,94 × 0,86) og går tilbake når du slipper.
-- **Dra:** den strekker seg i fartsretningen, mest når du drar langt — opptil 13 %, med tilsvarende
-  sammenpressing på høyden, slik at volumet ser bevart ut.
-- **Landing:** når dagen faktisk byttet, spretter den på plass med en kort fjær (1,10 → 0,97 → 1,00).
+**Dra eller trykk.** Pilla følger fingeren mellom Hjemme og Borte, og mellom Våken og Sover.
+Slipper du mellom dem, går den til den nærmeste, og det valget settes — akkurat som et trykk
+ville gjort. Trykk virker som før; et dra ender i et klikk på knappen under fingeren, og det
+klikket sperres i 400 ms, ellers ville det satt tilbake verdien du nettopp dro bort fra.
 
-Trykk, dra og slipp mellom fanene virker som i `ki-tabs-card` — det er samme `KI.pillefaner` som
-kjører under.
+**Bevegelsen.** Fingeren ned: pilla klemmes flat. Dra: den strekker seg i fartsretningen. Slipp:
+den spretter på plass. Klemmen ligger på `::before`, ikke på pilla selv — pilla eier transformen
+til plasseringen, og en skalering på samme element ville overskrevet den.
 
-Hele bevegelsen ligger på `::before`, ikke på pilla selv. Basen plasserer pilla med
-`translateX(var(--x))`, så en skalering på samme element ville overskrevet plasseringen og fått
-pilla til å hoppe til venstre kant midt i glidningen. `::before` ligger oppå med `inset:0` og kan
-skaleres fritt.
+De to valgene er alltid like brede, så plassen regnes i prosent (`calc(50% - 8px)` og
+`translateX(calc(100% + 6px))`). Ingen måling betyr ingenting som må rettes når skrifta byttes fra
+reservefonten.
 
-`sprett: false` gjør pilla helt stille. Feltet het `glass` i 5.22.0, og det gamle navnet godtas
-fortsatt, så ingen konfigurasjon slutter å virke.
+**Pilla venter ikke på Home Assistant.** Rett etter et valg stoler kortet på valget i stedet for
+på entiteten i inntil tre sekunder. Uten det spratt pilla tilbake til utgangspunktet før den kom
+fram igjen — nettopp det bevegelsen skal skjule.
+
+**Ferdig-knappen** får sin egen sprett, og popupen lukkes 130 ms etter, slik at trykket rekker å
+bli sett. Knappene trykkes inn (0,96) mens fingeren står på.
+
+**Resten av redesignet:** popupen kommer opp med fjær i stedet for å tone inn, og lukkes med en
+egen utgang i stedet for å forsvinne momentant. Avataren faller på plass i en farget ring som
+følger tilstanden — aktivfargen hjemme, lilla når personen sover, dempet når hen er borte. Under
+navnet står tilstanden i klartekst («Hjemme · Våken»), og et svakt skjær i aktivfargen ligger øverst
+i popupen. Farger, ikoner og etiketter styres av de samme feltene som før.
 
 ### Kontrollert
 
 `node --check` og begge byggesjekkene (`verifiser-styles`, `verifiser-kort`) kjørt — 110 kort leser
-styles, 59 kort bygges med hass. Lytterne ligger på `shadowRoot`, ikke på fanerada: basen tar
-pekerfangst på knappen, så `pointermove` og `pointerup` går dit, og rada overlever ikke en ny
-tegning slik shadowRoot gjør. `prefers-reduced-motion` slår av både fjæra og spretten.
+styles, 59 kort bygges med hass. Avataren henger utenfor popupen, så skjæret er klippet med egen
+`border-radius` i toppen i stedet for `overflow:hidden` på dialogen, som ville skåret av hodet.
+`prefers-reduced-motion` slår av både fjærene, sprettene og glidningen.
 
-Ingen andre kort er rørt. Feltet i editoren heter nå **Sprett i pilla ved trykk og dra**.
+Ingen andre kort er rørt.
