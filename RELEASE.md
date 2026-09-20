@@ -1,41 +1,35 @@
-# ki-cards 5.24.0
+# ki-cards 5.25.0
 
-## Popupen i family-status-card er bygget om
+## ki-strom-detaljer-card er med i bundelen
 
-Bryterne hoppet: den aktive knappen fikk bakgrunn, den andre mistet den, uten noe imellom.
-Nå ligger det en glidende pille i sporet, med samme oppførsel som i `ki-tabs-card`.
+Kortet ditt er lagt inn som `src/89-ki-strom-detaljer-card.js` og følger nå med ki-cards, i stedet
+for å måtte installeres som egen ressurs. Koden er tatt inn uendret — den registrerer seg gjennom
+`KI.define` som alle de andre, så en eldre kopi installert separat ikke lenger kolliderer, men
+hopper over med en advarsel i konsollen.
 
-**Dra eller trykk.** Pilla følger fingeren mellom Hjemme og Borte, og mellom Våken og Sover.
-Slipper du mellom dem, går den til den nærmeste, og det valget settes — akkurat som et trykk
-ville gjort. Trykk virker som før; et dra ender i et klikk på knappen under fingeren, og det
-klikket sperres i 400 ms, ellers ville det satt tilbake verdien du nettopp dro bort fra.
+Fem visninger, valgt med `vis:`:
 
-**Bevegelsen.** Fingeren ned: pilla klemmes flat. Dra: den strekker seg i fartsretningen. Slipp:
-den spretter på plass. Klemmen ligger på `::before`, ikke på pilla selv — pilla eier transformen
-til plasseringen, og en skalering på samme element ville overskrevet den.
+```yaml
+type: custom:ki-strom-detaljer-card
+vis: regning        # regning | effekt | effektledd | norgespris | sammenligning
+```
 
-De to valgene er alltid like brede, så plassen regnes i prosent (`calc(50% - 8px)` og
-`translateX(calc(100% + 6px))`). Ingen måling betyr ingenting som må rettes når skrifta byttes fra
-reservefonten.
+- **regning** – estimat for måneden, fordelt på strøm, nettleie og avgifter, med Norgespris og
+  strømstøtte trukket fra, og forbruk dag mot natt/helg under
+- **effekt** – snittet av de tre toppene, margin til neste trinn og hva trinnet over koster
+- **effektledd** – søyle per måned, trykkbar, med avvik fra snittet
+- **norgespris** – spart i år, med time, dag og uke som brikker
+- **sammenligning** – spotpris mot Norgespris med periodevelger
 
-**Pilla venter ikke på Home Assistant.** Rett etter et valg stoler kortet på valget i stedet for
-på entiteten i inntil tre sekunder. Uten det spratt pilla tilbake til utgangspunktet før den kom
-fram igjen — nettopp det bevegelsen skal skjule.
+Alle sensorene har standardverdier fra installasjonen din og kan overstyres under `sensorer:`.
 
-**Ferdig-knappen** får sin egen sprett, og popupen lukkes 130 ms etter, slik at trykket rekker å
-bli sett. Knappene trykkes inn (0,96) mens fingeren står på.
-
-**Resten av redesignet:** popupen kommer opp med fjær i stedet for å tone inn, og lukkes med en
-egen utgang i stedet for å forsvinne momentant. Avataren faller på plass i en farget ring som
-følger tilstanden — aktivfargen hjemme, lilla når personen sover, dempet når hen er borte. Under
-navnet står tilstanden i klartekst («Hjemme · Våken»), og et svakt skjær i aktivfargen ligger øverst
-i popupen. Farger, ikoner og etiketter styres av de samme feltene som før.
+Kortet har fått ikon i `brand/` (kvittering med tre søyler foran, i samme stil som de andre) og en
+rad i kort-tabellen i README.
 
 ### Kontrollert
 
-`node --check` og begge byggesjekkene (`verifiser-styles`, `verifiser-kort`) kjørt — 110 kort leser
-styles, 59 kort bygges med hass. Avataren henger utenfor popupen, så skjæret er klippet med egen
-`border-radius` i toppen i stedet for `overflow:hidden` på dialogen, som ville skåret av hodet.
-`prefers-reduced-motion` slår av både fjærene, sprettene og glidningen.
+Begge byggesjekkene kjørt med kortet inne: 111 kort leser styles, 60 kort bygges med hass — begge
+tallene er ett høyere enn før. Kortet bruker ikke LitElement, så det pakkes i en egen try-blokk:
+feiler det, tar det ikke med seg resten av bundelen.
 
 Ingen andre kort er rørt.
