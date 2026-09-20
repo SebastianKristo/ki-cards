@@ -238,20 +238,20 @@
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist"><span class="pille"></span>
-            ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t, i) ? `<ha-icon icon="${this._ikon(t, i)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
-          ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
+          ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${this._ikon(t, i) ? `<ha-icon icon="${this._ikon(t, i)}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
           <div class="scroller">
             <div class="spor" role="tablist"><span class="pille"></span>
-              ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+              ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t, i) ? `<ha-icon icon="${this._ikon(t, i)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
-            ${tabs.filter((t) => !t.utenfor).map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.filter((t) => !t.utenfor).map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <button class="dd" aria-haspopup="listbox" aria-expanded="false"></button>
           <div class="menu" role="listbox">
-            ${tabs.map((t, i) => `<div class="item ${i === this._active ? "active" : ""}" role="option" tabindex="0" data-i="${i}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}<span class="n">${KI.esc(t.title || "")}</span></div>`).join("")}
+            ${tabs.map((t, i) => `<div class="item ${i === this._active ? "active" : ""}" role="option" tabindex="0" data-i="${i}">${this._ikon(t, i) ? `<ha-icon icon="${this._ikon(t, i)}"></ha-icon>` : ""}<span class="n">${KI.esc(t.title || "")}</span></div>`).join("")}
           </div>
         </div>
         <div class="paneler">${tabs.map((t, i) => `<div class="panel ${i === this._active ? "active" : ""}" data-i="${i}"><div class="stack"></div></div>`).join("")}</div>
@@ -370,19 +370,26 @@
 
     /* Hvilken nøkkel i kort_naar/ikon_naar som treffer akkurat nå. Tom streng betyr
        ingen – da gjelder fanens vanlige innhold. */
-    _naarNokkel(kart) {
+    _naarNokkel(kart, i) {
       if (!kart) return "";
-      const valgt = (this._config.tabs || [])[this._active] || {};
+      /* Hvilken fane det «står på».
+       *
+       * Trykker du på selve knappen, er DEN valgt - og da ville oppslaget sett på seg
+       * selv og falt tilbake på standardinnholdet, altså post og bursdager igjen. Så
+       * lenge du står inne i den, gjelder fanen du kom fra. */
+      const pek = (i !== undefined && this._active === i) ? this._forrige : this._active;
+      if (pek === undefined || pek === null) return "";
+      const valgt = (this._config.tabs || [])[pek] || {};
       const tittel = String(valgt.title || "").trim().toLowerCase();
       for (const nokkel of Object.keys(kart)) {
         const n = String(nokkel).trim().toLowerCase();
-        if (n === tittel || (/^\d+$/.test(n) && Number(n) === this._active)) return nokkel;
+        if (n === tittel || (/^\d+$/.test(n) && Number(n) === pek)) return nokkel;
       }
       return "";
     }
 
-    _kortFor(t) {
-      const nokkel = this._naarNokkel(t && t.kort_naar);
+    _kortFor(t, i) {
+      const nokkel = this._naarNokkel(t && t.kort_naar, i);
       if (nokkel) {
         const v = t.kort_naar[nokkel];
         return Array.isArray(v) ? v : (v && v.cards) || (v ? [v] : []);
@@ -398,12 +405,12 @@
       const panel = this.shadowRoot.querySelector(`.panel[data-i="${i}"]`);
       const host = panel && panel.querySelector(".stack");
       if (!t || !host) return;
-      const nokkel = this._naarNokkel(t.kort_naar) || "-";
+      const nokkel = this._naarNokkel(t.kort_naar, i) || "-";
       if (panel.dataset.bygget === nokkel) return;
       panel.dataset.bygget = nokkel;
       this._panels = (this._panels || []).filter((el) => !host.contains(el));
       host.innerHTML = "";
-      for (const cc of this._kortFor(t)) {
+      for (const cc of this._kortFor(t, i)) {
         try { const el = await KI.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
         catch (e) { host.innerHTML += `<div class="empty">Kunne ikke laste kort: ${KI.esc(e.message)}</div>`; }
       }
@@ -579,18 +586,11 @@
      * ikon_naar lar en fane bytte ikon etter hvilken fane som er valgt – den lille
      * knappen utenfor rada kan da vise noe som hører til det du står i. Nøkkelen er
      * tittelen på den valgte fanen (uten hensyn til store bokstaver), eller nummeret. */
-    _ikon(t, aktiv) {
-      const kart = t && t.ikon_naar;
-      if (!kart) return t && t.icon;
-      const valgt = (this._config.tabs || [])[aktiv === undefined ? this._active : aktiv] || {};
-      const tittel = String(valgt.title || "").trim().toLowerCase();
-      for (const [nokkel, ikon] of Object.entries(kart)) {
-        const n = String(nokkel).trim().toLowerCase();
-        if (n === tittel || (/^\d+$/.test(n) && Number(n) === (aktiv === undefined ? this._active : aktiv))) {
-          return typeof ikon === "string" ? ikon : (ikon && ikon.icon) || t.icon;
-        }
-      }
-      return t.icon;
+    _ikon(t, i) {
+      const nokkel = this._naarNokkel(t && t.ikon_naar, i);
+      if (!nokkel) return t && t.icon;
+      const ikon = t.ikon_naar[nokkel];
+      return (typeof ikon === "string" ? ikon : (ikon && ikon.icon)) || t.icon;
     }
 
     /* Oppdaterer de fanene som bytter ikon. Rada tegnes ikke på nytt ved fanebytte –
@@ -601,13 +601,16 @@
         const t = tabs[+b.dataset.i];
         if (!t || !t.ikon_naar) return;
         const ikon = b.querySelector("ha-icon");
-        const ny = this._ikon(t);
+        const ny = this._ikon(t, +b.dataset.i);
         if (ikon && ny && ikon.getAttribute("icon") !== ny) ikon.setAttribute("icon", ny);
       });
     }
 
     _select(i) {
       const forrige = this._active;
+      /* Fanen du kom fra. Den bestemmer hva ikon_naar og kort_naar peker på mens du
+         står i en fane som selv bytter innhold. */
+      if (forrige !== i) this._forrige = forrige;
       this._active = i; const r = this.shadowRoot;
       r.querySelectorAll(".tab[data-i]").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
       r.querySelectorAll(".item").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
