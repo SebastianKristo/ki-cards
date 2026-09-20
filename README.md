@@ -584,6 +584,9 @@ at det er mer å se, og `bredde_per_time` styrer hvor bredt døgnet blir. Under 
 Norgespris, snitt og når det er billigst og dyrest; mangler Norgespris-sensoren data, sier forklaringen fra
 i stedet for at linja forsvinner stille. Har egen visuell editor.
 
+Høyden på «I dag / I morgen» styres med `fane_hoyde:` (px for hele rada, standard 44). Skriften skaleres
+med den; vil du ha den annerledes, setter du `fane_tekst:` i px. Begge ligger i den visuelle editoren.
+
 Uten Norgespris blir kortet et rent spotpriskort: sett `norgespris: false`, så vises spotprisen i kroner som hovedtall, Norgespris-linja og spart-tallene forsvinner, og forklaringen viser snittet i stedet. Fint for hus utenfor Norgespris-ordningen – for eksempel hytta i Strömstad. `enhet:` bytter teksten bak tallet, og `tekst_spot:` overskriften over det.
 
 Kommer timesprisene fra Nordpool i øre uten moms, mens tallet du faktisk betaler ligger i en egen sensor i

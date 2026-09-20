@@ -22,6 +22,8 @@
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
  * tittel: Strøm      hoyde: 170      vindu: 3        # timer i «billigste vindu»
+ * fane_hoyde: 44     # høyden på I dag / I morgen-rada i px (standard 44)
+ * fane_tekst: 14     # skriftstørrelse i fanene; utelates den, følger den høyden
  * enkel: true       # BARE overskrift, dagsvelger og graf — resten utelates
  * vis_stat: false    # skjul snitt/lavest/høyest    vis_vindu: false   # skjul «billigste timer»
  * vis_spart: false   # skjul spart i dag / i år     vis_forklaring: false
@@ -37,7 +39,7 @@
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.2.1";
+const KI_SP_VERSJON = "3.3.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -72,9 +74,13 @@ const KI_SP_STIL = `
   /* Fylt beholder uten ramme, som fanerada i søvnpopupen. En ramme rundt en
      gjennomsiktig bunn leses som en knapperad; en fylt flate leses som en bryter med to
      stillinger — og det er det dette er. */
-  .valg { display:inline-flex; gap:0; padding:4px; border-radius:999px;
+  /* Høyden settes med fane_hoyde og kommer inn som --fane-h på selve rada, slik at
+     pilla kan bli så lav han vil uten at teksten klippes: knappen har høyde i stedet
+     for loddrett luft, og skriften følger med om fane_tekst ikke er satt. */
+  .valg { display:inline-flex; gap:0; padding:var(--fane-kant,4px); border-radius:999px;
     background:var(--gray200,#2a2a2d); max-width:100%; position:relative; }
-  .valg .v { padding:11px 26px; border-radius:999px; font-size:15px; font-weight:500;
+  .valg .v { height:var(--fane-h,36px); padding:0 var(--fane-side,24px); border-radius:999px;
+    font-size:var(--fane-tekst,14.5px); font-weight:500; line-height:1;
     cursor:pointer; white-space:nowrap; display:flex; align-items:center;
     justify-content:center; color:var(--gray1000,#fafbfc); opacity:.6;
     transition:background .18s, opacity .18s, color .18s;
@@ -83,7 +89,7 @@ const KI_SP_STIL = `
   .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
     opacity:1; }
   .valg .v.tom { opacity:.3; }
-  @media (max-width:420px) { .valg .v { padding:10px 16px; font-size:14px; } }
+  @media (max-width:420px) { .valg .v { padding:0 var(--fane-side-smal,16px); } }
   /* Ingen luft over: heroen er det første i kortet. */
   .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 0 6px; flex-wrap:wrap; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
@@ -402,7 +408,15 @@ class KiStromprisCard extends HTMLElement {
     const sparTime = np !== null && spotNaa !== undefined && spotNaa !== null ? spotNaa - np : null;
     const effekt = this._num(c.effekt), sparDag = this._num(c.spart_dag), sparAr = this._num(c.spart_ar);
 
-    const valg = `<div class="valg">
+    /* Fanerada. `fane_hoyde` er hele rada, kanten trekkes fra så pilla blir riktig,
+       og skriften skaleres med mindre `fane_tekst` er satt. */
+    const fhRa = Math.max(24, Number(c.fane_hoyde) || 44);
+    const fhKant = fhRa < 34 ? 3 : 4;
+    const fhPille = Math.max(16, fhRa - fhKant * 2);
+    const fhTekst = Number(c.fane_tekst) || Math.max(11, Math.min(15, Math.round(fhPille * 0.4)));
+    const fhSide = Math.max(12, Math.round(fhPille * 0.66));
+    const fhStil = `--fane-kant:${fhKant}px;--fane-h:${fhPille}px;--fane-tekst:${fhTekst}px;--fane-side:${fhSide}px;--fane-side-smal:${Math.max(10, Math.round(fhSide * 0.66))}px`;
+    const valg = `<div class="valg" style="${fhStil}">
       <span class="v ${this._dag === "i_dag" ? "aktiv" : ""}" data-d="i_dag" role="button" tabindex="0">I dag</span>
       <span class="v ${this._dag === "i_morgen" ? "aktiv" : ""} ${this._harMorgen() ? "" : "tom"}" data-d="i_morgen" role="button" tabindex="0">I morgen</span></div>`;
 
@@ -574,6 +588,7 @@ class KiStromprisCardEditor extends HTMLElement {
       const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet",
         bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet", spot: "Timespriser (raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+        fane_hoyde: "Høyde på fanerada (px)", fane_tekst: "Skriftstørrelse i fanene (px, tom = følger høyden)",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
@@ -592,6 +607,8 @@ class KiStromprisCardEditor extends HTMLElement {
       { name: "spart_dag", selector: { entity: { domain: "sensor" } } }, { name: "spart_ar", selector: { entity: { domain: "sensor" } } },
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },
+      { name: "fane_hoyde", selector: { number: { min: 24, max: 72, mode: "box" } } },
+      { name: "fane_tekst", selector: { number: { min: 10, max: 22, mode: "box" } } },
       { name: "vis_stat", selector: { boolean: {} } }, { name: "vis_vindu", selector: { boolean: {} } },
       { name: "vis_spart", selector: { boolean: {} } }, { name: "vis_forklaring", selector: { boolean: {} } },
       { name: "nettleie_dag", selector: { number: { min: 0, max: 3, step: 0.01, mode: "box" } } },
