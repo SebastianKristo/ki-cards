@@ -1,35 +1,43 @@
-# ki-cards 5.25.0
+# ki-cards 5.26.0
 
-## ki-strom-detaljer-card er med i bundelen
+## Årlig strømregning i ki-strom-detaljer-card
 
-Kortet ditt er lagt inn som `src/89-ki-strom-detaljer-card.js` og følger nå med ki-cards, i stedet
-for å måtte installeres som egen ressurs. Koden er tatt inn uendret — den registrerer seg gjennom
-`KI.define` som alle de andre, så en eldre kopi installert separat ikke lenger kolliderer, men
-hopper over med en advarsel i konsollen.
-
-Fem visninger, valgt med `vis:`:
+Ny visning: `vis: aar`.
 
 ```yaml
 type: custom:ki-strom-detaljer-card
-vis: regning        # regning | effekt | effektledd | norgespris | sammenligning
+vis: aar
 ```
 
-- **regning** – estimat for måneden, fordelt på strøm, nettleie og avgifter, med Norgespris og
-  strømstøtte trukket fra, og forbruk dag mot natt/helg under
-- **effekt** – snittet av de tre toppene, margin til neste trinn og hva trinnet over koster
-- **effektledd** – søyle per måned, trykkbar, med avvik fra snittet
-- **norgespris** – spart i år, med time, dag og uke som brikker
-- **sammenligning** – spotpris mot Norgespris med periodevelger
+Øverst året hittil, med avviket mot i fjor som merke, og tre brikker: i dag, denne uken og
+måneden som går. Under er det to visninger, og knappen øverst til høyre bytter mellom dem:
 
-Alle sensorene har standardverdier fra installasjonen din og kan overstyres under `sensorer:`.
+- **Månedssøyler** for hele året. Trykk på en måned, så står postene under — strøm, nettleie,
+  avgifter, strømstøtte og Norgespris — med fradragene i grønt og forbruket i kWh nederst.
+- **Kalender** med én rute per døgn. Kronene står i ruta, og bakgrunnen blir sterkere jo dyrere
+  døgnet var, så måneden leses som et varmekart. Trykk på en dag for postene for akkurat det
+  døgnet; pilene blar bakover, og fram er sperret der måneden som går slutter.
 
-Kortet har fått ikon i `brand/` (kvittering med tre søyler foran, i samme stil som de andre) og en
-rad i kort-tabellen i README.
+Kortet regner ingenting selv. Tallene kommer fra `ki_enhetsforbruk` 1.1.0, som fører boka av
+Strømkalkulators månedssensorer. Oversiktssensoren finnes av seg selv på markørene sine
+(`integrasjon: ki_enhetsforbruk`, `type: regning`), siden entitets-id-en følger navnet du ga
+regningen. Vil du peke den ut selv:
+
+```yaml
+sensorer:
+  regning: sensor.stromregning_stromregning_oversikt
+```
+
+Blar du lenger bakover enn de 95 døgnene sensoren bærer, henter kortet måneden med tjenesten
+`ki_enhetsforbruk.historikk` og beholder svaret. Mangler integrasjonen, sier kortet fra i klartekst
+i stedet for å stå tomt.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt med kortet inne: 111 kort leser styles, 60 kort bygges med hass — begge
-tallene er ett høyere enn før. Kortet bruker ikke LitElement, så det pakkes i en egen try-blokk:
-feiler det, tar det ikke med seg resten av bundelen.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Årsvisningen er i
+tillegg tegnet med oppdiktede tall: 42 ruter i kalenderen med 12 utenfor måneden for september
+2026 (som begynner på en tirsdag), dagvalg, månedsvalg og bakoverbla uten data — ingen `NaN` og
+ingen tomme beløp noe sted. Kortet tåler en Home Assistant uten tjenesten: da blir eldre måneder
+bare stående tomme.
 
 Ingen andre kort er rørt.

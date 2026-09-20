@@ -4,7 +4,7 @@
  *  her virker periodevelger, månedsvalg og «trykk for å åpne sensoren» overalt.
  *
  *  type: custom:ki-strom-detaljer-card
- *  vis: regning        # regning | effekt | effektledd | norgespris | sammenligning
+ *  vis: regning        # regning | effekt | effektledd | norgespris | sammenligning | aar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
  *  sensorer:
@@ -14,6 +14,9 @@
   const M = "sensor.manedlig_forbruk_", P = "sensor.strommaler_strommaler_powercalc_", E = "sensor.nettleie_elvia_";
   const STANDARD = {
     maned: "sensor.maned",
+    // Årsregningen: oversiktssensoren fra ki_enhetsforbruk. Står den tom,
+    // finnes den selv på markørene integrasjon/type.
+    regning: "",
     // strømregning
     estimat: M + "estimert_manedskostnad", akkumulert: M + "akkumulert_stromkostnad", idag: M + "dagens_kostnad",
     nettleie: M + "manedlig_nettleie_total", avgifter: M + "manedlig_avgifter", stromstotte: M + "manedlig_stromstotte",
@@ -71,6 +74,33 @@
     .bokst { display:flex; gap:4px; margin-top:6px; font-size:11px; }
     .bokst span { flex:1; text-align:center; opacity:.55; cursor:pointer; } .bokst span.valgt { color:var(--orange, #ff9f0a); opacity:1; }
     .gronn { color:var(--green, #34c759); } .rod { color:var(--red, #ff453a); } .oransje { color:var(--orange, #ff9f0a); }
+
+    /* ---- årsregning ---- */
+    .ikonknapp { border:0; background:rgba(250,251,252,.08); color:var(--gray1000,#f2f2f7); width:32px; height:32px;
+      border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
+      --mdc-icon-size:19px; flex:none; transition:background .2s, transform .14s; }
+    .ikonknapp:active { transform:scale(.92); }
+    .ikonknapp.pa { background:var(--orange, #ff9f0a); color:#241a05; }
+    .kaltopp { display:grid; grid-template-columns:min-content 1fr min-content; align-items:center; gap:10px; padding:2px 0 10px; }
+    .kaltopp .mnd { text-align:center; font-size:15px; font-weight:600; text-transform:capitalize; }
+    .pil { border:0; background:none; color:var(--gray1000,#f2f2f7); width:32px; height:32px; border-radius:50%;
+      cursor:pointer; display:flex; align-items:center; justify-content:center; --mdc-icon-size:22px; opacity:.7; }
+    .pil:active { transform:scale(.92); }
+    .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; padding-bottom:5px; }
+    .ukedager span { text-align:center; font-size:11px; font-weight:600; opacity:.45; }
+    .rutenett7 { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+    /* Ruta viser kronene for dagen. Bakgrunnen er samme farge hele veien, bare
+       sterkere jo dyrere dagen var - da leses måneden som et varmekart. */
+    .dag { position:relative; aspect-ratio:1; border-radius:12px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:1px; font-size:13px; font-weight:500; cursor:pointer;
+      background:rgba(250,251,252,.06); transition:transform .14s, background .2s; overflow:hidden; }
+    .dag .dnr { font-size:10px; opacity:.5; line-height:1; }
+    .dag.utenfor { opacity:.2; cursor:default; }
+    .dag.tom { color:rgba(242,242,247,.35); }
+    .dag.idag { outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; }
+    .dag.valgt { transform:scale(1.06); outline:2px solid var(--orange, #ff9f0a); outline-offset:-2px; }
+    .dagdetalj { font-size:12px; opacity:.7; padding:12px 2px 0; text-transform:capitalize; }
+    .poster { display:grid; gap:4px; margin-top:10px; }
   `;
 
   class KiStromDetaljerCard extends HTMLElement {
@@ -78,13 +108,18 @@
     static getConfigForm() {
       return { schema: [{ name: "vis", selector: { select: { mode: "dropdown", options: [
         { value: "regning", label: "Strømregning" }, { value: "effekt", label: "Effekttrinn" }, { value: "effektledd", label: "Effektledd per måned" },
-        { value: "norgespris", label: "Norgespris – spart" }, { value: "sammenligning", label: "Spotpris mot Norgespris" }] } } }],
+        { value: "norgespris", label: "Norgespris – spart" }, { value: "sammenligning", label: "Spotpris mot Norgespris" },
+        { value: "aar", label: "Årlig strømregning" }] } } }],
         computeLabel: () => "Visning" };
     }
     setConfig(c) {
       this._c = { vis: "regning", ...(c || {}) };
       this._s = { ...STANDARD, ...((c && c.sensorer) || {}) };
       this._periode = this._periode ?? 2; this._mnd = this._mnd ?? new Date().getMonth();
+      this._kal = this._kal ?? false;      // kalender eller månedssøyler
+      this._blaMnd = this._blaMnd ?? 0;    // hvor mange måneder bakover kalenderen står
+      this._valgtDag = this._valgtDag ?? null;
+      this._hentet = this._hentet || {};   // måneder hentet med tjenesten
       if (this._hass) this._tegn();
     }
     set hass(h) {
@@ -97,7 +132,22 @@
     _ids() {
       const s = this._s, v = this._c && this._c.vis;
       if (v === "effektledd") return MND.map((m) => s.maned_prefiks + m);
-      return Object.entries(s).filter(([k]) => k !== "maned_prefiks").map(([, id]) => id);
+      if (v === "aar") { const r = this._regningId(); return r ? [r] : []; }
+      return Object.entries(s).filter(([k]) => k !== "maned_prefiks" && k !== "regning").map(([, id]) => id);
+    }
+
+    /* Oversiktssensoren fra ki_enhetsforbruk.
+       Den finnes på markørene sine, så den slipper å skrives inn - entitets-id-en
+       følger navnet du ga regningen, og er ikke til å gjette. */
+    _regningId() {
+      if (this._s.regning) return this._s.regning;
+      if (this._funnet && this._hass.states[this._funnet]) return this._funnet;
+      const treff = Object.keys(this._hass.states).find((id) => {
+        const a = this._hass.states[id].attributes;
+        return a && a.integrasjon === "ki_enhetsforbruk" && a.type === "regning";
+      });
+      this._funnet = treff || null;
+      return this._funnet;
     }
     _n(id) { const st = this._hass.states[id]; const n = st ? parseFloat(st.state) : NaN; return isNaN(n) ? null : n; }
     _kr(v, d = 0) { if (v === null || v === undefined) return "–"; return d ? Math.abs(v).toFixed(d).replace(".", ",") : Math.round(Math.abs(v)).toLocaleString("nb-NO"); }
@@ -109,15 +159,21 @@
         this.attachShadow({ mode: "open" });
         // ett felles klikk-lytteri: åpne sensor eller bytt valg
         this.shadowRoot.addEventListener("click", (e) => {
-          const el = e.composedPath().find((x) => x.dataset && (x.dataset.mer || x.dataset.periode !== undefined || x.dataset.mnd !== undefined));
+          const el = e.composedPath().find((x) => x.dataset && (x.dataset.mer || x.dataset.periode !== undefined
+            || x.dataset.mnd !== undefined || x.dataset.kal !== undefined || x.dataset.bla !== undefined
+            || x.dataset.dag !== undefined));
           if (!el) return;
           if (el.dataset.periode !== undefined) { this._periode = +el.dataset.periode; this._tegn(); }
-          else if (el.dataset.mnd !== undefined) { this._mnd = +el.dataset.mnd; this._tegn(); }
+          else if (el.dataset.kal !== undefined) { this._kal = !this._kal; this._valgtDag = null; this._tegn(); }
+          else if (el.dataset.bla !== undefined) { this._blaMnd += +el.dataset.bla; this._valgtDag = null; this._tegn(); }
+          else if (el.dataset.dag !== undefined) {
+            this._valgtDag = this._valgtDag === el.dataset.dag ? null : el.dataset.dag; this._tegn();
+          } else if (el.dataset.mnd !== undefined) { this._mnd = +el.dataset.mnd; this._tegn(); }
           else this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.mer }, bubbles: true, composed: true }));
           navigator.vibrate && navigator.vibrate(8);
         });
       }
-      const vis = { regning: this._regning, effekt: this._effekt, effektledd: this._effektledd, norgespris: this._norgespris, sammenligning: this._sammenligning }[this._c.vis] || this._regning;
+      const vis = { regning: this._regning, effekt: this._effekt, effektledd: this._effektledd, norgespris: this._norgespris, sammenligning: this._sammenligning, aar: this._aar }[this._c.vis] || this._regning;
       this.shadowRoot.innerHTML = `<style>${STIL}</style><div class="k">${vis.call(this)}</div>`;
     }
 
@@ -228,6 +284,156 @@
         <div style="display:grid;gap:10px">${stolpe("Spotpris", sp, "var(--orange, #ff9f0a)", s["spot_" + k])}${stolpe("Norgespris", np, "var(--blue, #0a84ff)", s["np_" + k])}</div>
         <div class="rad skille" data-mer="${s["spart_" + k]}" style="align-items:baseline;margin-top:14px">
           <span class="under">${spart ? "Spart" : "Tapt"} ${tekst}</span><span class="${spart ? "gronn" : "rod"}" style="font-size:1.5em;font-weight:300">${kr(Math.abs(d))} kr</span></div>`;
+    }
+
+    /* ── årlig strømregning ── */
+    /* Tallene kommer fra ki_enhetsforbruk, som fører dag-, måneds- og årstall av
+       Strømkalkulators månedssensorer. Kortet regner ingenting selv - det leser
+       boka og tegner den. */
+    _aar() {
+      const id = this._regningId();
+      const st = id ? this._hass.states[id] : null;
+      if (!st) {
+        return `<div class="hode"><span class="tittel"><ha-icon icon="mdi:calendar-star"></ha-icon>Årlig strømregning</span></div>
+          <div class="under" style="margin-top:10px">Fant ingen strømregning fra KI Enhetsforbruk.
+          Legg til en «Strømregning» på integrasjonssiden, eller sett <b>sensorer: { regning: … }</b> i kortet.</div>`;
+      }
+      const a = st.attributes || {}, kr = (v, d) => this._kr(v, d);
+      const tegn = (v) => (v !== null && v !== undefined && v < 0 ? "−" : "");
+      const brikke = (t, v, id2) => `<div class="brikke" data-mer="${id2}"><div class="t">${t}</div>
+        <div class="v">${tegn(v)}${kr(v)} kr</div></div>`;
+      const ifjor = Number(a.i_fjor) || 0;
+      const iar = Number(a.i_ar) || 0;
+      let merke = "";
+      if (ifjor > 0) {
+        const p = Math.round((iar - ifjor) / ifjor * 100);
+        merke = `<span style="font-size:12px;padding:3px 10px;border-radius:999px;white-space:nowrap;background:${
+          p <= 0 ? "rgba(52,199,89,.18)" : "rgba(255,69,58,.2)"}" class="${p <= 0 ? "gronn" : "rod"}">${
+          p <= 0 ? "−" : "+"}${Math.abs(p)} % mot i fjor</span>`;
+      }
+      return `
+        <div class="hode"><span class="tittel"><ha-icon icon="mdi:calendar-star"></ha-icon>Strømregning · ${a.ar || new Date().getFullYear()}</span>
+          <span style="display:flex;align-items:center;gap:8px">${merke}
+            <button class="ikonknapp ${this._kal ? "pa" : ""}" data-kal="1" title="Kalender">
+              <ha-icon icon="${this._kal ? "mdi:chart-bar" : "mdi:calendar-month"}"></ha-icon></button></span></div>
+        <div class="stor" data-mer="${id}" style="margin-top:6px;display:inline-block">${kr(iar)}<small>kr</small></div>
+        <div class="under" style="margin-bottom:12px">Hittil i år${
+          ifjor ? ` · i fjor ${kr(ifjor)} kr` : ""}</div>
+        <div class="brikker">${brikke("I dag", a.i_dag, id)}${brikke("Denne uken", a.denne_uken, id)}${
+          brikke(a.maned_navn ? a.maned_navn[0].toUpperCase() + a.maned_navn.slice(1) : "Måneden", a.denne_maneden, id)}</div>
+        ${this._kal ? this._aarKalender(a) : this._aarManeder(a, id)}`;
+    }
+
+    /* Månedssøyler for året, med postene for den måneden du trykker på. */
+    _aarManeder(a, id) {
+      const rader = a.maneder || [];
+      if (!rader.length) return "";
+      const max = Math.max(...rader.map((r) => Number(r.sum) || 0), 1);
+      const valgt = rader[Math.min(this._mnd, rader.length - 1)] || rader[0];
+      const soyler = rader.map((r, i) => {
+        const v = Number(r.sum) || 0;
+        const h = r.fremtid || !v ? 4 : Math.max(8, v / max * 100);
+        return `<div class="soyle ${r.fremtid ? "fremtid" : ""} ${i === this._mnd ? "valgt" : ""}" data-mnd="${i}">
+          <span class="tall" style="bottom:calc(${h}% + 3px)">${v ? Math.round(v) : ""}</span>
+          <div class="fyll" style="height:${h}%"></div></div>`;
+      }).join("");
+      const poster = valgt.poster || {};
+      const navn = { kostnad: "Strøm", nettleie: "Nettleie", avgifter: "Avgifter",
+        stromstotte: "Strømstøtte", norgespris: "Norgespris" };
+      const farge = { kostnad: "var(--blue, #0a84ff)", nettleie: "var(--orange, #ff9f0a)",
+        avgifter: "var(--purple, #bf5af2)", stromstotte: "var(--green, #34c759)", norgespris: "var(--green, #34c759)" };
+      const fradrag = (k, v) => k === "stromstotte" || (k === "norgespris" && v < 0);
+      const linjer = Object.keys(navn).filter((k) => poster[k]).map((k) => {
+        const v = Number(poster[k]);
+        return `<div class="rad" style="font-size:13px"><span style="white-space:nowrap">
+          <span class="prikk" style="background:${farge[k]}"></span><span style="opacity:.7">${navn[k]}</span></span>
+          <span class="${fradrag(k, v) ? "gronn" : ""}">${fradrag(k, v) ? "−" : ""}${this._kr(v)} kr</span></div>`;
+      }).join("");
+      const energi = valgt.energi || {};
+      return `
+        <div class="graf" style="margin-top:16px">${soyler}</div>
+        <div class="bokst">${rader.map((r, i) => `<span data-mnd="${i}" class="${i === this._mnd ? "valgt" : ""}">${
+          String(r.navn || "")[0] ? r.navn[0].toUpperCase() : "·"}</span>`).join("")}</div>
+        <div class="skille">
+          <div class="rad" style="align-items:baseline;margin-bottom:8px">
+            <span style="text-transform:capitalize">${valgt.navn || ""}${valgt.pagaende ? " (nå)" : ""}</span>
+            <span style="font-size:1.4em;font-weight:300">${valgt.sum === null || valgt.sum === undefined ? "–" : this._kr(valgt.sum) + " kr"}</span></div>
+          <div class="poster">${linjer || `<div class="under">Ingen tall ført for denne måneden ennå</div>`}</div>
+          ${energi.forbruk_totalt ? `<div class="rad" style="font-size:12px;opacity:.6;margin-top:8px">
+            <span>Forbruk</span><span>${this._kr(energi.forbruk_totalt, 1)} kWh</span></div>` : ""}
+        </div>`;
+    }
+
+    /* Månedskalender: én rute per dag med kronene for det døgnet.
+       Fargen blir sterkere jo dyrere dagen var, så måneden leses som et varmekart. */
+    _aarKalender(a) {
+      const na = new Date(); na.setHours(0, 0, 0, 0);
+      const vist = new Date(na.getFullYear(), na.getMonth() + this._blaMnd, 1);
+      const nokkel = `${vist.getFullYear()}-${String(vist.getMonth() + 1).padStart(2, "0")}`;
+      const dager = this._dagerFor(a, nokkel);
+      const perDag = {}; dager.forEach((d) => { perDag[d.dato] = d; });
+      const verdier = dager.map((d) => Math.abs(Number(d.sum) || 0));
+      const max = Math.max(...verdier, 1);
+      const start = new Date(vist);
+      start.setDate(1 - ((vist.getDay() + 6) % 7));            /* mandag først */
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const ruter = [];
+      for (let i = 0; i < 42; i++) {
+        const dag = new Date(start); dag.setDate(start.getDate() + i);
+        const utenfor = dag.getMonth() !== vist.getMonth();
+        const rad = perDag[iso(dag)];
+        const v = rad ? Number(rad.sum) : null;
+        const styrke = v === null ? 0 : Math.min(0.85, 0.12 + Math.abs(v) / max * 0.7);
+        ruter.push(`<div class="dag ${utenfor ? "utenfor" : ""} ${v === null ? "tom" : ""}
+          ${dag.getTime() === na.getTime() ? "idag" : ""} ${this._valgtDag === iso(dag) ? "valgt" : ""}"
+          ${!utenfor && rad ? `data-dag="${iso(dag)}"` : ""}
+          style="${v === null ? "" : `background:rgba(255,159,10,${styrke.toFixed(2)})`}">
+          <span class="dnr">${dag.getDate()}</span>${v === null ? "" : `<span>${Math.round(v)}</span>`}</div>`);
+      }
+      const valgt = this._valgtDag ? perDag[this._valgtDag] : null;
+      const sum = dager.reduce((t, d) => t + (Number(d.sum) || 0), 0);
+      const navn = { kostnad: "Strøm", nettleie: "Nettleie", avgifter: "Avgifter",
+        stromstotte: "Strømstøtte", norgespris: "Norgespris" };
+      const detalj = valgt
+        ? `${new Date(valgt.dato).toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" })} · ${
+            this._kr(valgt.sum)} kr${valgt.pagaende ? " så langt" : ""}${
+            valgt.poster ? " · " + Object.keys(navn).filter((k) => valgt.poster[k])
+              .map((k) => `${navn[k]} ${this._kr(valgt.poster[k])}`).join(" · ") : ""}`
+        : dager.length ? `${dager.length} døgn ført · ${this._kr(sum)} kr til sammen`
+          : "Ingen døgn ført for denne måneden";
+      return `
+        <div style="margin-top:14px">
+          <div class="kaltopp">
+            <button class="pil" data-bla="-1"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+            <div class="mnd">${vist.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</div>
+            <button class="pil" data-bla="1" ${this._blaMnd >= 0 ? "disabled style=opacity:.25" : ""}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+          </div>
+          <div class="ukedager">${["M", "T", "O", "T", "F", "L", "S"].map((u) => `<span>${u}</span>`).join("")}</div>
+          <div class="rutenett7">${ruter.join("")}</div>
+          <div class="dagdetalj">${detalj}</div>
+        </div>`;
+    }
+
+    /* Døgnene for én måned.
+       Oversiktssensoren bærer de siste 95 døgnene - alt arkivet som attributt ville
+       blitt skrevet om igjen hver gang en kilde rørte seg. Blar du lenger bakover,
+       hentes måneden med tjenesten, og svaret beholdes til kortet bygges på nytt. */
+    _dagerFor(a, nokkel) {
+      const fra = (a.dager || []).filter((d) => String(d.dato || "").startsWith(nokkel));
+      if (fra.length) return fra;
+      if (this._hentet[nokkel]) return this._hentet[nokkel];
+      if (!this._hass.callWS) return [];
+      this._hentet[nokkel] = [];
+      this._hass.callWS({
+        type: "call_service", domain: "ki_enhetsforbruk", service: "historikk",
+        service_data: { maned: nokkel }, return_response: true,
+      }).then((svar) => {
+        const regninger = (svar && svar.response && svar.response.regninger) || {};
+        const forste = Object.values(regninger)[0];
+        this._hentet[nokkel] = (forste && forste.dager) || [];
+        if (this._kal) this._tegn();
+      }).catch(() => { /* eldre integrasjon uten tjenesten: la ruta stå tom */ });
+      return [];
     }
   }
 
