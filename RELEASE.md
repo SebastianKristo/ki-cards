@@ -1,40 +1,28 @@
-# ki-cards 5.28.0
+# ki-cards 5.29.0
 
-## Strømregningen er ett kort med faner: Dag · Uke · Måned · År
+## Fanerada står over kortet, og pilla har riktig farge
 
-`vis: regning` — det kortet som alt står øverst i strømpopupen — har fått fanerada på toppen, i
-samme form som i lanseringskortet: fire piller i et fylt spor, med kalenderknappen som egen rund
-knapp ytterst.
+**Rada er sitt eget spor.** Den lå inne på kortflaten sammen med tallene; nå ligger den over
+kortet, med egen bakgrunn og luft under — samme plass et `ki-tabs-card` ville hatt. Kortet under
+er uendret.
 
-```yaml
-type: custom:ki-strom-detaljer-card
-vis: regning        # åpner på Måned
-fane: uke           # eller åpne på en annen fane: dag | uke | maned | ar
-faner: false        # eller dropp rada og vis bare måneden, som før
+**Fargen.** Pilla hentet fargen fra `--active-big` uten reserve. Når variabelen ikke når inn i
+kortet, faller bakgrunnen helt bort, og igjen står bare skyggen — en mørk flis med en kant, i
+stedet for en fylt pille. Det var det du så. Regelen ligger nå i kortet selv, sterkere enn basens,
+og med `#ee95ff` som reserve:
+
+```css
+.skinne .ki-pille { background: var(--active-big, #ee95ff); }
 ```
 
-**Måneden er uendret.** Den leses fortsatt rett fra Strømkalkulator — estimatet, den stablede
-stolpa, postene, Norgespris-linja og forbruket dag mot natt — og virker uten noe mer installert.
-
-**Dag, uke og år er bygget i samme form:** tallet, den stablede stolpa, postene i to kolonner, og
-under en søyle per døgn (per måned i År-fanen). Dag viser de siste to ukene som bakteppe, Uke går
-fra mandag til i dag, År har de tolv månedene og forbruket i kWh summert. Trykk på en søyle, så
-bytter hele blokka til det døgnet — også tallet øverst og postene; trykk igjen for å komme tilbake
-til perioden.
-
-**Kalenderknappen** viser månedskalenderen med kronene i hver rute. Fanen du kom fra blir stående
-merket, så du havner samme sted når du lukker den.
-
-Disse tre fanene og kalenderen kommer fra `ki_enhetsforbruk` 1.1.0. Er den ikke satt opp, sier
-fanen fra i klartekst — Måned-fanen virker uansett. `vis: aar` er beholdt og er nå bare samme kort
-åpnet på År.
+Den valgte fanen får samme farge og mørk tekst, så markeringen ser lik ut enten glidepilla er der
+eller ikke — står kortet uten ki-cards-basen, er det fanen selv som bærer fargen. Kalenderknappen
+følger samme farge når den er på.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Kortet er i tillegg
-tegnet med oppdiktede tall, i alle fanene: riktig antall søyler (14 / 7 / 12), riktig tall øverst,
-stablet stolpe og postliste i hver, forbruksdelen bare der kWh finnes, døgn- og månedsvalg som
-bytter både overskrift og sum, kalender med 42 ruter — og samme kort uten integrasjonen, der
-Måned-fanen står som før og de andre forklarer hva som mangler. Ingen `NaN` og ingen tomme beløp.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Rota i kortet er nå
+`style` + `.skinne` + `.k`, og rada finnes ikke lenger inne i `.k` — kontrollert i alle fire
+fanene, med og uten integrasjonen, pluss `faner: false` som fortsatt gir bare måneden uten rad.
 
-Inneholder også 5.26.0 og 5.27.0. Ingen andre kort er rørt.
+Inneholder også 5.26.0 til 5.28.0. Ingen andre kort er rørt.

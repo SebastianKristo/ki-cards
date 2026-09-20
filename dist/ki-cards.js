@@ -1,4 +1,4 @@
-/* ki-cards v5.28.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.29.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.28.0";
+  KI.VERSION = "5.29.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -29209,22 +29209,30 @@ try {
     .gronn { color:var(--green, #34c759); } .rod { color:var(--red, #ff453a); } .oransje { color:var(--orange, #ff9f0a); }
 
     /* ---- årsregning ---- */
-    /* Fanerad i samme form som i lanseringskortet: piller i et fylt spor, og
-       kalenderknappen som egen rund knapp ytterst. Den har EGEN klasse, ikke .fane,
-       så glidepilla fra KI.pillefaner ikke regner den som en femte fane. */
-    .skinne { display:flex; align-items:center; gap:4px; padding:3px; border-radius:999px;
-      background:rgba(250,251,252,.06); margin:14px 0 4px; }
-    .skinne .fane { flex:1; min-width:0; text-align:center; padding:8px 0; border-radius:999px;
-      border:none; background:none; font-family:inherit; font-size:13px; cursor:pointer;
-      color:rgba(242,242,247,.65); user-select:none; white-space:nowrap;
-      transition:background .25s, color .25s; }
-    .skinne .fane.valgt { background:var(--gray100, rgba(250,251,252,.12)); color:var(--gray1000,#f2f2f7);
-      font-weight:500; box-shadow:0 1px 4px rgba(0,0,0,.35); }
-    .kalknapp { flex:none; width:38px; height:32px; border:0; border-radius:999px; background:none;
-      color:var(--gray1000,#f2f2f7); opacity:.6; cursor:pointer; display:flex; align-items:center;
-      justify-content:center; --mdc-icon-size:19px; transition:background .2s, opacity .2s, transform .14s; }
+    /* Fanerada står som sitt eget spor OVER kortet, ikke inni det - samme plass som
+       et ki-tabs-card ville hatt. Kalenderknappen har EGEN klasse, ikke .fane, så
+       glidepilla fra KI.pillefaner ikke regner den som en femte fane. */
+    .skinne { display:flex; align-items:center; gap:4px; padding:4px; border-radius:999px;
+      background:var(--gray200, var(--ha-card-background, #1f1f21)); margin-bottom:10px; }
+    .skinne .fane { flex:1; min-width:0; text-align:center; padding:9px 0; border-radius:999px;
+      border:none; background:none; font-family:inherit; font-size:14px; font-weight:500; cursor:pointer;
+      color:var(--gray1000,#f2f2f7); opacity:.6; user-select:none; white-space:nowrap;
+      -webkit-tap-highlight-color:transparent;
+      transition:background .25s, color .25s, opacity .25s; }
+    /* Fargen kommer fra --active-big, men MED reserve. Uten den ble pilla borte i
+       dashbord der variabelen ikke når inn i kortet: bakgrunnen falt bort, og igjen
+       sto bare skyggen - en mørk flis med en kant, i stedet for en fylt pille.
+       Regelen er sterkere enn basens .ki-pille, så den er den som gjelder. */
+    .skinne .ki-pille { background:var(--active-big, #ee95ff); }
+    .skinne .fane.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95);
+      opacity:1; font-weight:600; }
+    .kalknapp { flex:none; width:40px; height:34px; border:0; border-radius:999px; background:none;
+      color:var(--gray1000,#f2f2f7); opacity:.55; cursor:pointer; display:flex; align-items:center;
+      justify-content:center; --mdc-icon-size:19px; position:relative; z-index:1;
+      -webkit-tap-highlight-color:transparent;
+      transition:background .2s, opacity .2s, transform .14s; }
     .kalknapp:active { transform:scale(.92); }
-    .kalknapp.pa { background:var(--gray100, rgba(250,251,252,.12)); opacity:1; }
+    .kalknapp.pa { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); opacity:1; }
     .ikonknapp { border:0; background:rgba(250,251,252,.08); color:var(--gray1000,#f2f2f7); width:32px; height:32px;
       border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
       --mdc-icon-size:19px; flex:none; transition:background .2s, transform .14s; }
@@ -29331,7 +29339,10 @@ try {
         });
       }
       const vis = { regning: this._regning, effekt: this._effekt, effektledd: this._effektledd, norgespris: this._norgespris, sammenligning: this._sammenligning, aar: this._aar }[this._c.vis] || this._regning;
-      this.shadowRoot.innerHTML = `<style>${STIL}</style><div class="k">${vis.call(this)}</div>`;
+      const ut = vis.call(this);
+      const topp = ut && ut.topp ? ut.topp : "";
+      const kort = ut && ut.kort !== undefined ? ut.kort : ut;
+      this.shadowRoot.innerHTML = `<style>${STIL}</style>${topp}<div class="k">${kort}</div>`;
       /* Glidende pille på fanerada, samme som i de andre kortene. Kortet tegner hele
          markupen på nytt ved hvert klikk, så den må settes på igjen hver gang. Finnes
          ikke ki-cards-basen (kortet kan stå alene), beholder fanen sin egen bakgrunn. */
@@ -29361,11 +29372,12 @@ try {
       if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
       else if (this._per === 2) innhold = this._regningMaaned();
       else innhold = a ? this._regningPeriode(a, id) : this._mangler();
-      return `${skinne}${innhold}`;
+      /* Rada leveres utenfor kortflaten - se _tegn(). */
+      return { topp: skinne, kort: innhold };
     }
 
     _mangler() {
-      return `<div class="under" style="margin-top:14px">Denne fanen kommer fra KI Enhetsforbruk.
+      return `<div class="under">Denne fanen kommer fra KI Enhetsforbruk.
         Legg til en «Strømregning» på integrasjonssiden, eller sett <b>sensorer: { regning: … }</b> i kortet.</div>`;
     }
 
@@ -29599,7 +29611,7 @@ try {
       const pst = dag || natt ? Math.round((dag || 0) / (((dag || 0) + (natt || 0)) || 1) * 100) : null;
 
       return `
-        <div class="hode" style="margin-top:12px"><span class="tittel"><ha-icon icon="mdi:cash-fast"></ha-icon>Strømregning · ${tittel}</span>
+        <div class="hode"><span class="tittel"><ha-icon icon="mdi:cash-fast"></ha-icon>Strømregning · ${tittel}</span>
           <span class="svak">${valgt ? "trykk igjen" : "hittil"}</span></div>
         <div class="stor" data-mer="${id}" style="margin-top:6px;display:inline-block">${
           sum === null || sum === undefined ? "–" : `${sum < 0 ? "−" : ""}${this._kr(sum)}<small>kr</small>`}</div>
