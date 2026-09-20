@@ -1,34 +1,26 @@
-# ki-cards 5.19.0
+# ki-cards 5.19.1
 
-## `ki-strompris-card`: enkel visning
+## Dagsvelgeren har fått samme form som fanerada
 
-```yaml
-type: custom:ki-strompris-card
-enkel: true
-tittel: Strømpriser
-hoyde: 260
-```
+Den hadde ramme rundt en gjennomsiktig bunn. Nå er beholderen **fylt** uten ramme, med
+større knapper — samme form som fanerada i søvnpopupen.
 
-Overskrift til venstre, dagsvelger til høyre, og grafen i sin egen flate under. Ingenting
-annet.
+En ramme rundt tomrom leses som en knapperad. En fylt flate leses som en bryter med to
+stillinger, og det er det dette er.
 
-Hovedtallet, statistikken, billigste vindu, forklaringen og spart-tallene er nyttige —
-men de konkurrerer med kurven. Vil man se prisen time for time, **er** kurven kortet, og
-da skal den få plassen.
+Knappene er 11 × 26 px med 15 px tekst, og tettere på skjermer under 420 px.
 
-Overskriften står utenfor kortflata, så grafen fyller hele.
-
-Standarden er uendret: uten `enkel: true` ser kortet ut som før.
+Den aktive fyllingen kommer fra den glidende pilla når `KI.pillefaner` er der, ellers fra
+knappen selv — de to bruker samme farge, så det ser likt ut uansett.
 
 ### Kontrollert
 
-Vanlig visning har alle åtte delene. Enkel har overskrift, dagsvelger, graf og tidsakse
-— og verken hero, statistikk, vindu eller forklaring. Grafen tegnes, dagsvelgeren virker,
-og klokkeslettene står på aksen.
+Fylt beholder uten ramme, større knapper, `--active-big` med mørk tekst på den aktive, og
+tettere padding på smal skjerm. «I dag» er merket aktiv og «I morgen» merkes som tom når
+morgendagens priser mangler.
 
 ---
 
-# ki-cards 5.18.1
+# ki-cards 5.19.0
 
-Redigereren i faneeditoren lukket seg for hver tast; ekkoet sammenlignes nå uavhengig av
-nøkkelrekkefølge, og redigereren bygges aldri om mens den er åpen.
+`enkel: true` i `ki-strompris-card`: bare overskrift, dagsvelger og graf.

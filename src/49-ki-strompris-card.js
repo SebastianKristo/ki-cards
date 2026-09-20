@@ -69,12 +69,21 @@ const KI_SP_STIL = `
   .enkelkort .akse { padding-top:10px; opacity:.55; }
   .tittel { font-size:16px; font-weight:500; }
   /* faner i samme pilleform som ki-tabs-card / ki-hjem-card */
-  .valg { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
-  .valg .v { padding:6px 14px; border-radius:999px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;
-    color:rgba(255,255,255,.72); transition:background .18s, color .18s; -webkit-tap-highlight-color:transparent; }
-  .valg .v:hover { color:rgba(255,255,255,.95); }
-  .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
-  .valg .v.tom { opacity:.45; }
+  /* Fylt beholder uten ramme, som fanerada i søvnpopupen. En ramme rundt en
+     gjennomsiktig bunn leses som en knapperad; en fylt flate leses som en bryter med to
+     stillinger — og det er det dette er. */
+  .valg { display:inline-flex; gap:0; padding:4px; border-radius:999px;
+    background:var(--gray200,#2a2a2d); max-width:100%; position:relative; }
+  .valg .v { padding:11px 26px; border-radius:999px; font-size:15px; font-weight:500;
+    cursor:pointer; white-space:nowrap; display:flex; align-items:center;
+    justify-content:center; color:var(--gray1000,#fafbfc); opacity:.6;
+    transition:background .18s, opacity .18s, color .18s;
+    -webkit-tap-highlight-color:transparent; }
+  .valg .v:hover { opacity:.85; }
+  .valg .v.aktiv { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95);
+    opacity:1; }
+  .valg .v.tom { opacity:.3; }
+  @media (max-width:420px) { .valg .v { padding:10px 16px; font-size:14px; } }
   /* Ingen luft over: heroen er det første i kortet. */
   .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 0 6px; flex-wrap:wrap; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
