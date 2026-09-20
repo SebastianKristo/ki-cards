@@ -1,4 +1,4 @@
-/* ki-cards v5.32.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.34.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.32.0";
+  KI.VERSION = "5.34.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -934,7 +934,8 @@ try {
    style: pills (piller) | scroll (rullbar fanerad) | dropdown (pille som åpner meny)
           | auto (piller når de får plass, ellers scroll – standard)
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
-   sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
+   sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>).
+   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen. */
 (function (KI) {
   /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
      «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
@@ -952,9 +953,26 @@ try {
         tabs: [{ title: "Fane 1", cards: [] }, { title: "Fane 2", cards: [] }] };
     }
 
+    /* Fanen kortet åpner på.
+     *
+     * `default` kan være nummeret eller tittelen. Tittelen er den som holder når du
+     * flytter om på fanene senere - et nummer peker da plutselig på en annen fane.
+     * Peker verdien ingen steder, åpner kortet på den første i stedet for på ingen. */
+    static startfane(config) {
+      const tabs = config.tabs || [];
+      const v = config.default;
+      if (v === undefined || v === null || v === "") return 0;
+      if (typeof v === "number" || /^\d+$/.test(String(v))) {
+        return Math.max(0, Math.min(Number(v), tabs.length - 1));
+      }
+      const leting = String(v).trim().toLowerCase();
+      const i = tabs.findIndex((t) => String((t && (t.title || t.aria)) || "").trim().toLowerCase() === leting);
+      return i >= 0 ? i : 0;
+    }
+
     setConfig(config) {
       if (!config.tabs || !config.tabs.length) throw new Error("tabs mangler");
-      this._active = config.default || 0;
+      this._active = SkTabsCard.startfane(config);
       this._config = config; this._built = false; this._menuOpen = false;
       if (this._hass) this._build();
     }
@@ -1645,6 +1663,30 @@ try {
       this._sistBygd = v;
     }
 
+    /* Fanene som kan velges som startfane, med en «Første fane»-rad øverst for
+       den som ikke bryr seg om hvilken det er. */
+    _fanevalg() {
+      const valg = [{ value: "", label: "Første fane" }];
+      this._tabs().forEach((t, i) => {
+        const navn = (t && (t.title || t.aria)) || `Fane ${i + 1}`;
+        valg.push({ value: String(navn), label: String(navn) });
+      });
+      return valg;
+    }
+
+    /* Verdien skjemaet skal vise: tittelen på fanen `default` peker på. */
+    _startvalg() {
+      const t = this._tabs();
+      const v = this._c.default;
+      if (v === undefined || v === null || v === "") return "";
+      let i = -1;
+      if (typeof v === "number" || /^\d+$/.test(String(v))) i = Number(v);
+      else i = t.findIndex((x) => String((x && (x.title || x.aria)) || "").trim().toLowerCase()
+        === String(v).trim().toLowerCase());
+      const fane = t[i];
+      return fane ? String(fane.title || fane.aria || `Fane ${i + 1}`) : "";
+    }
+
     /* Innstillinger for hele kortet, ikke for én fane. */
     _kortform2(vert) {
       if (!vert) return;
@@ -1657,7 +1699,10 @@ try {
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
         sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under,
-        fast_hoyde: !!this._c.fast_hoyde };
+        fast_hoyde: !!this._c.fast_hoyde,
+        /* Lagres som tittelen på fanen, ikke som nummeret: flytter du om på fanene
+           senere, peker et nummer plutselig på en annen. Fanen velges i lista under. */
+        default: this._startvalg() };
       /* Alle valgene kortet faktisk leser, ikke bare to. Feltene er gruppert som i
          simple-tabs' editor: utseende først, så oppførsel — det er den rekkefølgen man
          leter i når man skal endre noe. */
@@ -1689,6 +1734,7 @@ try {
               { value: "pills", label: "Piller" },
               { value: "scroll", label: "Rullbar rad" },
               { value: "dropdown", label: "Nedtrekksmeny" }] } } },
+            { name: "default", selector: { select: { mode: "dropdown", options: this._fanevalg() } } },
             { name: "sticky", selector: { boolean: {} } },
             { name: "fast_hoyde", selector: { boolean: {} } },
             { name: "dropdown_under", selector: { boolean: {} } },
@@ -1705,6 +1751,7 @@ try {
         tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
         gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
         style: "Form", sticky: "Fest rada øverst ved rulling",
+        default: "Fanen kortet åpner på",
         fast_hoyde: "Lås høyden til den høyeste fanen",
         dropdown_under: "Nedtrekk under rada i stedet for over" };
       f.computeLabel = (x) => navn[x.name] || x.name;
@@ -1712,7 +1759,7 @@ try {
         Object.assign(this._c, e.detail.value);
         /* Tomme og standardverdier ut av YAML-en. Ellers står `bg: ""` og
            `sticky: false` igjen og ser ut som noe man har valgt. */
-        for (const k of ["tittel", "tittel_storrelse", "bg"]) {
+        for (const k of ["tittel", "tittel_storrelse", "bg", "default"]) {
           if (!this._c[k]) delete this._c[k];
         }
         for (const k of ["sticky", "dropdown_under", "fast_hoyde"]) {
@@ -29200,6 +29247,7 @@ try {
  *  faner: over         # over | i | false – rada over kortet, på kortflaten, eller ingen rad
  *  faner_bakgrunn: var(--gray000)   # maler stripa rada står på, for å dekke flata
  *                                   # dashbordet legger bak hele kortet
+ *  skjul: [uke, kalender]           # fjern enkeltfaner: dag | uke | maned | ar | kalender
  *  fane: maned         # hvilken fane kortet åpner på: dag | uke | maned | ar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
@@ -29426,17 +29474,32 @@ try {
     _regning() {
       if (this._c.faner === false) return this._regningMaaned();
       const inni = this._c.faner === "i" || this._c.faner === true;
+      /* Fanene han vil ha. Skjules alt unntatt én, forsvinner rada av seg selv - en
+         rad med bare ett valg er ingen rad. */
+      const bort = this._skjulte();
+      const synlige = [0, 1, 2, 3].filter((i) => !bort.has(i));
+      const visKal = !bort.has("kalender");
+      if (!synlige.includes(this._per)) this._per = synlige.length ? synlige[0] : 2;
+      if (!visKal && this._kal) this._kal = false;
       const id = this._regningId();
       const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
-      const faner = ["Dag", "Uke", "Måned", "År"];
+      /* Én fane igjen og ingen kalender: da er det ikke noe å velge mellom, og
+         innholdet leveres uten rad. */
+      if (synlige.length <= 1 && !visKal) {
+        return this._per === 2 ? this._regningMaaned()
+          : (a ? this._regningPeriode(a, id) : this._mangler());
+      }
+      /* Alle periodene skjult, men kalenderen beholdt: da er kalenderen kortet. */
+      if (!synlige.length) return a ? this._aarKalender(a) : this._mangler();
+      const alle = ["Dag", "Uke", "Måned", "År"];
       /* Verdien går rett inn i et style-attributt, så anførselstegn og vinkelparenteser
          fjernes - ellers kan en farge fra konfigurasjonen bryte ut av attributtet. */
       const bg = this._c.faner_bakgrunn ? String(this._c.faner_bakgrunn).replace(/["'<>]/g, "") : "";
       const skinne = `<div class="faner ${bg ? "malt" : ""}"${
         bg ? ` style="background:${bg}"` : ""}><div class="skinne">
-        ${faner.map((navn, i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
-        <button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
-          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div></div>`;
+        ${synlige.map((i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${alle[i]}</button>`).join("")}
+        ${visKal ? `<button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
+          <ha-icon icon="mdi:calendar-month"></ha-icon></button>` : ""}</div></div>`;
       let innhold;
       if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
       else if (this._per === 2) innhold = this._regningMaaned();
@@ -29445,6 +29508,22 @@ try {
          kortet i stedet: er dashbordet ditt satt opp slik at det ligger en flate bak
          hele kortet, blir den synlig som en stripe bak en rad som står for seg selv. */
       return inni ? `${skinne}${innhold}` : { topp: skinne, kort: innhold };
+    }
+
+    /* skjul: kan være en streng eller en liste. Navnene er de samme som i fane:,
+       pluss «kalender» for kalenderknappen. */
+    _skjulte() {
+      const rå = this._c.skjul;
+      const liste = Array.isArray(rå) ? rå : (rå ? String(rå).split(/[\s,]+/) : []);
+      const kart = { dag: 0, uke: 1, maned: 2, måned: 2, mnd: 2, ar: 3, år: 3 };
+      const ut = new Set();
+      liste.forEach((navn) => {
+        const n = String(navn).trim().toLowerCase();
+        if (!n) return;
+        if (n === "kalender" || n === "kal") ut.add("kalender");
+        else if (kart[n] !== undefined) ut.add(kart[n]);
+      });
+      return ut;
     }
 
     _mangler() {

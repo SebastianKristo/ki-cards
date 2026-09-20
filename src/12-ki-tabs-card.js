@@ -2,7 +2,8 @@
    style: pills (piller) | scroll (rullbar fanerad) | dropdown (pille som åpner meny)
           | auto (piller når de får plass, ellers scroll – standard)
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
-   sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>). */
+   sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>).
+   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen. */
 (function (KI) {
   /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
      «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
@@ -20,9 +21,26 @@
         tabs: [{ title: "Fane 1", cards: [] }, { title: "Fane 2", cards: [] }] };
     }
 
+    /* Fanen kortet åpner på.
+     *
+     * `default` kan være nummeret eller tittelen. Tittelen er den som holder når du
+     * flytter om på fanene senere - et nummer peker da plutselig på en annen fane.
+     * Peker verdien ingen steder, åpner kortet på den første i stedet for på ingen. */
+    static startfane(config) {
+      const tabs = config.tabs || [];
+      const v = config.default;
+      if (v === undefined || v === null || v === "") return 0;
+      if (typeof v === "number" || /^\d+$/.test(String(v))) {
+        return Math.max(0, Math.min(Number(v), tabs.length - 1));
+      }
+      const leting = String(v).trim().toLowerCase();
+      const i = tabs.findIndex((t) => String((t && (t.title || t.aria)) || "").trim().toLowerCase() === leting);
+      return i >= 0 ? i : 0;
+    }
+
     setConfig(config) {
       if (!config.tabs || !config.tabs.length) throw new Error("tabs mangler");
-      this._active = config.default || 0;
+      this._active = SkTabsCard.startfane(config);
       this._config = config; this._built = false; this._menuOpen = false;
       if (this._hass) this._build();
     }
@@ -713,6 +731,30 @@
       this._sistBygd = v;
     }
 
+    /* Fanene som kan velges som startfane, med en «Første fane»-rad øverst for
+       den som ikke bryr seg om hvilken det er. */
+    _fanevalg() {
+      const valg = [{ value: "", label: "Første fane" }];
+      this._tabs().forEach((t, i) => {
+        const navn = (t && (t.title || t.aria)) || `Fane ${i + 1}`;
+        valg.push({ value: String(navn), label: String(navn) });
+      });
+      return valg;
+    }
+
+    /* Verdien skjemaet skal vise: tittelen på fanen `default` peker på. */
+    _startvalg() {
+      const t = this._tabs();
+      const v = this._c.default;
+      if (v === undefined || v === null || v === "") return "";
+      let i = -1;
+      if (typeof v === "number" || /^\d+$/.test(String(v))) i = Number(v);
+      else i = t.findIndex((x) => String((x && (x.title || x.aria)) || "").trim().toLowerCase()
+        === String(v).trim().toLowerCase());
+      const fane = t[i];
+      return fane ? String(fane.title || fane.aria || `Fane ${i + 1}`) : "";
+    }
+
     /* Innstillinger for hele kortet, ikke for én fane. */
     _kortform2(vert) {
       if (!vert) return;
@@ -725,7 +767,10 @@
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
         sticky: !!this._c.sticky, dropdown_under: !!this._c.dropdown_under,
-        fast_hoyde: !!this._c.fast_hoyde };
+        fast_hoyde: !!this._c.fast_hoyde,
+        /* Lagres som tittelen på fanen, ikke som nummeret: flytter du om på fanene
+           senere, peker et nummer plutselig på en annen. Fanen velges i lista under. */
+        default: this._startvalg() };
       /* Alle valgene kortet faktisk leser, ikke bare to. Feltene er gruppert som i
          simple-tabs' editor: utseende først, så oppførsel — det er den rekkefølgen man
          leter i når man skal endre noe. */
@@ -757,6 +802,7 @@
               { value: "pills", label: "Piller" },
               { value: "scroll", label: "Rullbar rad" },
               { value: "dropdown", label: "Nedtrekksmeny" }] } } },
+            { name: "default", selector: { select: { mode: "dropdown", options: this._fanevalg() } } },
             { name: "sticky", selector: { boolean: {} } },
             { name: "fast_hoyde", selector: { boolean: {} } },
             { name: "dropdown_under", selector: { boolean: {} } },
@@ -773,6 +819,7 @@
         tittel_storrelse: "Tittelstørrelse (f.eks. 1.4em)",
         gap: "Avstand under rada (px)", bg: "Bakgrunn når rada er festet",
         style: "Form", sticky: "Fest rada øverst ved rulling",
+        default: "Fanen kortet åpner på",
         fast_hoyde: "Lås høyden til den høyeste fanen",
         dropdown_under: "Nedtrekk under rada i stedet for over" };
       f.computeLabel = (x) => navn[x.name] || x.name;
@@ -780,7 +827,7 @@
         Object.assign(this._c, e.detail.value);
         /* Tomme og standardverdier ut av YAML-en. Ellers står `bg: ""` og
            `sticky: false` igjen og ser ut som noe man har valgt. */
-        for (const k of ["tittel", "tittel_storrelse", "bg"]) {
+        for (const k of ["tittel", "tittel_storrelse", "bg", "default"]) {
           if (!this._c[k]) delete this._c[k];
         }
         for (const k of ["sticky", "dropdown_under", "fast_hoyde"]) {

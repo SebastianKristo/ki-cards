@@ -1,30 +1,33 @@
-# ki-cards 5.32.0
+# ki-cards 5.34.0
 
-## Flata bak fanerada kan males over
+## ki-tabs-card: velg fanen kortet åpner på
 
-Rada over strømregningen har ingen egen bakgrunn. Den du ser bak den, kommer fra dashbordet:
-noe legger en flate bak **hele** kortet — temaet, popupen eller en card-mod-regel — og rada er
-smalere enn kortet, så flata blir synlig i stripa rundt den. Den ligger utenfor kortet, og kan
-derfor ikke fjernes inne fra kortet.
-
-Tre måter ut, alt etter hva du vil se:
+Feltet `default` fantes, men tok bare et nummer, og sto ikke i editoren. Nå tar det **tittelen på
+fanen** også:
 
 ```yaml
-faner_bakgrunn: var(--gray000)   # mal stripa i popupens egen farge, så flata forsvinner
-faner: i                         # legg rada på kortflaten; da er det kortet som ligger bak
-faner: over                      # standard: rada for seg selv, med det som nå er bak
+type: custom:ki-tabs-card
+default: Strøm        # eller default: 1
+tabs:
+  - title: Oversikt
+    cards: […]
+  - title: Strøm
+    cards: […]
 ```
 
-`faner_bakgrunn` tar hvilken som helst CSS-farge eller variabel. Stripa får samme
-`--ha-card-border-radius` i toppen som et kort, slik at den runder av likt der flata bak gjorde
-det. Verdien vaskes for anførselstegn og vinkelparenteser før den settes, siden den går rett inn
-i et `style`-attributt.
+Tittelen er den som holder: flytter du om på fanene senere, peker et nummer plutselig på en annen
+fane, mens tittelen følger med. Titler sammenlignes uten hensyn til store bokstaver og luft rundt.
+
+I den visuelle editoren ligger valget under **Oppførsel** som **«Fanen kortet åpner på»**, med
+fanene dine i lista og «Første fane» øverst. Det lagres som tittelen, og tas ut av YAML-en igjen
+hvis du setter det tilbake til «Første fane».
+
+Peker verdien ingen steder — en tittel som ikke finnes, et nummer utenfor lista eller et negativt
+tall — åpner kortet på den første fanen i stedet for på ingen.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Med `faner_bakgrunn`
-satt får rada klassen `malt` og `style="background:var(--gray000)"`; uten den står den helt uten
-`style`, som før. `faner: i` legger fortsatt rada inne i kortflaten, `faner: false` gir bare
-måneden.
-
-Inneholder også 5.26.0 til 5.31.0.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Oppslaget er i tillegg
+kjørt for seg: uten `default` → 0, `2` → 2, `"1"` → 1, `"Varme"` → 2, `"  strøm "` → 1, ukjent
+tittel → 0, `9` → siste fane, `-3` → 0. Editoren lister «Første fane» pluss de tre fanene, viser
+«Varme» når det er valgt, og oversetter et gammelt `default: 1` til «Strøm» i feltet.

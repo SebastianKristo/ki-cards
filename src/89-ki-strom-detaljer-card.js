@@ -8,6 +8,7 @@
  *  faner: over         # over | i | false – rada over kortet, på kortflaten, eller ingen rad
  *  faner_bakgrunn: var(--gray000)   # maler stripa rada står på, for å dekke flata
  *                                   # dashbordet legger bak hele kortet
+ *  skjul: [uke, kalender]           # fjern enkeltfaner: dag | uke | maned | ar | kalender
  *  fane: maned         # hvilken fane kortet åpner på: dag | uke | maned | ar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
@@ -234,17 +235,32 @@
     _regning() {
       if (this._c.faner === false) return this._regningMaaned();
       const inni = this._c.faner === "i" || this._c.faner === true;
+      /* Fanene han vil ha. Skjules alt unntatt én, forsvinner rada av seg selv - en
+         rad med bare ett valg er ingen rad. */
+      const bort = this._skjulte();
+      const synlige = [0, 1, 2, 3].filter((i) => !bort.has(i));
+      const visKal = !bort.has("kalender");
+      if (!synlige.includes(this._per)) this._per = synlige.length ? synlige[0] : 2;
+      if (!visKal && this._kal) this._kal = false;
       const id = this._regningId();
       const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
-      const faner = ["Dag", "Uke", "Måned", "År"];
+      /* Én fane igjen og ingen kalender: da er det ikke noe å velge mellom, og
+         innholdet leveres uten rad. */
+      if (synlige.length <= 1 && !visKal) {
+        return this._per === 2 ? this._regningMaaned()
+          : (a ? this._regningPeriode(a, id) : this._mangler());
+      }
+      /* Alle periodene skjult, men kalenderen beholdt: da er kalenderen kortet. */
+      if (!synlige.length) return a ? this._aarKalender(a) : this._mangler();
+      const alle = ["Dag", "Uke", "Måned", "År"];
       /* Verdien går rett inn i et style-attributt, så anførselstegn og vinkelparenteser
          fjernes - ellers kan en farge fra konfigurasjonen bryte ut av attributtet. */
       const bg = this._c.faner_bakgrunn ? String(this._c.faner_bakgrunn).replace(/["'<>]/g, "") : "";
       const skinne = `<div class="faner ${bg ? "malt" : ""}"${
         bg ? ` style="background:${bg}"` : ""}><div class="skinne">
-        ${faner.map((navn, i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
-        <button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
-          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div></div>`;
+        ${synlige.map((i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${alle[i]}</button>`).join("")}
+        ${visKal ? `<button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
+          <ha-icon icon="mdi:calendar-month"></ha-icon></button>` : ""}</div></div>`;
       let innhold;
       if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
       else if (this._per === 2) innhold = this._regningMaaned();
@@ -253,6 +269,22 @@
          kortet i stedet: er dashbordet ditt satt opp slik at det ligger en flate bak
          hele kortet, blir den synlig som en stripe bak en rad som står for seg selv. */
       return inni ? `${skinne}${innhold}` : { topp: skinne, kort: innhold };
+    }
+
+    /* skjul: kan være en streng eller en liste. Navnene er de samme som i fane:,
+       pluss «kalender» for kalenderknappen. */
+    _skjulte() {
+      const rå = this._c.skjul;
+      const liste = Array.isArray(rå) ? rå : (rå ? String(rå).split(/[\s,]+/) : []);
+      const kart = { dag: 0, uke: 1, maned: 2, måned: 2, mnd: 2, ar: 3, år: 3 };
+      const ut = new Set();
+      liste.forEach((navn) => {
+        const n = String(navn).trim().toLowerCase();
+        if (!n) return;
+        if (n === "kalender" || n === "kal") ut.add("kalender");
+        else if (kart[n] !== undefined) ut.add(kart[n]);
+      });
+      return ut;
     }
 
     _mangler() {
