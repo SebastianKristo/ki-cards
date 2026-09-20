@@ -1,35 +1,64 @@
-# Kalenderfanen i #kalender-popupen: månedsrutenett øverst, hendelsene under.
-# Erstatter stabelen av button-card mot sensor.alle_kalendere.
-type: custom:ki-kalender-card
-tittel: Kalender
-start_dag: mandag
-prikker: 4
-dager_i_liste: 1          # 1 = bare dagen du trykker på; sett høyere for en agenda framover
-kalendere:
-  - entity: calendar.sebastian_kristo_no
-    navn: Sebastian
-    farge: var(--active-big)
-  - entity: calendar.helge_hus
-    navn: Helge hus
-    farge: var(--blue)
-  - entity: calendar.oslomet_timeplan
-    navn: OsloMet
-    farge: var(--green)
-  - entity: calendar.timeplan
-    navn: Timeplan
-    farge: var(--teal)
-  - entity: calendar.arbeidsdag_sensor_calendar
-    navn: Arbeidsdag
-    farge: var(--orange)
-  - entity: calendar.helligdager_i_norge
-    navn: Helligdager
-    farge: var(--red)
-  - entity: calendar.birthdays
-    navn: Bursdager
-    farge: var(--yellow)
-  - entity: calendar.posten_calendar
-    navn: Posten
-    farge: var(--purple)
-  - entity: calendar.todoist
-    navn: Todoist
-    farge: var(--gray800)
+# Kalender-fanen i #kalender-popupen.
+#
+# Oppsettet ditt står som det er – de sju button-card-ene mot sensor.alle_kalendere.
+# Det nye er en fanerad inni fanen, med et kalenderikon ved siden av «Neste»:
+# samme form som Alle / Serier / Filmer + kalender i Framover-fanen.
+#
+# Lim inn hele denne blokka som «Kalender»-fanen i ki-tabs-card-et i popupen, og flytt
+# dine egne kort inn der kommentaren står.
+
+- title: Kalender
+  cards:
+    - type: custom:ki-tabs-card
+      align: center
+      rad_hoyde: 30
+      fane_tekst: 13
+      tabs:
+        - title: Neste
+          cards:
+            # ── dine egne kort, uendret ──────────────────────────────────
+            # - type: custom:button-card
+            #   entity: sensor.alle_kalendere
+            #   … (hendelse 0)
+            # - type: conditional          (hendelse 1–6)
+            #   …
+            - type: custom:gap-card
+              height: 48
+
+        - icon: mdi:calendar-month
+          aria: Månedskalender
+          cards:
+            - type: custom:ki-kalender-card
+              start_dag: mandag
+              visning: antall          # merke med antallet, som i Framover-kalenderen
+              dager_i_liste: 1         # 1 = dagen du trykker på; høyere gir agenda framover
+              kalendere:
+                - entity: calendar.sebastian_kristo_no
+                  navn: Sebastian
+                  farge: var(--active-big)
+                - entity: calendar.helge_hus
+                  navn: Helge hus
+                  farge: var(--blue)
+                - entity: calendar.oslomet_timeplan
+                  navn: OsloMet
+                  farge: var(--green)
+                - entity: calendar.timeplan
+                  navn: Timeplan
+                  farge: var(--teal)
+                - entity: calendar.arbeidsdag_sensor_calendar
+                  navn: Arbeidsdag
+                  farge: var(--orange)
+                - entity: calendar.helligdager_i_norge
+                  navn: Helligdager
+                  farge: var(--red)
+                - entity: calendar.birthdays
+                  navn: Bursdager
+                  farge: var(--yellow)
+                - entity: calendar.posten_calendar
+                  navn: Posten
+                  farge: var(--purple)
+                - entity: calendar.todoist
+                  navn: Todoist
+                  farge: var(--gray800)
+            - type: custom:gap-card
+              height: 48
