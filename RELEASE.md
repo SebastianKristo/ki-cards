@@ -1,33 +1,37 @@
-# ki-cards 5.17.1
+# ki-cards 5.18.0
 
-## Lagring fra kortdialogen, tredje forsøk
+## Kortdialogen er ute. Redigereren brettes ut i stedet.
 
-Konsollsjekken viste at alt var på plass: editoren, kortrada, blyanten og dialogen. Da
-sto det igjen ett sted feilen kunne ligge — uthentingen av kortet etter lagring.
+Jeg forsøkte `hui-dialog-edit-card` i tre utgaver. Dialogen åpnet seg hver gang, men det
+den sendte tilbake ved lagring kom aldri fram til fanen.
 
-Jeg lette på `views[0].cards[0]`, der jeg selv la det. Men Home Assistant
-**normaliserer visningen** før den sender den tilbake, og kortet kan havne under
-`sections` i stedet.
+API-et er internt i Home Assistants frontend og har byttet form mellom versjoner. Jeg
+klarte ikke å treffe det uten å gjette, og tre runder med gjetting er nok.
 
-Nå leter vi etter det første elementet i en `cards`-liste, uansett hvor i strukturen den
-ligger.
+Blyanten bretter nå ut **`hui-card-element-editor`** under rada — den samme redigereren
+HA bruker inne i sine egne stabel-editorer. Den sender `config-changed` rett til oss,
+uten mellomledd som kan endre seg.
 
-### En feil testen fanget underveis
+Den er mindre pen enn en fullskjermdialog med forhåndsvisning ved siden av. Men den
+lagrer, og det er det du ba om.
 
-Første forsøk lette etter det første objektet med en `type`. En visning kan selv ha
-`type: "sections"` — og da ble visningen forvekslet med kortet, og hele dashbordet
-havnet inne i fanen.
+Trykk blyanten igjen for å lukke.
 
-Derfor ser vi nå etter elementer i en `cards`-liste, ikke bare etter `type`.
+### Editoren byttes ikke ut mens du holder på
+
+Vi lagrer ved hver endring, men tegner ikke om. Gjorde vi det, ville redigereren blitt
+erstattet midt i arbeidet, og markøren og åpne seksjoner gått tapt.
 
 ### Kontrollert
 
-Fem former: kortet på `views[0].cards[0]`, under `sections`, i en visning med
-`type: "sections"`, et tomt objekt og en visning uten kort. De tre første lagrer riktig
-kort; de to siste lagrer ingenting i stedet for å slette.
+Blyanten åpner redigereren med riktig kort. En endring der lagres i fanen. Redigereren
+blir stående etter lagring, og et nytt klikk lukker den.
+
+Koden for dialoguthentingen er slettet — rundt 40 linjer som ikke lenger har noen
+oppgave.
 
 ---
 
-# ki-cards 5.17.0
+# ki-cards 5.17.1
 
-`ki-utelys-card` forklarer selv hva som skjer når statusen mangler.
+Tredje forsøk på å hente kortet ut av det dialogen sendte tilbake.

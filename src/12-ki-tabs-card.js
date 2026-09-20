@@ -902,40 +902,6 @@
       vert.appendChild(rad);
     }
 
-    /* Graver kortet ut av konfigurasjonen dialogen sender tilbake.
-     *
-     * Vi la det på `views[0].cards[0]`, men Home Assistant normaliserer visningen —
-     * den kan havne under `sections`, eller i en visning med et annet oppsett.
-     *
-     * Vi leter derfor etter det første elementet i en `cards`-LISTE, ikke bare etter
-     * et objekt med `type`. En visning kan selv ha `type: "sections"`, og den ville
-     * ellers blitt forvekslet med kortet — det fanget testen.
-     */
-    _finnKort(o, dybde = 0) {
-      if (!o || typeof o !== "object" || dybde > 6) return null;
-      if (Array.isArray(o)) {
-        for (const x of o) {
-          const f = this._finnKort(x, dybde + 1);
-          if (f) return f;
-        }
-        return null;
-      }
-      if (Array.isArray(o.cards)) {
-        for (const k of o.cards) {
-          if (k && typeof k === "object" && typeof k.type === "string" && k.type) {
-            return k;
-          }
-        }
-      }
-      for (const n of ["views", "sections", "cards", "card"]) {
-        if (o[n]) {
-          const f = this._finnKort(o[n], dybde + 1);
-          if (f) return f;
-        }
-      }
-      return null;
-    }
-
     /* Lesbart navn på et kort: `custom:ki-varsling-card` blir «Ki varsling card»,
        slik HA selv skriver dem. */
     _korttype(k) {
@@ -944,45 +910,22 @@
       return ord.charAt(0).toUpperCase() + ord.slice(1);
     }
 
-    /* Åpner HAs kortdialog. Faller tilbake på innebygd editor hvis den ikke finnes. */
+    /* Bretter ut Home Assistants kortredigerer under rada.
+     *
+     * Jeg forsøkte `hui-dialog-edit-card` i tre utgaver. Dialogen ÅPNET seg, men det
+     * den sendte tilbake ved lagring kom aldri fram — API-et er internt og har byttet
+     * form mellom versjoner, og jeg klarte ikke å treffe det uten å gjette.
+     *
+     * `hui-card-element-editor` er den samme redigereren HA bruker inne i sine egne
+     * stabel-editorer. Den sender `config-changed` direkte til oss, uten mellomledd
+     * som kan endre seg. Mindre pen enn en fullskjermdialog — men den lagrer.
+     */
     _apneDialog(kort, lagre, vert, i) {
-      const lovelace = this._lovelace || (this.parentElement || {}).lovelace;
-      let apnet = false;
-      try {
-        this.dispatchEvent(new CustomEvent("show-dialog", {
-          detail: {
-            dialogTag: "hui-dialog-edit-card",
-            dialogImport: () => customElements.whenDefined("hui-dialog-edit-card"),
-            /* Dialogen har byttet API mellom HA-versjoner. Eldre kaller
-             * `saveCardConfig(kort)`; nyere kaller `saveConfig(heleLovelace)` og
-             * finner kortet via `path`.
-             *
-             * Vi gir den en liten konstruert konfigurasjon der kortet vårt ligger på
-             * [0, 0], og plukker det ut igjen derfra. Da virker begge veier, uten at
-             * vi må vite hvilken HA-versjon som kjører.
-             */
-            dialogParams: {
-              cardConfig: kort,
-              path: [0, 0],
-              lovelaceConfig: { views: [{ cards: [kort] }] },
-              saveCardConfig: async (ny) => lagre(ny),
-              saveConfig: async (ny) => {
-                const ut = this._finnKort(ny);
-                if (ut) lagre(ut);
-              },
-            },
-          },
-          bubbles: true,
-          composed: true,
-        }));
-        apnet = !!customElements.get("hui-dialog-edit-card");
-      } catch (e) {
-        apnet = false;
+      if (this._redigerer) {
+        this._redigerer.remove();
+        this._redigerer = null;
+        return;
       }
-      if (apnet) return;
-
-      /* Reserve: den innebygde editoren rett under rada. Mindre pen, men den virker
-         uansett hva frontenden finner på med dialogen. */
       if (!customElements.get("hui-card-element-editor")) {
         const merk = document.createElement("p");
         merk.className = "merk";
@@ -993,17 +936,21 @@
       }
       const e = document.createElement("hui-card-element-editor");
       e.hass = this._h;
-      e.lovelace = lovelace;
+      e.lovelace = this._lovelace || { config: { views: [] }, editMode: true };
       e.value = kort;
       e.addEventListener("config-changed", (ev) => {
         ev.stopPropagation();
+        /* Vi lagrer, men tegner IKKE om: gjør vi det, byttes editoren ut mens man
+           holder på i den, og markøren og åpne seksjoner går tapt. */
         this._tabs()[i].card = ev.detail.config;
         delete this._tabs()[i].cards;
         this._send();
       });
       (this._underEl = this._underEl || []).push(e);
+      this._redigerer = e;
       vert.appendChild(e);
     }
+
 
 
   }
