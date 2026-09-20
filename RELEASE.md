@@ -1,43 +1,32 @@
-# ki-cards 5.10.0
+# ki-cards 5.11.0
 
-## `fast_hoyde`: paneldelen holder høyden
+## Kortet i fanen listes, og blyanten åpner HAs dialog
 
-Panelene byttes med `display:none` og `block`, så høyden endret seg brått ved fanebytte.
-I en popup flytter da hele flata seg — «Renhold» er lang, «Kart» er kort, og innholdet
-hopper.
+I 5.10.0 lå kortredigereren **brettet ut inne i** faneeditoren. Nå står kortet som en
+rad — «1 Vertical stack» med blyant og søppelbøtte — og blyanten åpner Home Assistants
+egen kortdialog i fullskjerm.
 
-```yaml
-type: custom:ki-tabs-card
-fast_hoyde: true
-```
+Det er den samme flyten som i HAs stabel-editorer: forhåndsvisning ved siden av,
+«Vis koderedigering», Avbryt og Lagre.
 
-Paneldelen får høyden til den **høyeste** fanen, og beholder den. Bytte mellom faner
-endrer ikke lenger størrelsen på popupen.
+### Reserve hvis dialogen ikke lar seg åpne
 
-### Høyden krymper ikke igjen
+`hui-dialog-edit-card` er intern i frontenden og kan endre seg mellom versjoner. Lar den
+seg ikke åpne, brettes den innebygde editoren ut under rada i stedet.
 
-Et kort som laster sent — et bilde, en graf — ville ellers gjort flata kortere etterpå,
-og da hopper det på nytt. Vi husker den største høyden vi har sett. Vokser en fane,
-følger høyden med opp; blir den kortere, står den.
-
-M�lingen gjentas etter 100 og 600 ms og ved hver størrelsesendring, siden kortene ikke er
-ferdige med en gang.
-
-Valget ligger i editoren under Oppførsel.
-
-### Merk om YAML-en din
-
-`card_mod` med `.tabs-container` og `.tab-button` gjør ingenting på `ki-tabs-card` —
-det er simple-tabs sine klassenavn. Formen kommer fra kortet selv, og målene settes med
-`fane_hoyde`, `fane_sidepadding` og `rad_bredde`, som du alt bruker.
+Da mister man dialogen, ikke muligheten til å redigere. Er heller ikke den tilgjengelig,
+sier editoren fra at YAML-visningen må brukes — i stedet for å vise en tom rute.
 
 ### Kontrollert
 
-To faner på 1240 og 320 px: låses til 1240. En fane krymper til 900: høyden står. En
-fane vokser til 1500: høyden følger med. Uten `fast_hoyde` settes ingenting.
+Tom fane gir «+ Legg til kort», som skriver
+`card: {type: vertical-stack, cards: []}`. En fane med et kort gir rada med riktig navn
+og ingen innebygd editor. Blyanten ber om `hui-dialog-edit-card` med kortet og en
+lagringsfunksjon. Uten dialogen kommer reserven fram. Søppelbøtta fjerner kortet.
 
 ---
 
-# ki-cards 5.9.1
+# ki-cards 5.10.0
 
-Pillemålingen bruker layoutverdier i stedet for rektangler, som regner med transformer.
+`fast_hoyde` låser paneldelen til den høyeste fanen, så popupen ikke endrer størrelse
+ved fanebytte.

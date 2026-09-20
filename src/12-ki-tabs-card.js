@@ -637,6 +637,11 @@
         .fanekort .fane { background:none; border-radius:0; }
         .faneinnhold { padding:0 12px 12px; }
         .kortoverskrift { font-size:14px; font-weight:500; margin:10px 0 6px; }
+        .kortrad { display:flex; align-items:center; gap:6px; padding:10px 6px 10px 12px;
+          border-radius:12px; background:rgba(128,128,128,.14); margin-bottom:8px; }
+        .kortrad .nr { opacity:.5; font-size:13px; min-width:16px; }
+        .kortrad .korttype { flex:1; min-width:0; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
 
       </style>
       <h4>Kortet</h4>
@@ -822,31 +827,37 @@
      * Kortet støtter fortsatt `cards:` som liste i YAML. Editoren pakker den inn i et
      * vertical-stack når du redigerer, og sier fra at den gjør det.
      */
+    /* Ett kort per fane, listet som i Home Assistants egne stabel-editorer.
+     *
+     * Blyanten åpner HAs kortdialog i fullskjerm i stedet for å brette editoren ut
+     * inne i vår. Det gir forhåndsvisning ved siden av, «Vis koderedigering», og den
+     * samme flyten man kjenner fra resten av HA.
+     *
+     * Dialogen er intern i frontenden og kan endre seg. Derfor faller vi tilbake på
+     * den innebygde editoren hvis den ikke lar seg åpne — da mister man dialogen,
+     * ikke muligheten til å redigere.
+     */
     _kortform(vert, i) {
       const fane = this._tabs()[i] || {};
-
-      if (!customElements.get("hui-card-element-editor")) {
-        vert.innerHTML = `<p class="merk">Home Assistant-versjonen din tilbyr ikke
-          kortredigereren her. Kortet i fanen redigeres i YAML — bytt til YAML-visning
-          med de tre prikkene øverst. Fanene over kan redigeres som vanlig.</p>`;
-        return;
-      }
-
       const liste = fane.cards || [];
-      const vertikal = fane.card
+      const kort = fane.card
         || (liste.length === 1 ? liste[0]
           : liste.length ? { type: "vertical-stack", cards: liste } : null);
 
-      if (!vertikal) {
-        const ny = document.createElement("button");
-        ny.className = "legg";
-        ny.textContent = "+ Legg til kort";
-        ny.addEventListener("click", () => {
-          this._tabs()[i].card = { type: "vertical-stack", cards: [] };
-          delete this._tabs()[i].cards;
-          this._ut();
-        });
-        vert.appendChild(ny);
+      const lagre = (ny) => {
+        this._tabs()[i].card = ny;
+        delete this._tabs()[i].cards;
+        this._send();
+        this._r();
+      };
+
+      if (!kort) {
+        const legg = document.createElement("button");
+        legg.className = "legg";
+        legg.textContent = "+ Legg til kort";
+        legg.addEventListener("click", () =>
+          lagre({ type: "vertical-stack", cards: [] }));
+        vert.appendChild(legg);
         return;
       }
 
@@ -858,10 +869,79 @@
         vert.appendChild(merk);
       }
 
+      const rad = document.createElement("div");
+      rad.className = "kortrad";
+      rad.innerHTML = `<span class="nr">1</span>
+        <span class="korttype">${KI.esc(this._korttype(kort))}</span>`;
+
+      const blyant = document.createElement("button");
+      blyant.className = "ikn";
+      blyant.title = "Rediger kortet";
+      blyant.innerHTML = `<ha-icon icon="mdi:pencil"></ha-icon>`;
+      blyant.addEventListener("click", () => this._apneDialog(kort, lagre, vert, i));
+      rad.appendChild(blyant);
+
+      const slett = document.createElement("button");
+      slett.className = "ikn";
+      slett.title = "Fjern kortet";
+      slett.innerHTML = `<ha-icon icon="mdi:delete-outline"></ha-icon>`;
+      slett.addEventListener("click", () => {
+        delete this._tabs()[i].card;
+        delete this._tabs()[i].cards;
+        this._send();
+        this._r();
+      });
+      rad.appendChild(slett);
+
+      vert.appendChild(rad);
+    }
+
+    /* Lesbart navn på et kort: `custom:ki-varsling-card` blir «Ki varsling card»,
+       slik HA selv skriver dem. */
+    _korttype(k) {
+      const t = String((k && k.type) || "ukjent").replace(/^custom:/, "");
+      const ord = t.replace(/[-_]/g, " ").trim();
+      return ord.charAt(0).toUpperCase() + ord.slice(1);
+    }
+
+    /* Åpner HAs kortdialog. Faller tilbake på innebygd editor hvis den ikke finnes. */
+    _apneDialog(kort, lagre, vert, i) {
+      const lovelace = this._lovelace || (this.parentElement || {}).lovelace;
+      let apnet = false;
+      try {
+        this.dispatchEvent(new CustomEvent("show-dialog", {
+          detail: {
+            dialogTag: "hui-dialog-edit-card",
+            dialogImport: () => customElements.whenDefined("hui-dialog-edit-card"),
+            dialogParams: {
+              cardConfig: kort,
+              lovelaceConfig: (lovelace && lovelace.config) || { views: [] },
+              saveCardConfig: async (ny) => lagre(ny),
+            },
+          },
+          bubbles: true,
+          composed: true,
+        }));
+        apnet = !!customElements.get("hui-dialog-edit-card");
+      } catch (e) {
+        apnet = false;
+      }
+      if (apnet) return;
+
+      /* Reserve: den innebygde editoren rett under rada. Mindre pen, men den virker
+         uansett hva frontenden finner på med dialogen. */
+      if (!customElements.get("hui-card-element-editor")) {
+        const merk = document.createElement("p");
+        merk.className = "merk";
+        merk.textContent = "Kortredigereren er ikke tilgjengelig her. "
+          + "Bruk YAML-visningen med de tre prikkene øverst.";
+        vert.appendChild(merk);
+        return;
+      }
       const e = document.createElement("hui-card-element-editor");
       e.hass = this._h;
-      e.lovelace = this._lovelace;
-      e.value = vertikal;
+      e.lovelace = lovelace;
+      e.value = kort;
       e.addEventListener("config-changed", (ev) => {
         ev.stopPropagation();
         this._tabs()[i].card = ev.detail.config;
@@ -870,18 +950,8 @@
       });
       (this._underEl = this._underEl || []).push(e);
       vert.appendChild(e);
-
-      const fjern = document.createElement("button");
-      fjern.className = "legg";
-      fjern.style.marginTop = "8px";
-      fjern.textContent = "Fjern kortet";
-      fjern.addEventListener("click", () => {
-        delete this._tabs()[i].card;
-        delete this._tabs()[i].cards;
-        this._ut();
-      });
-      vert.appendChild(fjern);
     }
+
 
   }
   if (!customElements.get("ki-tabs-card-editor")) {
