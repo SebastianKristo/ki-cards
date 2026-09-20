@@ -141,6 +141,10 @@ const kiVarsIkon = (tekst) => {
 class KiVarslingCard extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); this._sok = ""; }
   static getStubConfig() { return { sok: true }; }
+
+  static getConfigElement() {
+    return document.createElement("ki-varsling-card-editor");
+  }
   getCardSize() { return 6; }
 
   setConfig(c) {
@@ -401,6 +405,141 @@ class KiVarslingCard extends HTMLElement {
     this._bygget = true;
   }
 }
+
+/* ------------------------------------------------------------------ editor
+ *
+ * Poenget er at nye integrasjoner skal kunne legges til uten å redigere YAML.
+ * Plattformlista fylles derfor fra entitetsregisteret: alt som faktisk finnes hos
+ * deg står der, og du huker av det som skal med.
+ */
+class KiVarslingEditor extends HTMLElement {
+  setConfig(c) {
+    const tekst = JSON.stringify(c || {});
+    /* HA sender konfigurasjonen tilbake etter hver endring. Bygger vi om da, mister
+       tekstfeltet markøren midt i et ord. */
+    if (this._sisteUt === tekst) { this._c = JSON.parse(tekst); return; }
+    this._c = JSON.parse(tekst);
+    this._r();
+  }
+
+  set hass(h) {
+    const forste = !this._h;
+    this._h = h;
+    for (const el of this._felt || []) el.hass = h;
+    if (forste) this._r();
+  }
+
+  _ut() {
+    this._sisteUt = JSON.stringify(this._c);
+    this.dispatchEvent(new CustomEvent("config-changed",
+      { detail: { config: this._c }, bubbles: true, composed: true }));
+  }
+
+  /* Alle plattformer som har brytere hos deg, med antall.
+     Antallet er med fordi «ki_energi (206)» og «ki_notifications (14)» sier noe om
+     hva man er i ferd med å slå på. */
+  _plattformer() {
+    const reg = (this._h && this._h.entities) || {};
+    const teller = {};
+    for (const [id, e] of Object.entries(reg)) {
+      if (!id.startsWith("switch.") && !id.startsWith("input_boolean.")) continue;
+      if (!e.platform) continue;
+      teller[e.platform] = (teller[e.platform] || 0) + 1;
+    }
+    return Object.entries(teller)
+      .sort((a, b) => b[1] - a[1])
+      .map(([p, n]) => ({ value: p, label: `${p} (${n})` }));
+  }
+
+  _r() {
+    if (!this._h || !this._c) return;
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    this._felt = [];
+
+    const valgt = [].concat(this._c.plattform || KI_VARS_PLATTFORM);
+
+    this.shadowRoot.innerHTML = `<style>
+      :host { display:block; }
+      h4 { margin:14px 0 4px; font-size:15px; }
+      .merk { font-size:13px; opacity:.65; line-height:1.5; margin:6px 0 0; }
+    </style><div id="skjema"></div>`;
+
+    const f = document.createElement("ha-form");
+    f.hass = this._h;
+    f.data = {
+      plattform: valgt,
+      enheter: (this._c.enheter || []).join(", "),
+      ikke_enheter: (this._c.ikke_enheter || []).join(", "),
+      ekstra: this._c.ekstra || [],
+      master: this._c.master !== false,
+      grupper: !!this._c.grupper,
+      teller: !!this._c.teller,
+      sok: this._c.sok !== false,
+    };
+    f.schema = [
+      { name: "plattform", selector: { select: { multiple: true, mode: "list",
+        options: this._plattformer() } } },
+      { name: "enheter", selector: { text: {} } },
+      { name: "ikke_enheter", selector: { text: {} } },
+      { name: "ekstra", selector: { entity: { multiple: true,
+        domain: ["switch", "input_boolean", "automation"] } } },
+      { name: "visning", type: "expandable", flatten: true, icon: "mdi:eye-settings",
+        schema: [
+          { name: "master", selector: { boolean: {} } },
+          { name: "grupper", selector: { boolean: {} } },
+          { name: "teller", selector: { boolean: {} } },
+          { name: "sok", selector: { boolean: {} } },
+        ] },
+    ];
+    f.computeLabel = (x) => ({
+      plattform: "Integrasjoner",
+      enheter: "Bare disse (skilt med komma)",
+      ikke_enheter: "Ikke disse (skilt med komma)",
+      ekstra: "Ekstra brytere",
+      visning: "Visning",
+      master: "Bare hovedbryteren per regel",
+      grupper: "Gruppér etter enhet",
+      teller: "Vis antall",
+      sok: "Søkefelt",
+    }[x.name] || x.name);
+
+    f.addEventListener("value-changed", (e) => {
+      e.stopPropagation();
+      const v = e.detail.value;
+      const liste = (t) => String(t || "").split(",")
+        .map((x) => x.trim()).filter(Boolean);
+
+      this._c.plattform = v.plattform && v.plattform.length
+        ? v.plattform : undefined;
+      this._c.enheter = liste(v.enheter).length ? liste(v.enheter) : undefined;
+      this._c.ikke_enheter = liste(v.ikke_enheter).length
+        ? liste(v.ikke_enheter) : undefined;
+      this._c.ekstra = (v.ekstra || []).length ? v.ekstra : undefined;
+      /* Standardverdier ut av YAML-en, så den ikke fylles med `grupper: false`
+         og lignende som ser ut som noe man har valgt. */
+      this._c.master = v.master === false ? false : undefined;
+      this._c.grupper = v.grupper ? true : undefined;
+      this._c.teller = v.teller ? true : undefined;
+      this._c.sok = v.sok === false ? false : undefined;
+      for (const k of Object.keys(this._c)) {
+        if (this._c[k] === undefined) delete this._c[k];
+      }
+      this._ut();
+    });
+    this._felt.push(f);
+    this.shadowRoot.querySelector("#skjema").appendChild(f);
+
+    const merk = document.createElement("p");
+    merk.className = "merk";
+    merk.textContent = "Integrasjonene viser alle som har brytere hos deg, med antall. "
+      + "«Bare disse» og «Ikke disse» filtrerer på regelnavn, ikke entitets-ID — "
+      + "delvis treff holder, og store og små bokstaver spiller ingen rolle.";
+    this.shadowRoot.appendChild(merk);
+  }
+}
+
+if (!customElements.get("ki-varsling-card-editor"))
+  customElements.define("ki-varsling-card-editor", KiVarslingEditor);
 
 customElements.define("ki-varsling-card", KiVarslingCard);
 

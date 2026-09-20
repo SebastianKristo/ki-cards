@@ -1,32 +1,50 @@
-# ki-cards 5.11.0
+# ki-cards 5.12.0
 
-## Kortet i fanen listes, og blyanten åpner HAs dialog
+## UI-editor for `ki-varsling-card`
 
-I 5.10.0 lå kortredigereren **brettet ut inne i** faneeditoren. Nå står kortet som en
-rad — «1 Vertical stack» med blyant og søppelbøtte — og blyanten åpner Home Assistants
-egen kortdialog i fullskjerm.
+Kortet måtte settes opp i YAML. Nå kan det redigeres i brukerflaten, og nye
+integrasjoner legges til uten at noen må skrive om konfigurasjonen.
 
-Det er den samme flyten som i HAs stabel-editorer: forhåndsvisning ved siden av,
-«Vis koderedigering», Avbryt og Lagre.
+### Integrasjonene hentes fra dine egne entiteter
 
-### Reserve hvis dialogen ikke lar seg åpne
+Lista fylles fra entitetsregisteret: alt som faktisk har brytere hos deg står der, med
+antall og sortert etter størrelse.
 
-`hui-dialog-edit-card` er intern i frontenden og kan endre seg mellom versjoner. Lar den
-seg ikke åpne, brettes den innebygde editoren ut under rada i stedet.
+```
+ki_energi (206)
+ki_notifications (14)
+zwave_js (3)
+```
 
-Da mister man dialogen, ikke muligheten til å redigere. Er heller ikke den tilgjengelig,
-sier editoren fra at YAML-visningen må brukes — i stedet for å vise en tom rute.
+Antallet er med fordi det sier noe om hva du er i ferd med å slå på. 206 entiteter fra
+KI Energi er ikke det samme som 14 fra varslingsintegrasjonen — selv om kortet filtrerer
+bort alt som ikke handler om varsling.
+
+Dukker det opp en ny integrasjon med varslingsbrytere, står den i lista av seg selv.
+
+### De andre feltene
+
+**Bare disse** og **Ikke disse** skrives som komma­separert tekst og lagres som liste.
+De filtrerer på regelnavn, ikke entitets-ID — delvis treff holder, og store og små
+bokstaver spiller ingen rolle.
+
+**Ekstra brytere** er en entitetsvelger, så du slipper å skrive ID-er.
+
+Under **Visning**: hovedbryter per regel, gruppering, antall og søkefelt.
+
+### Standardverdier skrives ikke
+
+Lar du alt stå som det er, blir konfigurasjonen tom i stedet for full av
+`grupper: false` og `sok: true` som ser ut som noe du har valgt.
 
 ### Kontrollert
 
-Tom fane gir «+ Legg til kort», som skriver
-`card: {type: vertical-stack, cards: []}`. En fane med et kort gir rada med riktig navn
-og ingen innebygd editor. Blyanten ber om `hui-dialog-edit-card` med kortet og en
-lagringsfunksjon. Uten dialogen kommer reserven fram. Søppelbøtta fjerner kortet.
+Integrasjonene sorteres etter antall og teller bare brytere — en `sensor.` fra samme
+integrasjon regnes ikke med. Kommalista blir til YAML-liste. Standardverdier gir tom
+konfigurasjon, og endrede verdier lagres.
 
 ---
 
-# ki-cards 5.10.0
+# ki-cards 5.11.0
 
-`fast_hoyde` låser paneldelen til den høyeste fanen, så popupen ikke endrer størrelse
-ved fanebytte.
+Kortet i fanen listes som en rad, og blyanten åpner Home Assistants egen kortdialog.
