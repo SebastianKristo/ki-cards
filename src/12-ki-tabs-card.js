@@ -9,6 +9,15 @@
                 - icon: mdi:gift-outline
                   utenfor: true
                   ikon_naar: { Kalender: mdi:calendar-month }
+   kort_naar: på en fane – bytt INNHOLD ut fra hvilken fane som er valgt, med samme
+              nøkler som ikon_naar:
+                - icon: mdi:gift-outline
+                  utenfor: true
+                  ikon_naar: { Kalender: mdi:calendar-month }
+                  kort_naar:
+                    Kalender:
+                      - type: custom:ki-kalender-card
+                  cards: [ … post og bursdager ellers … ]
    rad_hoyde: hele fanens høyde i px. fane_hoyde er luft over og under teksten, og under den
               luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde. */
 (function (KI) {
@@ -356,13 +365,47 @@
       this._renderDd();
 
       this._panels = [];
-      for (let i = 0; i < tabs.length; i++) {
-        const t = tabs[i]; const cards = t.cards || (t.card ? [t.card] : []);
-        const host = r.querySelector(`.panel[data-i="${i}"] .stack`);
-        for (const cc of cards) {
-          try { const el = await KI.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
-          catch (e) { host.innerHTML += `<div class="empty">Kunne ikke laste kort: ${KI.esc(e.message)}</div>`; }
-        }
+      for (let i = 0; i < tabs.length; i++) await this._byggPanel(i);
+    }
+
+    /* Hvilken nøkkel i kort_naar/ikon_naar som treffer akkurat nå. Tom streng betyr
+       ingen – da gjelder fanens vanlige innhold. */
+    _naarNokkel(kart) {
+      if (!kart) return "";
+      const valgt = (this._config.tabs || [])[this._active] || {};
+      const tittel = String(valgt.title || "").trim().toLowerCase();
+      for (const nokkel of Object.keys(kart)) {
+        const n = String(nokkel).trim().toLowerCase();
+        if (n === tittel || (/^\d+$/.test(n) && Number(n) === this._active)) return nokkel;
+      }
+      return "";
+    }
+
+    _kortFor(t) {
+      const nokkel = this._naarNokkel(t && t.kort_naar);
+      if (nokkel) {
+        const v = t.kort_naar[nokkel];
+        return Array.isArray(v) ? v : (v && v.cards) || (v ? [v] : []);
+      }
+      return (t && (t.cards || (t.card ? [t.card] : []))) || [];
+    }
+
+    /* Bygger innholdet i ett panel. Er det allerede bygget med samme nøkkel, gjøres
+       ingenting - ellers ville hvert fanebytte kastet og laget kortene på nytt, og et
+       kort som henter noe (kalenderen) ville hentet det om igjen hver gang. */
+    async _byggPanel(i) {
+      const t = (this._config.tabs || [])[i];
+      const panel = this.shadowRoot.querySelector(`.panel[data-i="${i}"]`);
+      const host = panel && panel.querySelector(".stack");
+      if (!t || !host) return;
+      const nokkel = this._naarNokkel(t.kort_naar) || "-";
+      if (panel.dataset.bygget === nokkel) return;
+      panel.dataset.bygget = nokkel;
+      this._panels = (this._panels || []).filter((el) => !host.contains(el));
+      host.innerHTML = "";
+      for (const cc of this._kortFor(t)) {
+        try { const el = await KI.createCard(cc); el.hass = this._hass; host.appendChild(el); this._panels.push(el); }
+        catch (e) { host.innerHTML += `<div class="empty">Kunne ikke laste kort: ${KI.esc(e.message)}</div>`; }
       }
     }
     _setMode(mode) {
@@ -583,6 +626,8 @@
       }
       this._flyttPille(i);
       this._oppdaterIkoner();
+      /* Faner som bytter innhold etter hvor du står, bygges om når valget endrer seg. */
+      (this._config.tabs || []).forEach((t, j) => { if (t.kort_naar) this._byggPanel(j); });
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
       /* andre kort kan følge fanevalget – sendes både oppover og på window */

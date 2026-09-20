@@ -1,6 +1,8 @@
-# ki-cards 5.39.0
+# ki-cards 5.40.0
 
-## `ikon_naar`: en fane kan bytte ikon etter hvor du står
+## `kort_naar`: knappen utenfor rada viser kalenderen når du står på Kalender
+
+`ikon_naar` fra 5.39.0 byttet ikonet. Nå kan fanen bytte **innholdet** på samme måte:
 
 ```yaml
 - icon: mdi:gift-outline
@@ -8,20 +10,28 @@
   utenfor: true
   ikon_naar:
     Kalender: mdi:calendar-month
-  cards: […]
+  kort_naar:
+    Kalender:
+      - type: custom:ki-kalender-card
+        # … kalenderne dine
+  cards:
+    - type: custom:ki-post-card
+    - type: custom:ki-bursdag-pro-card
 ```
 
-Står du på Kalender-fanen, viser knappen utenfor rada et kalenderikon. På Hytta og Framover er
-den gaven, som før. Nøkkelen er tittelen på den **valgte** fanen — uten hensyn til store
-bokstaver — eller nummeret, om du heller vil peke på plassen. Nevn så mange faner du vil; er ingen
-av dem valgt, brukes `icon`.
+Står du på Kalender, er knappen et kalenderikon og åpner månedskalenderen. På Hytta og Framover er
+den gaven, med post og bursdager som før. Nøklene er de samme som i `ikon_naar`: tittelen på den
+valgte fanen, uten hensyn til store bokstaver, eller nummeret.
 
-Det virker på alle fanene, ikke bare den utenfor, og også i nedtrekksmenyen. Rada tegnes ikke på
-nytt ved fanebytte — bare klassene settes — så ikonene byttes for seg når du velger.
+Panelet bygges bare om når nøkkelen faktisk endrer seg. Ellers ville hvert fanebytte kastet
+kortene og laget dem på nytt — og et kort som henter noe, som kalenderen, hadde hentet alt om
+igjen hver gang.
+
+Hele popupen din ligger ferdig i `examples/kalender-popup.yaml`.
 
 ### Kontrollert
 
 Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Fanerada er i tillegg
-satt opp med akkurat ditt oppsett — Kalender / Hytta / Framover pluss gaveknappen utenfor — og
-ikonet følger: `mdi:calendar-month` på Kalender, `mdi:gift-outline` på Hytta og Framover, tilbake
-til kalender når du går tilbake, og gaven når du står på knappen selv.
+kjørt med akkurat dette oppsettet: på Kalender viser knappen `mdi:calendar-month` og panelet
+kalenderkortet, på Hytta `mdi:gift-outline` og post/bursdager, tilbake på Kalender igjen
+kalenderen — og et nytt trykk på samme fane bygger ikke panelet om på nytt.
