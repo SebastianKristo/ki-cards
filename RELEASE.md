@@ -1,27 +1,33 @@
-# ki-cards 5.17.0
+# ki-cards 5.17.1
 
-## `ki-utelys-card`: statusteksten når den mangler
+## Lagring fra kortdialogen, tredje forsøk
 
-Kortet viste «ukjent» før KI Utelys hadde rukket å sette status — eller hvis
-integrasjonen ikke er installert.
+Konsollsjekken viste at alt var på plass: editoren, kortrada, blyanten og dialogen. Da
+sto det igjen ett sted feilen kunne ligge — uthentingen av kortet etter lagring.
 
-Nå kjenner kortet igjen ukjente verdier og forklarer i stedet hva som faktisk skjer:
+Jeg lette på `views[0].cards[0]`, der jeg selv la det. Men Home Assistant
+**normaliserer visningen** før den sender den tilbake, og kortet kan havne under
+`sections` i stedet.
 
-* **«Venter på mørket»** når sola er oppe og automatikken er på
-* **«Klar – tennes snart»** når det er mørkt, men lyset ennå ikke er tent
-* **«På»** når lyset lyser
-* **«Manuell · av»** når automatikken er slått av
+Nå leter vi etter det første elementet i en `cards`-liste, uansett hvor i strukturen den
+ligger.
 
-Statusen vises ellers slik Home Assistant oversetter den, med `formatEntityState`. Uten
-den brukes råverdien.
+### En feil testen fanget underveis
+
+Første forsøk lette etter det første objektet med en `type`. En visning kan selv ha
+`type: "sections"` — og da ble visningen forvekslet med kortet, og hele dashbordet
+havnet inne i fanen.
+
+Derfor ser vi nå etter elementer i en `cards`-liste, ikke bare etter `type`.
 
 ### Kontrollert
 
-Sju tilfeller: vanlig status, uten `formatEntityState`, status satt til «ukjent», status
-som mangler helt — både med sola oppe og i mørket — og med automatikken av.
+Fem former: kortet på `views[0].cards[0]`, under `sections`, i en visning med
+`type: "sections"`, et tomt objekt og en visning uten kort. De tre første lagrer riktig
+kort; de to siste lagrer ingenting i stedet for å slette.
 
 ---
 
-# ki-cards 5.16.1
+# ki-cards 5.17.0
 
-Lagring fra kortdialogen kommer tilbake til fanen; begge dialog-API-ene støttes.
+`ki-utelys-card` forklarer selv hva som skjer når statusen mangler.

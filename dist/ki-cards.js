@@ -1,4 +1,4 @@
-/* ki-cards v5.17.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.17.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.17.0";
+  KI.VERSION = "5.17.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1768,6 +1768,40 @@ try {
       vert.appendChild(rad);
     }
 
+    /* Graver kortet ut av konfigurasjonen dialogen sender tilbake.
+     *
+     * Vi la det på `views[0].cards[0]`, men Home Assistant normaliserer visningen —
+     * den kan havne under `sections`, eller i en visning med et annet oppsett.
+     *
+     * Vi leter derfor etter det første elementet i en `cards`-LISTE, ikke bare etter
+     * et objekt med `type`. En visning kan selv ha `type: "sections"`, og den ville
+     * ellers blitt forvekslet med kortet — det fanget testen.
+     */
+    _finnKort(o, dybde = 0) {
+      if (!o || typeof o !== "object" || dybde > 6) return null;
+      if (Array.isArray(o)) {
+        for (const x of o) {
+          const f = this._finnKort(x, dybde + 1);
+          if (f) return f;
+        }
+        return null;
+      }
+      if (Array.isArray(o.cards)) {
+        for (const k of o.cards) {
+          if (k && typeof k === "object" && typeof k.type === "string" && k.type) {
+            return k;
+          }
+        }
+      }
+      for (const n of ["views", "sections", "cards", "card"]) {
+        if (o[n]) {
+          const f = this._finnKort(o[n], dybde + 1);
+          if (f) return f;
+        }
+      }
+      return null;
+    }
+
     /* Lesbart navn på et kort: `custom:ki-varsling-card` blir «Ki varsling card»,
        slik HA selv skriver dem. */
     _korttype(k) {
@@ -1799,8 +1833,7 @@ try {
               lovelaceConfig: { views: [{ cards: [kort] }] },
               saveCardConfig: async (ny) => lagre(ny),
               saveConfig: async (ny) => {
-                const ut = ny && ny.views && ny.views[0] && ny.views[0].cards
-                  && ny.views[0].cards[0];
+                const ut = this._finnKort(ny);
                 if (ut) lagre(ut);
               },
             },
