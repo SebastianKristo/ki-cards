@@ -1,24 +1,44 @@
-# ki-cards 5.36.0
+# ki-cards 5.37.0
 
-## Periodevelgeren i «Spotpris mot Norgespris» er samme fanerad som resten
+## Nytt kort: `ki-kalender-card`
 
-`vis: sammenligning` hadde sin egen velger: fire like brede ruter i et fylt spor, med en dempet
-grå markering på den valgte. Den er byttet ut med fanerada kortet bruker ellers — tynn ring rundt,
-rada like bred som fanene, og den valgte fylt med `--active-big` og mørk tekst.
+En månedskalender med hendelsene fra kalenderne dine — ment for Kalender-fanen i
+`#kalender`-popupen, i stedet for stabelen av `button-card` mot `sensor.alle_kalendere`.
 
-Den står samme sted som før, rett under overskriften og over stolpene. Bare utseendet er endret;
-`I dag / Uke / Måned / År` gjør nøyaktig det samme, og resten av kortet er urørt.
+```yaml
+type: custom:ki-kalender-card
+kalendere:
+  - entity: calendar.sebastian_kristo_no
+    navn: Sebastian
+    farge: var(--active-big)
+  - entity: calendar.helge_hus
+    navn: Helge hus
+    farge: var(--blue)
+```
 
-Glidepilla følger med, siden rada nå er den samme som de andre: den glir mellom fanene, klemmes
-når du legger fingeren på og spretter på plass.
+Hele oppsettet for kalenderne dine ligger i `examples/kalender-popup.yaml`, ferdig med farger.
+Utelater du `kalendere:`, tas alle `calendar.*` som finnes, og `ekskluder:` tar bort enkelte.
 
-Samtidig ryddet: den gamle `.faner`-regelen lå igjen i stilarket og kolliderte med den nye rada,
-som ble lagt inn i 5.28.0 under samme navn. Den nyeste regelen vant, så velgeren i
-sammenligningen sto allerede med halvt nytt utseende — en rad som var ment å være et rutenett.
-Nå finnes det bare én fanerad i kortet.
+- **Rutenettet** viser en prikk per hendelse i fargen til kalenderen, `+3` når det blir flere enn
+  det er plass til. I dag har ring, valgt dag har fylt pille, helgedager er røde og dager fra
+  nabomåneden er dempet — trykker du på en av dem, blar kalenderen dit.
+- **Filterpillene** slår kalendere av og på, samme pilleform som ellers i pakka.
+- **Under** ligger hendelsene for dagen du trykket på: tid, tittel og sted, med fargestrek for
+  kalenderen. `dager_i_liste: 7` gjør den om til en agenda framover som hopper over tomme dager.
+  Trykk på en hendelse åpner kalenderen den hører til.
+- Pilene blar måned for måned, og **I dag** dukker opp så snart du har beveget deg bort.
+
+Hendelsene hentes fra kalender-API-et, samme kilde som HAs egen kalendervisning — ikke fra
+`events[0..6]` på en sensor, så det er ingen grense på hvor mange som vises. Hver måned hentes én
+gang og beholdes til du bytter måned igjen, og alt hentes på nytt hvert femte minutt.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. `vis: sammenligning`
-tegner nå `.faner > .skinne` med de fire periodene, «Måned» merket med `valgt`, og ingen rester av
-den gamle `aktiv`-klassen.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass — ett mer enn før.
+Kortet er i tillegg kjørt mot et oppdiktet kalender-API: 35 ruter for september 2026, riktig
+antall prikker, i dag merket, og hendelsene for dagen i lista med «Hele dagen» og «09:00 – 10:00».
+En heldagshendelse fra fredag til mandag legger seg på fredag, lørdag og søndag — ikke på mandag,
+siden heldagshendelser slutter ved midnatt dagen etter siste dag. Filter av fjerner prikkene til
+den kalenderen, og bla fram gir oktober med «I dag»-knappen.
+
+Kortet har ikon i `brand/` og en rad i kort-tabellen i README.
