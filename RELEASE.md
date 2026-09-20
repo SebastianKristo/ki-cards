@@ -1,24 +1,45 @@
-# ki-cards 5.14.0
+# ki-cards 5.15.0
 
-## `ki-utelys-card` oppdatert
+## Mastermodus gjaldt feil vei
 
-247 linjer endret. Scenen er bygget opp i fire lag i stedet for ett: stjerner, bakke,
-selve scenen og en skygge over.
+La du til en ny integrasjon i `ki-varsling-card`, falt alle bryterne fra samme enhet
+sammen til én rad. KI Utelys sine tre viste seg som «KI Utelys» tre ganger.
 
-Vinduene i huset er nå egne elementer som toner inn om kvelden, i stedet for å være
-tegnet inn i husflaten.
+Unntaket var hardkodet til `ki_energi`. Regelen skal være omvendt: mastermodus gir bare
+mening der **én enhet er én regel**, som i `ki_notifications`. Alt annet vises som
+sidestilte brytere.
 
-Tilstandsklassene er tydeligere: `uk kveld paa` i skumringen, `uk natt kveld paa` når det
-er mørkt, og rent `uk` midt på dagen. Det gjør det lettere å style scenen videre uten å
-røre koden.
+Nå gjelder det enhver integrasjon du legger til, ikke bare de to jeg rakk å tenke på.
+
+## Navn for KI Utelys
+
+Automatikk, Morgen og Kveld, med hvert sitt ikon og en forklaring.
+
+## Og en ting som ikke var en feil
+
+`enheter:` er en **hviteliste** som filtrerer på regelnavn. Står det
+`lås, ansikt, vekking, dørlys` der, slipper ingenting annet gjennom — heller ikke en
+plattform du nettopp la til.
+
+Legg `utelys` til i lista, eller fjern filteret:
+
+```yaml
+enheter:
+  - lås
+  - ansikt
+  - vekking
+  - dørlys
+  - utelys
+```
 
 ### Kontrollert
 
-Seks tidspunkter gjennom døgnet gir riktige klasser. Alle fire lagene tegnes, og
-vinduene er der. Kortet tåler at KI Utelys mangler, og at ingen entiteter finnes.
+Tre plattformer samtidig gir seks rader: dørlåsen samlet til hovedbryteren, to fra KI
+Energi og tre fra KI Utelys, hver med eget navn og ikon. `ki_notifications` alene gir
+fortsatt én rad.
 
 ---
 
-# ki-cards 5.13.0
+# ki-cards 5.14.0
 
-Nytt kort `ki-utelys-card` med sola plassert etter asimut og solhøyde.
+`ki-utelys-card` oppdatert med fire lag i scenen og tydeligere tilstandsklasser.

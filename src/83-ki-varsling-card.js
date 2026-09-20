@@ -103,6 +103,11 @@ const KI_VARS_TEKST = [
   [/vaermelding|værmelding|vaer_ai/, "Værmelding", "Daglig værvarsel fra AI", "mdi:weather-partly-cloudy"],
   [/stromforbruk|strømforbruk|forbruk.?rapport/, "Strømforbruk", "Daglig rapport", "mdi:chart-bar"],
 
+  /* KI Utelys. Tre brytere på samme enhet, som ellers ville hett det samme. */
+  [/ki_utelys_auto/, "Utelys automatikk", "Styrer utelysene etter solhøyden", "mdi:lightbulb-auto"],
+  [/ki_utelys_morgen/, "Utelys morgen", "Lys om morgenen til det lysner", "mdi:weather-sunset-up"],
+  [/ki_utelys_kveld/, "Utelys kveld", "Lys om kvelden når det blir mørkt", "mdi:weather-sunset-down"],
+
   /* KI Energi. Hovedbryteren først: den slår av alle de andre, og må ikke forveksles
      med `ki_varsel_effekt`, som bare gjelder effektgrensen. */
   [/\bki_energi_varsler\b/, "Energivarsler", "Hovedbryter for alle energivarsler", "mdi:bell-outline"],
@@ -254,14 +259,18 @@ class KiVarslingCard extends HTMLElement {
          — de er sidestilte valg, ikke underinnstillinger. */
       const perEnhet = new Map();
       for (const b of ut) {
-        if (b.kilde === "ekstra" || b.plattform === "ki_energi") continue;
+        /* Mastermodus gjelder BARE der én enhet er én regel, som i ki_notifications.
+           Før var unntaket hardkodet til ki_energi, og da falt enhver ny integrasjon
+           med flere brytere på samme enhet sammen til én rad — KI Utelys sine tre
+           viste seg som «KI Utelys» tre ganger. */
+        if (b.kilde === "ekstra" || b.plattform !== "ki_notifications") continue;
         if (!perEnhet.has(b.enhet)) perEnhet.set(b.enhet, []);
         perEnhet.get(b.enhet).push(b);
       }
 
       const behold = new Set();
       /* Brytere fra KI Energi beholdes alltid: de er sidestilte valg på én enhet. */
-      for (const b of ut) if (b.plattform === "ki_energi") behold.add(b.id);
+      for (const b of ut) if (b.plattform !== "ki_notifications") behold.add(b.id);
       for (const [, liste] of perEnhet) {
         if (liste.length <= 1) { liste.forEach((b) => behold.add(b.id)); continue; }
         const m = liste.filter(erMaster);
