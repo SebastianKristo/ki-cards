@@ -585,9 +585,10 @@ Norgespris, snitt og når det er billigst og dyrest; mangler Norgespris-sensoren
 i stedet for at linja forsvinner stille. Har egen visuell editor.
 
 Det fargede skjæret øverst i kortet slås av med `bakgrunn_glod: false` – også i `enkel`-visningen, og
-feltet ligger nå i editoren. Pilla bak «I dag / I morgen» er farget glass: den glir med en kort
-liquid-bevegelse og et lysstrøk ved bytte, og kan dras fra den ene fanen til den andre begge veier –
-også til «I morgen» før morgendagens priser er klare. `glass: false` gir flat pille som før.
+feltet ligger nå i editoren. Pilla bak «I dag / I morgen» ser ut som i `ki-tabs-card`, men
+oppfører seg som en dråpe: den klemmes flat når du legger fingeren på, strekker seg i fartsretningen
+mens du drar, og spretter på plass når den lander. Den kan dras begge veier – også til «I morgen»
+før morgendagens priser er klare – og trykkes som før. `sprett: false` gir helt stille pille.
 
 Tittelen er 15 px (20 i `enkel`-visningen) og settes med `tittel_storrelse:` i px. Et trykk på
 «I dag / I morgen» gir en liten vibrasjon i companion-appen – `haptikk: false` slår den av, og
