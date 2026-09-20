@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.30.0";
+  KI.VERSION = "5.31.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -521,8 +521,37 @@ window.KI = window.KI || {};
         sr.appendChild(st);
       }
 
+      /* Sprett: opt-in med sprett: true.
+       *
+       * Formen ligger på ::before, ALDRI på pilla selv. Pilla eier transform til
+       * plasseringen (translateX(var(--x))), og en skalering på samme element ville
+       * overskrevet den og dratt pilla til venstre kant midt i glidningen.
+       * Fargen har reserve her, så en rad i et dashbord der --active-big ikke når
+       * inn får en fylt pille i stedet for bare skyggen. */
+      const sprett = !!valg.sprett;
+      if (sprett && !sr.querySelector("style[data-ki-sprett]")) {
+        const st2 = document.createElement("style");
+        st2.dataset.kiSprett = "1";
+        st2.textContent = `
+          .ki-pille.sprett { background:transparent; box-shadow:none; }
+          .ki-pille.sprett::before { content:""; position:absolute; inset:0; border-radius:999px;
+            background:var(--active-big, #ee95ff); box-shadow:0 1px 6px rgba(0,0,0,.35);
+            transform:scale(var(--sx,1), var(--sy,1)); transform-origin:center;
+            transition:transform .34s cubic-bezier(.2,1.35,.35,1); }
+          .ki-pille.sprett.land::before { animation:ki-sprett .42s cubic-bezier(.2,.9,.25,1); }
+          @keyframes ki-sprett {
+            0%   { transform:scale(1.10,.90); }
+            45%  { transform:scale(.97,1.04); }
+            75%  { transform:scale(1.02,.99); }
+            100% { transform:scale(1,1); } }
+          @media (prefers-reduced-motion: reduce) {
+            .ki-pille.sprett::before { transition:none; }
+            .ki-pille.sprett.land::before { animation:none; } }`;
+        sr.appendChild(st2);
+      }
+
       const pille = document.createElement("span");
-      pille.className = "ki-pille";
+      pille.className = "ki-pille" + (sprett ? " sprett" : "");
       r.insertBefore(pille, r.firstChild);
 
       /* Kort som tegner hele markupen på nytt ved klikk får en HELT NY rad, og pilla
@@ -585,7 +614,39 @@ window.KI = window.KI || {};
         const harMaal = a.offsetWidth > 0 && fontKlar;
         r.classList.toggle("ki-pille-klar", harMaal);
         pille.classList.toggle("klar", harMaal);
+        /* Landingen spilles bare når pilla faktisk flytter seg til en annen fane, og
+           bare når den glir dit - ikke på de stille breddekorreksjonene. Klassen må
+           fjernes og layouten leses før den settes igjen, ellers ser nettleseren
+           ingen endring og et raskt dobbeltbytte gir bare én sprett. */
+        if (sprett && bytte && !uten && harMaal) {
+          pille.classList.remove("land");
+          void pille.offsetWidth;
+          pille.classList.add("land");
+        }
       };
+
+      /* Klem og strekk på fingeren. Basen flytter pilla; her legges bare formen oppå,
+         som variabler ::before leser. */
+      if (sprett) {
+        const klem = (sx, sy) => {
+          pille.style.setProperty("--sx", sx);
+          pille.style.setProperty("--sy", sy);
+        };
+        let nedX = null;
+        r.addEventListener("pointerdown", (e) => {
+          if (!e.composedPath().some((x) => x.matches && x.matches(kn))) return;
+          nedX = e.clientX;
+          klem(0.94, 0.86);
+        }, { passive: true });
+        r.addEventListener("pointermove", (e) => {
+          if (nedX === null) return;
+          const s2 = Math.min(0.13, Math.abs(e.clientX - nedX) / 420);
+          klem(1 + s2, 1 - s2 * 0.7);
+        }, { passive: true });
+        const slipp = () => { if (nedX === null) return; nedX = null; klem(1, 1); };
+        r.addEventListener("pointerup", slipp, { passive: true });
+        r.addEventListener("pointercancel", slipp, { passive: true });
+      }
 
       /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
       const mo = new MutationObserver(() => flytt(false));

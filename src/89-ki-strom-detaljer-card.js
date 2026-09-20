@@ -5,7 +5,7 @@
  *
  *  type: custom:ki-strom-detaljer-card
  *  vis: regning        # regning | effekt | effektledd | norgespris | sammenligning | aar
- *  faner: false        # dropp fanerada i regning-visningen og vis bare måneden
+ *  faner: over         # over | i | false – rada over kortet, på kortflaten, eller ingen rad
  *  fane: maned         # hvilken fane kortet åpner på: dag | uke | maned | ar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
@@ -84,6 +84,7 @@
        Kalenderknappen er en fane som de andre, slik at glidepilla kan gli bort til
        den også; den bærer bare et ikon i stedet for tekst. */
     .faner { display:flex; justify-content:center; margin-bottom:12px; }
+    .k > .faner { margin:0 0 14px; }
     .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3);
       border-radius:999px; max-width:100%; }
     .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px;
@@ -211,7 +212,7 @@
          ikke ki-cards-basen (kortet kan stå alene), beholder fanen sin egen bakgrunn. */
       const ki = window.KI;
       if (ki && ki.pillefaner && this.shadowRoot.querySelector(".skinne")) {
-        ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
+        ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt", sprett: true });
       }
     }
 
@@ -224,6 +225,7 @@
      */
     _regning() {
       if (this._c.faner === false) return this._regningMaaned();
+      const inni = this._c.faner === "i" || this._c.faner === true;
       const id = this._regningId();
       const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
       const faner = ["Dag", "Uke", "Måned", "År"];
@@ -235,8 +237,10 @@
       if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
       else if (this._per === 2) innhold = this._regningMaaned();
       else innhold = a ? this._regningPeriode(a, id) : this._mangler();
-      /* Rada leveres utenfor kortflaten - se _tegn(). */
-      return { topp: skinne, kort: innhold };
+      /* Rada leveres utenfor kortflaten - se _tegn(). Med faner: i legges den inn i
+         kortet i stedet: er dashbordet ditt satt opp slik at det ligger en flate bak
+         hele kortet, blir den synlig som en stripe bak en rad som står for seg selv. */
+      return inni ? `${skinne}${innhold}` : { topp: skinne, kort: innhold };
     }
 
     _mangler() {
