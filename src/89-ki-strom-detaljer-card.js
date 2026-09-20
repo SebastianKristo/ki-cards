@@ -5,6 +5,8 @@
  *
  *  type: custom:ki-strom-detaljer-card
  *  vis: regning        # regning | effekt | effektledd | norgespris | sammenligning | aar
+ *  faner: false        # dropp fanerada i regning-visningen og vis bare måneden
+ *  fane: maned         # hvilken fane kortet åpner på: dag | uke | maned | ar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
  *  sensorer:
@@ -133,7 +135,11 @@
       this._s = { ...STANDARD, ...((c && c.sensorer) || {}) };
       this._periode = this._periode ?? 2; this._mnd = this._mnd ?? new Date().getMonth();
       this._kal = this._kal ?? false;      // kalender i stedet for søyler
-      this._per = this._per ?? 3;          // 0 dag · 1 uke · 2 måned · 3 år
+      // 0 dag · 1 uke · 2 måned · 3 år. Kortet åpner på måneden, som er det
+      // samme det alltid har vist; vis: aar åpner på året.
+      const fane = { dag: 0, uke: 1, maned: 2, måned: 2, mnd: 2, ar: 3, år: 3 }[
+        String(this._c.fane || "").toLowerCase()];
+      this._per = this._per ?? (fane !== undefined ? fane : (this._c.vis === "aar" ? 3 : 2));
       this._blaMnd = this._blaMnd ?? 0;    // hvor mange måneder bakover kalenderen står
       this._valgtDag = this._valgtDag ?? null;
       this._hentet = this._hentet || {};   // måneder hentet med tjenesten
@@ -149,8 +155,10 @@
     _ids() {
       const s = this._s, v = this._c && this._c.vis;
       if (v === "effektledd") return MND.map((m) => s.maned_prefiks + m);
-      if (v === "aar") { const r = this._regningId(); return r ? [r] : []; }
-      return Object.entries(s).filter(([k]) => k !== "maned_prefiks" && k !== "regning").map(([, id]) => id);
+      const faste = Object.entries(s).filter(([k]) => k !== "maned_prefiks" && k !== "regning").map(([, id]) => id);
+      // Regning-visningen viser både Strømkalkulator (måneden) og boka (resten).
+      if (v === "regning" || v === "aar") { const r = this._regningId(); return r ? [...faste, r] : faste; }
+      return faste;
     }
 
     /* Oversiktssensoren fra ki_enhetsforbruk.
@@ -202,8 +210,36 @@
       }
     }
 
-    /* ── strømregning ── */
+    /* ── strømregning ──
+     *
+     * Fanerada øverst, og under den perioden du står i. Måneden er den samme som
+     * før, og leses rett fra Strømkalkulator - den virker altså uten noe mer. Dag,
+     * uke, år og kalender kommer fra ki_enhetsforbruk, som fører boka av de samme
+     * månedssensorene; mangler den, sier fanene fra i klartekst.
+     */
     _regning() {
+      if (this._c.faner === false) return this._regningMaaned();
+      const id = this._regningId();
+      const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
+      const faner = ["Dag", "Uke", "Måned", "År"];
+      const skinne = `<div class="skinne">
+        ${faner.map((navn, i) => `<button class="fane ${i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
+        <button class="kalknapp ${this._kal ? "pa" : ""}" data-kal="1" title="Kalender">
+          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div>`;
+      let innhold;
+      if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
+      else if (this._per === 2) innhold = this._regningMaaned();
+      else innhold = a ? this._regningPeriode(a, id) : this._mangler();
+      return `${skinne}${innhold}`;
+    }
+
+    _mangler() {
+      return `<div class="under" style="margin-top:14px">Denne fanen kommer fra KI Enhetsforbruk.
+        Legg til en «Strømregning» på integrasjonssiden, eller sett <b>sensorer: { regning: … }</b> i kortet.</div>`;
+    }
+
+    /* Måneden, rett fra Strømkalkulator - uendret fra før fanene kom. */
+    _regningMaaned() {
       const s = this._s, n = (k) => this._n(s[k]), kr = (v, d) => this._kr(v, d);
       const poster = [
         { t: "Strøm hittil", v: n("akkumulert"), c: "var(--blue, #0a84ff)", id: s.akkumulert },
@@ -315,161 +351,146 @@
     /* Tallene kommer fra ki_enhetsforbruk, som fører dag-, måneds- og årstall av
        Strømkalkulators månedssensorer. Kortet regner ingenting selv - det leser
        boka og tegner den. */
-    _aar() {
-      const id = this._regningId();
-      const st = id ? this._hass.states[id] : null;
-      if (!st) {
-        return `<div class="hode"><span class="tittel"><ha-icon icon="mdi:calendar-star"></ha-icon>Strømregning</span></div>
-          <div class="under" style="margin-top:10px">Fant ingen strømregning fra KI Enhetsforbruk.
-          Legg til en «Strømregning» på integrasjonssiden, eller sett <b>sensorer: { regning: … }</b> i kortet.</div>`;
-      }
-      const a = st.attributes || {}, kr = (v, d) => this._kr(v, d);
-      const faner = [
-        ["Dag", a.i_dag, "I dag"],
-        ["Uke", a.denne_uken, "Denne uken"],
-        ["Måned", a.denne_maneden, `${a.maned_navn || "Måneden"}, hittil`],
-        ["År", a.i_ar, `${a.ar || new Date().getFullYear()}, hittil`],
+    /* vis: aar er samme kort, bare åpnet på År-fanen. */
+    _aar() { return this._regning(); }
+
+    /* Postene i to kolonner, samme form som i månedskortet. */
+    _postRutenett(poster) {
+      const felt = [
+        ["kostnad", "Strøm", "var(--blue, #0a84ff)"],
+        ["nettleie", "Nettleie", "var(--orange, #ff9f0a)"],
+        ["avgifter", "Avgifter", "var(--purple, #bf5af2)"],
+        ["stromstotte", "Strømstøtte", "var(--green, #34c759)"],
+        ["norgespris", "Norgespris", "var(--green, #34c759)"],
       ];
-      const [, verdi, undertekst] = faner[this._per];
-      const ifjor = Number(a.i_fjor) || 0;
-      let merke = "";
-      if (this._per === 3 && ifjor > 0) {
-        const p = Math.round(((Number(a.i_ar) || 0) - ifjor) / ifjor * 100);
-        merke = `<span style="font-size:12px;padding:3px 10px;border-radius:999px;white-space:nowrap;background:${
-          p <= 0 ? "rgba(52,199,89,.18)" : "rgba(255,69,58,.2)"}" class="${p <= 0 ? "gronn" : "rod"}">${
-          p <= 0 ? "−" : "+"}${Math.abs(p)} % mot i fjor</span>`;
-      }
-      const skinne = `<div class="skinne">
-        ${faner.map(([navn], i) => `<button class="fane ${i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
-        <button class="kalknapp ${this._kal ? "pa" : ""}" data-kal="1" title="Kalender">
-          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div>`;
-      return `
-        <div class="hode"><span class="tittel"><ha-icon icon="mdi:cash-fast"></ha-icon>Strømregning</span>${merke}</div>
-        <div class="stor" data-mer="${id}" style="margin-top:6px;display:inline-block">${
-          verdi < 0 ? "−" : ""}${kr(verdi)}<small>kr</small></div>
-        <div class="under">${undertekst}${
-          this._per === 3 && ifjor ? ` · i fjor ${kr(ifjor)} kr` : ""}${
-          this._per === 2 && a.estimat ? ` · anslag ${kr(a.estimat)} kr` : ""}</div>
-        ${skinne}
-        ${this._kal ? this._aarKalender(a) : this._aarPeriode(a, id)}`;
-    }
-
-    /* Postene under søylene: strøm, nettleie, avgifter og fradragene. */
-    _poster(poster) {
-      const navn = { kostnad: "Strøm", nettleie: "Nettleie", avgifter: "Avgifter",
-        stromstotte: "Strømstøtte", norgespris: "Norgespris" };
-      const farge = { kostnad: "var(--blue, #0a84ff)", nettleie: "var(--orange, #ff9f0a)",
-        avgifter: "var(--purple, #bf5af2)", stromstotte: "var(--green, #34c759)", norgespris: "var(--green, #34c759)" };
       const fradrag = (k, v) => k === "stromstotte" || (k === "norgespris" && v < 0);
-      const linjer = Object.keys(navn).filter((k) => poster && poster[k]).map((k) => {
+      const rader = felt.filter(([k]) => poster && poster[k]).map(([k, navn, farge]) => {
         const v = Number(poster[k]);
-        return `<div class="rad" style="font-size:13px"><span style="white-space:nowrap">
-          <span class="prikk" style="background:${farge[k]}"></span><span style="opacity:.7">${navn[k]}</span></span>
-          <span class="${fradrag(k, v) ? "gronn" : ""}">${fradrag(k, v) ? "−" : ""}${this._kr(v)} kr</span></div>`;
+        return `<div class="rad"><span style="white-space:nowrap"><span class="prikk" style="background:${farge}"></span>
+          <span style="opacity:.7">${navn}</span></span>
+          <span style="white-space:nowrap" class="${fradrag(k, v) ? "gronn" : ""}">${
+            fradrag(k, v) ? "−" : ""}${this._kr(v)} kr</span></div>`;
       }).join("");
-      return `<div class="poster">${linjer || `<div class="under">Ingen poster ført ennå</div>`}</div>`;
+      return rader
+        ? `<div class="rutenett" style="margin-top:12px">${rader}</div>`
+        : `<div class="under" style="margin-top:12px">Ingen poster ført ennå</div>`;
     }
 
-    /* Dag, uke og måned tegnes likt: en søyle per døgn, og postene under.
-       Trykk på en søyle viser døgnet; trykk på nytt går tilbake til hele perioden. */
-    _aarPeriode(a, id) {
-      if (this._per === 3) return this._aarManeder(a, id);
-      const alle = (a.dager || []).slice();
+    /* Den stablede stolpa: bare postene som koster noe. */
+    _postStolpe(poster) {
+      const deler = [
+        [Number((poster || {}).kostnad) || 0, "var(--blue, #0a84ff)"],
+        [Number((poster || {}).nettleie) || 0, "var(--orange, #ff9f0a)"],
+        [Number((poster || {}).avgifter) || 0, "var(--purple, #bf5af2)"],
+      ].filter(([v]) => v > 0);
+      const sum = deler.reduce((t, [v]) => t + v, 0);
+      if (!sum) return "";
+      return `<div class="stolpe">${deler.map(([v, c]) =>
+        `<div style="width:${(v / sum * 100).toFixed(1)}%;background:${c}"></div>`).join("")}</div>`;
+    }
+
+    /* Dag, uke og år.
+     *
+     * Samme oppbygning som måneden: tallet, den stablede stolpa, postene – og under
+     * en søyle per døgn (per måned i År-fanen). Trykk på en søyle, så bytter HELE
+     * blokka til det døgnet; trykk igjen for å komme tilbake til perioden.
+     */
+    _regningPeriode(a, id) {
       const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const na = new Date(); na.setHours(0, 0, 0, 0);
-      let fra;
-      if (this._per === 0) {                       /* dag: de siste to ukene som bakteppe */
-        fra = new Date(na); fra.setDate(na.getDate() - 13);
-      } else if (this._per === 1) {                /* uke: mandag denne uka */
-        fra = new Date(na); fra.setDate(na.getDate() - ((na.getDay() + 6) % 7));
-      } else {                                     /* måned: den 1. */
-        fra = new Date(na.getFullYear(), na.getMonth(), 1);
-      }
-      const rader = [];
-      for (let d = new Date(fra); d <= na; d.setDate(d.getDate() + 1)) {
-        const dato = iso(d);
-        const funn = alle.find((x) => x.dato === dato);
-        rader.push({
-          dato,
-          sum: funn ? Number(funn.sum) : null,
-          poster: funn && funn.poster,
-          dag: d.getDate(),
-          bokstav: ["S", "M", "T", "O", "T", "F", "L"][d.getDay()],
-        });
-      }
-      const max = Math.max(...rader.map((r) => Math.abs(r.sum) || 0), 1);
-      const valgt = this._valgtDag ? rader.find((r) => r.dato === this._valgtDag) : null;
-      const soyler = rader.map((r) => {
-        const v = Math.abs(r.sum) || 0;
-        const h = v ? Math.max(8, v / max * 100) : 4;
-        return `<div class="soyle ${r.sum === null ? "fremtid" : ""} ${
-          this._valgtDag === r.dato ? "valgt" : ""}" data-dag="${r.dato}">
-          <span class="tall" style="bottom:calc(${h}% + 3px)">${r.sum === null ? "" : Math.round(r.sum)}</span>
-          <div class="fyll" style="height:${h}%"></div></div>`;
-      }).join("");
-      /* Under uka står ukedagen, under måneden datoen – men bare hver tredje, ellers
-         blir det en grå stripe på en telefonskjerm. */
-      const merker = rader.map((r, i) => {
-        const tekst = this._per === 1 ? r.bokstav
-          : (this._per === 0 ? (i % 2 ? "" : r.dag) : (r.dag === 1 || r.dag % 5 === 0 ? r.dag : ""));
-        return `<span data-dag="${r.dato}" class="${this._valgtDag === r.dato ? "valgt" : ""}">${tekst}</span>`;
-      }).join("");
+      const aaret = this._per === 3;
+      let rader;
 
-      // Postene: for et valgt døgn dets egne, ellers hele perioden lagt sammen.
-      let poster, tittel;
-      if (valgt) {
-        poster = valgt.poster;
-        tittel = new Date(valgt.dato).toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" });
-      } else if (this._per === 0) {
-        poster = a.poster_i_dag; tittel = "I dag";
-      } else if (this._per === 2) {
-        poster = a.poster; tittel = `${a.maned_navn || "Måneden"}, hittil`;
+      if (aaret) {
+        rader = (a.maneder || []).map((m, i) => ({
+          id: String(i), sum: m.sum === null || m.sum === undefined ? null : Number(m.sum),
+          poster: m.poster, energi: m.energi, fremtid: m.fremtid,
+          navn: (m.navn || "")[0] ? m.navn[0].toUpperCase() + m.navn.slice(1) : "",
+          merke: String(m.navn || "·")[0].toUpperCase(), pagaende: m.pagaende,
+        }));
       } else {
+        const alle = a.dager || [];
+        const fra = new Date(na);
+        if (this._per === 0) fra.setDate(na.getDate() - 13);           /* dag: to uker som bakteppe */
+        else fra.setDate(na.getDate() - ((na.getDay() + 6) % 7));      /* uke: fra mandag */
+        rader = [];
+        for (const d = new Date(fra); d <= na; d.setDate(d.getDate() + 1)) {
+          const dato = iso(d);
+          const funn = alle.find((x) => x.dato === dato);
+          rader.push({
+            id: dato, sum: funn ? Number(funn.sum) : null, poster: funn && funn.poster,
+            navn: d.toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" }),
+            merke: this._per === 1 ? ["S", "M", "T", "O", "T", "F", "L"][d.getDay()]
+              : (d.getDate() % 2 ? "" : d.getDate()),
+            pagaende: dato === iso(na),
+          });
+        }
+      }
+
+      const valgt = rader.find((r) => r.id === this._valgtDag) || null;
+      let sum, poster, tittel, undertekst, energi;
+      if (valgt) {
+        sum = valgt.sum; poster = valgt.poster; energi = valgt.energi;
+        tittel = valgt.navn;
+        undertekst = valgt.pagaende ? "Så langt" : (aaret ? "Hele måneden" : "Hele døgnet");
+      } else if (this._per === 0) {
+        sum = a.i_dag; poster = a.poster_i_dag; tittel = "i dag";
+        undertekst = `Så langt i dag${a.dagens_energikostnad ? ` · strøm ${this._kr(a.dagens_energikostnad)} kr` : ""}`;
+      } else if (this._per === 1) {
         poster = {};
         rader.forEach((r) => Object.entries(r.poster || {}).forEach(([k, v]) => {
           poster[k] = (poster[k] || 0) + Number(v);
         }));
-        tittel = "Denne uken";
+        sum = a.denne_uken; tittel = "denne uken"; undertekst = "Fra mandag til i dag";
+      } else {
+        poster = {}; energi = {};
+        rader.forEach((r) => {
+          Object.entries(r.poster || {}).forEach(([k, v]) => { poster[k] = (poster[k] || 0) + Number(v); });
+          Object.entries(r.energi || {}).forEach(([k, v]) => { energi[k] = (energi[k] || 0) + Number(v); });
+        });
+        sum = a.i_ar; tittel = String(a.ar || na.getFullYear());
+        undertekst = `Hittil i år${a.i_fjor ? ` · i fjor ${this._kr(a.i_fjor)} kr` : ""}`;
       }
-      const sum = valgt ? valgt.sum
-        : (this._per === 0 ? a.i_dag : this._per === 1 ? a.denne_uken : a.denne_maneden);
-      return `
-        <div class="graf" style="margin-top:14px">${soyler}</div>
-        <div class="bokst">${merker}</div>
-        <div class="skille">
-          <div class="rad" style="align-items:baseline;margin-bottom:8px">
-            <span style="text-transform:capitalize">${tittel}</span>
-            <span style="font-size:1.4em;font-weight:300">${sum === null || sum === undefined ? "–" : this._kr(sum) + " kr"}</span></div>
-          ${this._poster(poster)}
-        </div>`;
-    }
 
-    /* Månedssøyler for året, med postene for den måneden du trykker på. */
-    _aarManeder(a, id) {
-      const rader = a.maneder || [];
-      if (!rader.length) return "";
-      const max = Math.max(...rader.map((r) => Number(r.sum) || 0), 1);
-      const valgt = rader[Math.min(this._mnd, rader.length - 1)] || rader[0];
-      const soyler = rader.map((r, i) => {
-        const v = Number(r.sum) || 0;
+      const max = Math.max(...rader.map((r) => Math.abs(r.sum) || 0), 1);
+      const soyler = rader.map((r) => {
+        const v = Math.abs(r.sum) || 0;
         const h = r.fremtid || !v ? 4 : Math.max(8, v / max * 100);
-        return `<div class="soyle ${r.fremtid ? "fremtid" : ""} ${i === this._mnd ? "valgt" : ""}" data-mnd="${i}">
-          <span class="tall" style="bottom:calc(${h}% + 3px)">${v ? Math.round(v) : ""}</span>
+        return `<div class="soyle ${r.fremtid || r.sum === null ? "fremtid" : ""} ${
+          this._valgtDag === r.id ? "valgt" : ""}" data-dag="${r.id}">
+          <span class="tall" style="bottom:calc(${h}% + 3px)">${r.sum === null ? "" : Math.round(r.sum)}</span>
           <div class="fyll" style="height:${h}%"></div></div>`;
       }).join("");
-      const energi = valgt.energi || {};
+      const merker = rader.map((r) => `<span data-dag="${r.id}" class="${
+        this._valgtDag === r.id ? "valgt" : ""}">${r.merke}</span>`).join("");
+
+      const dag = energi && energi.forbruk_dag, natt = energi && energi.forbruk_natt;
+      const pst = dag || natt ? Math.round((dag || 0) / (((dag || 0) + (natt || 0)) || 1) * 100) : null;
+
       return `
-        <div class="graf" style="margin-top:16px">${soyler}</div>
-        <div class="bokst">${rader.map((r, i) => `<span data-mnd="${i}" class="${i === this._mnd ? "valgt" : ""}">${
-          String(r.navn || "")[0] ? r.navn[0].toUpperCase() : "·"}</span>`).join("")}</div>
+        <div class="hode" style="margin-top:12px"><span class="tittel"><ha-icon icon="mdi:cash-fast"></ha-icon>Strømregning · ${tittel}</span>
+          <span class="svak">${valgt ? "trykk igjen" : "hittil"}</span></div>
+        <div class="stor" data-mer="${id}" style="margin-top:6px;display:inline-block">${
+          sum === null || sum === undefined ? "–" : `${sum < 0 ? "−" : ""}${this._kr(sum)}<small>kr</small>`}</div>
+        <div class="under" style="margin-bottom:12px">${undertekst}</div>
+        ${this._postStolpe(poster)}
+        ${this._postRutenett(poster)}
         <div class="skille">
-          <div class="rad" style="align-items:baseline;margin-bottom:8px">
-            <span style="text-transform:capitalize">${valgt.navn || ""}${valgt.pagaende ? " (nå)" : ""}</span>
-            <span style="font-size:1.4em;font-weight:300">${valgt.sum === null || valgt.sum === undefined ? "–" : this._kr(valgt.sum) + " kr"}</span></div>
-          ${this._poster(valgt.poster)}
-          ${energi.forbruk_totalt ? `<div class="rad" style="font-size:12px;opacity:.6;margin-top:8px">
-            <span>Forbruk</span><span>${this._kr(energi.forbruk_totalt, 1)} kWh</span></div>` : ""}
-        </div>`;
+          <div class="graf">${soyler}</div>
+          <div class="bokst">${merker}</div>
+        </div>
+        ${energi && energi.forbruk_totalt ? `<div class="skille">
+          <div class="rad" style="font-size:13px;margin-bottom:6px"><span style="opacity:.7">Forbruk ${
+            valgt ? "denne måneden" : "i år"}</span><span>${this._kr(energi.forbruk_totalt, 1)} kWh</span></div>
+          ${pst === null ? "" : `<div class="stolpe" style="height:8px">
+            <div style="width:${pst}%;background:var(--yellow, #ffd60a)"></div>
+            <div style="width:${100 - pst}%;background:var(--blue, #0a84ff);opacity:.7"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:6px;opacity:.75">
+            <span><ha-icon icon="mdi:white-balance-sunny" style="--mdc-icon-size:14px;vertical-align:-2px;margin-right:4px"></ha-icon>Dag ${
+              this._kr(dag, 1)} kWh · ${pst} %</span>
+            <span><ha-icon icon="mdi:weather-night" style="--mdc-icon-size:14px;vertical-align:-2px;margin-right:4px"></ha-icon>Natt/helg ${
+              this._kr(natt, 1)} kWh</span></div>`}
+        </div>` : ""}`;
     }
 
     /* Månedskalender: én rute per dag med kronene for det døgnet.
@@ -548,5 +569,5 @@
   if (!customElements.get("ki-strom-detaljer-card")) customElements.define("ki-strom-detaljer-card", KiStromDetaljerCard);
   window.customCards = window.customCards || [];
   if (!window.customCards.some((k) => k.type === "ki-strom-detaljer-card"))
-    window.customCards.push({ type: "ki-strom-detaljer-card", name: "KI Strøm-detaljer", description: "Strømregning, effekttrinn, effektledd per måned og Norgespris – kompakt og trykkbart" });
+    window.customCards.push({ type: "ki-strom-detaljer-card", name: "KI Strøm-detaljer", description: "Strømregning med dag/uke/måned/år og kalender, effekttrinn, effektledd per måned og Norgespris – kompakt og trykkbart" });
 })();
