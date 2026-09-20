@@ -1,4 +1,4 @@
-/* ki-cards v5.38.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.39.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.38.0";
+  KI.VERSION = "5.39.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -936,6 +936,11 @@ try {
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>).
    default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen.
+   ikon_naar: på en fane – bytt ikon ut fra hvilken fane som er valgt. Nøkkelen er tittelen
+              (eller nummeret) på den valgte fanen, verdien det ikonet fanen skal vise da:
+                - icon: mdi:gift-outline
+                  utenfor: true
+                  ikon_naar: { Kalender: mdi:calendar-month }
    rad_hoyde: hele fanens høyde i px. fane_hoyde er luft over og under teksten, og under den
               luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde. */
 (function (KI) {
@@ -1156,20 +1161,20 @@ try {
         <div class="bar">
           ${c.tittel ? `<div class="tittel">${KI.esc(c.tittel)}</div>` : ""}
           <div class="tabs pills" role="tablist"><span class="pille"></span>
-            ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
-          ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
+          ${tabs.map((t, i) => t.utenfor ? `<button class="tab utenfor ${i === this._active ? "active" : ""}" role="tab" data-i="${i}" aria-label="${KI.esc(t.aria || t.title || t.icon || "Fane")}" title="${KI.esc(t.aria || t.title || "")}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : KI.esc(t.title || "")}</button>` : "").join("")}
           <div class="scroller">
             <div class="spor" role="tablist"><span class="pille"></span>
-              ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+              ${tabs.map((t, i) => t.utenfor ? "" : `<button class="tab ${i === this._active ? "active" : ""} ${t.title ? "" : "kun-ikon"}" role="tab" data-i="${i}" ${t.title ? "" : `aria-label="${KI.esc(t.aria || t.icon || "Fane")}"`}>${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
             </div>
           </div>
           <div class="tabs pills measure" aria-hidden="true">
-            ${tabs.filter((t) => !t.utenfor).map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
+            ${tabs.filter((t) => !t.utenfor).map(t => `<button class="tab ${t.title ? "" : "kun-ikon"}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}${KI.esc(t.title || "")}</button>`).join("")}
           </div>
           <button class="dd" aria-haspopup="listbox" aria-expanded="false"></button>
           <div class="menu" role="listbox">
-            ${tabs.map((t, i) => `<div class="item ${i === this._active ? "active" : ""}" role="option" tabindex="0" data-i="${i}">${t.icon ? `<ha-icon icon="${t.icon}"></ha-icon>` : ""}<span class="n">${KI.esc(t.title || "")}</span></div>`).join("")}
+            ${tabs.map((t, i) => `<div class="item ${i === this._active ? "active" : ""}" role="option" tabindex="0" data-i="${i}">${this._ikon(t) ? `<ha-icon icon="${this._ikon(t)}"></ha-icon>` : ""}<span class="n">${KI.esc(t.title || "")}</span></div>`).join("")}
           </div>
         </div>
         <div class="paneler">${tabs.map((t, i) => `<div class="panel ${i === this._active ? "active" : ""}" data-i="${i}"><div class="stack"></div></div>`).join("")}</div>
@@ -1458,6 +1463,38 @@ try {
       rad.addEventListener("scroll", () => this._flyttPille(this._active, true));
     }
 
+    /* Ikonet fanen skal vise NÅ.
+     *
+     * ikon_naar lar en fane bytte ikon etter hvilken fane som er valgt – den lille
+     * knappen utenfor rada kan da vise noe som hører til det du står i. Nøkkelen er
+     * tittelen på den valgte fanen (uten hensyn til store bokstaver), eller nummeret. */
+    _ikon(t, aktiv) {
+      const kart = t && t.ikon_naar;
+      if (!kart) return t && t.icon;
+      const valgt = (this._config.tabs || [])[aktiv === undefined ? this._active : aktiv] || {};
+      const tittel = String(valgt.title || "").trim().toLowerCase();
+      for (const [nokkel, ikon] of Object.entries(kart)) {
+        const n = String(nokkel).trim().toLowerCase();
+        if (n === tittel || (/^\d+$/.test(n) && Number(n) === (aktiv === undefined ? this._active : aktiv))) {
+          return typeof ikon === "string" ? ikon : (ikon && ikon.icon) || t.icon;
+        }
+      }
+      return t.icon;
+    }
+
+    /* Oppdaterer de fanene som bytter ikon. Rada tegnes ikke på nytt ved fanebytte –
+       bare klassene settes – så ikonene må settes her. */
+    _oppdaterIkoner() {
+      const tabs = this._config.tabs || [];
+      this.shadowRoot.querySelectorAll(".tab[data-i], .item[data-i]").forEach((b) => {
+        const t = tabs[+b.dataset.i];
+        if (!t || !t.ikon_naar) return;
+        const ikon = b.querySelector("ha-icon");
+        const ny = this._ikon(t);
+        if (ikon && ny && ikon.getAttribute("icon") !== ny) ikon.setAttribute("icon", ny);
+      });
+    }
+
     _select(i) {
       const forrige = this._active;
       this._active = i; const r = this.shadowRoot;
@@ -1477,6 +1514,7 @@ try {
           () => panel.classList.remove(klasse), { once: true });
       }
       this._flyttPille(i);
+      this._oppdaterIkoner();
       this._renderDd();
       if (this._mode === "scroll") this._rullTil(i);
       /* andre kort kan følge fanevalget – sendes både oppover og på window */
