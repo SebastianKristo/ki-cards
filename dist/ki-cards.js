@@ -1,4 +1,4 @@
-/* ki-cards v5.41.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.42.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.41.0";
+  KI.VERSION = "5.42.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -29986,13 +29986,13 @@ try {
  * start_dag: mandag                # mandag | sondag
  * visning: antall                 # antall (merke med tallet) | prikker (én prikk per hendelse)
  * prikker: 4                       # hvor mange prikker en dag kan vise i prikkevisningen
- * filtre: true                     # pillerad for å slå kalendere av og på
+ * filtre: knapp                   # knapp (liste bak et trykk) | piller (rad øverst) | false
  * liste: true                      # hendelsene for valgt dag under rutenettet
  * dager_i_liste: 1                 # 1 = bare valgt dag, ellers så mange dager framover
  *
  * Hendelsene hentes fra kalender-API-et, samme kilde som HAs egen kalendervisning.
  */
-const KI_KAL_VERSJON = "1.1.0";
+const KI_KAL_VERSJON = "1.2.0";
 
 /* Fargene deles ut i denne rekkefølgen til kalendere som ikke har fått sin egen. */
 const KI_KAL_FARGER = [
@@ -30005,17 +30005,37 @@ const KI_KAL_STIL = `
   :host { display:block; max-width:100%; }
   *, *::before, *::after { box-sizing:border-box; min-width:0; }
   .rot { display:grid; gap:10px; }
-  .topp { display:grid; grid-template-columns:min-content 1fr min-content min-content;
-    align-items:center; gap:8px; padding:0 2px 2px; }
+  .topp { display:flex; align-items:center; gap:8px; padding:0 2px 2px; }
+  .topp .mnd { flex:1; }
   .mnd { text-align:center; font-size:16px; font-weight:600; text-transform:capitalize;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pil, .idag { border:0; background:rgba(250,251,252,.08); color:var(--gray1000,#f2f2f7);
+  .pil, .idag, .velg { border:0; background:rgba(250,251,252,.08); color:var(--gray1000,#f2f2f7);
     border-radius:999px; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
-    display:flex; align-items:center; justify-content:center; flex:none;
+    display:flex; align-items:center; justify-content:center; flex:none; white-space:nowrap;
     -webkit-tap-highlight-color:transparent; transition:background .2s, transform .14s; }
-  .pil { width:34px; height:34px; --mdc-icon-size:20px; }
+  .pil, .velg { width:34px; height:34px; --mdc-icon-size:20px; }
+  /* Knappen sto med «I» og «dag» på hver sin linje så snart månedsnavnet ble langt.
+     nowrap og flex:none holder den på én. */
   .idag { height:34px; padding:0 14px; }
-  .pil:active, .idag:active { transform:scale(.92); }
+  .velg.pa { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); }
+  .pil:active, .idag:active, .velg:active { transform:scale(.92); }
+
+  /* Kalendervelgeren: liste bak et trykk i stedet for en pillerad som blir for trang
+     med ni kalendere. Hver rad er hele bredden, så navnene får plass. */
+  .velger { background:var(--gray200, var(--ha-card-background, #1f1f21)); border-radius:20px;
+    overflow:hidden; }
+  .velgtopp { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:12px 16px 8px; font-size:13px; opacity:.6; }
+  .velgtopp button { border:0; background:none; color:var(--active-big, #ee95ff); font:inherit;
+    font-size:13px; font-weight:500; cursor:pointer; padding:0; }
+  .kalrad { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer;
+    border-top:1px solid rgba(250,251,252,.07); -webkit-tap-highlight-color:transparent; }
+  .kalrad i { width:10px; height:10px; border-radius:50%; flex:none; }
+  .kalrad span { flex:1; min-width:0; font-size:14px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .kalrad ha-icon { --mdc-icon-size:20px; opacity:.85; flex:none; }
+  .kalrad.av span, .kalrad.av i { opacity:.35; }
+  .kalrad.av ha-icon { opacity:.35; }
 
   /* Filtrene er de samme pillene som ellers i pakka: tynn ring, fylt når de er på. */
   .filtre { display:flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3);
@@ -30035,16 +30055,20 @@ const KI_KAL_STIL = `
   .ukedager { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; padding-bottom:7px; }
   .ukedager span { text-align:center; font-size:12px; font-weight:600; opacity:.45; }
   .rutenett { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; }
-  .dag { position:relative; aspect-ratio:1; border-radius:50%;
+  /* Alle dagene er nøyaktig like store. Markeringene ligger i farge og ring, ikke i
+     størrelse: en dag som krymper eller vokser når du velger den, flytter på naboene
+     og ser ut som en feil. */
+  .dag { position:relative; aspect-ratio:1; width:100%; border-radius:50%;
     background:var(--gray200, var(--ha-card-background, #1f1f21)); display:flex;
     flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:15px;
-    cursor:pointer; -webkit-tap-highlight-color:transparent;
-    transition:transform .14s cubic-bezier(.3,1.35,.5,1), background .2s; }
-  .dag:active { transform:scale(.94); }
+    cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .2s, box-shadow .2s; }
   .dag.utenfor { opacity:.25; background:transparent; }
   .dag.har { background:var(--gray100, rgba(250,251,252,.12)); font-weight:600; }
-  .dag.idag { outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; }
-  .dag.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); transform:scale(1.06); }
+  /* Ringen ligger som innvendig skygge, ikke som outline: outline tegnes utenfor
+     sirkelen og gjorde dagen større enn naboene. */
+  .dag.idag { box-shadow:inset 0 0 0 2px rgba(255,255,255,.45); }
+  .dag.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); font-weight:600; }
+  .dag.valgt.idag { box-shadow:inset 0 0 0 2px rgba(70,58,64,.5); }
   /* Merket sitter oppe til venstre, utenfor sirkelen, som i lanseringskortet. Er alt
      den dagen fra samme kalender, får det fargen til den kalenderen. */
   .dag .antall { position:absolute; top:-3px; left:-3px; min-width:22px; height:22px; border-radius:11px;
@@ -30074,10 +30098,11 @@ class KiKalenderCard extends HTMLElement {
   static getConfigElement() { return document.createElement("ki-kalender-card-editor"); }
 
   setConfig(c) {
-    this._c = { tittel: "Kalender", prikker: 4, filtre: true, liste: true, dager_i_liste: 1, ...c };
+    this._c = { tittel: "Kalender", prikker: 4, filtre: "knapp", liste: true, dager_i_liste: 1, ...c };
     this._mnd = 0;                       /* hvor mange måneder fra denne */
     this._valgt = this._idag();
     this._av = new Set();                /* kalendere som er slått av i filteret */
+    this._velgerApen = false;
     this._cache = {};                    /* hendelser per måned, så bla ikke henter på nytt */
     this._bygget = false;
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
@@ -30239,11 +30264,26 @@ class KiKalenderCard extends HTMLElement {
         ${d.getDate()}${merke}</div>`);
     }
 
-    const filtre = c.filtre !== false && kal.length > 1
-      ? `<div class="filtre">${kal.map((k) => `<button class="filter ${
-          this._av.has(k.entity) ? "av" : "pa"}" data-kal="${k.entity}">
-          <i style="color:${k.farge}"></i>${k.navn}</button>`).join("")}</div>`
-      : "";
+    /* Kalendervelgeren.
+       Pillerada ble trang med ni kalendere - navnene ble klippet, og man måtte dra i
+       en rad som lett kolliderte med rullingen. Standard er nå en knapp som folder ut
+       ei liste med én rad per kalender. `filtre: piller` gir den gamle rada. */
+    const modus = c.filtre === false ? "av" : String(c.filtre || "knapp").toLowerCase();
+    let filtre = "";
+    if (modus !== "av" && kal.length > 1 && modus.startsWith("p")) {
+      filtre = `<div class="filtre">${kal.map((k) => `<button class="filter ${
+        this._av.has(k.entity) ? "av" : "pa"}" data-kal="${k.entity}">
+        <i style="color:${k.farge}"></i>${k.navn}</button>`).join("")}</div>`;
+    } else if (modus !== "av" && kal.length > 1 && this._velgerApen) {
+      const alle = kal.every((k) => !this._av.has(k.entity));
+      filtre = `<div class="velger">
+        <div class="velgtopp"><span>${kal.length - this._av.size} av ${kal.length} vises</span>
+          <button data-alle="${alle ? "ingen" : "alle"}">${alle ? "Skjul alle" : "Vis alle"}</button></div>
+        ${kal.map((k) => `<div class="kalrad ${this._av.has(k.entity) ? "av" : ""}" data-kal="${k.entity}">
+          <i style="background:${k.farge}"></i><span>${k.navn}</span>
+          <ha-icon icon="${this._av.has(k.entity) ? "mdi:checkbox-blank-outline" : "mdi:checkbox-marked"}"></ha-icon>
+        </div>`).join("")}</div>`;
+    }
 
     /* Lista under: valgt dag, eller så mange dager framover som du ber om. */
     let liste = "";
@@ -30279,6 +30319,10 @@ class KiKalenderCard extends HTMLElement {
           <span class="mnd">${forste.toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}</span>
           ${this._mnd !== 0 || this._iso(this._valgt) !== this._iso(na)
             ? `<button class="idag" data-idag="1">I dag</button>` : ""}
+          ${modus !== "av" && kal.length > 1 && !modus.startsWith("p")
+            ? `<button class="velg ${this._velgerApen ? "pa" : ""}${this._av.size ? " pa" : ""}"
+                data-velger="1" title="Velg kalendere" aria-label="Velg kalendere">
+                <ha-icon icon="mdi:calendar-multiselect"></ha-icon></button>` : ""}
           <button class="pil" data-bla="1"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
         </div>
         ${filtre}
@@ -30295,7 +30339,13 @@ class KiKalenderCard extends HTMLElement {
         const el = ev.composedPath().find((x) => x.dataset
           && (x.dataset.bla !== undefined || x.dataset.dato || x.dataset.kal || x.dataset.idag));
         if (!el) return;
-        if (el.dataset.bla !== undefined) {
+        if (el.dataset.velger !== undefined) {
+          this._velgerApen = !this._velgerApen; this._tegn();
+        } else if (el.dataset.alle) {
+          if (el.dataset.alle === "alle") this._av.clear();
+          else this._kalendere().forEach((k) => this._av.add(k.entity));
+          this._tegn();
+        } else if (el.dataset.bla !== undefined) {
           this._mnd += Number(el.dataset.bla);
           this._tegn(); this._hent();
         } else if (el.dataset.idag !== undefined) {
@@ -30311,7 +30361,7 @@ class KiKalenderCard extends HTMLElement {
           }
           this._tegn();
         } else if (el.dataset.kal) {
-          if (el.classList.contains("filter")) {
+          if (el.classList.contains("filter") || el.classList.contains("kalrad")) {
             if (this._av.has(el.dataset.kal)) this._av.delete(el.dataset.kal);
             else this._av.add(el.dataset.kal);
             this._tegn();
@@ -30340,7 +30390,7 @@ class KiKalenderCardEditor extends HTMLElement {
       this.appendChild(this._f);
     }
     this._f.hass = this._h;
-    this._f.data = { tittel: "Kalender", prikker: 4, filtre: true, liste: true, dager_i_liste: 1, ...this._c };
+    this._f.data = { tittel: "Kalender", prikker: 4, filtre: "knapp", liste: true, dager_i_liste: 1, ...this._c };
     this._f.schema = [
       { name: "tittel", selector: { text: {} } },
       { name: "kalendere", selector: { entity: { domain: "calendar", multiple: true } } },
@@ -30350,13 +30400,15 @@ class KiKalenderCardEditor extends HTMLElement {
         { value: "antall", label: "Merke med antallet" }, { value: "prikker", label: "Prikk per hendelse" }] } } },
       { name: "prikker", selector: { number: { min: 1, max: 8, mode: "box" } } },
       { name: "dager_i_liste", selector: { number: { min: 1, max: 14, mode: "box" } } },
-      { name: "filtre", selector: { boolean: {} } },
+      { name: "filtre", selector: { select: { mode: "dropdown", options: [
+        { value: "knapp", label: "Knapp med liste" }, { value: "piller", label: "Pillerad øverst" },
+        { value: "false", label: "Ingen" }] } } },
       { name: "liste", selector: { boolean: {} } },
     ];
     this._f.computeLabel = (s) => ({
       tittel: "Tittel", kalendere: "Kalendere (tom = alle)", start_dag: "Uka begynner på",
       visning: "Slik vises hendelsene i rutenettet", prikker: "Prikker per dag (i prikkevisningen)", dager_i_liste: "Dager i lista under (1 = valgt dag)",
-      filtre: "Vis filterpiller", liste: "Vis hendelsene under kalenderen",
+      filtre: "Slik velges kalendere inn og ut", liste: "Vis hendelsene under kalenderen",
     }[s.name] || s.name);
   }
 }
