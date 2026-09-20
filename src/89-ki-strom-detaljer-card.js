@@ -78,30 +78,24 @@
     .gronn { color:var(--green, #34c759); } .rod { color:var(--red, #ff453a); } .oransje { color:var(--orange, #ff9f0a); }
 
     /* ---- årsregning ---- */
-    /* Fanerada står som sitt eget spor OVER kortet, ikke inni det - samme plass som
-       et ki-tabs-card ville hatt. Kalenderknappen har EGEN klasse, ikke .fane, så
-       glidepilla fra KI.pillefaner ikke regner den som en femte fane. */
-    .skinne { display:flex; align-items:center; gap:4px; padding:4px; border-radius:999px;
-      background:var(--gray200, var(--ha-card-background, #1f1f21)); margin-bottom:10px; }
-    .skinne .fane { flex:1; min-width:0; text-align:center; padding:9px 0; border-radius:999px;
-      border:none; background:none; font-family:inherit; font-size:14px; font-weight:500; cursor:pointer;
-      color:var(--gray1000,#f2f2f7); opacity:.6; user-select:none; white-space:nowrap;
-      -webkit-tap-highlight-color:transparent;
-      transition:background .25s, color .25s, opacity .25s; }
-    /* Fargen kommer fra --active-big, men MED reserve. Uten den ble pilla borte i
-       dashbord der variabelen ikke når inn i kortet: bakgrunnen falt bort, og igjen
-       sto bare skyggen - en mørk flis med en kant, i stedet for en fylt pille.
-       Regelen er sterkere enn basens .ki-pille, så den er den som gjelder. */
+    /* Fanerada er den samme som i lanseringskortet, og står OVER kortflaten - ikke
+       inni den. Ingen fylt bakgrunn, bare en tynn ring rundt, og rada er like bred
+       som fanene den inneholder.
+       Kalenderknappen er en fane som de andre, slik at glidepilla kan gli bort til
+       den også; den bærer bare et ikon i stedet for tekst. */
+    .faner { display:flex; justify-content:center; margin-bottom:12px; }
+    .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3);
+      border-radius:999px; max-width:100%; }
+    .fane { border:0; background:none; color:rgba(255,255,255,.72); font:inherit; font-size:13px;
+      font-weight:500; padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap;
+      -webkit-tap-highlight-color:transparent; }
+    /* Fargen MED reserve. Uten den falt bakgrunnen bort i dashbord der --active-big
+       ikke når inn i kortet, og igjen sto bare skyggen - en mørk flis med kant i
+       stedet for en fylt pille. Regelen er sterkere enn basens .ki-pille. */
     .skinne .ki-pille { background:var(--active-big, #ee95ff); }
-    .skinne .fane.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95);
-      opacity:1; font-weight:600; }
-    .kalknapp { flex:none; width:40px; height:34px; border:0; border-radius:999px; background:none;
-      color:var(--gray1000,#f2f2f7); opacity:.55; cursor:pointer; display:flex; align-items:center;
-      justify-content:center; --mdc-icon-size:19px; position:relative; z-index:1;
-      -webkit-tap-highlight-color:transparent;
-      transition:background .2s, opacity .2s, transform .14s; }
-    .kalknapp:active { transform:scale(.92); }
-    .kalknapp.pa { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); opacity:1; }
+    .fane.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95);
+      box-shadow:0 1px 6px rgba(0,0,0,.35); }
+    .fane ha-icon { --mdc-icon-size:18px; display:block; }
     .ikonknapp { border:0; background:rgba(250,251,252,.08); color:var(--gray1000,#f2f2f7); width:32px; height:32px;
       border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
       --mdc-icon-size:19px; flex:none; transition:background .2s, transform .14s; }
@@ -233,10 +227,10 @@
       const id = this._regningId();
       const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
       const faner = ["Dag", "Uke", "Måned", "År"];
-      const skinne = `<div class="skinne">
-        ${faner.map((navn, i) => `<button class="fane ${i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
-        <button class="kalknapp ${this._kal ? "pa" : ""}" data-kal="1" title="Kalender">
-          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div>`;
+      const skinne = `<div class="faner"><div class="skinne">
+        ${faner.map((navn, i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
+        <button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
+          <ha-icon icon="mdi:calendar-month"></ha-icon></button></div></div>`;
       let innhold;
       if (this._kal) innhold = a ? this._aarKalender(a) : this._mangler();
       else if (this._per === 2) innhold = this._regningMaaned();

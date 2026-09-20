@@ -1,28 +1,28 @@
-# ki-cards 5.29.0
+# ki-cards 5.30.0
 
-## Fanerada står over kortet, og pilla har riktig farge
+## Fanerada er den samme som i lanseringskortet
 
-**Rada er sitt eget spor.** Den lå inne på kortflaten sammen med tallene; nå ligger den over
-kortet, med egen bakgrunn og luft under — samme plass et `ki-tabs-card` ville hatt. Kortet under
-er uendret.
+Rada over strømregningen er nå bygget som fanerada i `ki-lansering-card`, tegn for tegn: ingen
+fylt bakgrunn, bare en tynn ring rundt, rada like bred som fanene den inneholder, og hele greia
+midtstilt over kortet.
 
-**Fargen.** Pilla hentet fargen fra `--active-big` uten reserve. Når variabelen ikke når inn i
-kortet, faller bakgrunnen helt bort, og igjen står bare skyggen — en mørk flis med en kant, i
-stedet for en fylt pille. Det var det du så. Regelen ligger nå i kortet selv, sterkere enn basens,
-og med `#ee95ff` som reserve:
+- `.skinne` er `inline-flex` med `padding:2px` og `border:1px solid rgba(255,255,255,.3)`
+- fanene er 13 px, `padding:6px 14px`, dempet hvit tekst
+- den valgte er fylt med `--active-big` og mørk tekst, med samme skygge som i lanseringskortet
 
-```css
-.skinne .ki-pille { background: var(--active-big, #ee95ff); }
-```
+**Kalenderknappen er nå en fane som de andre** — den bærer bare et ikon i stedet for tekst. Det
+er det som gjør at glidepilla kan gli bort til den, i stedet for at markeringen hopper. Står
+kalenderen åpen, er det kalenderfanen som er merket; lukker du den, går pilla tilbake til
+perioden du sto i.
 
-Den valgte fanen får samme farge og mørk tekst, så markeringen ser lik ut enten glidepilla er der
-eller ikke — står kortet uten ki-cards-basen, er det fanen selv som bærer fargen. Kalenderknappen
-følger samme farge når den er på.
+Fargen beholder reserven fra 5.29.0: `var(--active-big, #ee95ff)`, både på pilla og på den valgte
+fanen, så markeringen ser lik ut enten basen er der eller ikke.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Rota i kortet er nå
-`style` + `.skinne` + `.k`, og rada finnes ikke lenger inne i `.k` — kontrollert i alle fire
-fanene, med og uten integrasjonen, pluss `faner: false` som fortsatt gir bare måneden uten rad.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Rota i kortet er
+`style` + `.faner` + `.k` — rada ligger altså fortsatt utenfor kortflaten. Fem faner i rada, alltid
+nøyaktig én merket, kalenderfanen merket når kalenderen er åpen, og alle fire periodene tegnet med
+oppdiktede tall uten `NaN`.
 
-Inneholder også 5.26.0 til 5.28.0. Ingen andre kort er rørt.
+Inneholder også 5.26.0 til 5.29.0. Ingen andre kort er rørt.
