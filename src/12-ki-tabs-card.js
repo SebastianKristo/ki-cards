@@ -538,8 +538,18 @@
    * tomt felt. Fanene kan redigeres uansett.
    */
   class SkTabsEditor extends HTMLElement {
+    /* Sammenligning som tåler at Home Assistant stokker om nøkkelrekkefølgen.
+       `{a:1,b:2}` og `{b:2,a:1}` er samme konfigurasjon, men ulike strenger — og en
+       vanlig JSON-sammenligning ville sagt at noe var endret. */
+    _fast(o) {
+      if (o === null || typeof o !== "object") return JSON.stringify(o);
+      if (Array.isArray(o)) return "[" + o.map((x) => this._fast(x)).join(",") + "]";
+      return "{" + Object.keys(o).sort()
+        .map((k) => JSON.stringify(k) + ":" + this._fast(o[k])).join(",") + "}";
+    }
+
     setConfig(c) {
-      const tekst = JSON.stringify(c || {});
+      const tekst = this._fast(c || {});
 
       /* Home Assistant kaller setConfig på nytt etter HVER endring vi sender.
        *
@@ -549,7 +559,11 @@
        * Kommer konfigurasjonen tilbake uendret fra det vi nettopp sendte, er det vårt
        * eget ekko, og da rører vi ingenting. Er den endret utenfra — YAML-fanen, en
        * annen editor — bygger vi som før. */
-      if (this._sisteUt === tekst) { this._c = JSON.parse(tekst); return; }
+      /* Redigerer man et kort, skal editoren ALDRI bygges om. Hver tast sender en
+         endring, og en ombygging midt i ville lukket redigereren — man måtte åpne den
+         på nytt for hver bokstav. */
+      if (this._redigerer) { this._c = JSON.parse(JSON.stringify(c || {})); return; }
+      if (this._sisteUt === tekst) { this._c = JSON.parse(JSON.stringify(c || {})); return; }
 
       this._c = JSON.parse(tekst);
       this._valgt = this._valgt ?? 0;
@@ -570,7 +584,7 @@
     _ut() {
       /* Fanelista er endret — da SKAL editoren bygges om, ellers står den gamle lista.
          Vi merker likevel ekkoet, så `setConfig` ikke bygger den om en gang til. */
-      this._sisteUt = JSON.stringify(this._c);
+      this._sisteUt = this._fast(this._c);
       KI.fire(this, "config-changed", { config: this._c });
       this._r();
     }
@@ -598,6 +612,8 @@
     }
 
     _r() {
+      /* En ombygging fjerner redigereren fra DOM-en; da skal flagget følge med. */
+      this._redigerer = null;
       if (!this._h || !this._c) return;
       this._underEl = [];
       const t = this._tabs();
@@ -794,7 +810,7 @@
     /* Ett sted som sender endringen ut, og som husker hva vi sendte — så `setConfig`
        kan kjenne igjen sitt eget ekko. */
     _send() {
-      this._sisteUt = JSON.stringify(this._c);
+      this._sisteUt = this._fast(this._c);
       KI.fire(this, "config-changed", { config: this._c });
     }
 

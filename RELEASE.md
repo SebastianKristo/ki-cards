@@ -1,37 +1,36 @@
-# ki-cards 5.18.0
+# ki-cards 5.18.1
 
-## Kortdialogen er ute. Redigereren brettes ut i stedet.
+## Redigereren lukket seg for hver tast
 
-Jeg forsøkte `hui-dialog-edit-card` i tre utgaver. Dialogen åpnet seg hver gang, men det
-den sendte tilbake ved lagring kom aldri fram til fanen.
+Hver tast sender en endring, Home Assistant ekkoer konfigurasjonen tilbake, og editoren
+ble bygget om — med redigereren lukket. Man måtte åpne den på nytt for hver bokstav.
 
-API-et er internt i Home Assistants frontend og har byttet form mellom versjoner. Jeg
-klarte ikke å treffe det uten å gjette, og tre runder med gjetting er nok.
+To ting lå bak.
 
-Blyanten bretter nå ut **`hui-card-element-editor`** under rada — den samme redigereren
-HA bruker inne i sine egne stabel-editorer. Den sender `config-changed` rett til oss,
-uten mellomledd som kan endre seg.
+### Ekkoet var ikke tegn for tegn likt
 
-Den er mindre pen enn en fullskjermdialog med forhåndsvisning ved siden av. Men den
-lagrer, og det er det du ba om.
+Jeg sammenlignet med `JSON.stringify`. HA kan stokke om nøkkelrekkefølgen, og da er
+`{a:1,b:2}` og `{b:2,a:1}` ulike strenger selv om konfigurasjonen er den samme.
 
-Trykk blyanten igjen for å lukke.
+Sammenligningen sorterer nå nøklene først.
 
-### Editoren byttes ikke ut mens du holder på
+### Og redigereren skal uansett aldri bygges om
 
-Vi lagrer ved hver endring, men tegner ikke om. Gjorde vi det, ville redigereren blitt
-erstattet midt i arbeidet, og markøren og åpne seksjoner gått tapt.
+Selv med riktig sammenligning ville en ekte endring utenfra lukket den midt i arbeidet.
+Er redigereren åpen, bygges editoren ikke om i det hele tatt — konfigurasjonen oppdateres
+i stillhet, og alt står som det var.
+
+Flagget nullstilles når editoren faktisk bygges om, så det kan ikke bli hengende igjen på
+et element som er borte fra DOM-en.
 
 ### Kontrollert
 
-Blyanten åpner redigereren med riktig kort. En endring der lagres i fanen. Redigereren
-blir stående etter lagring, og et nytt klikk lukker den.
-
-Koden for dialoguthentingen er slettet — rundt 40 linjer som ikke lenger har noen
-oppgave.
+«Hei» skrevet bokstav for bokstav, med HAs ekko mellom hver: redigereren står åpen hele
+veien, og hele ordet lagres. Et ekko med omstokket nøkkelrekkefølge gir null
+ombygginger.
 
 ---
 
-# ki-cards 5.17.1
+# ki-cards 5.18.0
 
-Tredje forsøk på å hente kortet ut av det dialogen sendte tilbake.
+Kortdialogen erstattet med `hui-card-element-editor` brettet ut under rada.
