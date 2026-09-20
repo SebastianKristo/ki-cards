@@ -1,43 +1,40 @@
-# ki-cards 5.26.0
+# ki-cards 5.27.0
 
-## Årlig strømregning i ki-strom-detaljer-card
+## Strømregningen har fått fanerad: Dag · Uke · Måned · År
 
-Ny visning: `vis: aar`.
+`vis: aar` åpner nå på en fanerad i samme form som i lanseringskortet — fire piller i et fylt
+spor, med kalenderknappen som egen rund knapp ytterst.
 
 ```yaml
 type: custom:ki-strom-detaljer-card
 vis: aar
 ```
 
-Øverst året hittil, med avviket mot i fjor som merke, og tre brikker: i dag, denne uken og
-måneden som går. Under er det to visninger, og knappen øverst til høyre bytter mellom dem:
+Tallet øverst følger fanen: i dag, denne uken, måneden hittil (med anslaget for hele måneden ved
+siden av) eller året hittil (med avviket mot i fjor som merke).
 
-- **Månedssøyler** for hele året. Trykk på en måned, så står postene under — strøm, nettleie,
-  avgifter, strømstøtte og Norgespris — med fradragene i grønt og forbruket i kWh nederst.
-- **Kalender** med én rute per døgn. Kronene står i ruta, og bakgrunnen blir sterkere jo dyrere
-  døgnet var, så måneden leses som et varmekart. Trykk på en dag for postene for akkurat det
-  døgnet; pilene blar bakover, og fram er sperret der måneden som går slutter.
+Under står søylene, og de betyr det samme i alle fanene — ett døgn per søyle, bortsett fra i
+År-fanen, der det er én per måned:
 
-Kortet regner ingenting selv. Tallene kommer fra `ki_enhetsforbruk` 1.1.0, som fører boka av
-Strømkalkulators månedssensorer. Oversiktssensoren finnes av seg selv på markørene sine
-(`integrasjon: ki_enhetsforbruk`, `type: regning`), siden entitets-id-en følger navnet du ga
-regningen. Vil du peke den ut selv:
+- **Dag** viser de siste to ukene som bakteppe, med dagens poster under
+- **Uke** viser mandag til i dag, med ukedagen under hver søyle
+- **Måned** viser døgnene hittil i måneden, med datoen under hver femte
+- **År** viser de tolv månedene, med den som går merket «(nå)»
 
-```yaml
-sensorer:
-  regning: sensor.stromregning_stromregning_oversikt
-```
+Trykk på en søyle, så bytter postene under til akkurat det døgnet — strøm, nettleie, avgifter og
+fradragene i grønt. Trykk en gang til, og du er tilbake på hele perioden. Kalenderknappen bytter
+til månedskalenderen, der kronene står i hver rute og bakgrunnen blir sterkere jo dyrere døgnet
+var; fanen du kom fra blir stående merket, så du havner samme sted når du lukker den igjen.
 
-Blar du lenger bakover enn de 95 døgnene sensoren bærer, henter kortet måneden med tjenesten
-`ki_enhetsforbruk.historikk` og beholder svaret. Mangler integrasjonen, sier kortet fra i klartekst
-i stedet for å stå tomt.
+Kalenderknappen har egen klasse og er med vilje ikke en `.fane` — ellers hadde glidepilla fra
+`KI.pillefaner` regnet den som en femte fane og glidd bort til den. Står kortet uten ki-cards-basen,
+beholder fanen sin egen bakgrunn i stedet for pilla.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Årsvisningen er i
-tillegg tegnet med oppdiktede tall: 42 ruter i kalenderen med 12 utenfor måneden for september
-2026 (som begynner på en tirsdag), dagvalg, månedsvalg og bakoverbla uten data — ingen `NaN` og
-ingen tomme beløp noe sted. Kortet tåler en Home Assistant uten tjenesten: da blir eldre måneder
-bare stående tomme.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Alle fire fanene er i
+tillegg tegnet med oppdiktede tall: riktig antall søyler i hver (14 / 7 / 20 / 12), riktig tall
+øverst, fire postlinjer, døgnvalg som bytter både overskrift og sum, og kalenderen med 42 ruter —
+ingen `NaN` og ingen tomme beløp noe sted.
 
-Ingen andre kort er rørt.
+Inneholder også 5.26.0, som la inn selve årsvisningen. Ingen andre kort er rørt.
