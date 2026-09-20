@@ -1,4 +1,4 @@
-/* ki-cards v5.16.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.17.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.16.1";
+  KI.VERSION = "5.17.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -28437,8 +28437,18 @@ try {
 
       $(".n").textContent = c.navn;
       const st = s(r.status);
-      let pt = ok(st) ? String(st.state) : paa ? "På" : "Av";
-      pt = pt.replace(/^./, (x) => x.toUpperCase());
+      // statusteksten fra KI Utelys – vist slik Home Assistant oversetter den; «ukjent» o.l. regnes som mangler
+      const UKJENT = /^(ukjent|unknown|none|ingen|n\/a|-)$/i;
+      let ktekst = "";
+      if (ok(st) && !UKJENT.test(String(st.state).trim())) {
+        ktekst = typeof h.formatEntityState === "function" ? h.formatEntityState(st) : String(st.state);
+        if (UKJENT.test(String(ktekst).trim())) ktekst = "";
+      }
+      // uten brukbar status: forklar selv hva som skjer
+      const soloppe = !isNaN(e) && e > 0;
+      let pt = ktekst || (paa ? "På" : autoPaa && soloppe ? "Venter på mørket" : autoPaa ? "Klar – tennes snart" : "Av");
+      if (!ktekst && paa && r.neste_av && s(r.neste_av) && ok(s(r.neste_av))) pt = "På";
+      pt = String(pt).replace(/^./, (x) => x.toUpperCase());
       if (auto && !autoPaa) pt = "Manuell · " + (paa ? "på" : "av");
       $(".pille ha-icon").setAttribute("icon", paa ? "mdi:outdoor-lamp" : auto && !autoPaa ? "mdi:hand-back-right-outline" : "mdi:weather-sunset");
       $(".pt").textContent = pt;

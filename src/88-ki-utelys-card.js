@@ -252,8 +252,18 @@
 
       $(".n").textContent = c.navn;
       const st = s(r.status);
-      let pt = ok(st) ? String(st.state) : paa ? "På" : "Av";
-      pt = pt.replace(/^./, (x) => x.toUpperCase());
+      // statusteksten fra KI Utelys – vist slik Home Assistant oversetter den; «ukjent» o.l. regnes som mangler
+      const UKJENT = /^(ukjent|unknown|none|ingen|n\/a|-)$/i;
+      let ktekst = "";
+      if (ok(st) && !UKJENT.test(String(st.state).trim())) {
+        ktekst = typeof h.formatEntityState === "function" ? h.formatEntityState(st) : String(st.state);
+        if (UKJENT.test(String(ktekst).trim())) ktekst = "";
+      }
+      // uten brukbar status: forklar selv hva som skjer
+      const soloppe = !isNaN(e) && e > 0;
+      let pt = ktekst || (paa ? "På" : autoPaa && soloppe ? "Venter på mørket" : autoPaa ? "Klar – tennes snart" : "Av");
+      if (!ktekst && paa && r.neste_av && s(r.neste_av) && ok(s(r.neste_av))) pt = "På";
+      pt = String(pt).replace(/^./, (x) => x.toUpperCase());
       if (auto && !autoPaa) pt = "Manuell · " + (paa ? "på" : "av");
       $(".pille ha-icon").setAttribute("icon", paa ? "mdi:outdoor-lamp" : auto && !autoPaa ? "mdi:hand-back-right-outline" : "mdi:weather-sunset");
       $(".pt").textContent = pt;

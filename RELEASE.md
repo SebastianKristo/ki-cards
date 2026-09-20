@@ -1,27 +1,27 @@
-# ki-cards 5.16.1
+# ki-cards 5.17.0
 
-## Lagring fra kortdialogen kom ikke tilbake til fanen
+## `ki-utelys-card`: statusteksten når den mangler
 
-Redigerte du vertical-stacken og trykket Lagre, skjedde ingenting i `ki-tabs-card`.
+Kortet viste «ukjent» før KI Utelys hadde rukket å sette status — eller hvis
+integrasjonen ikke er installert.
 
-`hui-dialog-edit-card` har byttet API mellom Home Assistant-versjoner. Eldre kaller
-`saveCardConfig(kort)`; nyere kaller `saveConfig(heleLovelaceKonfigurasjonen)` og finner
-kortet via `path`. Jeg ga den bare den første.
+Nå kjenner kortet igjen ukjente verdier og forklarer i stedet hva som faktisk skjer:
 
-Dialogen får nå en liten konstruert konfigurasjon der kortet ligger på `[0, 0]`, og vi
-plukker det ut derfra igjen. Da virker begge veier, uten at vi må vite hvilken
-HA-versjon som kjører — og uten å måtte rette dette på nytt ved neste oppdatering.
+* **«Venter på mørket»** når sola er oppe og automatikken er på
+* **«Klar – tennes snart»** når det er mørkt, men lyset ennå ikke er tent
+* **«På»** når lyset lyser
+* **«Manuell · av»** når automatikken er slått av
 
-Kommer det noe uventet tilbake, lagrer vi ingenting i stedet for å slette kortet.
+Statusen vises ellers slik Home Assistant oversetter den, med `formatEntityState`. Uten
+den brukes råverdien.
 
 ### Kontrollert
 
-Dialogen får `cardConfig`, `path`, en konstruert `lovelaceConfig` og begge
-lagringsfunksjonene. Begge API-ene lagrer riktig kort tilbake i fanen. En konfigurasjon
-uten `views` gir ingen lagring.
+Sju tilfeller: vanlig status, uten `formatEntityState`, status satt til «ukjent», status
+som mangler helt — både med sola oppe og i mørket — og med automatikken av.
 
 ---
 
-# ki-cards 5.16.0
+# ki-cards 5.16.1
 
-Mastermodus samler til hovedbryteren når enheten har en; KI Energi er fortsatt unntatt.
+Lagring fra kortdialogen kommer tilbake til fanen; begge dialog-API-ene støttes.
