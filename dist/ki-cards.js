@@ -1,4 +1,4 @@
-/* ki-cards v5.18.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.19.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.18.1";
+  KI.VERSION = "5.19.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -7534,6 +7534,7 @@ try {
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
  * tittel: Strøm      hoyde: 170      vindu: 3        # timer i «billigste vindu»
+ * enkel: true       # BARE overskrift, dagsvelger og graf — resten utelates
  * vis_stat: false    # skjul snitt/lavest/høyest    vis_vindu: false   # skjul «billigste timer»
  * vis_spart: false   # skjul spart i dag / i år     vis_forklaring: false
  *
@@ -7569,6 +7570,15 @@ const KI_SP_STIL = `
   .kort > .varsel-np, .kort > .venter { max-width:var(--maks, 100%); margin-inline:auto; }
   .hero { width:100%; }
   .topp .valg { margin-left:auto; }
+
+  /* Enkel visning: overskriften står utenfor kortet, så grafen får hele flata.
+     Tallene og statistikken er nyttige, men de konkurrerer med kurven — og vil man se
+     prisen time for time, er kurven kortet. */
+  .topp.enkel { padding:2px 4px 14px; }
+  .topp.enkel .tittel { font-size:22px; font-weight:500; }
+  .enkelkort { padding:18px 14px 12px; }
+  .enkelkort .grafboks { min-height:260px; }
+  .enkelkort .akse { padding-top:10px; opacity:.55; }
   .tittel { font-size:16px; font-weight:500; }
   /* faner i samme pilleform som ki-tabs-card / ki-hjem-card */
   .valg { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3); border-radius:999px; max-width:100%; }
@@ -7938,6 +7948,24 @@ class KiStromprisCard extends HTMLElement {
 
     const toppRad = c.vis_tittel === true
       ? `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${valg}</div>` : "";
+
+    /* `enkel: true` — bare overskrift, dagsvelger og graf.
+     *
+     * Hovedtallet, statistikken, billigste vindu og spart-tallene er nyttige, men de
+     * konkurrerer med kurven. Vil man se prisen time for time, er kurven kortet.
+     * Da skal den få plassen.
+     */
+    if (c.enkel) {
+      return `<div class="topp enkel"><span class="tittel">${
+        kiSpEsc(c.tittel || "Strømpriser")}</span>${valg}</div>
+        <div class="kort enkelkort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${
+          this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}">
+          <div class="grafboks" style="min-height:${c.hoyde}px">${this._graf(pkt, np)}</div>
+          <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${
+            kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
+        </div>`;
+    }
+
     return `${toppRad}
       <div class="kort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
       ${hero}

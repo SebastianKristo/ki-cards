@@ -1,36 +1,34 @@
-# ki-cards 5.18.1
+# ki-cards 5.19.0
 
-## Redigereren lukket seg for hver tast
+## `ki-strompris-card`: enkel visning
 
-Hver tast sender en endring, Home Assistant ekkoer konfigurasjonen tilbake, og editoren
-ble bygget om — med redigereren lukket. Man måtte åpne den på nytt for hver bokstav.
+```yaml
+type: custom:ki-strompris-card
+enkel: true
+tittel: Strømpriser
+hoyde: 260
+```
 
-To ting lå bak.
+Overskrift til venstre, dagsvelger til høyre, og grafen i sin egen flate under. Ingenting
+annet.
 
-### Ekkoet var ikke tegn for tegn likt
+Hovedtallet, statistikken, billigste vindu, forklaringen og spart-tallene er nyttige —
+men de konkurrerer med kurven. Vil man se prisen time for time, **er** kurven kortet, og
+da skal den få plassen.
 
-Jeg sammenlignet med `JSON.stringify`. HA kan stokke om nøkkelrekkefølgen, og da er
-`{a:1,b:2}` og `{b:2,a:1}` ulike strenger selv om konfigurasjonen er den samme.
+Overskriften står utenfor kortflata, så grafen fyller hele.
 
-Sammenligningen sorterer nå nøklene først.
-
-### Og redigereren skal uansett aldri bygges om
-
-Selv med riktig sammenligning ville en ekte endring utenfra lukket den midt i arbeidet.
-Er redigereren åpen, bygges editoren ikke om i det hele tatt — konfigurasjonen oppdateres
-i stillhet, og alt står som det var.
-
-Flagget nullstilles når editoren faktisk bygges om, så det kan ikke bli hengende igjen på
-et element som er borte fra DOM-en.
+Standarden er uendret: uten `enkel: true` ser kortet ut som før.
 
 ### Kontrollert
 
-«Hei» skrevet bokstav for bokstav, med HAs ekko mellom hver: redigereren står åpen hele
-veien, og hele ordet lagres. Et ekko med omstokket nøkkelrekkefølge gir null
-ombygginger.
+Vanlig visning har alle åtte delene. Enkel har overskrift, dagsvelger, graf og tidsakse
+— og verken hero, statistikk, vindu eller forklaring. Grafen tegnes, dagsvelgeren virker,
+og klokkeslettene står på aksen.
 
 ---
 
-# ki-cards 5.18.0
+# ki-cards 5.18.1
 
-Kortdialogen erstattet med `hui-card-element-editor` brettet ut under rada.
+Redigereren i faneeditoren lukket seg for hver tast; ekkoet sammenlignes nå uavhengig av
+nøkkelrekkefølge, og redigereren bygges aldri om mens den er åpen.
