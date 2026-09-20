@@ -20,7 +20,7 @@
  *
  * Hendelsene hentes fra kalender-API-et, samme kilde som HAs egen kalendervisning.
  */
-const KI_KAL_VERSJON = "1.2.0";
+const KI_KAL_VERSJON = "1.2.1";
 
 /* Fargene deles ut i denne rekkefølgen til kalendere som ikke har fått sin egen. */
 const KI_KAL_FARGER = [
@@ -86,7 +86,10 @@ const KI_KAL_STIL = `
   /* Alle dagene er nøyaktig like store. Markeringene ligger i farge og ring, ikke i
      størrelse: en dag som krymper eller vokser når du velger den, flytter på naboene
      og ser ut som en feil. */
-  .dag { position:relative; aspect-ratio:1; width:100%; border-radius:50%;
+  /* align-self:center er det som holder sirkelen rund: et rutenett strekker elementene
+     til radhøyden som standard, og da overstyres aspect-ratio - dagen blir en oval. */
+  .dag { position:relative; aspect-ratio:1; width:100%; height:auto; align-self:center;
+    justify-self:stretch; border-radius:50%;
     background:var(--gray200, var(--ha-card-background, #1f1f21)); display:flex;
     flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:15px;
     cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .2s, box-shadow .2s; }
@@ -95,8 +98,9 @@ const KI_KAL_STIL = `
   /* Ringen ligger som innvendig skygge, ikke som outline: outline tegnes utenfor
      sirkelen og gjorde dagen større enn naboene. */
   .dag.idag { box-shadow:inset 0 0 0 2px rgba(255,255,255,.45); }
-  .dag.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); font-weight:600; }
-  .dag.valgt.idag { box-shadow:inset 0 0 0 2px rgba(70,58,64,.5); }
+  /* Valgt dag er den samme sirkelen som de andre, bare i aktivfargen. */
+  .dag.valgt { background:var(--active-big, #ee95ff); color:rgba(70,58,64,.95); font-weight:600;
+    box-shadow:none; }
   /* Merket sitter oppe til venstre, utenfor sirkelen, som i lanseringskortet. Er alt
      den dagen fra samme kalender, får det fargen til den kalenderen. */
   .dag .antall { position:absolute; top:-3px; left:-3px; min-width:22px; height:22px; border-radius:11px;
@@ -364,8 +368,11 @@ class KiKalenderCard extends HTMLElement {
     if (!this._bygget) {
       this._bygget = true;
       this.shadowRoot.addEventListener("click", (ev) => {
+        /* Alle knappene MÅ stå her. Velgeren ble aldri funnet fordi data-velger og
+           data-alle manglet i lista - knappen fantes, men trykket traff ingenting. */
         const el = ev.composedPath().find((x) => x.dataset
-          && (x.dataset.bla !== undefined || x.dataset.dato || x.dataset.kal || x.dataset.idag));
+          && (x.dataset.bla !== undefined || x.dataset.dato || x.dataset.kal
+            || x.dataset.idag !== undefined || x.dataset.velger !== undefined || x.dataset.alle));
         if (!el) return;
         if (el.dataset.velger !== undefined) {
           this._velgerApen = !this._velgerApen; this._tegn();

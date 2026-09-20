@@ -1,29 +1,23 @@
-# ki-cards 5.42.0
+# ki-cards 5.43.0
 
-## Kalenderen: like store dager, ny kalendervelger, og «I dag» på én linje
+## Retting: velgerknappen gjorde ingenting, og dagen i dag ble en oval
 
-**Dagene er nøyaktig like store.** Valgt dag hadde `transform: scale(1.06)` og dagens dato en
-`outline`, som tegnes *utenfor* sirkelen — to grunner til at én dag så annerledes ut enn naboene.
-Nå ligger begge markeringene i farge og innvendig ring (`box-shadow: inset`), og hver dag har
-`width: 100%` med fast forhold. Ingenting endrer størrelse når du trykker.
+**Knappen for å velge kalendere virket ikke.** Kortet leter etter knappen som ble trykket ved å
+gå gjennom `data-`-feltene i klikkbanen — og `data-velger` og `data-alle` sto ikke i den lista.
+Knappen fantes, men trykket traff ingenting. Nå er alle knappene med, og velgeren åpner, huker av
+og lukker som den skal, inkludert «Vis alle» / «Skjul alle».
 
-**Kalendervelgeren er en knapp.** Pillerada ble trang med ni kalendere: navnene ble klippet, og du
-måtte dra i en rad som lett kolliderte med rullingen. Nå er det en knapp ved siden av pilene som
-folder ut ei liste — én rad per kalender med farge, navn og avkryssing, «Vis alle» / «Skjul alle»
-øverst, og en teller som sier hvor mange som vises. Knappen står fylt når noe er skjult.
+**Dagen i dag var en oval.** Et rutenett strekker elementene til radhøyden som standard, og da
+overstyres `aspect-ratio` — sirkelen ble bredere enn høy. Dagene sentreres nå i raden
+(`align-self: center`) i stedet for å strekkes, så alle er nøyaktig like runde uansett hva raden
+måtte være.
 
-```yaml
-filtre: knapp      # standard
-filtre: piller     # den gamle rada
-filtre: false      # ingen velger
-```
-
-**«I dag» sto på to linjer** når månedsnavnet ble langt. Knappene har fått `white-space: nowrap`,
-og toppen er en vanlig flex-rad der månedsnavnet tar plassen som blir til overs.
+Valgt dag har heller ingen ring lenger: den er den samme sirkelen som de andre, bare i
+aktivfargen — akkurat som du ba om.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Kortet er i tillegg
-kjørt mot et oppdiktet kalender-API: 35 ruter, fire dager med merke, riktige tall, og velgeren med
-én rad per kalender — telleren går fra «3 av 3 vises» til «2 av 3 vises» når du huker av en, og
-raden står dempet. Bla fram gir oktober, og «I dag»-knappen dukker opp.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Velgeren er i tillegg
+kjørt med ekte klikk-hendelser: knappen åpner lista, et trykk på en rad huker den av og telleren
+går fra «2 av 2 vises» til «1 av 2 vises», «Vis alle» setter den tilbake, og et nytt trykk på
+knappen lukker lista.
