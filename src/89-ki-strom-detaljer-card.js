@@ -6,6 +6,8 @@
  *  type: custom:ki-strom-detaljer-card
  *  vis: regning        # regning | effekt | effektledd | norgespris | sammenligning | aar
  *  faner: over         # over | i | false – rada over kortet, på kortflaten, eller ingen rad
+ *  faner_bakgrunn: var(--gray000)   # maler stripa rada står på, for å dekke flata
+ *                                   # dashbordet legger bak hele kortet
  *  fane: maned         # hvilken fane kortet åpner på: dag | uke | maned | ar
  *
  *  Alle sensorer har standardverdier (din installasjon) og kan overstyres under «sensorer:», f.eks.
@@ -83,7 +85,13 @@
        som fanene den inneholder.
        Kalenderknappen er en fane som de andre, slik at glidepilla kan gli bort til
        den også; den bærer bare et ikon i stedet for tekst. */
+    /* Rada står for seg selv over kortet. Den har ingen egen flate - er det noe bak
+       den, kommer det fra dashbordet, som legger en flate bak HELE kortet; rada er
+       smalere enn kortet, så den flata blir synlig der. faner_bakgrunn maler stripa
+       og dekker den; faner: i legger rada på kortflaten i stedet. */
     .faner { display:flex; justify-content:center; margin-bottom:12px; }
+    .faner.malt { padding:6px 0 12px; margin-bottom:0;
+      border-radius:var(--ha-card-border-radius, 24px) var(--ha-card-border-radius, 24px) 0 0; }
     .k > .faner { margin:0 0 14px; }
     .skinne { display:inline-flex; gap:4px; padding:2px; border:1px solid rgba(255,255,255,.3);
       border-radius:999px; max-width:100%; }
@@ -229,7 +237,11 @@
       const id = this._regningId();
       const a = (id && this._hass.states[id] && this._hass.states[id].attributes) || null;
       const faner = ["Dag", "Uke", "Måned", "År"];
-      const skinne = `<div class="faner"><div class="skinne">
+      /* Verdien går rett inn i et style-attributt, så anførselstegn og vinkelparenteser
+         fjernes - ellers kan en farge fra konfigurasjonen bryte ut av attributtet. */
+      const bg = this._c.faner_bakgrunn ? String(this._c.faner_bakgrunn).replace(/["'<>]/g, "") : "";
+      const skinne = `<div class="faner ${bg ? "malt" : ""}"${
+        bg ? ` style="background:${bg}"` : ""}><div class="skinne">
         ${faner.map((navn, i) => `<button class="fane ${!this._kal && i === this._per ? "valgt" : ""}" data-per="${i}">${navn}</button>`).join("")}
         <button class="fane ${this._kal ? "valgt" : ""}" data-kal="1" title="Kalender">
           <ha-icon icon="mdi:calendar-month"></ha-icon></button></div></div>`;
