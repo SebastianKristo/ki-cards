@@ -1,33 +1,24 @@
-# ki-cards 5.34.0
+# ki-cards 5.36.0
 
-## ki-tabs-card: velg fanen kortet åpner på
+## Periodevelgeren i «Spotpris mot Norgespris» er samme fanerad som resten
 
-Feltet `default` fantes, men tok bare et nummer, og sto ikke i editoren. Nå tar det **tittelen på
-fanen** også:
+`vis: sammenligning` hadde sin egen velger: fire like brede ruter i et fylt spor, med en dempet
+grå markering på den valgte. Den er byttet ut med fanerada kortet bruker ellers — tynn ring rundt,
+rada like bred som fanene, og den valgte fylt med `--active-big` og mørk tekst.
 
-```yaml
-type: custom:ki-tabs-card
-default: Strøm        # eller default: 1
-tabs:
-  - title: Oversikt
-    cards: […]
-  - title: Strøm
-    cards: […]
-```
+Den står samme sted som før, rett under overskriften og over stolpene. Bare utseendet er endret;
+`I dag / Uke / Måned / År` gjør nøyaktig det samme, og resten av kortet er urørt.
 
-Tittelen er den som holder: flytter du om på fanene senere, peker et nummer plutselig på en annen
-fane, mens tittelen følger med. Titler sammenlignes uten hensyn til store bokstaver og luft rundt.
+Glidepilla følger med, siden rada nå er den samme som de andre: den glir mellom fanene, klemmes
+når du legger fingeren på og spretter på plass.
 
-I den visuelle editoren ligger valget under **Oppførsel** som **«Fanen kortet åpner på»**, med
-fanene dine i lista og «Første fane» øverst. Det lagres som tittelen, og tas ut av YAML-en igjen
-hvis du setter det tilbake til «Første fane».
-
-Peker verdien ingen steder — en tittel som ikke finnes, et nummer utenfor lista eller et negativt
-tall — åpner kortet på den første fanen i stedet for på ingen.
+Samtidig ryddet: den gamle `.faner`-regelen lå igjen i stilarket og kolliderte med den nye rada,
+som ble lagt inn i 5.28.0 under samme navn. Den nyeste regelen vant, så velgeren i
+sammenligningen sto allerede med halvt nytt utseende — en rad som var ment å være et rutenett.
+Nå finnes det bare én fanerad i kortet.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. Oppslaget er i tillegg
-kjørt for seg: uten `default` → 0, `2` → 2, `"1"` → 1, `"Varme"` → 2, `"  strøm "` → 1, ukjent
-tittel → 0, `9` → siste fane, `-3` → 0. Editoren lister «Første fane» pluss de tre fanene, viser
-«Varme» når det er valgt, og oversetter et gammelt `default: 1` til «Strøm» i feltet.
+Begge byggesjekkene kjørt: 111 kort leser styles, 60 kort bygges med hass. `vis: sammenligning`
+tegner nå `.faner > .skinne` med de fire periodene, «Måned» merket med `valgt`, og ingen rester av
+den gamle `aktiv`-klassen.

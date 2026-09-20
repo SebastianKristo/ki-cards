@@ -1,4 +1,4 @@
-/* ki-cards v5.34.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.36.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.34.0";
+  KI.VERSION = "5.36.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -935,7 +935,9 @@ try {
           | auto (piller når de får plass, ellers scroll – standard)
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>).
-   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen. */
+   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen.
+   rad_hoyde: hele fanens høyde i px. fane_hoyde er luft over og under teksten, og under den
+              luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde. */
 (function (KI) {
   /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
      «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
@@ -998,6 +1000,13 @@ try {
         : (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v))) ? v + "px" : String(v));
       const vars = [
         ["--ki-fane-py", enhet(c.fane_hoyde)],
+        /* Hele høyden, ikke luften rundt teksten. Med bare padding å skru på stopper
+           fanen ved tekstens egen linjehøyde: fane_hoyde: 1 gir fortsatt ~20 px, og det
+           var ikke til å komme under. rad_hoyde setter høyden direkte og lar teksten
+           sentreres i den. */
+        ["--ki-fane-h", enhet(c.rad_hoyde)],
+        ["--ki-fane-h-py", c.rad_hoyde ? "0px" : null],
+        ["--ki-fane-lh", c.rad_hoyde ? "1" : null],
         ["--ki-fane-px", enhet(c.fane_sidepadding)],
         ["--ki-fane-bredde", enhet(c.fane_bredde)],
         ["--ki-fane-tekst", enhet(c.fane_tekst)],
@@ -1041,12 +1050,18 @@ try {
           font-size:var(--ki-fane-tekst, 14px); font-weight:500;
           padding:var(--ki-fane-py, 9px) var(--ki-fane-px, 20px);
           min-width:var(--ki-fane-bredde, auto);
+          /* Er rad_hoyde satt, er det høyden som gjelder: loddrett luft nulles ut, og
+             linjehøyden settes til 1 så teksten ikke drar fanen høyere enn du ba om. */
+          height:var(--ki-fane-h, auto);
+          padding-top:var(--ki-fane-h-py, var(--ki-fane-py, 9px));
+          padding-bottom:var(--ki-fane-h-py, var(--ki-fane-py, 9px));
+          line-height:var(--ki-fane-lh, normal);
           border-radius:999px; cursor:pointer; display:flex; align-items:center;
           justify-content:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
         /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
            unødig bred; her blir den rund og like høy som de andre. */
-        .tab.kun-ikon { padding:9px 11px; gap:0; }
+        .tab.kun-ikon { padding:var(--ki-fane-h-py, 9px) 11px; gap:0; }
         /* utenfor: true tar fanen ut av pillegruppa og gir den egen kant, slik
            tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
            likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
@@ -1695,6 +1710,7 @@ try {
       f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
         fane_hoyde: this._c.fane_hoyde ?? 9, fane_sidepadding: this._c.fane_sidepadding ?? 20,
         fane_bredde: this._c.fane_bredde ?? 0, fane_tekst: this._c.fane_tekst ?? 14,
+        rad_hoyde: this._c.rad_hoyde ?? 0,
         fane_lik: !!this._c.fane_lik, rad_bredde: this._c.rad_bredde || "",
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
@@ -1720,7 +1736,8 @@ try {
           ] },
         { name: "mal", type: "expandable", flatten: true, icon: "mdi:ruler",
           schema: [
-            { name: "fane_hoyde", selector: { number: { min: 2, max: 28, mode: "slider" } } },
+            { name: "rad_hoyde", selector: { number: { min: 0, max: 72, mode: "slider" } } },
+            { name: "fane_hoyde", selector: { number: { min: 0, max: 28, mode: "slider" } } },
             { name: "fane_sidepadding", selector: { number: { min: 4, max: 60, mode: "slider" } } },
             { name: "fane_bredde", selector: { number: { min: 0, max: 240, mode: "slider" } } },
             { name: "fane_tekst", selector: { number: { min: 10, max: 24, mode: "slider" } } },
@@ -1741,7 +1758,8 @@ try {
           ] },
       ];
       const navn = { utseende: "Utseende", oppforsel: "Oppførsel", mal: "Mål",
-        fane_hoyde: "Høyde over og under teksten (px)",
+        rad_hoyde: "Høyde på fanene (px, 0 = følg innholdet)",
+        fane_hoyde: "Luft over og under teksten (px)",
         fane_sidepadding: "Bredde på sidene (px)",
         fane_bredde: "Minste fanebredde (px, 0 = auto)",
         fane_tekst: "Tekststørrelse (px)",
@@ -1769,6 +1787,7 @@ try {
         if (this._c.gap === 12 || this._c.gap === undefined) delete this._c.gap;
         /* Målene skrives bare når de avviker fra det kortet gjør selv. */
         if (this._c.fane_hoyde === 9) delete this._c.fane_hoyde;
+        if (!this._c.rad_hoyde) delete this._c.rad_hoyde;
         if (this._c.fane_sidepadding === 20) delete this._c.fane_sidepadding;
         if (!this._c.fane_bredde) delete this._c.fane_bredde;
         if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
@@ -29304,10 +29323,6 @@ try {
     .brikke .t { font-size:11px; opacity:.65; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .brikke .v { font-size:15px; font-weight:500; white-space:nowrap; }
     .skille { margin-top:12px; padding-top:10px; border-top:1px solid rgba(250,251,252,.1); }
-    .faner { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:3px; border-radius:999px; background:rgba(250,251,252,.06); margin-bottom:16px; }
-    .fane { text-align:center; padding:7px 0; border-radius:999px; cursor:pointer; font-size:13px; color:rgba(242,242,247,.65); user-select:none;
-      transition:background .25s, color .25s; border:none; background:none; font-family:inherit; }
-    .fane.aktiv { background:var(--gray100, rgba(250,251,252,.12)); color:var(--gray1000, #f2f2f7); font-weight:500; box-shadow:0 1px 4px rgba(0,0,0,.35); }
     .graf { display:flex; align-items:flex-end; gap:4px; height:64px; }
     .soyle { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; position:relative; cursor:pointer; }
     .soyle .fyll { width:100%; max-width:18px; border-radius:4px 4px 1px 1px; background:rgba(250,251,252,.3); transition:background .25s, height 1s ease; }
@@ -29634,7 +29649,8 @@ try {
         <div class="spor"><div style="width:${(v / max * 100).toFixed(0)}%;background:${farge}"></div></div></div>`;
       return `
         <div class="tittel" style="margin-bottom:12px"><ha-icon icon="mdi:scale-balance"></ha-icon>Spotpris mot Norgespris</div>
-        <div class="faner">${perioder.map(([navn], i) => `<button class="fane ${i === this._periode ? "aktiv" : ""}" data-periode="${i}">${navn}</button>`).join("")}</div>
+        <div class="faner"><div class="skinne">${perioder.map(([navn], i) =>
+          `<button class="fane ${i === this._periode ? "valgt" : ""}" data-periode="${i}">${navn}</button>`).join("")}</div></div>
         <div style="display:grid;gap:10px">${stolpe("Spotpris", sp, "var(--orange, #ff9f0a)", s["spot_" + k])}${stolpe("Norgespris", np, "var(--blue, #0a84ff)", s["np_" + k])}</div>
         <div class="rad skille" data-mer="${s["spart_" + k]}" style="align-items:baseline;margin-top:14px">
           <span class="under">${spart ? "Spart" : "Tapt"} ${tekst}</span><span class="${spart ? "gronn" : "rod"}" style="font-size:1.5em;font-weight:300">${kr(Math.abs(d))} kr</span></div>`;

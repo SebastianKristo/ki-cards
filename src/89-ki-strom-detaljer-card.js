@@ -65,10 +65,6 @@
     .brikke .t { font-size:11px; opacity:.65; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .brikke .v { font-size:15px; font-weight:500; white-space:nowrap; }
     .skille { margin-top:12px; padding-top:10px; border-top:1px solid rgba(250,251,252,.1); }
-    .faner { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:3px; border-radius:999px; background:rgba(250,251,252,.06); margin-bottom:16px; }
-    .fane { text-align:center; padding:7px 0; border-radius:999px; cursor:pointer; font-size:13px; color:rgba(242,242,247,.65); user-select:none;
-      transition:background .25s, color .25s; border:none; background:none; font-family:inherit; }
-    .fane.aktiv { background:var(--gray100, rgba(250,251,252,.12)); color:var(--gray1000, #f2f2f7); font-weight:500; box-shadow:0 1px 4px rgba(0,0,0,.35); }
     .graf { display:flex; align-items:flex-end; gap:4px; height:64px; }
     .soyle { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; position:relative; cursor:pointer; }
     .soyle .fyll { width:100%; max-width:18px; border-radius:4px 4px 1px 1px; background:rgba(250,251,252,.3); transition:background .25s, height 1s ease; }
@@ -395,7 +391,8 @@
         <div class="spor"><div style="width:${(v / max * 100).toFixed(0)}%;background:${farge}"></div></div></div>`;
       return `
         <div class="tittel" style="margin-bottom:12px"><ha-icon icon="mdi:scale-balance"></ha-icon>Spotpris mot Norgespris</div>
-        <div class="faner">${perioder.map(([navn], i) => `<button class="fane ${i === this._periode ? "aktiv" : ""}" data-periode="${i}">${navn}</button>`).join("")}</div>
+        <div class="faner"><div class="skinne">${perioder.map(([navn], i) =>
+          `<button class="fane ${i === this._periode ? "valgt" : ""}" data-periode="${i}">${navn}</button>`).join("")}</div></div>
         <div style="display:grid;gap:10px">${stolpe("Spotpris", sp, "var(--orange, #ff9f0a)", s["spot_" + k])}${stolpe("Norgespris", np, "var(--blue, #0a84ff)", s["np_" + k])}</div>
         <div class="rad skille" data-mer="${s["spart_" + k]}" style="align-items:baseline;margin-top:14px">
           <span class="under">${spart ? "Spart" : "Tapt"} ${tekst}</span><span class="${spart ? "gronn" : "rod"}" style="font-size:1.5em;font-weight:300">${kr(Math.abs(d))} kr</span></div>`;

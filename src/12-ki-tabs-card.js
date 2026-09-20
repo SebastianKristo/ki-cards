@@ -3,7 +3,9 @@
           | auto (piller når de får plass, ellers scroll – standard)
    tittel: 'Strømpriser' setter en overskrift til venstre på samme linje som fanene.
    sticky: true holder fanelinja øverst når innholdet scroller (gjennomsiktig med blur, eller bg: <farge>).
-   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen. */
+   default: fanen kortet åpner på – enten nummeret (0 er den første) eller tittelen på fanen.
+   rad_hoyde: hele fanens høyde i px. fane_hoyde er luft over og under teksten, og under den
+              luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde. */
 (function (KI) {
   /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
      «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
@@ -66,6 +68,13 @@
         : (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v))) ? v + "px" : String(v));
       const vars = [
         ["--ki-fane-py", enhet(c.fane_hoyde)],
+        /* Hele høyden, ikke luften rundt teksten. Med bare padding å skru på stopper
+           fanen ved tekstens egen linjehøyde: fane_hoyde: 1 gir fortsatt ~20 px, og det
+           var ikke til å komme under. rad_hoyde setter høyden direkte og lar teksten
+           sentreres i den. */
+        ["--ki-fane-h", enhet(c.rad_hoyde)],
+        ["--ki-fane-h-py", c.rad_hoyde ? "0px" : null],
+        ["--ki-fane-lh", c.rad_hoyde ? "1" : null],
         ["--ki-fane-px", enhet(c.fane_sidepadding)],
         ["--ki-fane-bredde", enhet(c.fane_bredde)],
         ["--ki-fane-tekst", enhet(c.fane_tekst)],
@@ -109,12 +118,18 @@
           font-size:var(--ki-fane-tekst, 14px); font-weight:500;
           padding:var(--ki-fane-py, 9px) var(--ki-fane-px, 20px);
           min-width:var(--ki-fane-bredde, auto);
+          /* Er rad_hoyde satt, er det høyden som gjelder: loddrett luft nulles ut, og
+             linjehøyden settes til 1 så teksten ikke drar fanen høyere enn du ba om. */
+          height:var(--ki-fane-h, auto);
+          padding-top:var(--ki-fane-h-py, var(--ki-fane-py, 9px));
+          padding-bottom:var(--ki-fane-h-py, var(--ki-fane-py, 9px));
+          line-height:var(--ki-fane-lh, normal);
           border-radius:999px; cursor:pointer; display:flex; align-items:center;
           justify-content:center; gap:6px; white-space:nowrap;
           transition:background .15s, color .15s; --mdc-icon-size:18px; }
         /* En fane uten tittel er bare et ikon. Med 20 px padding på hver side ble den
            unødig bred; her blir den rund og like høy som de andre. */
-        .tab.kun-ikon { padding:9px 11px; gap:0; }
+        .tab.kun-ikon { padding:var(--ki-fane-h-py, 9px) 11px; gap:0; }
         /* utenfor: true tar fanen ut av pillegruppa og gir den egen kant, slik
            tannhjulet i bassengkortet står. Det skiller «en annen slags side» fra de
            likeverdige fanene, og det er nettopp forskjellen når fanen er et vedlegg
@@ -763,6 +778,7 @@
       f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
         fane_hoyde: this._c.fane_hoyde ?? 9, fane_sidepadding: this._c.fane_sidepadding ?? 20,
         fane_bredde: this._c.fane_bredde ?? 0, fane_tekst: this._c.fane_tekst ?? 14,
+        rad_hoyde: this._c.rad_hoyde ?? 0,
         fane_lik: !!this._c.fane_lik, rad_bredde: this._c.rad_bredde || "",
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
         bg: this._c.bg || "", style: this._c.style || "auto",
@@ -788,7 +804,8 @@
           ] },
         { name: "mal", type: "expandable", flatten: true, icon: "mdi:ruler",
           schema: [
-            { name: "fane_hoyde", selector: { number: { min: 2, max: 28, mode: "slider" } } },
+            { name: "rad_hoyde", selector: { number: { min: 0, max: 72, mode: "slider" } } },
+            { name: "fane_hoyde", selector: { number: { min: 0, max: 28, mode: "slider" } } },
             { name: "fane_sidepadding", selector: { number: { min: 4, max: 60, mode: "slider" } } },
             { name: "fane_bredde", selector: { number: { min: 0, max: 240, mode: "slider" } } },
             { name: "fane_tekst", selector: { number: { min: 10, max: 24, mode: "slider" } } },
@@ -809,7 +826,8 @@
           ] },
       ];
       const navn = { utseende: "Utseende", oppforsel: "Oppførsel", mal: "Mål",
-        fane_hoyde: "Høyde over og under teksten (px)",
+        rad_hoyde: "Høyde på fanene (px, 0 = følg innholdet)",
+        fane_hoyde: "Luft over og under teksten (px)",
         fane_sidepadding: "Bredde på sidene (px)",
         fane_bredde: "Minste fanebredde (px, 0 = auto)",
         fane_tekst: "Tekststørrelse (px)",
@@ -837,6 +855,7 @@
         if (this._c.gap === 12 || this._c.gap === undefined) delete this._c.gap;
         /* Målene skrives bare når de avviker fra det kortet gjør selv. */
         if (this._c.fane_hoyde === 9) delete this._c.fane_hoyde;
+        if (!this._c.rad_hoyde) delete this._c.rad_hoyde;
         if (this._c.fane_sidepadding === 20) delete this._c.fane_sidepadding;
         if (!this._c.fane_bredde) delete this._c.fane_bredde;
         if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
