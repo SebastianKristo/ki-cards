@@ -584,6 +584,15 @@ at det er mer å se, og `bredde_per_time` styrer hvor bredt døgnet blir. Under 
 Norgespris, snitt og når det er billigst og dyrest; mangler Norgespris-sensoren data, sier forklaringen fra
 i stedet for at linja forsvinner stille. Har egen visuell editor.
 
+Det fargede skjæret øverst i kortet slås av med `bakgrunn_glod: false` – også i `enkel`-visningen, og
+feltet ligger nå i editoren. Pilla bak «I dag / I morgen» er farget glass: den glir med en kort
+liquid-bevegelse og et lysstrøk ved bytte, og kan dras fra den ene fanen til den andre begge veier –
+også til «I morgen» før morgendagens priser er klare. `glass: false` gir flat pille som før.
+
+Tittelen er 15 px (20 i `enkel`-visningen) og settes med `tittel_storrelse:` i px. Et trykk på
+«I dag / I morgen» gir en liten vibrasjon i companion-appen – `haptikk: false` slår den av, og
+`haptikk: light` (eller medium/heavy) gjør den kraftigere.
+
 Høyden på «I dag / I morgen» styres med `fane_hoyde:` (px for hele rada, standard 44). Skriften skaleres
 med den; vil du ha den annerledes, setter du `fane_tekst:` i px. Begge ligger i den visuelle editoren.
 

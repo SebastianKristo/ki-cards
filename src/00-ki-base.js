@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.20.0";
+  KI.VERSION = "5.22.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -618,6 +618,9 @@ window.KI = window.KI || {};
       setTimeout(() => flytt(false), 120);
       setTimeout(() => flytt(false), 400);
 
+      /* `av: false` betyr ingen sperret fane; utelates den, er det `tom` som før. */
+      const avKlasse = valg.av === undefined ? "tom" : valg.av;
+
       /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
          egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
          haptikk som før. */
@@ -654,8 +657,10 @@ window.KI = window.KI || {};
         for (const b of r.querySelectorAll(kn)) {
           /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
              morgendagens priser er klare, for eksempel. Uten dette ville dra landet
-             på den, og klikket blitt avvist uten at brukeren forsto hvorfor. */
-          if (b.hasAttribute("disabled") || b.classList.contains(valg.av || "tom")) continue;
+             på den, og klikket blitt avvist uten at brukeren forsto hvorfor.
+             `av: false` slår sperren av: da er den dempede fanen trykkbar, og da skal
+             den kunne dras til også — ellers gjør de to gestene ulike ting. */
+          if (b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse))) continue;
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }

@@ -1,4 +1,4 @@
-/* ki-cards v5.20.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.22.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.20.0";
+  KI.VERSION = "5.22.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -648,6 +648,9 @@ window.KI = window.KI || {};
       setTimeout(() => flytt(false), 120);
       setTimeout(() => flytt(false), 400);
 
+      /* `av: false` betyr ingen sperret fane; utelates den, er det `tom` som før. */
+      const avKlasse = valg.av === undefined ? "tom" : valg.av;
+
       /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
          egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
          haptikk som før. */
@@ -684,8 +687,10 @@ window.KI = window.KI || {};
         for (const b of r.querySelectorAll(kn)) {
           /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
              morgendagens priser er klare, for eksempel. Uten dette ville dra landet
-             på den, og klikket blitt avvist uten at brukeren forsto hvorfor. */
-          if (b.hasAttribute("disabled") || b.classList.contains(valg.av || "tom")) continue;
+             på den, og klikket blitt avvist uten at brukeren forsto hvorfor.
+             `av: false` slår sperren av: da er den dempede fanen trykkbar, og da skal
+             den kunne dras til også — ellers gjør de to gestene ulike ting. */
+          if (b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse))) continue;
           const m = b.offsetLeft + b.offsetWidth / 2;
           if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
         }
@@ -7999,6 +8004,10 @@ try {
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # viser hva du bruker akkurat nå
  * tittel: Strøm      hoyde: 170      vindu: 3        # timer i «billigste vindu»
+ * tittel_storrelse: 15   # skriftstørrelsen på tittelen i px (standard 15, 20 i enkel visning)
+ * bakgrunn_glod: false   # fjerner det fargede skjæret øverst i kortet
+ * glass: false       # slår av glasseffekten på pilla ved fanebytte
+ * haptikk: false     # slår av vibrasjonen når du bytter mellom I dag og I morgen
  * fane_hoyde: 44     # høyden på I dag / I morgen-rada i px (standard 44)
  * fane_tekst: 14     # skriftstørrelse i fanene; utelates den, følger den høyden
  * enkel: true       # BARE overskrift, dagsvelger og graf — resten utelates
@@ -8016,7 +8025,7 @@ try {
  * Grafen viser spotprisen time for time. Den vannrette stiplede linjen er Norgespris:
  * er kurven over linjen, sparer du på Norgespris i den timen.
  */
-const KI_SP_VERSJON = "3.3.0";
+const KI_SP_VERSJON = "3.5.0";
 const KI_SP_TIME = 3600000;
 
 const KI_SP_STIL = `
@@ -8042,11 +8051,13 @@ const KI_SP_STIL = `
      Tallene og statistikken er nyttige, men de konkurrerer med kurven — og vil man se
      prisen time for time, er kurven kortet. */
   .topp.enkel { padding:2px 4px 14px; }
-  .topp.enkel .tittel { font-size:22px; font-weight:500; }
+  .topp.enkel .tittel { font-size:var(--tittel-str,20px); font-weight:500; }
   .enkelkort { padding:18px 14px 12px; }
   .enkelkort .grafboks { min-height:260px; }
   .enkelkort .akse { padding-top:10px; opacity:.55; }
-  .tittel { font-size:16px; font-weight:500; }
+  /* Tittelen settes med tittel_storrelse og kommer inn som --tittel-str på .ramme,
+     så den gjelder begge visningene. */
+  .tittel { font-size:var(--tittel-str,15px); font-weight:500; }
   /* faner i samme pilleform som ki-tabs-card / ki-hjem-card */
   /* Fylt beholder uten ramme, som fanerada i søvnpopupen. En ramme rundt en
      gjennomsiktig bunn leses som en knapperad; en fylt flate leses som en bryter med to
@@ -8067,6 +8078,39 @@ const KI_SP_STIL = `
     opacity:1; }
   .valg .v.tom { opacity:.3; }
   @media (max-width:420px) { .valg .v { padding:0 var(--fane-side-smal,16px); } }
+  /* Glasspille.
+   *
+   * Pilla lages av KI.pillefaner i basen; her legges bare utseendet oppå. Farget glass
+   * i stedet for flatt fyll: gjennomskinnelig toning av --active-big, lys kant øverst
+   * og uskarphet bak, slik at rada under skinner svakt gjennom.
+   *
+   * Bevegelsen ligger i border-radius og lys, ALDRI i transform: basen bruker transform
+   * til å plassere pilla (translateX(var(--x))), så en animasjon på samme egenskap ville
+   * overstyrt plasseringen og fått pilla til å hoppe tilbake til start midt i glidningen.
+   */
+  .ramme:not(.flatt) .valg .ki-pille {
+    background:linear-gradient(150deg,
+      color-mix(in srgb, var(--active-big,#ee95ff) 92%, #fff 8%),
+      color-mix(in srgb, var(--active-big,#ee95ff) 66%, transparent));
+    border:1px solid rgba(255,255,255,.28);
+    backdrop-filter:blur(7px) saturate(1.5); -webkit-backdrop-filter:blur(7px) saturate(1.5);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.55), inset 0 -7px 12px rgba(255,255,255,.10),
+      0 5px 14px rgba(0,0,0,.30);
+    overflow:hidden; }
+  .ramme:not(.flatt) .valg .ki-pille::after { content:""; position:absolute; inset:0; border-radius:inherit;
+    background:linear-gradient(105deg, transparent 32%, rgba(255,255,255,.6) 48%, transparent 66%);
+    transform:translateX(-130%); opacity:0; pointer-events:none; }
+  .ramme:not(.flatt) .valg .ki-pille.sprut { animation:sp-flyt .5s cubic-bezier(.2,.8,.2,1); }
+  .ramme:not(.flatt) .valg .ki-pille.sprut::after { animation:sp-glans .55s cubic-bezier(.2,.8,.2,1); }
+  @keyframes sp-flyt {
+    0%   { border-radius:999px; filter:brightness(1) saturate(1); }
+    35%  { border-radius:46% 54% 55% 45% / 52% 48% 52% 48%; filter:brightness(1.16) saturate(1.25); }
+    70%  { border-radius:53% 47% 46% 54% / 49% 51% 49% 51%; filter:brightness(1.05) saturate(1.1); }
+    100% { border-radius:999px; filter:brightness(1) saturate(1); } }
+  @keyframes sp-glans {
+    0%   { transform:translateX(-130%); opacity:0; }
+    18%  { opacity:.95; }
+    100% { transform:translateX(130%); opacity:0; } }
   /* Ingen luft over: heroen er det første i kortet. */
   .hero { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 0 6px; flex-wrap:wrap; }
   .stor { font-size:2.6em; font-weight:300; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
@@ -8447,7 +8491,7 @@ class KiStromprisCard extends HTMLElement {
       return `<div class="topp enkel"><span class="tittel">${
         kiSpEsc(c.tittel || "Strømpriser")}</span>${valg}</div>
         <div class="kort enkelkort" style="--maks:${kiSpEsc(c.maks_bredde || "100%")};--tone:${
-          this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}">
+          this._tone()}${c.bakgrunn ? `;--kort-bg:${kiSpEsc(c.bakgrunn)}` : ""}${c.bakgrunn_glod === false ? ";--glod:0" : ""}">
           <div class="grafboks" style="min-height:${c.hoyde}px">${this._graf(pkt, np)}</div>
           <div class="akse">${timer.map((t) => `<span>${t}</span>`).join("")}<span>${
             kiSpKl(pkt[pkt.length - 1].slutt)}</span></div>
@@ -8497,10 +8541,55 @@ class KiStromprisCard extends HTMLElement {
     if (this._ro) { this._ro.disconnect(); this._ro = null; }
   }
 
+  /* Haptikk.
+   *
+   * navigator.vibrate finnes ikke i Safari på iOS, så på iPhone hadde et trykk ingen
+   * respons i det hele tatt. Home Assistant-appen — både iOS og Android — lytter i
+   * stedet på et haptic-event på window, der detaljen er styrken. Vi sender begge:
+   * appen tar eventet, en nettleser på Android tar vibrasjonen.
+   *
+   * Typene er HAs egne: selection, light, medium, heavy, success, warning, failure.
+   * Et fanebytte er et valg, så standarden er selection. Slås av med haptikk: false.
+   */
+  _haptikk(type) {
+    const h = this._c && this._c.haptikk;
+    if (h === false) return;
+    const t = typeof h === "string" ? h : (type || "selection");
+    try {
+      window.dispatchEvent(new CustomEvent("haptic", { detail: t, bubbles: true, composed: true }));
+    } catch (e) { /* eldre nettlesere: la det stå */ }
+    const ms = { selection: 5, light: 8, medium: 14, heavy: 22, success: 12, warning: 20, failure: 30 }[t] || 8;
+    if (typeof navigator !== "undefined" && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* blokkert uten interaksjon */ } }
+  }
+
+  /* Setter glassanimasjonen i gang på nytt. Klassen må FJERNES og layouten leses
+     (offsetWidth) før den settes igjen — ellers ser nettleseren ingen endring, og et
+     nytt trykk mens det forrige fortsatt holder på gir ingen ny bevegelse.
+     Kortet tegner rada på nytt ved bytte, så pilla er en ny node her. */
+  _glass() {
+    if (this._c && this._c.glass === false) return;
+    const p = this.shadowRoot.querySelector(".valg .ki-pille");
+    if (!p) return;
+    p.classList.remove("sprut");
+    void p.offsetWidth;
+    p.classList.add("sprut");
+  }
+
+  /* Variabler som skal gjelde hele kortet, uansett hvilken visning som tegnes. */
+  _ramStil() {
+    const t = Number(this._c && this._c.tittel_storrelse);
+    return t ? `--tittel-str:${Math.max(10, Math.min(40, t))}px` : "";
+  }
+
   _koble() {
     const r = this.shadowRoot;
     const bytt = (e) => { const el = e.composedPath().find((x) => x.dataset && x.dataset.d); if (!el || el.hasAttribute("disabled")) return;
-      this._dag = el.dataset.d; this._valgt = null; this._tegn(); };
+      /* Bare når dagen faktisk skifter: et trykk på fanen som alt er valgt skal ikke
+         kjennes ut som om noe skjedde. Dra på rada ender i samme click, så
+         glidepilla gir haptikk den også. */
+      if (el.dataset.d === this._dag) return;
+      this._haptikk("selection");
+      this._dag = el.dataset.d; this._valgt = null; this._tegn(); this._glass(); };
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
 
@@ -8521,14 +8610,17 @@ class KiStromprisCard extends HTMLElement {
   _pille() {
     const ki = (typeof window !== "undefined" && window.KI) || null;
     if (ki && ki.pillefaner) {
-      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: "tom" });
+      /* av: false — «I morgen» er dempet før prisene er klare, men den KAN trykkes
+         (kortet sier da at prisene kommer rundt kl. 13). Da skal den kunne dras til
+         også, ellers gjør trykk og dra to forskjellige ting. */
+      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: false });
     }
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
     let html;
     try {
-      html = `<div class="ramme">${this._innhold()}</div>`;
+      html = `<div class="ramme${this._c.glass === false ? " flatt" : ""}" style="${this._ramStil()}">${this._innhold()}</div>`;
     } catch (e) {
       // Et blankt kort sier ingenting om hva som er galt. Vis feilen i stedet.
       console.error("ki-strompris-card:", e);
@@ -8564,8 +8656,10 @@ class KiStromprisCardEditor extends HTMLElement {
       this._f = document.createElement("ha-form");
       const n = { norgespris: "Norgespris (tom = vis spotpris)", enhet: "Enhet bak tallet",
         bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet", spot: "Timespriser (raw_today)",
-        spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+        spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", tittel_storrelse: "Skriftstørrelse på tittelen (px)", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
         fane_hoyde: "Høyde på fanerada (px)", fane_tekst: "Skriftstørrelse i fanene (px, tom = følger høyden)",
+        haptikk: "Vibrasjon ved fanebytte", glass: "Glasseffekt på pilla ved fanebytte",
+        bakgrunn_glod: "Farget skjær øverst i kortet",
         vis_stat: "Vis snitt / lavest / høyest", vis_vindu: "Vis billigste timer", vis_spart: "Vis spart i dag / i år", vis_forklaring: "Vis forklaring under grafen",
         nettleie_dag: "Nettleie dag (kr/kWh, kl. 06–22 hverdag)", nettleie_natt: "Nettleie natt og helg (kr/kWh)", norgespris_energi: "Fast energipris (kr/kWh, valgfri)" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
@@ -8573,7 +8667,7 @@ class KiStromprisCardEditor extends HTMLElement {
       this.appendChild(this._f);
     }
     this._f.hass = this._h;
-    this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, ...this._c };
+    this._f.data = { vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, haptikk: true, glass: true, bakgrunn_glod: true, ...this._c };
     this._f.schema = [{ name: "norgespris", selector: { entity: { domain: "sensor" } } }, { name: "spot", selector: { entity: { domain: "sensor" } } },
       { name: "enhet", selector: { text: {} } },
       { name: "bakgrunn", selector: { text: {} } },
@@ -8583,9 +8677,13 @@ class KiStromprisCardEditor extends HTMLElement {
       { name: "paaslag", selector: { number: { mode: "box", step: "any" } } },
       { name: "spart_dag", selector: { entity: { domain: "sensor" } } }, { name: "spart_ar", selector: { entity: { domain: "sensor" } } },
       { name: "effekt", selector: { entity: { domain: "sensor" } } }, { name: "tittel", selector: { text: {} } },
+      { name: "tittel_storrelse", selector: { number: { min: 10, max: 40, mode: "box" } } },
       { name: "vindu", selector: { number: { min: 1, max: 8, mode: "box" } } }, { name: "hoyde", selector: { number: { min: 100, max: 320, mode: "box" } } },
       { name: "fane_hoyde", selector: { number: { min: 24, max: 72, mode: "box" } } },
       { name: "fane_tekst", selector: { number: { min: 10, max: 22, mode: "box" } } },
+      { name: "haptikk", selector: { boolean: {} } },
+      { name: "glass", selector: { boolean: {} } },
+      { name: "bakgrunn_glod", selector: { boolean: {} } },
       { name: "vis_stat", selector: { boolean: {} } }, { name: "vis_vindu", selector: { boolean: {} } },
       { name: "vis_spart", selector: { boolean: {} } }, { name: "vis_forklaring", selector: { boolean: {} } },
       { name: "nettleie_dag", selector: { number: { min: 0, max: 3, step: 0.01, mode: "box" } } },
