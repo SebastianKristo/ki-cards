@@ -919,10 +919,24 @@
           detail: {
             dialogTag: "hui-dialog-edit-card",
             dialogImport: () => customElements.whenDefined("hui-dialog-edit-card"),
+            /* Dialogen har byttet API mellom HA-versjoner. Eldre kaller
+             * `saveCardConfig(kort)`; nyere kaller `saveConfig(heleLovelace)` og
+             * finner kortet via `path`.
+             *
+             * Vi gir den en liten konstruert konfigurasjon der kortet vårt ligger på
+             * [0, 0], og plukker det ut igjen derfra. Da virker begge veier, uten at
+             * vi må vite hvilken HA-versjon som kjører.
+             */
             dialogParams: {
               cardConfig: kort,
-              lovelaceConfig: (lovelace && lovelace.config) || { views: [] },
+              path: [0, 0],
+              lovelaceConfig: { views: [{ cards: [kort] }] },
               saveCardConfig: async (ny) => lagre(ny),
+              saveConfig: async (ny) => {
+                const ut = ny && ny.views && ny.views[0] && ny.views[0].cards
+                  && ny.views[0].cards[0];
+                if (ut) lagre(ut);
+              },
             },
           },
           bubbles: true,

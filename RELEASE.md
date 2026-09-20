@@ -1,43 +1,27 @@
-# ki-cards 5.16.0
+# ki-cards 5.16.1
 
-## Mastermodus samler når enheten faktisk har en hovedbryter
+## Lagring fra kortdialogen kom ikke tilbake til fanen
 
-KI Utelys har en hovedbryter — Automatikk — og det er som regel bare den man vil se.
+Redigerte du vertical-stacken og trykket Lagre, skjedde ingenting i `ki-tabs-card`.
 
-Regelen er nå: samle til hovedbryteren når enheten **har** en. Hovedbryteren kjennes på
-navnet, og `_auto` og `_automatikk` er lagt til i mønsteret.
+`hui-dialog-edit-card` har byttet API mellom Home Assistant-versjoner. Eldre kaller
+`saveCardConfig(kort)`; nyere kaller `saveConfig(heleLovelaceKonfigurasjonen)` og finner
+kortet via `path`. Jeg ga den bare den første.
 
-Jeg har hatt dette feil begge veier. Først var unntaket hardkodet til `ki_energi`, så
-begrenset jeg det til `ki_notifications` — og ingen av delene tålte at du legger til en
-ny integrasjon, som var hele poenget med editoren.
+Dialogen får nå en liten konstruert konfigurasjon der kortet ligger på `[0, 0]`, og vi
+plukker det ut derfra igjen. Da virker begge veier, uten at vi må vite hvilken
+HA-versjon som kjører — og uten å måtte rette dette på nytt ved neste oppdatering.
 
-### KI Energi er fortsatt unntatt, og det er et ekte unntak
-
-De seks bryterne der er **sidestilte valg** — effektgrense, hjemkomst, varmtvann — ikke
-underinnstillinger under en hovedbryter. Samlet ville fem av seks forsvunnet.
-
-`ikke_master:` lar deg gjøre det samme for andre integrasjoner, og `ikke_master: []`
-slår av unntaket helt.
-
-### Resultat med dine tre integrasjoner
-
-```
-Dørlås                 ← samlet til hovedbryteren
-Effektgrense           ← KI Energi, sidestilt
-Varmtvann              ← KI Energi, sidestilt
-Utelys automatikk      ← samlet, morgen og kveld skjult
-```
-
-`master: false` viser alle sju.
+Kommer det noe uventet tilbake, lagrer vi ingenting i stedet for å slette kortet.
 
 ### Kontrollert
 
-Tre plattformer samtidig gir fire rader. `master: false` gir sju. `ikke_master: []`
-endrer ikke KI Energi her, siden ingen av de to bryterne i testen er en hovedbryter —
-i praksis ville `ki_energi_varsler` blitt samlingspunktet.
+Dialogen får `cardConfig`, `path`, en konstruert `lovelaceConfig` og begge
+lagringsfunksjonene. Begge API-ene lagrer riktig kort tilbake i fanen. En konfigurasjon
+uten `views` gir ingen lagring.
 
 ---
 
-# ki-cards 5.15.0
+# ki-cards 5.16.0
 
-Navn for KI Utelys, og mastermodus begrenset til `ki_notifications` — rettet igjen her.
+Mastermodus samler til hovedbryteren når enheten har en; KI Energi er fortsatt unntatt.

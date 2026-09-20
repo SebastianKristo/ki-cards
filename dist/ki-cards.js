@@ -1,4 +1,4 @@
-/* ki-cards v5.16.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.16.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.16.0";
+  KI.VERSION = "5.16.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -1785,10 +1785,24 @@ try {
           detail: {
             dialogTag: "hui-dialog-edit-card",
             dialogImport: () => customElements.whenDefined("hui-dialog-edit-card"),
+            /* Dialogen har byttet API mellom HA-versjoner. Eldre kaller
+             * `saveCardConfig(kort)`; nyere kaller `saveConfig(heleLovelace)` og
+             * finner kortet via `path`.
+             *
+             * Vi gir den en liten konstruert konfigurasjon der kortet vårt ligger på
+             * [0, 0], og plukker det ut igjen derfra. Da virker begge veier, uten at
+             * vi må vite hvilken HA-versjon som kjører.
+             */
             dialogParams: {
               cardConfig: kort,
-              lovelaceConfig: (lovelace && lovelace.config) || { views: [] },
+              path: [0, 0],
+              lovelaceConfig: { views: [{ cards: [kort] }] },
               saveCardConfig: async (ny) => lagre(ny),
+              saveConfig: async (ny) => {
+                const ut = ny && ny.views && ny.views[0] && ny.views[0].cards
+                  && ny.views[0].cards[0];
+                if (ut) lagre(ut);
+              },
             },
           },
           bubbles: true,
