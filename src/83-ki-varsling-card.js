@@ -524,6 +524,23 @@ class KiVarslingEditor extends HTMLElement {
       for (const k of Object.keys(this._c)) {
         if (this._c[k] === undefined) delete this._c[k];
       }
+
+      /* Skjemaet MÅ få de nye verdiene tilbake.
+       *
+       * `ha-form` styres av `data`. Vi hopper over ombyggingen når HAs ekko kommer,
+       * og uten denne linja sto `data` igjen med de gamle verdiene — avkrysningen
+       * spratt tilbake, og det så ut som ingenting skjedde da man trykket. */
+      f.data = {
+        plattform: this._c.plattform || [].concat(KI_VARS_PLATTFORM),
+        enheter: (this._c.enheter || []).join(", "),
+        ikke_enheter: (this._c.ikke_enheter || []).join(", "),
+        ekstra: this._c.ekstra || [],
+        master: this._c.master !== false,
+        grupper: !!this._c.grupper,
+        teller: !!this._c.teller,
+        sok: this._c.sok !== false,
+      };
+
       this._ut();
     });
     this._felt.push(f);

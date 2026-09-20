@@ -779,6 +779,12 @@
         if (this._c.fane_tekst === 14) delete this._c.fane_tekst;
         if (!this._c.fane_lik) delete this._c.fane_lik;
         if (!this._c.rad_bredde) delete this._c.rad_bredde;
+
+        /* Skjemaet får verdiene tilbake. Vi sletter standardverdier fra
+           konfigurasjonen, og uten dette ville feltene stått igjen med det brukeren
+           skrev mens `data` sa noe annet — en divergens som før eller siden viser seg
+           som et felt som spretter tilbake. */
+        f.data = { ...e.detail.value };
         this._send();
       });
       (this._underEl = this._underEl || []).push(f);
