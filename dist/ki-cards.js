@@ -1,4 +1,4 @@
-/* ki-cards v5.46.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-21 */
+/* ki-cards v5.47.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-21 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.46.0";
+  KI.VERSION = "5.47.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -30753,22 +30753,48 @@ class FamilyStatusCard extends LitElement {
     </div>`;
   }
 
+  /* Standardutseende for de tre stedene dine; alt kan overstyres med ikon/farge per server. */
+  _serverStil(srv, i) {
+    const n = String(srv.navn || "").toLowerCase().replace(/ö/g, "ø");
+    const kjent = [
+      [/oslo/, "mdi:home-city-outline", "var(--green, #34c759)"],
+      [/str[øo]mstad/, "mdi:lighthouse", "var(--blue, #0a84ff)"],
+      [/toten/, "mdi:tractor-variant", "var(--yellow, #ffd60a)"],
+    ].find(([m]) => m.test(n));
+    const reserve = ["var(--active-big, #ee95ff)", "var(--purple, #bf5af2)", "var(--teal, #40c8e0)"];
+    return {
+      ikon: srv.ikon || (kjent ? kjent[1] : "mdi:home-variant-outline"),
+      farge: srv.farge || (kjent ? kjent[2] : reserve[i % reserve.length]),
+    };
+  }
+
+  /* Servermenyen.
+   *
+   * Et lite ark som folder seg ut fra navnet: en overskrift, og én rad per sted med
+   * en farget ikonflis, navnet og en merkelapp på der du er. Radene kommer inn én og
+   * én, og trykkes ned når fingeren står på dem. */
   _renderServerMeny() {
     const her = this._serverNavn();
     return html`
-      <div class="serververn" @click=${() => { this._serverApen = false; }}></div>
-      <div class="servermeny" role="menu">
-        ${this._servere().map((s) => {
-          const na = s.navn === her;
+      <div class="serververn" @click=${(e) => { e.stopPropagation(); this._serverApen = false; }}></div>
+      <div class="servermeny" role="menu" @click=${(e) => e.stopPropagation()}>
+        <div class="menytopp">Bytt sted</div>
+        ${this._servere().map((srv, i) => {
+          const na = srv.navn === her;
+          const stil = this._serverStil(srv, i);
           return html`<button class="serverrad ${na ? "na" : ""}" role="menuitem"
-            @click=${(e) => { e.stopPropagation(); if (na) { this._serverApen = false; return; } this._serverBytt(s); }}>
-            <ha-icon icon=${s.ikon || (na ? "mdi:home-circle" : "mdi:arrow-right-thin-circle-outline")}></ha-icon>
-            <span>${s.navn}</span>
-            ${na ? html`<ha-icon class="hake" icon="mdi:check"></ha-icon>` : ""}
+            style="--rad-farge:${stil.farge};--forsink:${i * 45}ms"
+            @click=${(e) => { e.stopPropagation(); if (na) { this._serverApen = false; return; } this._serverBytt(srv); }}>
+            <span class="flis"><ha-icon icon=${stil.ikon}></ha-icon></span>
+            <span class="radnavn">${srv.navn}</span>
+            ${na
+              ? html`<span class="her">Du er her</span>`
+              : html`<ha-icon class="gaa" icon="mdi:chevron-right"></ha-icon>`}
           </button>`;
         })}
       </div>`;
   }
+
 
   connectedCallback() {
     super.connectedCallback();
@@ -31125,9 +31151,18 @@ class FamilyStatusCard extends LitElement {
     }
   }
 
+  /* Trykk og langt trykk på hilsenen.
+   *
+   * Et vanlig trykk håndteres i click, ikke i pointerup. Grunnen er rekkefølgen:
+   * pointerup → click. Åpnet menyen seg allerede i pointerup, tegnet den laget som
+   * lukker ved trykk utenfor rett under fingeren - og klikket som kom etterpå traff
+   * det laget og lukket menyen igjen med én gang. Et langt trykk sender ikke click,
+   * og derfor virket det bare når du holdt fingeren litt. */
   _onGreetingPointerDown() {
+    this._holdt = false;
     this._greetingTimer = window.setTimeout(() => {
       this._greetingTimer = null;
+      this._holdt = true;
       const entity = this.cfg.greeting_hold_entity;
       if (entity) {
         this._haptic(this.cfg.haptic_hold);
@@ -31140,12 +31175,21 @@ class FamilyStatusCard extends LitElement {
     if (this._greetingTimer) {
       window.clearTimeout(this._greetingTimer);
       this._greetingTimer = null;
-      this._haptic(this.cfg.haptic_tap);
-      /* Står servernavnet i den store linja, er trykk = velg server. Står det under,
-         gjør hilsenen det den alltid har gjort, og det er linja under som åpner menyen. */
-      if (this._storLinjeErMeny()) { this._serverApen = !this._serverApen; return; }
-      this._navigate(this.cfg.greeting_navigation_path);
     }
+  }
+
+  _onGreetingClick(e) {
+    /* Et langt trykk er allerede håndtert; da skal det ikke også telle som trykk. */
+    if (this._holdt) { this._holdt = false; return; }
+    this._haptic(this.cfg.haptic_tap);
+    /* Står servernavnet i den store linja (eller bare navnet), er trykk = velg server.
+       Står det under, gjør hilsenen det den alltid har gjort. */
+    if (this._storLinjeErMeny()) {
+      if (e) e.stopPropagation();
+      this._serverApen = !this._serverApen;
+      return;
+    }
+    this._navigate(this.cfg.greeting_navigation_path);
   }
 
   _onGreetingPointerCancel() {
@@ -31179,6 +31223,8 @@ class FamilyStatusCard extends LitElement {
             @pointerdown=${() => this._onGreetingPointerDown()}
             @pointerup=${() => this._onGreetingPointerUp()}
             @pointerleave=${() => this._onGreetingPointerCancel()}
+            @pointercancel=${() => this._onGreetingPointerCancel()}
+            @click=${(e) => this._onGreetingClick(e)}
             @contextmenu=${(e) => e.preventDefault()}
           >
             ${this._greetingText()}${this._storLinjeErMeny()
@@ -31514,57 +31560,117 @@ class FamilyStatusCard extends LitElement {
       }
       .servermeny {
         position: absolute;
-        top: calc(100% + 6px);
-        left: 8px;
+        top: calc(100% + 8px);
+        left: 0;
         z-index: 21;
-        min-width: 190px;
-        padding: 6px;
-        border-radius: 18px;
+        width: min(260px, calc(100vw - 32px));
+        padding: 8px;
+        border-radius: 22px;
         background: var(--gray200, var(--ha-card-background, #2a2a2d));
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(250, 251, 252, 0.08);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
         display: grid;
-        gap: 2px;
-        animation: fsc-meny 180ms cubic-bezier(0.2, 1.2, 0.3, 1);
-        transform-origin: top left;
+        gap: 4px;
+        animation: fsc-meny 260ms cubic-bezier(0.2, 1.25, 0.3, 1);
+        transform-origin: 24px -8px;
+      }
+      /* Den lille spissen som peker opp mot navnet. */
+      .servermeny::before {
+        content: "";
+        position: absolute;
+        top: -6px;
+        left: 22px;
+        width: 12px;
+        height: 12px;
+        transform: rotate(45deg);
+        background: inherit;
+        border-left: 1px solid rgba(250, 251, 252, 0.08);
+        border-top: 1px solid rgba(250, 251, 252, 0.08);
+        border-radius: 3px 0 0 0;
+      }
+      .menytopp {
+        padding: 6px 10px 4px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: var(--gray800, var(--secondary-text-color));
       }
       .serverrad {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
+        gap: 12px;
+        padding: 8px 10px;
         border: 0;
-        border-radius: 12px;
+        border-radius: 14px;
         background: none;
         color: var(--gray1000, var(--primary-text-color));
         font: inherit;
-        font-size: 15px;
+        font-size: 16px;
         text-align: left;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
-        transition: background 0.15s ease, transform 0.12s ease;
+        transition: background 0.15s ease, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1);
+        animation: fsc-rad 320ms cubic-bezier(0.2, 1.2, 0.3, 1) backwards;
+        animation-delay: var(--forsink, 0ms);
       }
       .serverrad:active {
-        transform: scale(0.97);
+        transform: scale(0.96);
         background: rgba(250, 251, 252, 0.08);
-      }
-      .serverrad ha-icon {
-        --mdc-icon-size: 20px;
-        color: var(--green, #34c759);
-        flex: none;
       }
       .serverrad.na {
         background: rgba(250, 251, 252, 0.06);
-        font-weight: 600;
       }
-      .serverrad.na ha-icon {
-        color: var(--active-big, var(--primary-color));
+      .serverrad .flis {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: color-mix(in srgb, var(--rad-farge) 22%, transparent);
+        color: var(--rad-farge);
       }
-      .serverrad span {
+      .serverrad.na .flis {
+        background: var(--rad-farge);
+        color: rgba(20, 20, 24, 0.85);
+      }
+      .serverrad .flis ha-icon {
+        --mdc-icon-size: 20px;
+      }
+      .serverrad .radnavn {
         flex: 1;
+        min-width: 0;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
-      .serverrad .hake {
-        color: var(--gray1000, var(--primary-text-color));
-        opacity: 0.7;
+      .serverrad .her {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--rad-farge);
+        color: rgba(20, 20, 24, 0.85);
+        white-space: nowrap;
+      }
+      .serverrad .gaa {
+        --mdc-icon-size: 20px;
+        opacity: 0.45;
+        flex: none;
+      }
+      @keyframes fsc-rad {
+        from {
+          opacity: 0;
+          transform: translateY(-6px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .servermeny,
+        .serverrad {
+          animation: none;
+        }
       }
       @keyframes fsc-meny {
         from {

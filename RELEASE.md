@@ -1,30 +1,38 @@
-# ki-cards 5.46.0
+# ki-cards 5.47.0
 
-## family-status-card: serverbyttet virker, og navnet alene kan åpne menyen
+## family-status-card: menyen åpner på et vanlig trykk, og har fått nytt utseende
 
-**Retting — trykk på Strömstad eller Toten gjorde ingenting.** Kortet byttet server med
-`location.href = "homeassistant://…"`. Inne i appens nettleservindu blir en slik endring stille
-ignorert. Home Assistant selv åpner en url-handling — `tap_action: url`, slik mushroom-kortet ditt
-gjør — med `window.open`, og det er **den** appen fanger opp og tolker som «bytt server». Kortet
-bruker nå `window.open`, akkurat som HA.
+**Retting — du måtte holde fingeren på navnet.** Menyen åpnet seg i `pointerup`. Da ble laget som
+lukker ved trykk utenfor tegnet rett under fingeren, og `click`-hendelsen som alltid kommer etter
+`pointerup`, traff det laget og lukket menyen igjen med en gang. Et langt trykk sender ikke `click`
+— derfor virket det bare når du holdt litt. Nå åpner menyen på `click`, og et langt trykk blir
+merket så det ikke også teller som et trykk.
 
-**Ny plassering: `server_plass: navn`.** Bare navnet, ingen servernavn noe sted — og et trykk på
-navnet åpner servermenyen. De to andre er uendret:
+**Ny meny.** Et lite ark som folder seg ut fra navnet, med en spiss som peker opp mot det:
+
+- overskriften «Bytt sted»
+- én rad per sted med en farget ikonflis — Oslo grønn by, Strömstad blått fyrtårn, Toten gul
+  traktor, samme farger som i hyttekortet
+- «Du er her» som merkelapp på stedet du står på, pil på de andre
+- radene kommer inn én og én, og trykkes ned når fingeren står på dem
+
+Ikon og farge kan settes per sted:
 
 ```yaml
-server_plass: tittel   # «Oslo ▾» erstatter hilsenen
-server_plass: under    # hilsenen står, «Oslo ▾» på linja under er knappen
-server_plass: navn     # bare hilsenen/navnet med ▾, trykk åpner menyen
-greeting: "{name}"     # for bare fornavnet, uten «Hei»
+servere:
+  - navn: Oslo
+  - navn: Strömstad
+    server: Strømstad
+    ikon: mdi:sail-boat
+    farge: var(--blue)
+  - navn: Toten
 ```
 
-Pila står etter navnet også i den nye varianten, så det synes at det kan trykkes. Menyen merker
-fortsatt serveren du står på med hake, selv om navnet ikke vises. Valget ligger i Servere-panelet
-i editoren som «Ikke vist – trykk på navnet åpner menyen».
+Steder den ikke kjenner igjen, får et hus-ikon og en farge fra resten av paletten.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Logikken er kjørt for
-seg: `navn` med `greeting: "{name}"` gir «Sebastian» stort, lar den store linja åpne menyen og
-beholder underteksten; `tittel` åpner fra den store linja, `under` gjør det ikke. Byttet går nå
-gjennom `window.open(url)`, og `location.href` er borte fra kortet.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Trykkhåndteringen er
+kjørt for seg: trykk (ned, opp, klikk) åpner menyen; langt trykk (ned, 500 ms, opp, klikk) åpner
+den ikke og gjør i stedet det langt trykk alltid har gjort; med `server_plass: under` navigerer
+et trykk på hilsenen som før. De tre stedene får fyrtårn, traktor og by-ikon uten oppsett.
