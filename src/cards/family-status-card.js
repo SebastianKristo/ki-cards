@@ -291,8 +291,17 @@ class FamilyStatusCard extends LitElement {
   _serverBytt(s) {
     this._haptic("selection");
     this._serverApen = false;
-    const sti = String(s.sti || this.cfg.server_sti || "lovelace").replace(/^\/+/, "");
-    const url = `homeassistant://navigate/${sti}?server=${encodeURIComponent(s.server)}`;
+    /* Siden som åpnes på den andre serveren: stedets egen sti, så server_sti for alle,
+       og ellers samme dashbord som du står i nå - da havner du i /dashboard-mysmarthome
+       på Toten når du bytter fra /dashboard-mysmarthome i Oslo, i stedet for i standard-
+       dashbordet. Skråstrek foran er valgfritt. */
+    const naa = String((window.location && window.location.pathname) || "").split("/").filter(Boolean)[0];
+    const sti = String(s.sti || this.cfg.server_sti || naa || "lovelace").replace(/^\/+/, "");
+    /* Servernavnet skrives som i mushroom-kortet ditt, med ø som ø. Full koding ville
+       gjort det til Str%C3%B8mstad, og det er ikke sikkert appen dekoder det før den
+       leter etter serveren. Bare tegn som ville brutt selve lenka, kodes. */
+    const navn = String(s.server).replace(/[&?#%\s]/g, (t) => encodeURIComponent(t));
+    const url = `homeassistant://navigate/${sti}?server=${navn}`;
     /* Byttet må gå gjennom window.open, ikke location.href.
      *
      * Det er slik Home Assistant selv åpner en url-handling (tap_action: url, som
@@ -1740,7 +1749,7 @@ class FamilyStatusCardEditor extends LitElement {
             </div>
             <div class="field-row">
               ${this._text("Denne serverens navn (valgfri)", "server_navn")}
-              ${this._text("Side som åpnes", "server_sti")}
+              ${this._text("Side som åpnes (f.eks. /dashboard-mysmarthome)", "server_sti")}
             </div>
             <ha-selector
               .hass=${this.hass}
