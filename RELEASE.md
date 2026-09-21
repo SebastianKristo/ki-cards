@@ -1,23 +1,42 @@
-# ki-cards 5.43.0
+# ki-cards 5.45.0
 
-## Retting: velgerknappen gjorde ingenting, og dagen i dag ble en oval
+## family-status-card: servernavnet som tittel eller under, og en undertekst med vær
 
-**Knappen for å velge kalendere virket ikke.** Kortet leter etter knappen som ble trykket ved å
-gå gjennom `data-`-feltene i klikkbanen — og `data-velger` og `data-alle` sto ikke i den lista.
-Knappen fantes, men trykket traff ingenting. Nå er alle knappene med, og velgeren åpner, huker av
-og lukker som den skal, inkludert «Vis alle» / «Skjul alle».
+Samme form som i companion-appen: stort navn med en fylt pil, og en linje under.
 
-**Dagen i dag var en oval.** Et rutenett strekker elementene til radhøyden som standard, og da
-overstyres `aspect-ratio` — sirkelen ble bredere enn høy. Dagene sentreres nå i raden
-(`align-self: center`) i stedet for å strekkes, så alle er nøyaktig like runde uansett hva raden
-måtte være.
+```yaml
+type: custom:family-status-card
+servere: "Oslo, Strömstad=Strømstad, Toten"
+server_plass: tittel            # tittel | under
+undertekst: "{temp} • {vaer}"
+vaer: weather.forecast_home
+```
 
-Valgt dag har heller ingen ring lenger: den er den samme sirkelen som de andre, bare i
-aktivfargen — akkurat som du ba om.
+**`server_plass: tittel`** (standard) — servernavnet er den store linja, med `▾` etter, og det er den
+som åpner menyen. Undertekst under:
+
+    Oslo ▾
+    13 °C • Klar himmel
+
+**`server_plass: under`** — hilsenen står som før og gjør det den alltid har gjort. Servernavnet
+ligger på linja under, og det er **det** som åpner menyen:
+
+    Hei Sebastian
+    Oslo ▾ • 13 °C • Klar himmel
+
+Det er altså alltid feltet med servernavnet i som er knappen.
+
+**`undertekst`** tar `{temp}` og `{vaer}` fra værentiteten, pluss `{name}` og `{server}` som i
+hilsenen. Været står på norsk («Klar himmel», «Delvis skyet», «Sludd» …). Mangler et av tallene,
+fjernes skilletegnet som ville stått alene, så det aldri står «• Klar himmel». Underteksten virker
+også uten `servere:`.
+
+Pila er nå den fylte `mdi:menu-down`, som i appen, og snur seg når menyen er åpen. Menyen legger
+seg under begge linjene. Alle de nye feltene ligger i Servere-panelet i editoren.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Velgeren er i tillegg
-kjørt med ekte klikk-hendelser: knappen åpner lista, et trykk på en rad huker den av og telleren
-går fra «2 av 2 vises» til «1 av 2 vises», «Vis alle» setter den tilbake, og et nytt trykk på
-knappen lukker lista.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Logikken er i tillegg
+kjørt for seg: `tittel` gir «Oslo» stort og «13 °C • Klar himmel» under; `under` gir «Hei
+Sebastian» stort og servernavnet som knapp under; en værentitet som ikke finnes gir tom undertekst
+uten løs prikk; og uten `servere:` er hilsenen som før, med underteksten om den er satt.

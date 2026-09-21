@@ -1,4 +1,4 @@
-/* ki-cards v5.43.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-20 */
+/* ki-cards v5.45.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-21 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.43.0";
+  KI.VERSION = "5.45.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -30513,15 +30513,24 @@ function toCssSize(value, fallbackPx) {
   return String(value);
 }
 
+/* Værtilstandene i Home Assistant på norsk, slik appen viser dem. */
+const VAER_NB = {
+  "clear-night": "Klar himmel", sunny: "Sol", partlycloudy: "Delvis skyet", cloudy: "Skyet",
+  fog: "Tåke", rainy: "Regn", pouring: "Kraftig regn", snowy: "Snø", "snowy-rainy": "Sludd",
+  hail: "Hagl", lightning: "Torden", "lightning-rainy": "Torden og regn", windy: "Vind",
+  "windy-variant": "Vind og skyer", exceptional: "Ekstremvær",
+};
+
 class FamilyStatusCard extends LitElement {
   static get properties() {
-    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {} };
+    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {}, _serverApen: {} };
   }
 
   constructor() {
     super();
     this._dialogIndex = null;
     this._lukker = false;
+    this._serverApen = false;
     /* Valget man nettopp gjorde, til entiteten svarer. Se _aktiv(). */
     this._opt = {};
     this._openedAt = 0;
@@ -30619,9 +30628,130 @@ class FamilyStatusCard extends LitElement {
   }
 
   /** Bytter ut {name}, {user} og {first_name} i hilsenen med fornavnet. */
+  /* Hvor servernavnet står.
+   *   tittel – navnet ER den store linja, hilsenen forsvinner (som Oslo ▾ i appen)
+   *   under  – hilsenen står som før, og servernavnet ligger på linja under
+   * Det er feltet med navnet i som åpner menyen, uansett hvor det står. */
+  _serverPlass() {
+    if (!this._servere().length) return "";
+    return String(this.cfg.server_plass || "tittel").toLowerCase().startsWith("u") ? "under" : "tittel";
+  }
+
   _greetingText() {
-    const text = this.cfg.greeting || "";
-    return text.replace(/\{(name|user|first_name)\}/g, this._firstName());
+    const text = this._serverPlass() === "tittel" && !/\{server\}/.test(this.cfg.greeting || "")
+      ? "{server}" : (this.cfg.greeting || "");
+    return text
+      .replace(/\{(name|user|first_name)\}/g, this._firstName())
+      .replace(/\{server\}/g, this._serverNavn());
+  }
+
+  /* ── servervelger ──────────────────────────────────────────────────────
+   *
+   * Companion-appen kan ha flere Home Assistant-servere (Oslo, Strömstad, Toten), og
+   * bytter med lenka homeassistant://navigate/<sti>?server=<navn>. Navnet er det
+   * serveren heter I APPEN - det kan skrives med en annen bokstav enn det du vil vise
+   * (Strömstad / Strømstad), derfor kan hver rad ha både navn og server.
+   *
+   *   servere:
+   *     - navn: Oslo
+   *     - navn: Strömstad
+   *       server: Strømstad
+   *     - navn: Toten
+   *   server_sti: lovelace          # siden som åpnes på den andre serveren
+   */
+  _servere() {
+    let liste = this.cfg.servere || [];
+    /* Også som tekst, slik editoren lagrer den: «Oslo, Strömstad=Strømstad, Toten».
+       Det som står etter = er navnet i appen. */
+    if (typeof liste === "string") {
+      liste = liste.split(",").map((d) => d.trim()).filter(Boolean).map((d) => {
+        const [navn, server] = d.split("=").map((x) => x.trim());
+        return { navn, server: server || navn };
+      });
+    }
+    return (Array.isArray(liste) ? liste : []).map((s) =>
+      typeof s === "string" ? { navn: s, server: s } : { navn: s.navn || s.server, server: s.server || s.navn, ikon: s.ikon, sti: s.sti }
+    ).filter((s) => s.navn);
+  }
+
+  /* Hvilken server kortet står på nå. Home Assistant vet ikke hva appen kaller den,
+     så vi bruker navnet på installasjonen og ser om det ligner på en av radene -
+     uten hensyn til store bokstaver og ø/ö. server_navn: overstyrer. */
+  _serverNavn() {
+    if (this.cfg.server_navn) return this.cfg.server_navn;
+    const her = String((this.hass && this.hass.config && this.hass.config.location_name) || "");
+    const vask = (t) => String(t).toLowerCase().replace(/ö/g, "ø").replace(/ä/g, "æ").trim();
+    const treff = this._servere().find((s) => vask(s.navn) === vask(her) || vask(s.server) === vask(her));
+    return treff ? treff.navn : her;
+  }
+
+  /* Undertekst under den store linja, med samme plassholdere som hilsenen pluss vær:
+     undertekst: "{temp} • {vaer}"   og   vaer: weather.forecast_home */
+  _underTekst() {
+    const mal = this.cfg.undertekst;
+    if (!mal) return "";
+    const st = this.cfg.vaer && this.hass && this.hass.states[this.cfg.vaer];
+    const a = (st && st.attributes) || {};
+    const temp = a.temperature !== undefined && a.temperature !== null
+      ? `${Math.round(Number(a.temperature))} ${a.temperature_unit || "°C"}` : "";
+    const vaer = st ? (VAER_NB[st.state] || st.state) : "";
+    return String(mal)
+      .replace(/\{temp\}/g, temp)
+      .replace(/\{vaer\}/g, vaer)
+      .replace(/\{(name|user|first_name)\}/g, this._firstName())
+      .replace(/\{server\}/g, this._serverNavn())
+      .replace(/^\s*[•·|,-]\s*|\s*[•·|,-]\s*$/g, "")
+      .trim();
+  }
+
+  _apneMeny(e) {
+    if (e) e.stopPropagation();
+    this._haptic(this.cfg.haptic_tap);
+    this._serverApen = !this._serverApen;
+  }
+
+  _serverBytt(s) {
+    this._haptic("selection");
+    this._serverApen = false;
+    const sti = String(s.sti || this.cfg.server_sti || "lovelace").replace(/^\/+/, "");
+    const url = `homeassistant://navigate/${sti}?server=${encodeURIComponent(s.server)}`;
+    /* Samme lenke som mushroom-kortet ditt bruker. I en vanlig nettleser finnes ikke
+       homeassistant://-lenker, og da skjer det ingenting - det er appen som tar den. */
+    window.location.href = url;
+  }
+
+  /* Linja under den store. Står servernavnet der, er det den som er knappen; resten
+     av teksten (vær og lignende) står bak et skilletegn. */
+  _renderUnder() {
+    const tekst = this._underTekst();
+    const under = this._serverPlass() === "under";
+    if (!tekst && !under) return "";
+    return html`<div class="undertekst">
+      ${under ? html`<span class="servervalg" role="button" tabindex="0"
+          @click=${(e) => this._apneMeny(e)}
+          @keydown=${(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._apneMeny(e); } }}
+        >${this._serverNavn()}<ha-icon class="serverpil liten ${this._serverApen ? "apen" : ""}"
+          icon="mdi:menu-down"></ha-icon></span>` : ""}
+      ${under && tekst ? html`<span class="skilletegn">•</span>` : ""}
+      ${tekst ? html`<span>${tekst}</span>` : ""}
+    </div>`;
+  }
+
+  _renderServerMeny() {
+    const her = this._serverNavn();
+    return html`
+      <div class="serververn" @click=${() => { this._serverApen = false; }}></div>
+      <div class="servermeny" role="menu">
+        ${this._servere().map((s) => {
+          const na = s.navn === her;
+          return html`<button class="serverrad ${na ? "na" : ""}" role="menuitem"
+            @click=${(e) => { e.stopPropagation(); if (na) { this._serverApen = false; return; } this._serverBytt(s); }}>
+            <ha-icon icon=${s.ikon || (na ? "mdi:home-circle" : "mdi:arrow-right-thin-circle-outline")}></ha-icon>
+            <span>${s.navn}</span>
+            ${na ? html`<ha-icon class="hake" icon="mdi:check"></ha-icon>` : ""}
+          </button>`;
+        })}
+      </div>`;
   }
 
   connectedCallback() {
@@ -30995,6 +31125,9 @@ class FamilyStatusCard extends LitElement {
       window.clearTimeout(this._greetingTimer);
       this._greetingTimer = null;
       this._haptic(this.cfg.haptic_tap);
+      /* Står servernavnet i den store linja, er trykk = velg server. Står det under,
+         gjør hilsenen det den alltid har gjort, og det er linja under som åpner menyen. */
+      if (this._serverPlass() === "tittel") { this._serverApen = !this._serverApen; return; }
       this._navigate(this.cfg.greeting_navigation_path);
     }
   }
@@ -31024,6 +31157,7 @@ class FamilyStatusCard extends LitElement {
     return html`
       <ha-card style=${hostStyle}>
         <div class="row">
+          <div class="hilsen">
           <div
             class="greeting"
             @pointerdown=${() => this._onGreetingPointerDown()}
@@ -31031,7 +31165,12 @@ class FamilyStatusCard extends LitElement {
             @pointerleave=${() => this._onGreetingPointerCancel()}
             @contextmenu=${(e) => e.preventDefault()}
           >
-            ${this._greetingText()}
+            ${this._greetingText()}${this._serverPlass() === "tittel"
+              ? html`<ha-icon class="serverpil ${this._serverApen ? "apen" : ""}" icon="mdi:menu-down"></ha-icon>`
+              : ""}
+          </div>
+          ${this._renderUnder()}
+          ${this._serverApen ? this._renderServerMeny() : ""}
           </div>
           <div class="persons">
             ${cfg.persons.map((p, i) => this._renderPerson(p, i))}
@@ -31294,6 +31433,128 @@ class FamilyStatusCard extends LitElement {
         margin-top: 6px;
         opacity: 0.7;
         word-break: break-all;
+      }
+
+      /* ------------------------- SERVERVELGER ------------------------- */
+      .row {
+        position: relative;
+      }
+      .greeting {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .hilsen {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        min-width: 0;
+      }
+      .undertekst {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--fsc-under-size, 15px);
+        color: var(--gray800, var(--secondary-text-color));
+        white-space: nowrap;
+        min-width: 0;
+      }
+      .undertekst > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .undertekst > .servervalg {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        color: var(--gray1000, var(--primary-text-color));
+        font-weight: 500;
+        cursor: pointer;
+        overflow: visible;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .skilletegn {
+        opacity: 0.6;
+      }
+      .serverpil.liten {
+        --mdc-icon-size: 20px;
+      }
+      .serverpil {
+        --mdc-icon-size: 26px;
+        opacity: 0.85;
+        transition: transform 0.2s ease;
+        flex: none;
+      }
+      .serverpil.apen {
+        transform: rotate(180deg);
+      }
+      /* Et usynlig lag over resten av siden, så et trykk utenfor menyen lukker den. */
+      .serververn {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+      }
+      .servermeny {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 8px;
+        z-index: 21;
+        min-width: 190px;
+        padding: 6px;
+        border-radius: 18px;
+        background: var(--gray200, var(--ha-card-background, #2a2a2d));
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        display: grid;
+        gap: 2px;
+        animation: fsc-meny 180ms cubic-bezier(0.2, 1.2, 0.3, 1);
+        transform-origin: top left;
+      }
+      .serverrad {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 0;
+        border-radius: 12px;
+        background: none;
+        color: var(--gray1000, var(--primary-text-color));
+        font: inherit;
+        font-size: 15px;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.15s ease, transform 0.12s ease;
+      }
+      .serverrad:active {
+        transform: scale(0.97);
+        background: rgba(250, 251, 252, 0.08);
+      }
+      .serverrad ha-icon {
+        --mdc-icon-size: 20px;
+        color: var(--green, #34c759);
+        flex: none;
+      }
+      .serverrad.na {
+        background: rgba(250, 251, 252, 0.06);
+        font-weight: 600;
+      }
+      .serverrad.na ha-icon {
+        color: var(--active-big, var(--primary-color));
+      }
+      .serverrad span {
+        flex: 1;
+      }
+      .serverrad .hake {
+        color: var(--gray1000, var(--primary-text-color));
+        opacity: 0.7;
+      }
+      @keyframes fsc-meny {
+        from {
+          opacity: 0;
+          transform: scale(0.92) translateY(-6px);
+        }
       }
 
       /* ---------------------------- POPUP ---------------------------- */
@@ -31763,6 +32024,54 @@ class FamilyStatusCardEditor extends LitElement {
               .value=${cfg.greeting_hold_entity || ""}
               .includeDomains=${["input_boolean", "switch"]}
               @value-changed=${(e) => this._update("greeting_hold_entity", e.detail.value)}
+            ></ha-entity-picker>
+          </div>
+        </ha-expansion-panel>
+
+        <!-- SERVERE -->
+        <ha-expansion-panel outlined>
+          <div slot="header" class="header">
+            <ha-icon icon="mdi:server-network"></ha-icon>
+            <span>Servere</span>
+          </div>
+          <div class="body">
+            <ha-textfield
+              label="Servere (kommaseparert)"
+              .value=${Array.isArray(cfg.servere)
+                ? cfg.servere.map((s) => typeof s === "string" ? s
+                    : (s.server && s.server !== s.navn ? `${s.navn}=${s.server}` : (s.navn || s.server))).join(", ")
+                : (cfg.servere || "")}
+              @change=${(e) => this._update("servere", e.target.value)}
+            ></ha-textfield>
+            <div class="hint">
+              Med servere satt viser hilsenen navnet på serveren du er på, og et trykk åpner
+              en meny for å bytte. Skriv navnet slik det står i appen etter =, hvis det er
+              annerledes: <b>Oslo, Strömstad=Strømstad, Toten</b>.
+            </div>
+            <div class="field-row">
+              ${this._text("Denne serverens navn (valgfri)", "server_navn")}
+              ${this._text("Side som åpnes", "server_sti")}
+            </div>
+            <ha-selector
+              .hass=${this.hass}
+              .label=${"Hvor servernavnet står"}
+              .selector=${{ select: { mode: "dropdown", options: [
+                { value: "tittel", label: "Som tittel – erstatter hilsenen" },
+                { value: "under", label: "Under hilsenen" }] } }}
+              .value=${cfg.server_plass || "tittel"}
+              @value-changed=${(e) => this._update("server_plass", e.detail.value)}
+            ></ha-selector>
+            ${this._text("Undertekst", "undertekst")}
+            <div class="hint">
+              Linja under navnet. {temp} og {vaer} hentes fra værentiteten, {name} og {server}
+              som i hilsenen: <b>{temp} • {vaer}</b>
+            </div>
+            <ha-entity-picker
+              label="Værentitet (valgfri)"
+              .hass=${this.hass}
+              .value=${cfg.vaer || ""}
+              .includeDomains=${["weather"]}
+              @value-changed=${(e) => this._update("vaer", e.detail.value)}
             ></ha-entity-picker>
           </div>
         </ha-expansion-panel>
