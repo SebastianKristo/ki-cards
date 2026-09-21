@@ -197,12 +197,22 @@ class FamilyStatusCard extends LitElement {
 
   /** Bytter ut {name}, {user} og {first_name} i hilsenen med fornavnet. */
   /* Hvor servernavnet står.
-   *   tittel – navnet ER den store linja, hilsenen forsvinner (som Oslo ▾ i appen)
+   *   tittel – servernavnet ER den store linja, hilsenen forsvinner (som Oslo ▾ i appen)
    *   under  – hilsenen står som før, og servernavnet ligger på linja under
-   * Det er feltet med navnet i som åpner menyen, uansett hvor det står. */
+   *   navn   – bare hilsenen/navnet, ingen servernavn noe sted; trykk på den åpner menyen
+   * Det er feltet med pila som åpner menyen, uansett hvilken. */
   _serverPlass() {
     if (!this._servere().length) return "";
-    return String(this.cfg.server_plass || "tittel").toLowerCase().startsWith("u") ? "under" : "tittel";
+    const v = String(this.cfg.server_plass || "tittel").toLowerCase();
+    if (v.startsWith("u")) return "under";
+    if (v.startsWith("n")) return "navn";
+    return "tittel";
+  }
+
+  /* Er det den store linja som er knappen for menyen? */
+  _storLinjeErMeny() {
+    const p = this._serverPlass();
+    return p === "tittel" || p === "navn";
   }
 
   _greetingText() {
@@ -283,9 +293,15 @@ class FamilyStatusCard extends LitElement {
     this._serverApen = false;
     const sti = String(s.sti || this.cfg.server_sti || "lovelace").replace(/^\/+/, "");
     const url = `homeassistant://navigate/${sti}?server=${encodeURIComponent(s.server)}`;
-    /* Samme lenke som mushroom-kortet ditt bruker. I en vanlig nettleser finnes ikke
-       homeassistant://-lenker, og da skjer det ingenting - det er appen som tar den. */
-    window.location.href = url;
+    /* Byttet må gå gjennom window.open, ikke location.href.
+     *
+     * Det er slik Home Assistant selv åpner en url-handling (tap_action: url, som
+     * mushroom-kortet ditt), og det er window.open appen fanger opp og tolker som
+     * «bytt server». En location.href-endring inne i appens nettleservindu ble
+     * stille ignorert - derfor skjedde det ingenting når du trykket på Strömstad.
+     * I en vanlig nettleser finnes ikke homeassistant://, og der skjer det fortsatt
+     * ingenting. */
+    window.open(url);
   }
 
   /* Linja under den store. Står servernavnet der, er det den som er knappen; resten
@@ -695,7 +711,7 @@ class FamilyStatusCard extends LitElement {
       this._haptic(this.cfg.haptic_tap);
       /* Står servernavnet i den store linja, er trykk = velg server. Står det under,
          gjør hilsenen det den alltid har gjort, og det er linja under som åpner menyen. */
-      if (this._serverPlass() === "tittel") { this._serverApen = !this._serverApen; return; }
+      if (this._storLinjeErMeny()) { this._serverApen = !this._serverApen; return; }
       this._navigate(this.cfg.greeting_navigation_path);
     }
   }
@@ -733,7 +749,7 @@ class FamilyStatusCard extends LitElement {
             @pointerleave=${() => this._onGreetingPointerCancel()}
             @contextmenu=${(e) => e.preventDefault()}
           >
-            ${this._greetingText()}${this._serverPlass() === "tittel"
+            ${this._greetingText()}${this._storLinjeErMeny()
               ? html`<ha-icon class="serverpil ${this._serverApen ? "apen" : ""}" icon="mdi:menu-down"></ha-icon>`
               : ""}
           </div>
@@ -1625,7 +1641,8 @@ class FamilyStatusCardEditor extends LitElement {
               .label=${"Hvor servernavnet står"}
               .selector=${{ select: { mode: "dropdown", options: [
                 { value: "tittel", label: "Som tittel – erstatter hilsenen" },
-                { value: "under", label: "Under hilsenen" }] } }}
+                { value: "under", label: "Under hilsenen" },
+                { value: "navn", label: "Ikke vist – trykk på navnet åpner menyen" }] } }}
               .value=${cfg.server_plass || "tittel"}
               @value-changed=${(e) => this._update("server_plass", e.detail.value)}
             ></ha-selector>

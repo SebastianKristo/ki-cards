@@ -1,42 +1,30 @@
-# ki-cards 5.45.0
+# ki-cards 5.46.0
 
-## family-status-card: servernavnet som tittel eller under, og en undertekst med vær
+## family-status-card: serverbyttet virker, og navnet alene kan åpne menyen
 
-Samme form som i companion-appen: stort navn med en fylt pil, og en linje under.
+**Retting — trykk på Strömstad eller Toten gjorde ingenting.** Kortet byttet server med
+`location.href = "homeassistant://…"`. Inne i appens nettleservindu blir en slik endring stille
+ignorert. Home Assistant selv åpner en url-handling — `tap_action: url`, slik mushroom-kortet ditt
+gjør — med `window.open`, og det er **den** appen fanger opp og tolker som «bytt server». Kortet
+bruker nå `window.open`, akkurat som HA.
+
+**Ny plassering: `server_plass: navn`.** Bare navnet, ingen servernavn noe sted — og et trykk på
+navnet åpner servermenyen. De to andre er uendret:
 
 ```yaml
-type: custom:family-status-card
-servere: "Oslo, Strömstad=Strømstad, Toten"
-server_plass: tittel            # tittel | under
-undertekst: "{temp} • {vaer}"
-vaer: weather.forecast_home
+server_plass: tittel   # «Oslo ▾» erstatter hilsenen
+server_plass: under    # hilsenen står, «Oslo ▾» på linja under er knappen
+server_plass: navn     # bare hilsenen/navnet med ▾, trykk åpner menyen
+greeting: "{name}"     # for bare fornavnet, uten «Hei»
 ```
 
-**`server_plass: tittel`** (standard) — servernavnet er den store linja, med `▾` etter, og det er den
-som åpner menyen. Undertekst under:
-
-    Oslo ▾
-    13 °C • Klar himmel
-
-**`server_plass: under`** — hilsenen står som før og gjør det den alltid har gjort. Servernavnet
-ligger på linja under, og det er **det** som åpner menyen:
-
-    Hei Sebastian
-    Oslo ▾ • 13 °C • Klar himmel
-
-Det er altså alltid feltet med servernavnet i som er knappen.
-
-**`undertekst`** tar `{temp}` og `{vaer}` fra værentiteten, pluss `{name}` og `{server}` som i
-hilsenen. Været står på norsk («Klar himmel», «Delvis skyet», «Sludd» …). Mangler et av tallene,
-fjernes skilletegnet som ville stått alene, så det aldri står «• Klar himmel». Underteksten virker
-også uten `servere:`.
-
-Pila er nå den fylte `mdi:menu-down`, som i appen, og snur seg når menyen er åpen. Menyen legger
-seg under begge linjene. Alle de nye feltene ligger i Servere-panelet i editoren.
+Pila står etter navnet også i den nye varianten, så det synes at det kan trykkes. Menyen merker
+fortsatt serveren du står på med hake, selv om navnet ikke vises. Valget ligger i Servere-panelet
+i editoren som «Ikke vist – trykk på navnet åpner menyen».
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Logikken er i tillegg
-kjørt for seg: `tittel` gir «Oslo» stort og «13 °C • Klar himmel» under; `under` gir «Hei
-Sebastian» stort og servernavnet som knapp under; en værentitet som ikke finnes gir tom undertekst
-uten løs prikk; og uten `servere:` er hilsenen som før, med underteksten om den er satt.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Logikken er kjørt for
+seg: `navn` med `greeting: "{name}"` gir «Sebastian» stort, lar den store linja åpne menyen og
+beholder underteksten; `tittel` åpner fra den store linja, `under` gjør det ikke. Byttet går nå
+gjennom `window.open(url)`, og `location.href` er borte fra kortet.
