@@ -1,4 +1,4 @@
-/* ki-cards v5.49.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.50.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.49.0";
+  KI.VERSION = "5.50.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17099,7 +17099,8 @@ try {
  * antall: 6                 # hvor mange i lista under heroen
  * visning: full             # full (hero + liste) | liste | hero | kalender
  * kalender: true            # vis knappen som bytter mellom liste og månedskalender
- * detaljer: true            # trykk åpner detaljlag i kortet (false = rett til Sonarr/Radarr)
+ * detaljer: true            # trykk åpner detaljlag (false = rett til Sonarr/Radarr)
+ * detalj_plass: skjerm      # skjerm (midt i skjermen) | kort (over kortet, som før)
  * bursdag: true             # bursdagskort i samme sveip som neste lansering
  *   # eller: { kalender: calendar.birthdays, dager: 45 }
  *   # eller: { regex: bursdag, entities: [...] }
@@ -17114,7 +17115,7 @@ try {
  * tilleggene, så en hake betyr «lagt til nylig» – at den mangler, betyr ikke at du ikke
  * har den.
  */
-const KI_LANS_VERSJON = "1.5.0";
+const KI_LANS_VERSJON = "1.6.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -17215,6 +17216,23 @@ const KI_LANS_STIL = `
   .detalj { position:absolute; inset:0; z-index:9; border-radius:var(--ha-card-border-radius,24px);
     overflow:hidden; background:#14121a; animation:la-detalj .22s var(--myk, ease); }
   @keyframes la-detalj { from { opacity:0; transform:scale(.985) } to { opacity:1; transform:none } }
+  /* Midt i skjermen, ikke over kortet.
+     Lista kan være lang: har du bladd deg ned til rad nummer tolv og trykker, lå laget
+     oppe ved kortets topp - altså utenfor skjermen, og du måtte rulle opp for å se det
+     du nettopp trykket på. */
+  .detaljvern { position:fixed; inset:0; z-index:12; background:rgba(0,0,0,.55);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    animation:la-vern .18s ease-out; }
+  @keyframes la-vern { from { opacity:0 } }
+  .detalj.skjerm { position:fixed; inset:auto; z-index:13;
+    left:50%; top:50%; transform:translate(-50%,-50%);
+    width:min(520px, calc(100vw - 24px)); height:min(78vh, 700px);
+    border-radius:26px; box-shadow:0 24px 64px rgba(0,0,0,.6);
+    animation:la-detalj-skjerm .24s var(--fjaer, ease); }
+  @keyframes la-detalj-skjerm {
+    from { opacity:0; transform:translate(-50%,-46%) scale(.96) } }
+  @media (prefers-reduced-motion: reduce) {
+    .detalj, .detalj.skjerm, .detaljvern { animation:none; } }
   .detalj .bak { position:absolute; inset:0; background-size:cover; background-position:center top;
     opacity:.5; }
   .detalj .skygge { position:absolute; inset:0;
@@ -17305,8 +17323,18 @@ class KiLanseringCard extends HTMLElement {
     const ids = [this._c.serier, this._c.filmer, ...this._plexKilder().map((x) => x.id)].filter(Boolean);
     if (!g || ids.some((id) => g.states[id] !== h.states[id])) this._tegn();
   }
-  connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); if (this._h) this._tegn(); }
-  disconnectedCallback() { clearInterval(this._i); }
+  connectedCallback() {
+    clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000);
+    if (!this._esc) {
+      this._esc = (e) => { if (e.key === "Escape" && this._detalj) { this._detalj = null; this._tegn(); } };
+      window.addEventListener("keydown", this._esc);
+    }
+    if (this._h) this._tegn();
+  }
+  disconnectedCallback() {
+    clearInterval(this._i);
+    if (this._esc) { window.removeEventListener("keydown", this._esc); this._esc = null; }
+  }
 
   /* Plex-sensorene, med typen de inneholder. En sensor uten _show/_movie i navnet kan
      være blandet; da avgjøres typen per element. Musikk hoppes over. */
@@ -17447,7 +17475,9 @@ class KiLanseringCard extends HTMLElement {
       ...String(x.sjanger || "").split(/[,/]/).map((g) => g.trim()).filter(Boolean).slice(0, 3),
     ].filter(Boolean);
 
-    return `<div class="detalj">
+    const skjerm = String(this._c.detalj_plass || "skjerm").toLowerCase() !== "kort";
+    return `${skjerm ? `<div class="detaljvern" data-lukk="1"></div>` : ""}
+    <div class="detalj ${skjerm ? "skjerm" : ""}">
       ${x.bakgrunn ? `<div class="bak" style="background-image:url('${kiLaEsc(x.bakgrunn)}')"></div>` : ""}
       <div class="skygge"></div>
       <button class="lukk" data-lukk="1" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
@@ -17751,6 +17781,20 @@ class KiLanseringCard extends HTMLElement {
         ki.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
       }
     }
+    /* Sikring. position:fixed regnes fra nærmeste forfar med transform eller filter –
+       og et par popup-rammer har nettopp det. Havner laget likevel utenfor skjermen,
+       rulles det inn i stedet for å bli stående usynlig. */
+    const lag = this.shadowRoot.querySelector(".detalj.skjerm");
+    if (lag && !this._sjekket) {
+      this._sjekket = true;
+      requestAnimationFrame(() => {
+        const r = lag.getBoundingClientRect();
+        const h = window.innerHeight || 0;
+        if (r.height && (r.bottom < 40 || r.top > h - 40)) lag.scrollIntoView({ block: "center" });
+      });
+    }
+    if (!lag) this._sjekket = false;
+
     // detaljlaget: lukk og lenkeknapper
     for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
       b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });
@@ -17802,7 +17846,8 @@ class KiLanseringCardEditor extends HTMLElement {
       this._f = document.createElement("ha-form");
       const n = { serier: "Sonarr-sensor", filmer: "Radarr-sensor", antall: "Antall i lista",
         visning: "Visning", plakater: "Vis plakater",
-        plex_serier: "Plex – nylig lagt til serier", plex_filmer: "Plex – nylig lagt til filmer" };
+        plex_serier: "Plex – nylig lagt til serier", plex_filmer: "Plex – nylig lagt til filmer",
+        detalj_plass: "Hvor detaljene åpnes" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -17818,6 +17863,8 @@ class KiLanseringCardEditor extends HTMLElement {
         { value: "hero", label: "Bare hero" }] } } },
       { name: "plex_serier", selector: { entity: { domain: "sensor" } } },
       { name: "plex_filmer", selector: { entity: { domain: "sensor" } } },
+      { name: "detalj_plass", selector: { select: { mode: "dropdown", options: [
+        { value: "skjerm", label: "Midt i skjermen" }, { value: "kort", label: "Over kortet" }] } } },
       { name: "plakater", selector: { boolean: {} } },
     ];
   }
