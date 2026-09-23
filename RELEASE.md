@@ -1,49 +1,38 @@
-# ki-cards 5.56.0
+# ki-cards 5.57.0
 
-## ki-basseng-card 1.11.0: varmepumpa og hurtigknappene er med i kortet
+## Nytt kort: `ki-basseng-hero-card`
 
-Toppen av bassengpopupen var bygget av egne kort: to `conditional` med `button-card` for
-varmepumpa, og et rutenett med fem ikonknapper uten navn. Nå er begge deler en del av
-`ki-basseng-card`, i samme form som resten av kortet.
+Et animert bassengkort i samme stil som de andre hero-kortene, lagt inn i bundelen som
+`src/91-ki-basseng-hero-card.js` — det trenger ikke lenger installeres som egen ressurs.
 
 ```yaml
-type: custom:ki-basseng-card
+type: custom:ki-basseng-hero-card
 varmepumpe: climate.basseng_bassengvarmepumpe
+pumpe: switch.bassengpumpe
+lys: light.bassenglys
 stillemodus: switch.baseng_basengvarmepumpe_stillemodus
-hurtig:
-  - entity: light.bassenglys
-    navn: Lys
-  - entity: switch.bassengpumpe
-    navn: Pumpe
-    ikon: mdi:pump
+ute: sensor.outdoor_meter_temperature
+tap_action: { action: navigate, navigation_path: "#badebasseng" }
 ```
 
-**Statuskortet for varmepumpa**, øverst:
+Scenen viser bassenget fra siden:
 
-- **varmer** — rød toning: «Varmer bassenget · 26,4° → 28°», med en merkelapp når stillemodus er på,
-  og en stolpe som viser hvor nær målet vannet er
-- **auto** — oransje advarsel: i auto kan den kjøle, og KI Basseng setter den tilbake til varme
-- **av** — en stille linje med vanntemperaturen, så du ser det uten at det roper
+- vannflaten bølger, og farge og høyde følger vanntemperaturen (fra kaldt til varmt, 18–30 °)
+- bobler stiger når sirkulasjonspumpa går
+- varmepumpa snurrer og blåser varme bølger når den varmer — saktere i stillemodus
+- damp stiger fra vannet når det varmes
+- bassenglyset lyser opp vannet nedenfra
+- står varmepumpa i auto, blinker et gult varsel, siden den kan kjøle i auto
 
-Trykk åpner varmepumpa.
+Alle entitetene har standardverdier for ditt oppsett, så `type:` alene holder.
 
-**Hurtigknappene** har fått navn under ikonet — før var det fem ikoner uten tekst. Fargen viser
-tilstanden: aktivfargen når noe er på, rød når varmepumpa varmer, oransje når den står i auto,
-stiplet kant når enheten ikke svarer. Trykk veksler, langt trykk åpner mer info, og begge gir
-haptikk i appen. Ikonet følger tilstanden av seg selv for lys og varmepumpe; `ikon:` overstyrer.
-
-Alle tre feltene ligger i den visuelle editoren. Hurtigknappene velges der som en liste; navn og ikon
-satt i YAML tas vare på. Uten feltene er kortet nøyaktig som før.
-
-Samtidig rettet i editoren: en faneliste fra YAML (`faner: [oversikt, sirkulasjon, …]`) ble gjort om
-til `true` så snart noe ble endret i editoren. Den står nå.
-
-`basseng-popup.yaml` viser popupen med alt samlet i kortet.
+Kortet er tatt inn uendret og registrerer seg gjennom `KI.define` som resten. En eldre kopi
+installert som egen ressurs kolliderer derfor ikke, men hoppes over med en advarsel i konsollen.
+Kortet har fått ikon i `brand/` og en rad i kort-tabellen i README.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Toppen er i tillegg tegnet
-med ditt oppsett i alle tilstandene: varme med «26,4° → 28°» og stillemodus, auto med advarsel og
-oransje knapp, av med «Vannet er 24,2°», fem knapper i riktig tilstand (lys på, pumpe av, varme,
-stille på, stikkontakten stiplet), statuskortet og knappene over fanerada, og kortet uten de nye
-feltene helt uendret.
+Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass — ett mer enn før. Kortet er
+i tillegg tegnet i alle tilstandene til varmepumpa: varme (med pumpe, lys og stillemodus), auto, av og
+utilgjengelig — riktig tilstandsklasse på scenen hver gang, og ingen `NaN` eller `undefined` i
+markeringen.

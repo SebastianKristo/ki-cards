@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
+<rect width="64" height="64" rx="16" fill="#463a40"/>
+<!-- bassengkanten og vannet -->
+<path d="M9 30h34v18a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4z" fill="#2f7fa8"/>
+<path d="M9 33c4-2.4 7-2.4 11 0s7 2.4 11 0 7-2.4 12 0" fill="none" stroke="#9fdcff" stroke-width="2.2" stroke-linecap="round"/>
+<circle cx="18" cy="43" r="1.8" fill="#cfefff" opacity=".8"/>
+<circle cx="24" cy="39" r="1.3" fill="#cfefff" opacity=".7"/>
+<circle cx="30" cy="45" r="1.5" fill="#cfefff" opacity=".6"/>
+<!-- varmepumpa med vifte -->
+<rect x="45" y="30" width="12" height="22" rx="3" fill="#8a8f99"/>
+<circle cx="51" cy="41" r="4.6" fill="#5f646d"/>
+<g fill="#ffb14a">
+  <ellipse cx="51" cy="38.6" rx="1.3" ry="2.4"/>
+  <ellipse cx="51" cy="38.6" rx="1.3" ry="2.4" transform="rotate(120 51 41)"/>
+  <ellipse cx="51" cy="38.6" rx="1.3" ry="2.4" transform="rotate(240 51 41)"/>
+</g>
+<circle cx="51" cy="41" r="1" fill="#fafbfc"/>
+<!-- damp -->
+<path d="M18 26c-2-2 2-4 0-7M26 26c-2-2 2-4 0-7" fill="none" stroke="#fafbfc" stroke-width="1.8" stroke-linecap="round" opacity=".45"/>
+</svg>
