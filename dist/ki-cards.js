@@ -1,4 +1,4 @@
-/* ki-cards v5.59.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.60.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.59.0";
+  KI.VERSION = "5.60.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15014,6 +15014,8 @@ try {
  * - Grafer hentes fra HA sin historikk, ikke fra en ekstra sensor.
  * - Tegner bare når bassengets egne entiteter faktisk har endret seg.
  *
+ * visning: hero  – bare vannheroen (temperatur, status, omsetninger), som eget kort i dashbordet.
+ *
  * Varmepumpe og hurtigknapper (1.11) – det som før lå som egne kort over kortet i popupen:
  *   varmepumpe: climate.basseng_bassengvarmepumpe
  *   stillemodus: switch.baseng_basengvarmepumpe_stillemodus
@@ -15028,7 +15030,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.13.0";
+  const VERSJON = "1.14.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15900,6 +15902,14 @@ try {
         return alle;
       }
 
+      /* Fanerada er den fra ki-tabs-card: tynn ring, piller, og glidepilla fra
+         KI.pillefaner med klem og sprett. Vakta i basen setter pilla på igjen når Lit
+         tegner rada på nytt. Uten basen (kortet alene) beholder fanen egen bakgrunn. */
+      firstUpdated() {
+        const ki = window.KI;
+        if (ki && ki.pillefaner) ki.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv", sprett: true });
+      }
+
       _faner(liste, aktiv) {
         /* Tannhjulet skilles ut fra de vanlige fanene. Innstillinger er noe man går inn
            i sjelden, og som fane stjal den plass fra de tre man bruker. */
@@ -15912,7 +15922,7 @@ try {
               (f) => html`
                 <button
                   class="fane ${f.id === aktiv ? "aktiv" : ""}"
-                  @click=${() => { this._fane = f.id; }}
+                  @click=${() => { if (this._fane !== f.id) this._haptikk("selection"); this._fane = f.id; }}
                 >
                   ${f.navn}
                 </button>
@@ -15983,7 +15993,8 @@ try {
         return html`
           <span class="vindu">
             ${[24, 72, 168].map((t) => html`
-              <button class="${this._timer === t ? "aktiv" : ""}" @click=${() => this._byttVindu(t)}>
+              <button class="${this._timer === t ? "aktiv" : ""}"
+                @click=${(e) => { e.stopPropagation(); this._byttVindu(t); }}>
                 ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
               </button>`)}
           </span>`;
@@ -16301,26 +16312,74 @@ try {
 
         return html`
           <section class="panel spredpanel ${gar ? "gar" : ""}">
+          <!-- Sprederen som en scene: kveldshimmel, vannflaten med bølger, dysa midt i
+               bassenget, fem stråler i bue med dråper langs buen, og ringer i vannet der
+               strålene lander. Alt i én svg, gradientene i defs. -->
           <div class="spredscene ${gar ? "gar" : ""}">
-            <svg viewBox="0 0 320 120" preserveAspectRatio="xMidYMid meet">
-              <rect class="sp-vann" x="0" y="96" width="320" height="24"></rect>
-              <g class="sp-gruppe" transform-origin="160px 78px">
-                <path class="sp-straale" d="M160 78 q34 -38 70 -18"></path>
-                <path class="sp-straale tynn" d="M160 78 q26 -30 54 -20"></path>
-                <path class="sp-straale" d="M160 78 q-34 -38 -70 -18"></path>
-                <path class="sp-straale tynn" d="M160 78 q-26 -30 -54 -20"></path>
+            <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+              <defs>
+                <linearGradient id="sp-himmel" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#101a26"></stop><stop offset="1" stop-color="#1b3550"></stop>
+                </linearGradient>
+                <linearGradient id="sp-sjo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#2f8fc4"></stop><stop offset="1" stop-color="#153a5c"></stop>
+                </linearGradient>
+                <linearGradient id="sp-straaleg" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#dff4ff" stop-opacity=".95"></stop>
+                  <stop offset="1" stop-color="#9fd6ff" stop-opacity="0"></stop>
+                </linearGradient>
+                <radialGradient id="sp-glans" cx=".5" cy=".5" r=".5">
+                  <stop offset="0" stop-color="#ffffff" stop-opacity=".35"></stop><stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
+                </radialGradient>
+              </defs>
+              <rect class="sp-himmel" width="320" height="150" fill="url(#sp-himmel)"></rect>
+              <g class="sp-stjerner">
+                <circle cx="24" cy="22" r="1.4" fill="#fff" style="--i:0"></circle>
+                <circle cx="61" cy="14" r="1" fill="#fff" style="--i:1"></circle>
+                <circle cx="98" cy="30" r="1" fill="#fff" style="--i:2"></circle>
+                <circle cx="150" cy="12" r="1.4" fill="#fff" style="--i:3"></circle>
+                <circle cx="204" cy="26" r="1" fill="#fff" style="--i:4"></circle>
+                <circle cx="248" cy="17" r="1" fill="#fff" style="--i:5"></circle>
+                <circle cx="290" cy="34" r="1.4" fill="#fff" style="--i:6"></circle>
+                <circle cx="176" cy="40" r="1" fill="#fff" style="--i:7"></circle>
+              </g>
+              <ellipse class="sp-mane" cx="272" cy="42" rx="11" ry="11" fill="#f3f0dc" opacity=".85"></ellipse>
+              <!-- vannet -->
+              <path class="sp-vann" d="M0 96 C40 90 60 102 100 96 S160 90 200 96 S260 102 320 96 L320 150 L0 150 Z" fill="url(#sp-sjo)"></path>
+              <path class="sp-bolge b1" d="M-40 98 C-10 92 20 104 60 98 S120 92 160 98 S220 104 260 98 S320 92 360 98" fill="none" stroke="#bfe9ff" stroke-opacity=".45" stroke-width="1.6"></path>
+              <path class="sp-bolge b2" d="M-40 106 C0 100 30 112 70 106 S130 100 170 106 S230 112 270 106 S330 100 370 106" fill="none" stroke="#bfe9ff" stroke-opacity=".22" stroke-width="1.2"></path>
+              <ellipse class="sp-lys" cx="160" cy="118" rx="70" ry="16" fill="url(#sp-glans)"></ellipse>
+              <!-- ringer der strålene lander -->
+              <g class="sp-ringer">
+                <ellipse cx="70" cy="100" rx="10" ry="3" fill="none" stroke="#dff4ff" stroke-width="1.2" style="--i:0"></ellipse>
+                <ellipse cx="110" cy="98" rx="10" ry="3" fill="none" stroke="#dff4ff" stroke-width="1.2" style="--i:1"></ellipse>
+                <ellipse cx="210" cy="98" rx="10" ry="3" fill="none" stroke="#dff4ff" stroke-width="1.2" style="--i:2"></ellipse>
+                <ellipse cx="250" cy="100" rx="10" ry="3" fill="none" stroke="#dff4ff" stroke-width="1.2" style="--i:3"></ellipse>
+              </g>
+              <!-- dysa -->
+              <g class="sp-hode">
+                <rect x="156" y="70" width="8" height="30" rx="4" fill="#9aa4ad"></rect>
+                <rect x="150" y="66" width="20" height="9" rx="4.5" fill="#cfd6dc"></rect>
+                <circle cx="160" cy="70" r="3" fill="#6aa9c9"></circle>
+              </g>
+              <!-- strålene -->
+              <g class="sp-gruppe">
+                <path class="sp-straale s0" style="--i:0" d="M160 70 q0 -40 0 28" fill="none" stroke="#dff4ff" stroke-linecap="round"></path>
+                <path class="sp-straale s1" style="--i:1" d="M160 70 q30 -42 60 28" fill="none" stroke="#dff4ff" stroke-linecap="round"></path>
+                <path class="sp-straale s2" style="--i:2" d="M160 70 q52 -26 96 26" fill="none" stroke="#dff4ff" stroke-linecap="round"></path>
+                <path class="sp-straale s3" style="--i:3" d="M160 70 q-30 -42 -60 28" fill="none" stroke="#dff4ff" stroke-linecap="round"></path>
+                <path class="sp-straale s4" style="--i:4" d="M160 70 q-52 -26 -96 26" fill="none" stroke="#dff4ff" stroke-linecap="round"></path>
               </g>
               <g class="sp-draper">
-                ${[[52, 16], [74, 26], [96, 20], [-52, 16], [-74, 26], [-96, 20],
-                   [38, 30], [-38, 30]].map(([dx, dy], i) => html`
-                  <circle class="sp-drape" cx="160" cy="78" r="2.6"
-                    style="--dx:${dx}px;--dy:${dy}px;animation-delay:${
-                      (i * 0.17).toFixed(2)}s"></circle>`)}
-              </g>
-              <g class="sp-hode" transform-origin="160px 96px">
-                <rect x="157" y="78" width="6" height="20" rx="3" class="sp-stamme"></rect>
-                <circle cx="160" cy="78" r="7" class="sp-topp"></circle>
-                <circle cx="160" cy="78" r="3" class="sp-dyse"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.0" style="--dx:44px;--dy:24px;animation-delay:0.00s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.4" style="--dx:70px;--dy:36px;animation-delay:0.19s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.8" style="--dx:96px;--dy:30px;animation-delay:0.38s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.0" style="--dx:-44px;--dy:24px;animation-delay:0.57s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.4" style="--dx:-70px;--dy:36px;animation-delay:0.76s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.8" style="--dx:-96px;--dy:30px;animation-delay:0.95s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.0" style="--dx:22px;--dy:40px;animation-delay:1.14s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.4" style="--dx:-22px;--dy:40px;animation-delay:1.33s"></circle>
+                <circle class="sp-drape" cx="160" cy="70" r="2.8" style="--dx:0px;--dy:46px;animation-delay:1.52s"></circle>
               </g>
             </svg>
             <div class="spredtekst">
@@ -16411,6 +16470,11 @@ try {
         const neste = klokke(this.val("nesteStart"));
         const planlagt = this.attr("modus", "timer_planlagt", 0);
 
+        /* Bare heroen: samme vannflate som øverst i Oversikt, som eget kort. Ingen
+           status, knapper eller faner – de ligger i popupen bak trykket. */
+        if (String(this._config.visning || "").toLowerCase() === "hero") {
+          return html`<ha-card class="barehero">${this._hero()}</ha-card>`;
+        }
         const medFaner = this._config.faner !== false;
         const faneListe = medFaner ? this._faneListe() : [];
         const aktiv = medFaner
@@ -16627,45 +16691,44 @@ try {
           .spredscene {
             position: relative;
             border-radius: 22px;
-            background: var(--kib-surface);
+            background: #101a26;
             overflow: hidden;
             margin-bottom: 8px;
           }
-          .spredscene svg { display: block; width: 100%; height: 120px; }
-          .sp-vann { fill: rgba(74, 157, 248, 0.18); }
-          .sp-stamme { fill: rgba(200, 205, 210, 0.45); }
-          .sp-topp { fill: rgba(234, 246, 255, 0.9); }
-          .sp-dyse { fill: rgba(106, 169, 201, 0.95); }
-
-          /* Hodet vipper, og strålegruppa svinger i samme takt. Ellers ville strålene
-             stått stille mens dysa beveget seg. */
+          .spredscene svg { display: block; width: 100%; height: 150px; }
+          .sp-stjerner circle { animation: sp-blink 3.4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.5s); }
+          @keyframes sp-blink { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+          .sp-bolge { animation: sp-bolge 7s linear infinite; }
+          .sp-bolge.b2 { animation-duration: 11s; animation-direction: reverse; }
+          @keyframes sp-bolge { from { transform: translateX(0); } to { transform: translateX(40px); } }
+          .sp-lys { opacity: 0.5; }
+          /* Dysa vipper sakte, og strålegruppa følger med. */
           .sp-hode { transform-box: fill-box; transform-origin: 50% 100%; }
-          .spredscene.gar .sp-hode { animation: sp-vipp 3.2s ease-in-out infinite alternate; }
-          @keyframes sp-vipp { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
-
-          .sp-gruppe { opacity: 0; transform-box: view-box; }
-          .spredscene.gar .sp-gruppe {
-            opacity: 1;
-            animation: sp-sving 3.2s ease-in-out infinite alternate;
-          }
-          @keyframes sp-sving { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
-          .sp-straale {
-            fill: none;
-            stroke: rgba(191, 233, 255, 0.55);
-            stroke-width: 3;
-            stroke-linecap: round;
-          }
-          .sp-straale.tynn { stroke-width: 2; stroke: rgba(191, 233, 255, 0.35); }
-
-          .sp-drape { fill: rgba(191, 233, 255, 0.9); opacity: 0; transform-box: view-box; }
-          .spredscene.gar .sp-drape { animation: sp-sprut 1.5s ease-out infinite; }
+          .spredscene.gar .sp-hode { animation: sp-vipp 4s ease-in-out infinite alternate; }
+          @keyframes sp-vipp { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+          .sp-gruppe { opacity: 0; transform-box: view-box; transition: opacity 0.6s; }
+          .spredscene.gar .sp-gruppe { opacity: 1; animation: sp-sving 4s ease-in-out infinite alternate; }
+          @keyframes sp-sving { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+          .sp-straale { stroke-width: 3; stroke-opacity: 0.85; stroke-dasharray: 80; stroke-dashoffset: 80; }
+          .sp-straale.s0 { stroke-width: 2.4; }
+          .spredscene.gar .sp-straale { animation: sp-stroem 1.6s ease-out infinite; animation-delay: calc(var(--i) * 0.12s); }
+          @keyframes sp-stroem { 0% { stroke-dashoffset: 80; stroke-opacity: 0; } 20% { stroke-opacity: 0.9; } 100% { stroke-dashoffset: 0; stroke-opacity: 0.5; } }
+          .sp-drape { fill: #dff4ff; opacity: 0; transform-box: view-box; }
+          .spredscene.gar .sp-drape { animation: sp-sprut 1.6s ease-out infinite; }
           @keyframes sp-sprut {
-            0% { opacity: 0; transform: translate(0, 0) scale(0.45); }
-            12% { opacity: 0.95; }
-            45% { transform: translate(calc(var(--dx, 40px) * 0.55),
-                    calc(var(--dy, 22px) * -1)) scale(0.9); }
-            100% { opacity: 0; transform: translate(var(--dx, 40px),
-                     calc(var(--dy, 22px) * 0.9)) scale(0.8); }
+            0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+            15% { opacity: 0.95; }
+            50% { transform: translate(calc(var(--dx, 40px) * 0.6), calc(var(--dy, 22px) * -1)) scale(0.9); }
+            100% { opacity: 0; transform: translate(var(--dx, 40px), calc(var(--dy, 22px) * 1.1)) scale(0.7); }
+          }
+          .sp-ringer ellipse { opacity: 0; transform-box: fill-box; transform-origin: center; }
+          .spredscene.gar .sp-ringer ellipse { animation: sp-ring 2.2s ease-out infinite; animation-delay: calc(var(--i) * 0.55s); }
+          @keyframes sp-ring { 0% { opacity: 0.7; transform: scale(0.3); } 100% { opacity: 0; transform: scale(1.6); } }
+          .spredscene:not(.gar) .sp-hode { opacity: 0.55; }
+          @media (prefers-reduced-motion: reduce) {
+            .sp-stjerner circle, .sp-bolge, .sp-hode, .sp-gruppe, .sp-drape, .sp-ringer ellipse { animation: none !important; }
+            .spredscene.gar .sp-gruppe { opacity: 1; }
+            .spredscene.gar .sp-straale { stroke-dashoffset: 0; }
           }
           .spredtekst {
             position: absolute;
@@ -16676,18 +16739,18 @@ try {
             opacity: 0.8;
           }
 
-          .fanerad {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            /* Verdien 0 0 12px auto skjøv hele rada mot høyre kant. Den skal stå midt
-               på, slik den gjorde før tannhjulet kom til. Ingen backticks i CSS-
-               kommentarer: de lukker template-strengen. */
-            margin: 0 auto 12px auto;
-            width: fit-content;
-            max-width: 100%;
-            min-width: 0;
+          .fanerad { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 12px 0 14px; }
+          .faner {
+            display: inline-flex; gap: 4px; padding: 2px; max-width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 999px;
           }
+          .fane {
+            border: 0; background: none; color: rgba(255, 255, 255, 0.72); font: inherit; font-size: 13px;
+            font-weight: 500; padding: 6px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+          }
+          .faner .ki-pille { background: var(--active-big, #ee95ff); }
+          .fane.aktiv { background: var(--active-big, #ee95ff); color: rgba(70, 58, 64, 0.95); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); }
           .cog {
             flex: 0 0 auto;
             width: 40px;
@@ -31355,6 +31418,8 @@ try {
  *  stillemodus: switch.baseng_basengvarmepumpe_stillemodus
  *  ute: sensor.outdoor_meter_temperature     # valgfritt
  *  tap_action: { action: navigate, navigation_path: "#badebasseng" }
+ *  ki: true                                  # tall fra KI Basseng når integrasjonen finnes:
+ *                                            # omsetninger mot målet, og modus i pillen
  */
 (() => {
   const STANDARD = {
@@ -31367,7 +31432,11 @@ try {
     vanntemp: null,          // egen temperatursensor, ellers current_temperature fra varmepumpa
     ute: "sensor.outdoor_meter_temperature",
     kald: 18, varm: 30,      // skala for vannfargen
+    ki: true,                // hent omsetninger og modus fra KI Basseng når den finnes
   };
+  const MODUS = { filtrering: ["Filtrerer", "mdi:pump"], oppvarming: ["Varmer opp", "mdi:heat-wave"],
+    vedlikehold: ["Vedlikehold", "mdi:timer-play-outline"], boost: ["Boost", "mdi:fan-plus"],
+    spreder: ["Spreder", "mdi:sprinkler"], hvile: ["Hviler", "mdi:pause"], manuell: ["Manuell", "mdi:hand-back-right-outline"] };
   const DAARLIG = ["unavailable", "unknown", "", null, undefined];
   const ok = (s) => s && !DAARLIG.includes(s.state);
   const klem = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -31517,9 +31586,25 @@ try {
       k.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._trykk(); } });
       this._bygget = true;
     }
+    /* KI Basseng, når den finnes: pumpemodus-sensoren bærer markøren og prefikset,
+       omsetningene ligger på sensor.<prefiks>_omsetninger_i_dag. */
+    _ki() {
+      if (this._c.ki === false) return null;
+      const S = this._hass.states;
+      const id = this._kiId && S[this._kiId] ? this._kiId
+        : Object.keys(S).find((k) => k.startsWith("sensor.") && S[k].attributes && S[k].attributes.integrasjon === "ki_basseng" && S[k].attributes.prefiks);
+      if (!id) return null;
+      this._kiId = id;
+      const p = S[id].attributes.prefiks;
+      const oms = S[`sensor.${p}_omsetninger_i_dag`];
+      return { modus: S[id].state, gjort: oms ? parseFloat(oms.state) : NaN,
+        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null };
+    }
+
     _oppdater() {
       if (!this._bygget) this._bygg();
       const c = this._c, s = (id) => (id ? this._hass.states[id] : undefined);
+      const ki = this._ki();
       const $ = (q) => this.shadowRoot.querySelector(q), kort = $(".bk");
       const vp = s(c.varmepumpe), modus = ok(vp) ? String(vp.state) : "unavailable";
       const handling = vp ? String(vp.attributes.hvac_action || "") : "";
@@ -31554,14 +31639,18 @@ try {
       if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
       else if (auto) { pt = "Står i auto"; ik = "mdi:alert-outline"; }
       else if (varmer) { pt = stille ? "Varmer · stillemodus" : "Varmer"; ik = "mdi:heat-wave"; }
+      // KI Basseng vet hva anlegget gjør; det slår «på måltemperatur» når varmepumpa bare venter
+      else if (ki && MODUS[ki.modus] && ki.modus !== "hvile") { [pt, ik] = MODUS[ki.modus]; }
       else if (modus === "heat") { pt = isNaN(mal) || isNaN(vann) ? "Klar" : "På måltemperatur"; ik = "mdi:check-circle"; }
       else if (pumpe) { pt = "Sirkulerer"; ik = "mdi:pump"; }
+      else if (ki && ki.modus === "hvile") { pt = "Hviler"; ik = "mdi:pause"; }
       else { pt = "Av"; ik = "mdi:power"; }
       $(".pille ha-icon").setAttribute("icon", ik); $(".pt").textContent = pt;
       $(".stor").innerHTML = isNaN(vann) ? "--" : `${komma(vann, 1)}<small>°C</small>`;
       const deler = [];
+      if (ki && !isNaN(ki.gjort)) deler.push(isNaN(ki.mal) ? `${komma(ki.gjort, 2)} omsetninger` : `${komma(ki.gjort, 2)} av ${komma(ki.mal, 2)} omsetninger`);
       if (!isNaN(mal)) deler.push(`mål ${Math.round(mal)}°`);
-      deler.push(pumpe ? "pumpe på" : "pumpe av");
+      if (!ki) deler.push(pumpe ? "pumpe på" : "pumpe av");
       if (!isNaN(ute)) deler.push(`ute ${komma(ute, 1)}°`);
       $(".sub").textContent = deler.join("  ·  ");
       kort.setAttribute("aria-label", `${c.navn}: ${pt}. ${$(".stor").textContent}. ${$(".sub").textContent}`);

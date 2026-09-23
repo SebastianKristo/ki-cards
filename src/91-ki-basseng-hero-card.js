@@ -15,6 +15,8 @@
  *  stillemodus: switch.baseng_basengvarmepumpe_stillemodus
  *  ute: sensor.outdoor_meter_temperature     # valgfritt
  *  tap_action: { action: navigate, navigation_path: "#badebasseng" }
+ *  ki: true                                  # tall fra KI Basseng når integrasjonen finnes:
+ *                                            # omsetninger mot målet, og modus i pillen
  */
 (() => {
   const STANDARD = {
@@ -27,7 +29,11 @@
     vanntemp: null,          // egen temperatursensor, ellers current_temperature fra varmepumpa
     ute: "sensor.outdoor_meter_temperature",
     kald: 18, varm: 30,      // skala for vannfargen
+    ki: true,                // hent omsetninger og modus fra KI Basseng når den finnes
   };
+  const MODUS = { filtrering: ["Filtrerer", "mdi:pump"], oppvarming: ["Varmer opp", "mdi:heat-wave"],
+    vedlikehold: ["Vedlikehold", "mdi:timer-play-outline"], boost: ["Boost", "mdi:fan-plus"],
+    spreder: ["Spreder", "mdi:sprinkler"], hvile: ["Hviler", "mdi:pause"], manuell: ["Manuell", "mdi:hand-back-right-outline"] };
   const DAARLIG = ["unavailable", "unknown", "", null, undefined];
   const ok = (s) => s && !DAARLIG.includes(s.state);
   const klem = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -177,9 +183,25 @@
       k.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._trykk(); } });
       this._bygget = true;
     }
+    /* KI Basseng, når den finnes: pumpemodus-sensoren bærer markøren og prefikset,
+       omsetningene ligger på sensor.<prefiks>_omsetninger_i_dag. */
+    _ki() {
+      if (this._c.ki === false) return null;
+      const S = this._hass.states;
+      const id = this._kiId && S[this._kiId] ? this._kiId
+        : Object.keys(S).find((k) => k.startsWith("sensor.") && S[k].attributes && S[k].attributes.integrasjon === "ki_basseng" && S[k].attributes.prefiks);
+      if (!id) return null;
+      this._kiId = id;
+      const p = S[id].attributes.prefiks;
+      const oms = S[`sensor.${p}_omsetninger_i_dag`];
+      return { modus: S[id].state, gjort: oms ? parseFloat(oms.state) : NaN,
+        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null };
+    }
+
     _oppdater() {
       if (!this._bygget) this._bygg();
       const c = this._c, s = (id) => (id ? this._hass.states[id] : undefined);
+      const ki = this._ki();
       const $ = (q) => this.shadowRoot.querySelector(q), kort = $(".bk");
       const vp = s(c.varmepumpe), modus = ok(vp) ? String(vp.state) : "unavailable";
       const handling = vp ? String(vp.attributes.hvac_action || "") : "";
@@ -214,14 +236,18 @@
       if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
       else if (auto) { pt = "Står i auto"; ik = "mdi:alert-outline"; }
       else if (varmer) { pt = stille ? "Varmer · stillemodus" : "Varmer"; ik = "mdi:heat-wave"; }
+      // KI Basseng vet hva anlegget gjør; det slår «på måltemperatur» når varmepumpa bare venter
+      else if (ki && MODUS[ki.modus] && ki.modus !== "hvile") { [pt, ik] = MODUS[ki.modus]; }
       else if (modus === "heat") { pt = isNaN(mal) || isNaN(vann) ? "Klar" : "På måltemperatur"; ik = "mdi:check-circle"; }
       else if (pumpe) { pt = "Sirkulerer"; ik = "mdi:pump"; }
+      else if (ki && ki.modus === "hvile") { pt = "Hviler"; ik = "mdi:pause"; }
       else { pt = "Av"; ik = "mdi:power"; }
       $(".pille ha-icon").setAttribute("icon", ik); $(".pt").textContent = pt;
       $(".stor").innerHTML = isNaN(vann) ? "--" : `${komma(vann, 1)}<small>°C</small>`;
       const deler = [];
+      if (ki && !isNaN(ki.gjort)) deler.push(isNaN(ki.mal) ? `${komma(ki.gjort, 2)} omsetninger` : `${komma(ki.gjort, 2)} av ${komma(ki.mal, 2)} omsetninger`);
       if (!isNaN(mal)) deler.push(`mål ${Math.round(mal)}°`);
-      deler.push(pumpe ? "pumpe på" : "pumpe av");
+      if (!ki) deler.push(pumpe ? "pumpe på" : "pumpe av");
       if (!isNaN(ute)) deler.push(`ute ${komma(ute, 1)}°`);
       $(".sub").textContent = deler.join("  ·  ");
       kort.setAttribute("aria-label", `${c.navn}: ${pt}. ${$(".stor").textContent}. ${$(".sub").textContent}`);

@@ -1,39 +1,36 @@
-# ki-cards 5.59.0
+# ki-cards 5.60.0
 
-## Bassengkortet i mysmarthome-språket, med trykk og finger på grafen
+## Bassenget: heroen som eget kort, ki-tabs i kortet, ny sprederscene
 
-`ki-basseng-card` 1.13.0.
+**Heroen som eget kort.** Vannflaten med temperaturen, statusmerket og omsetningene kan stå alene i
+dashbordet:
 
-**Designspråket.** Panelene så ut som noe for seg selv: fargede ikonfliser, halvfete overskrifter,
-tunge tall. Nå følger de dashbordet: ikonflisen er den lyse, gjennomskinnelige sirkelen med tynn kant
-og hvitt ikon fra `universal_base`, navnene står i 14 px/500 med 70 % opasitet, og de store tallene i
-vekt 300 — som «2em / 300» i flisene ellers. Halvfet er borte; fargene brukes bare i ringer og stolper.
-Reglene ligger i `DESIGN.md` i repoet, så de neste kortene begynner der.
+```yaml
+type: custom:ki-basseng-card
+visning: hero
+```
 
-**Trykk gir riktig entitet.** Panelhodene og ringene åpner mer-info for det de viser: omsetningene,
-vanntemperaturen, planen (modus-sensoren) og spredertiden. Tellerflisene gjorde det fra 1.12.
+**Det animerte kortet henter tall fra KI Basseng.** `ki-basseng-hero-card` viser nå «3,90 av 2,50
+omsetninger» under temperaturen, og pillen sier hva anlegget gjør — Filtrerer, Varmer opp, Spreder,
+Boost — i stedet for bare hva varmepumpa gjør. Varmer og auto vises fortsatt først. Integrasjonen
+finnes av seg selv; `ki: false` slår det av. Da er de to kortene kombinert: scenen fra det ene med
+tallene fra det andre.
 
-**Fingeren over grafen.** Dra over temperaturgrafen, så følger en strek og en lapp med temperaturen og
-klokkeslettet der fingeren står — og «pumpa gikk» når fingeren står i et pumpefelt. Nå-lappen skjules
-imens. På mobil er det bare mens fingeren er nede, så rullingen ikke stjeles.
+**Fanerada er ki-tabs.** Tynn ring, piller, og glidepilla med klem og sprett — samme rad som ellers i
+pakka. Tannhjulet står utenfor som før.
 
-En feil rettet før den nådde deg: første utgave av lappen leste en variabel før den var satt, og
-kortet hadde krasjet i det øyeblikket noen rørte grafen. Testen fant den.
+**Sprederscenen er tegnet på nytt.** Kveldshimmel med stjerner og måne, vannflaten med to bølger som
+driver, dysa midt i bassenget, fem stråler som bygger seg opp i bue og faller ned i vannet, dråper
+langs buene, og ringer i vannet der strålene lander. Står sprederen, dempes dysa og alt er stille.
+Hele svg-en står i klartekst i malen — ingen nøstede maler inni, som ville lagt elementene i feil
+navnerom og gjort dem usynlige.
 
-## family-status-card: fargene kan velges, og været som profil
-
-**Fargene i editoren.** Fargeruta var bare en visning — trykk gjorde ingenting, og den eneste måten å
-endre en farge på var å skrive en CSS-verdi i tekstfeltet. Nå åpner ruta en palett med temaets
-farger (aktiv, rød, oransje, gul, grønn, blå, lilla, rosa, tekst, dempet, flate, svart), en egen
-fargevelger for en hvilken som helst farge, og «Arv fra temaet» som tømmer. Tekstfeltet står der
-fortsatt for den som vil skrive `var(--…)` selv.
-
-**Linja under navnet** er et valg i Hilsen-panelet: **Ingen**, **Vær – temperatur og tilstand** (som
-i appen: «13 °C • Klar himmel», med værentiteten under) eller **Egen tekst**. Før måtte man vite at
-`{temp} • {vaer}` fantes.
+**Retting: dagvalget i grafen åpnet entiteten.** Panelhodet over grafen åpner vanntemperaturen når du
+trykker på det (fra 1.13), og knappene 24 t / 3 d / 7 d ligger i det hodet — trykket gikk videre til
+hodet. Knappene stopper det nå selv.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Bassengkortet er tegnet
-med et døgn oppdiktet historikk: fingeren på midten gir «25,9° 06:46» og «pumpa gikk», nå-lappen
-skjules, panelhodene er trykkbare. `DESIGN.md` er lagt til.
+Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Hero-kortet er tegnet med
+KI Basseng til stede: «Varmer» når varmepumpa varmer, «Filtrerer» når den bare venter på mål, og
+omsetningene i underteksten. Bassengkortet: fingeren på grafen, panelhodene og alle fanene som før.
