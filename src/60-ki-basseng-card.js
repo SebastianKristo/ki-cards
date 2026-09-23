@@ -8,13 +8,22 @@
  * - Tallvalg bruker <select>, så iOS/Android viser sin egen hjulvelger.
  * - Grafer hentes fra HA sin historikk, ikke fra en ekstra sensor.
  * - Tegner bare når bassengets egne entiteter faktisk har endret seg.
+ *
+ * Varmepumpe og hurtigknapper (1.11) – det som før lå som egne kort over kortet i popupen:
+ *   varmepumpe: climate.basseng_bassengvarmepumpe
+ *   stillemodus: switch.baseng_basengvarmepumpe_stillemodus
+ *   hurtig:
+ *     - entity: light.bassenglys
+ *       navn: Lys
+ *     - entity: switch.bassengpumpe
+ *       navn: Pumpe
  */
 (() => {
   "use strict";
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.10.0";
+  const VERSJON = "1.11.0";
 
   /* Finner LitElement i frontend.
    *
@@ -209,6 +218,10 @@
         if (!gammel || !this.hass) return true;
         for (const id of this._ider.values()) {
           if (id && gammel.states[id] !== this.hass.states[id]) return true;
+        }
+        /* Varmepumpa og hurtigknappene ligger utenfor integrasjonen, så de må følges for seg. */
+        for (const id of this._eksterne()) {
+          if (gammel.states[id] !== this.hass.states[id]) return true;
         }
         return this._ider.size === 0;
       }
@@ -557,6 +570,131 @@
         const ev = new Event("hass-more-info", { bubbles: true, composed: true });
         ev.detail = { entityId: id };
         this.dispatchEvent(ev);
+      }
+
+      /* --- varmepumpe og hurtigknapper (1.11) -------------------------- */
+
+      _hurtigListe() {
+        const h = this._config.hurtig || [];
+        return (Array.isArray(h) ? h : []).map((x) => (typeof x === "string" ? { entity: x } : x))
+          .filter((x) => x && x.entity);
+      }
+
+      _eksterne() {
+        const c = this._config;
+        return [c.varmepumpe, c.stillemodus, ...this._hurtigListe().map((x) => x.entity)].filter(Boolean);
+      }
+
+      /* Haptikk som virker i appen på iPhone også: navigator.vibrate finnes ikke i
+         Safari, men appen lytter på et haptic-event på window. */
+      _haptikk(type = "light") {
+        try { window.dispatchEvent(new CustomEvent("haptic", { detail: type, bubbles: true, composed: true })); }
+        catch (e) { /* eldre nettlesere */ }
+        if (navigator.vibrate) { try { navigator.vibrate(type === "selection" ? 5 : 8); } catch (e) { /* blokkert */ } }
+      }
+
+      _merId(id) {
+        if (!id) return;
+        const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+        ev.detail = { entityId: id };
+        this.dispatchEvent(ev);
+      }
+
+      /* Varmepumpa, øverst i kortet.
+       *
+       *   heat  → «Varmer bassenget · 27,3° → 28° · stillemodus», rød toning
+       *   auto  → advarsel i oransje: i auto kan den kjøle, og KI Basseng setter den
+       *           tilbake til heat
+       *   av    → en stille linje, så du ser at den står av uten at det roper
+       *
+       * Før var dette to conditional-kort med button-card over kortet i popupen. */
+      _varmestatus() {
+        const id = this._config.varmepumpe;
+        const st = id && this.hass.states[id];
+        if (!st) return "";
+        const a = st.attributes || {};
+        const na = a.current_temperature, mal = a.temperature;
+        const stille = this._config.stillemodus && this.hass.states[this._config.stillemodus];
+        const stilleOn = stille && stille.state === "on";
+        const grad = (v, d = 1) => (v === undefined || v === null ? null : nf(v, d) + "°");
+        if (st.state === "auto") {
+          return html`
+            <div class="vpstatus auto" @click=${() => this._merId(id)}>
+              <span class="vpik"><ha-icon icon="mdi:alert-outline"></ha-icon></span>
+              <div class="vptekst">
+                <div class="vptittel">Varmepumpa står i auto</div>
+                <div class="vpunder">I auto kan den kjøle. KI Basseng setter den tilbake til varme.</div>
+              </div>
+            </div>`;
+        }
+        if (st.state === "heat") {
+          const del = [grad(na) && mal != null ? `${grad(na)} → ${grad(mal, 0)}` : grad(na) || (mal != null ? `mål ${grad(mal, 0)}` : null)]
+            .filter(Boolean);
+          /* Stolpen viser hvor nær målet vannet er: 10 grader under målet er tom. */
+          const fylt = na != null && mal != null ? Math.max(4, Math.min(100, 100 - (mal - na) * 10)) : null;
+          return html`
+            <div class="vpstatus varme" @click=${() => this._merId(id)}>
+              <span class="vpik"><ha-icon icon="mdi:heat-wave"></ha-icon></span>
+              <div class="vptekst">
+                <div class="vptittel">Varmer bassenget</div>
+                <div class="vpunder">${del.join(" · ")}${stilleOn ? html` <span class="vpchip">stillemodus</span>` : ""}</div>
+              </div>
+              ${fylt !== null ? html`<div class="vpstolpe"><i style="width:${fylt.toFixed(0)}%"></i></div>` : ""}
+            </div>`;
+        }
+        if (["unavailable", "unknown"].includes(st.state)) return "";
+        return html`
+          <div class="vpstatus av" @click=${() => this._merId(id)}>
+            <span class="vpik"><ha-icon icon="mdi:heat-pump-outline"></ha-icon></span>
+            <div class="vptekst">
+              <div class="vptittel">Varmepumpa står av</div>
+              ${grad(na) ? html`<div class="vpunder">Vannet er ${grad(na)}</div>` : ""}
+            </div>
+          </div>`;
+      }
+
+      /* Hurtigknappene: ikon og navn, og fargen viser tilstanden – aktivfarge når noe er
+         på, rød når varmepumpa varmer, oransje når den står i auto, stiplet når enheten
+         ikke svarer. Trykk veksler, langt trykk åpner mer info. */
+      _hurtig() {
+        const liste = this._hurtigListe();
+        if (!liste.length) return "";
+        const ikonFor = (id, st) => {
+          const d = id.split(".")[0];
+          if (d === "light") return st && st.state === "on" ? "mdi:lightbulb-on" : "mdi:lightbulb-outline";
+          if (d === "climate") return st && st.state === "heat" ? "mdi:heat-wave" : st && st.state === "auto" ? "mdi:alert-outline" : "mdi:heat-pump-outline";
+          return (st && st.attributes && st.attributes.icon) || "mdi:power";
+        };
+        return html`
+          <div class="hurtig" style="--kolonner:${Math.min(liste.length, 5)}">
+            ${liste.map((x) => {
+              const st = this.hass.states[x.entity];
+              const tilstand = st ? st.state : "unavailable";
+              const borte = ["unavailable", "unknown"].includes(tilstand);
+              const klasse = borte ? "borte" : tilstand === "heat" ? "varme" : tilstand === "auto" ? "auto"
+                : ["on", "open", "cool", "heat_cool", "dry", "fan_only"].includes(tilstand) ? "pa" : "";
+              const navn = x.navn || (st && st.attributes.friendly_name) || x.entity;
+              let holdTimer = null, holdt = false;
+              const ned = () => {
+                holdt = false;
+                holdTimer = setTimeout(() => { holdt = true; this._haptikk("medium"); this._merId(x.entity); }, 500);
+              };
+              const opp = () => { clearTimeout(holdTimer); };
+              const trykk = () => {
+                if (holdt) { holdt = false; return; }
+                if (borte) { this._merId(x.entity); return; }
+                this._haptikk("light");
+                this.hass.callService("homeassistant", "toggle", { entity_id: x.entity });
+              };
+              return html`
+                <button class="hk ${klasse}" title=${navn}
+                  @pointerdown=${ned} @pointerup=${opp} @pointerleave=${opp} @pointercancel=${opp}
+                  @click=${trykk} @contextmenu=${(e) => e.preventDefault()}>
+                  <ha-icon icon=${x.ikon || ikonFor(x.entity, st)}></ha-icon>
+                  <span>${navn}</span>
+                </button>`;
+            })}
+          </div>`;
       }
 
       _apneLukk(navn) {
@@ -1145,6 +1283,8 @@
         return html`
           <ha-card>
             ${this._config.tittel ? html`<div class="tittel">${this._config.tittel}</div>` : ""}
+            ${this._varmestatus()}
+            ${this._hurtig()}
             ${medFaner && faneListe.length > 1 ? this._faner(faneListe, aktiv) : ""}
             <div class="innhold">
               ${vis("oversikt") ? html`
@@ -1744,6 +1884,92 @@
             color: var(--kib-muted);
           }
 
+          /* Varmepumpa: et statuskort øverst, samme form som i vanningskortet. */
+          .vpstatus {
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 52px minmax(0, 1fr);
+            gap: 14px;
+            align-items: center;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1);
+          }
+          .vpstatus:active { transform: scale(0.98); }
+          .vpstatus.varme {
+            background: linear-gradient(135deg, color-mix(in srgb, var(--kib-red) 70%, #000) 0%, var(--kib-red) 100%);
+            color: #fff;
+          }
+          .vpstatus.auto { background: var(--kib-orange); color: var(--kib-sort); }
+          .vpstatus.av { background: var(--kib-surface); color: var(--kib-text); padding: 10px 16px; }
+          .vpik {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: grid; place-items: center;
+            background: rgba(255, 255, 255, 0.16);
+          }
+          .vpstatus.auto .vpik { background: rgba(0, 0, 0, 0.12); }
+          .vpstatus.av .vpik { width: 40px; height: 40px; background: var(--kib-inner); }
+          .vpik ha-icon { --mdc-icon-size: 27px; }
+          .vpstatus.av .vpik ha-icon { --mdc-icon-size: 21px; }
+          .vpstatus.varme .vpik ha-icon { animation: kib-varme 2.4s ease-in-out infinite; }
+          @keyframes kib-varme { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+          .vptittel { font-size: 16px; font-weight: 600; }
+          .vpstatus.av .vptittel { font-size: 14px; font-weight: 500; }
+          .vpunder { font-size: 13px; opacity: 0.88; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+          .vpchip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); }
+          .vpstolpe { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+          .vpstolpe i { display: block; height: 100%; border-radius: 2px; background: #fff; opacity: 0.85; }
+
+          /* Hurtigknappene: ikon og navn, samme fliseform som resten. */
+          .hurtig {
+            display: grid;
+            grid-template-columns: repeat(var(--kolonner, 5), minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 14px;
+          }
+          .hk {
+            aspect-ratio: 1;
+            min-width: 0;
+            border-radius: 22px;
+            background: var(--kib-surface);
+            color: var(--kib-text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 4px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            transition: background 0.25s ease, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1);
+          }
+          .hk:active { transform: scale(0.93); }
+          .hk ha-icon { --mdc-icon-size: 24px; }
+          .hk span {
+            font-size: 11px;
+            font-weight: 500;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            opacity: 0.75;
+          }
+          .hk.pa { background: var(--kib-accent); color: var(--kib-sort); }
+          .hk.varme { background: var(--kib-red); color: var(--kib-sort); }
+          .hk.auto { background: var(--kib-orange); color: var(--kib-sort); }
+          .hk.pa span, .hk.varme span, .hk.auto span { opacity: 0.85; }
+          .hk.borte { background: none; border: 1px dashed var(--gray400, #555); color: var(--kib-muted); }
+          .hk.borte ha-icon { opacity: 0.6; }
+          @media (prefers-reduced-motion: reduce) {
+            .vpstatus.varme .vpik ha-icon { animation: none; }
+          }
+
           /* Knappefliser, samme form som button-card-flisene */
           .fliser {
             display: grid;
@@ -2257,6 +2483,22 @@
         ev.stopPropagation();
         const config = { ...this._config, ...ev.detail.value };
         if (config.faner === true) delete config.faner;
+        /* En faneliste fra YAML (oversikt, sirkulasjon …) skal ikke bli til true bare
+           fordi editoren viser feltet som en bryter. */
+        if (Array.isArray(this._config.faner) && ev.detail.value.faner === true) config.faner = this._config.faner;
+        /* Hurtigknappene vises som en entitetsliste. Navn og ikon satt i YAML tas vare
+           på for de entitetene som fortsatt står i lista. */
+        if (Array.isArray(ev.detail.value.hurtig)) {
+          const forrige = {};
+          (this._config.hurtig || []).forEach((x) => {
+            const o = typeof x === "string" ? { entity: x } : x;
+            if (o && o.entity) forrige[o.entity] = o;
+          });
+          config.hurtig = ev.detail.value.hurtig.map((id) =>
+            forrige[id] && Object.keys(forrige[id]).length > 1 ? forrige[id] : id);
+          if (!config.hurtig.length) delete config.hurtig;
+        }
+        for (const k of ["varmepumpe", "stillemodus"]) if (!config[k]) delete config[k];
         this.dispatchEvent(
           new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true })
         );
@@ -2269,11 +2511,15 @@
           { name: "prefix", selector: { text: {} } },
           { name: "graf", selector: { boolean: {} } },
           { name: "faner", selector: { boolean: {} } },
+          { name: "varmepumpe", selector: { entity: { domain: "climate" } } },
+          { name: "stillemodus", selector: { entity: { domain: ["switch", "input_boolean"] } } },
+          { name: "hurtig", selector: { entity: { multiple: true } } },
         ];
         return html`
           <ha-form
             .hass=${this.hass}
-            .data=${{ graf: true, ...this._config, faner: this._config.faner !== false }}
+            .data=${{ graf: true, ...this._config, faner: this._config.faner !== false,
+              hurtig: (this._config.hurtig || []).map((x) => (typeof x === "string" ? x : x.entity)).filter(Boolean) }}
             .schema=${schema}
             .computeLabel=${(s) =>
               ({
@@ -2281,6 +2527,9 @@
                 prefix: "Entitetsprefiks (valgfritt)",
                 graf: "Vis graf",
                 faner: "Faner (av = én flyt med utvidbare seksjoner)",
+                varmepumpe: "Varmepumpe (statuskort øverst)",
+                stillemodus: "Stillemodus-bryter (vises i statuskortet)",
+                hurtig: "Hurtigknapper øverst",
               })[s.name] || s.name}
             @value-changed=${this._endret}
           ></ha-form>
