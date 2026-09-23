@@ -1,4 +1,4 @@
-/* ki-cards v5.52.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.53.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.52.0";
+  KI.VERSION = "5.53.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11709,8 +11709,10 @@ try {
  * demo: false                      # true | vanner | tomt | vinter | regn – eksempeldata å se på
  * navn_kort: true                   # «Plen nord» i stedet for «Plen nord · Spreder B2»
  * flyt: auto                        # true/false overstyrer om forbruksdelen vises
+ * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
+ * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "3.10.0";
+const KI_VANN_VERSJON = "3.11.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12010,11 +12012,112 @@ const KI_VANN_STIL = `
   .sk.slett { color:var(--red,#e8657a); }
   .progknapp { border:0; background:none; color:inherit; cursor:pointer; padding:6px; --mdc-icon-size:20px; opacity:.7; }
   .tom { padding:18px; font-size:13px; opacity:.6; text-align:center; }
-  .nokkel { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:8px; min-width:0; }
-  .nk .v { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .nk { background:var(--gray200); border-radius:16px; padding:12px 14px; }
-  .nk .n { font-size:12px; opacity:.55; }
-  .nk .v { font-size:16px; font-weight:500; margin-top:2px; }
+  /* Nøkkeltallene: ikon i en rund flis, navnet dempet over verdien. Samme form som
+     flisene ellers i dashbordet, i stedet for grå bokser med bare tekst. */
+  .nokkel { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:8px; min-width:0; }
+  .nk { background:var(--gray200); border-radius:20px; padding:12px; display:grid;
+    grid-template-columns:40px minmax(0,1fr); gap:10px; align-items:center; cursor:pointer;
+    transition:transform .14s var(--fjaer); }
+  .nk:active { transform:scale(.97); }
+  .nk .ik { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--nk-farge, var(--gray1000)) 18%, transparent);
+    color:var(--nk-farge, var(--gray1000)); --mdc-icon-size:21px; }
+  .nk .n { font-size:12px; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nk .v { font-size:15px; font-weight:500; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nk .v small { font-size:12px; font-weight:400; opacity:.6; }
+
+  /* ---- statuskort: regnpause og program som kjører ---- */
+  .statuskort { position:relative; overflow:hidden; isolation:isolate; border-radius:24px; padding:16px;
+    display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:14px; align-items:center;
+    color:#eaf6ff; background:linear-gradient(135deg, #1f3f5c 0%, #235e7e 100%); cursor:pointer; }
+  .statuskort.program { background:linear-gradient(135deg, #1d4f6e 0%, #1f7aa0 100%); }
+  .statuskort .sik { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.14);
+    display:flex; align-items:center; justify-content:center; --mdc-icon-size:28px; }
+  .statuskort .tt { font-size:16px; font-weight:600; }
+  .statuskort .ut { font-size:13px; opacity:.85; margin-top:2px; }
+  .statuskort .ut b { font-weight:600; }
+  .statuskort .sknapp { border:0; border-radius:999px; padding:9px 14px; font:inherit; font-size:12.5px; font-weight:600;
+    background:rgba(255,255,255,.18); color:inherit; cursor:pointer; white-space:nowrap;
+    transition:transform .14s var(--fjaer), background .2s; }
+  .statuskort .sknapp:active { transform:scale(.94); }
+  .statuskort .igjen { grid-column:1 / -1; height:4px; border-radius:2px; background:rgba(255,255,255,.18); overflow:hidden; }
+  .statuskort .igjen i { display:block; height:100%; background:#fff; opacity:.8; border-radius:2px; }
+  /* Regn som faller svakt bak teksten. */
+  .statuskort .regnbak { position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.35; }
+  .statuskort .regnbak i { position:absolute; top:-12px; width:1.5px; height:11px; border-radius:1px;
+    background:#cfe9ff; animation:va-fall linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .statuskort .regnbak { display:none; } }
+
+  /* ---- soneflis ---- */
+  .sonegruppe { display:grid; gap:8px; }
+  .gruppetittel { font-size:12px; font-weight:600; letter-spacing:.02em; opacity:.55; padding:4px 6px 0; }
+  .sonegrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:8px; }
+  .soneflis { background:var(--gray200); border-radius:22px; padding:12px; display:grid; gap:10px;
+    cursor:pointer; transition:background .3s, transform .14s var(--fjaer); min-width:0; }
+  .soneflis:active { transform:scale(.98); }
+  .soneflis.aapen { grid-column:1 / -1; }
+  .soneflis.gaar { background:linear-gradient(135deg, #1f5a86 0%, #2a8cc4 100%); color:#fff; }
+  .soneflis.av { opacity:.5; }
+  .soneflis .topp { display:grid; grid-template-columns:44px minmax(0,1fr); gap:10px; align-items:center; }
+  .soneflis .zik { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--blue,#6ec6ff) 20%, transparent); color:var(--blue,#6ec6ff); --mdc-icon-size:23px; }
+  .soneflis.gaar .zik { background:rgba(255,255,255,.2); color:#fff; }
+  .soneflis.gaar .zik ha-icon { animation:va-puls 1.6s ease-in-out infinite; }
+  .soneflis .zn { font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .soneflis .zs { font-size:12px; opacity:.6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px; }
+  .soneflis.gaar .zs { opacity:.9; }
+  .soneflis .valg { display:grid; grid-template-columns:repeat(auto-fit, minmax(52px,1fr)); gap:6px; }
+  .soneflis .vk { background:var(--gray100); border-radius:999px; padding:9px 2px; font-size:12.5px; }
+  .soneflis.gaar .vk { background:rgba(255,255,255,.18); color:#fff; }
+  .soneflis .vk.stopp { color:var(--red,#e8657a); }
+  .soneflis.gaar .vk.stopp { background:rgba(0,0,0,.25); color:#fff; }
+
+  /* ---- programkort ---- */
+  .pk2 { background:var(--gray200); border-radius:24px; padding:14px; display:grid; gap:12px;
+    transition:background .3s; min-width:0; }
+  .pk2.gaar { background:linear-gradient(135deg, #1d4f6e 0%, #1f7aa0 100%); color:#fff; }
+  .pk2.av { opacity:.55; }
+  .pk2 .hode { display:grid; grid-template-columns:46px minmax(0,1fr) auto; gap:12px; align-items:center; }
+  .pk2 .pik { width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--blue,#6ec6ff) 18%, transparent); color:var(--blue,#6ec6ff); --mdc-icon-size:24px; }
+  .pk2.gaar .pik { background:rgba(255,255,255,.2); color:#fff; }
+  .pk2.gaar .pik ha-icon { animation:va-spinn 2.4s linear infinite; }
+  .pk2 .pn { font-size:15px; font-weight:600; display:flex; align-items:center; gap:6px; min-width:0; }
+  .pk2 .pn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pk2 .pm { font-size:12px; opacity:.6; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pk2 .ph { text-align:right; }
+  .pk2 .pkl { font-size:22px; font-weight:300; font-variant-numeric:tabular-nums; line-height:1; }
+  .pk2 .pnaar { font-size:11px; opacity:.6; margin-top:3px; white-space:nowrap; }
+  .pk2 .psoner { display:grid; gap:6px; }
+  .pk2 .ps { display:grid; grid-template-columns:minmax(0,1fr) 38px; gap:10px; align-items:center; font-size:12.5px; }
+  .pk2 .ps .psn { display:flex; align-items:center; gap:8px; min-width:0; }
+  .pk2 .ps .psn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pk2 .ps .psb { height:6px; border-radius:3px; background:var(--gray100); overflow:hidden; flex:1; min-width:30px; }
+  .pk2.gaar .ps .psb { background:rgba(255,255,255,.18); }
+  .pk2 .ps .psb i { display:block; height:100%; border-radius:3px; background:var(--blue,#6ec6ff); }
+  .pk2.gaar .ps .psb i { background:#fff; }
+  .pk2 .ps.aktiv .psb i { animation:va-blink 1.4s ease-in-out infinite; }
+  .pk2 .ps .pmin { text-align:right; font-variant-numeric:tabular-nums; opacity:.75; }
+  .pk2 .pfot { display:flex; align-items:center; gap:8px; }
+  .pk2 .pfot .pk { flex:1; }
+  .pk2 .pfot .pk.ikon { flex:none; width:40px; padding:10px 0; }
+  .pk2 .pk { background:var(--gray100); color:inherit; }
+  .pk2.gaar .pk { background:rgba(255,255,255,.18); }
+  .merkelapp.lys { background:rgba(255,255,255,.2); }
+
+  /* ---- fordeling ---- */
+  .fdel { display:flex; height:12px; border-radius:6px; overflow:hidden; background:var(--gray100); gap:2px; }
+  .fdel i { display:block; height:100%; min-width:3px; }
+  .flist { display:grid; gap:2px; }
+  .fl { display:grid; grid-template-columns:12px minmax(0,1fr) auto 44px; gap:10px; align-items:center;
+    font-size:13px; padding:7px 2px; border-top:1px solid rgba(255,255,255,.06); }
+  .fl:first-child { border-top:0; }
+  .fl .fp { width:10px; height:10px; border-radius:50%; }
+  .fl .fnavn { display:flex; align-items:center; gap:6px; min-width:0; }
+  .fl .fnavn span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fl .fv { font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .fl .fpst { text-align:right; font-size:12px; opacity:.55; font-variant-numeric:tabular-nums; }
+  .fl.null { opacity:.45; }
   /* ---- estimat og forbruk ---- */
   .maal { background:var(--gray200); border-radius:20px; padding:16px 18px; display:grid; gap:10px;
     min-width:0; max-width:100%; overflow:hidden; }
@@ -12251,10 +12354,20 @@ class KiVanningCard extends HTMLElement {
     const st = id ? S[id] : null;
     return st ? { id, ...st.attributes } : null;
   }
-  /* Entiteten statistikken skal hentes fra. `historikk_entitet` overstyrer, ellers
-     brukes oversiktssensoren — det er den som har det kumulative forbruket. */
+  /* Entiteten statistikken skal hentes fra. `historikk_entitet` overstyrer.
+   *
+   * Her sto oversiktssensoren. Men den har «9 soner» som tilstand og ingen
+   * state_class, så Home Assistant fører aldri statistikk på den – og historikkfanen
+   * ble stående tom for alltid. Det kumulative forbruket er «Forbruk totalt»
+   * (ki_type: total, total_increasing, liter). Den brukes nå. */
   _kiEntitet() {
     if (this._c.historikk_entitet) return this._c.historikk_entitet;
+    const S = this._states || {};
+    const total = Object.keys(S).find((id) => {
+      const a = S[id].attributes || {};
+      return id.startsWith("sensor.") && a.integrasjon === "ki_vanning" && a.ki_type === "total";
+    }) || Object.keys(S).find((id) => /^sensor\..*(ki_vanning|vanning).*forbruk_totalt$/.test(id));
+    if (total) return total;
     const ki = this._ki();
     return ki ? ki.id : null;
   }
@@ -12283,6 +12396,48 @@ class KiVanningCard extends HTMLElement {
     this._kiEntCache[type] = treff;
     return treff;
   }
+  /* Tidspunkt fra en sensor, slik man sier det: «i dag kl. 06:00», «i morgen kl. 06:00»,
+     «i går kl. 18:30», ellers «tir. 23. sep kl. 06:00». Er verdien ikke en dato, står den
+     som den er. Før sto råverdien fra sensoren – 2026-09-21T06:00:00+00:00 – rett i flisen. */
+  _tidTekst(v) {
+    if (v === null || v === undefined || v === "") return "";
+    const d = v instanceof Date ? v : new Date(v);
+    if (isNaN(d.getTime()) || !/\d{4}-\d{2}-\d{2}|T\d{2}:/.test(String(v)) && !(v instanceof Date)) return String(v);
+    const idag = new Date(); idag.setHours(0, 0, 0, 0);
+    const dag = new Date(d); dag.setHours(0, 0, 0, 0);
+    const diff = Math.round((dag - idag) / 864e5);
+    const kl = d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+    if (diff === 0) return `i dag kl. ${kl}`;
+    if (diff === 1) return `i morgen kl. ${kl}`;
+    if (diff === -1) return `i går kl. ${kl}`;
+    const dato = d.toLocaleDateString("nb-NO", { weekday: "short", day: "numeric", month: "short" });
+    return `${dato} kl. ${kl}`;
+  }
+
+  /* Hvor lenge det er til et tidspunkt: «14 t», «35 min», «2 d». */
+  _igjen(v) {
+    const d = new Date(v); if (isNaN(d.getTime())) return "";
+    const min = Math.round((d.getTime() - Date.now()) / 60000);
+    if (min <= 0) return "";
+    if (min < 60) return `${min} min`;
+    if (min < 48 * 60) return `${Math.round(min / 60)} t`;
+    return `${Math.round(min / 1440)} d`;
+  }
+
+  /* Strømtrekket fra OpenSprinkler, i mA, og hva det blir i watt ved ventilspenningen
+     (24 V AC som standard). Watt er et anslag – spolene er induktive, så det reelle
+     effektforbruket er litt lavere enn spenning × strøm. */
+  _strom(id) {
+    const st = this._st(id);
+    if (!st || ["unknown", "unavailable"].includes(st.state)) return null;
+    let mA = Number(st.state);
+    if (isNaN(mA)) return null;
+    const enhet = String((st.attributes || {}).unit_of_measurement || "mA");
+    if (enhet === "A") mA *= 1000;
+    const volt = Number(this._c.spenning) || 24;
+    return { mA, W: (mA / 1000) * volt };
+  }
+
   _litertekst(v) {
     const n = Number(v) || 0;
     return n >= 1000 ? (n / 1000).toLocaleString("nb-NO", { maximumFractionDigits: 2 }) + " m³"
@@ -12376,7 +12531,10 @@ class KiVanningCard extends HTMLElement {
       aktiv: `switch.${p}_enabled`, regn: `binary_sensor.${p}_rain_delay_active`,
       regn_til: `sensor.${p}_rain_delay_stop_time`, vannivaa: `sensor.${p}_water_level`,
       flyt: `sensor.${p}_flow_rate`, strom: `sensor.${p}_current_draw`,
-      siste: `sensor.${p}_last_run`, neste: `sensor.opensprinkler_next_run`,
+      /* Neste kjøring het tidligere alltid sensor.opensprinkler_next_run, uansett prefiks.
+         Finnes den med prefikset, er det den som gjelder. */
+      siste: `sensor.${p}_last_run`,
+      neste: this._st(`sensor.${p}_next_run`) ? `sensor.${p}_next_run` : `sensor.opensprinkler_next_run`,
       pause: `binary_sensor.${p}_paused`, pause_til: `sensor.${p}_pause_end_time`,
     } : {};
   }
@@ -12595,18 +12753,31 @@ class KiVanningCard extends HTMLElement {
         <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${andel.toFixed(1)}%"></i></div>
         <div class="und">${Math.round(brukt)} av ${Math.round(est)} L brukt i dag${est > brukt ? ` · ${Math.round(est - brukt)} L igjen` : ""}</div>
       </div>
-      <div class="maal">
-        <div class="und">Fordeling ${per[valgt].toLowerCase()}${manglerPeriode
-          ? " — integrasjonen oppgir bare dagstall per sone" : ""}</div>
-        <div class="fordeling">${soner.map((x) => {
-          const v = sonetall(x);
-          return `<div class="frad"><div>
-            <div class="navn"><span>${kiVaEsc(x.navn)}</span>${x.kalibrert
-              ? `<span class="knagg">${x.rate} L/min</span>` : `<span class="knagg">anslag</span>`}</div>
-            <div class="fbar"><i style="width:${((v / maks) * 100).toFixed(1)}%"></i></div>
-          </div><div class="tall">${this._litertekst(v)}</div></div>`;
-        }).join("")}</div>
-      </div>`;
+      ${(() => {
+        /* Fordelingen: én stablet stolpe med hele perioden, fargelagt per sone, og en
+           liste under med samme farger, liter og andel. Sonene som ikke har fått vann i
+           perioden, står dempet nederst i stedet for å ta plass som tomme stolper. */
+        const palett = ["var(--blue,#6ec6ff)", "var(--green,#7ee081)", "var(--orange,#ffb14a)",
+          "var(--purple,#bf5af2)", "var(--teal,#40c8e0)", "var(--pink,#ff8ac0)", "var(--yellow,#ffd60a)",
+          "var(--red,#e8657a)", "#9aa7ff"];
+        const sumSoner = soner.reduce((a, x) => a + sonetall(x), 0);
+        const medFarge = soner.map((x, i) => ({ x, v: sonetall(x), f: palett[i % palett.length] }));
+        return `<div class="maal">
+          <div class="rad"><div class="und">Fordeling ${per[valgt].toLowerCase()}</div>
+            <div class="und">${this._litertekst(sumSoner)}</div></div>
+          ${manglerPeriode ? `<div class="und">Integrasjonen oppgir bare dagstall per sone.</div>` : ""}
+          ${sumSoner > 0 ? `<div class="fdel">${medFarge.filter((m) => m.v > 0).map((m) =>
+            `<i style="flex:${m.v.toFixed(2)};background:${m.f}" title="${kiVaEsc(m.x.navn)}"></i>`).join("")}</div>` : ""}
+          <div class="flist">${medFarge.map((m) => `
+            <div class="fl ${m.v > 0 ? "" : "null"}">
+              <span class="fp" style="background:${m.v > 0 ? m.f : "var(--gray100)"}"></span>
+              <div class="fnavn"><span>${kiVaEsc(m.x.navn)}</span>${m.x.kalibrert
+                ? `<span class="knagg">${m.x.rate} L/min</span>` : `<span class="knagg">anslag</span>`}</div>
+              <div class="fv">${this._litertekst(m.v)}</div>
+              <div class="fpst">${sumSoner > 0 && m.v > 0 ? Math.round((m.v / sumSoner) * 100) + " %" : "–"}</div>
+            </div>`).join("")}</div>
+        </div>`;
+      })()}`;
   }
 
   /* Historikken hentes fra statistikk-API-et, ikke fra tilstandshistorikken.
@@ -12794,20 +12965,36 @@ class KiVanningCard extends HTMLElement {
     const s = this._styring(), z = this._soner(), p = this._programmer();
     const gaar = z.filter((x) => this._on(x.gaar));
     const koer = p.filter((x) => this._on(x.gaar));
-    const felt = (navn, id, etter) => {
+    /* Én nøkkelflis: ikon, navn og verdi. Tidspunkter formateres, tall får enhet. */
+    const flis = (navn, id, ikon, farge, verdi) => {
       const st = this._st(id); if (!st || ["unknown", "unavailable"].includes(st.state)) return "";
-      return `<div class="nk" data-e="${id}"><div class="n">${navn}</div><div class="v">${kiVaEsc(st.state)}${etter || ""}</div></div>`;
+      const v = verdi !== undefined ? verdi : kiVaEsc(st.state);
+      if (v === "" || v === null) return "";
+      return `<div class="nk" data-e="${id}" style="--nk-farge:${farge}">
+        <span class="ik"><ha-icon icon="${ikon}"></ha-icon></span>
+        <div><div class="n">${navn}</div><div class="v">${v}</div></div></div>`;
     };
+    const tid = (id) => { const st = this._st(id); return st ? kiVaEsc(this._tidTekst(st.state)) : ""; };
+    const strom = this._strom(s.strom);
+    const flyt = this._st(s.flyt);
     const regn = this._on(s.regn);
+    const regnTil = this._st(s.regn_til);
+    const regnIgjen = regnTil ? this._igjen(regnTil.state) : "";
+    const regndrapper = Array.from({ length: 16 }, (_, i) =>
+      `<i style="left:${(i * 29 + 7) % 97}%;animation-duration:${(0.9 + (i % 4) * 0.2).toFixed(1)}s;animation-delay:-${((i * 0.31) % 1.4).toFixed(2)}s"></i>`).join("");
     return `
-      ${koer.length ? `<div class="prog gaar" data-e="${koer[0].bryter}">
-        <div class="ic"><ha-icon icon="mdi:calendar-clock"></ha-icon></div>
-        <div class="n">${kiVaEsc(koer[0].navn)}</div><div class="l">Programmet kjører nå</div>
-        <div class="t">${gaar.length ? kiVaEsc(gaar[0].navn) : ""}</div></div>` : ""}
-      ${regn ? `<div class="prog" data-e="${s.regn}" style="background:var(--blue,#6ec6ff);color:var(--black)">
-        <div class="ic"><ha-icon icon="mdi:weather-pouring"></ha-icon></div>
-        <div class="n">Regnpause aktiv</div>
-        <div class="l">${this._st(s.regn_til) ? "Til " + kiVaEsc(this._st(s.regn_til).state) : ""}</div></div>` : ""}
+      ${koer.length ? `<div class="statuskort program" data-e="${koer[0].bryter}">
+        <span class="sik"><ha-icon icon="mdi:sprinkler-variant"></ha-icon></span>
+        <div><div class="tt">${kiVaEsc(koer[0].navn)}</div>
+          <div class="ut">Kjører nå${gaar.length ? ` · <b>${kiVaEsc(gaar[0].navn)}</b>` : ""}</div></div>
+        <button class="sknapp" data-h2="stopp">Stopp</button></div>` : ""}
+      ${regn ? `<div class="statuskort" data-e="${s.regn}">
+        <div class="regnbak">${regndrapper}</div>
+        <span class="sik"><ha-icon icon="mdi:weather-pouring"></ha-icon></span>
+        <div><div class="tt">Regnpause</div>
+          <div class="ut">${regnTil ? `Til <b>${kiVaEsc(this._tidTekst(regnTil.state))}</b>` : "Vanningen står over"}${
+            regnIgjen ? ` · ${regnIgjen} igjen` : ""}</div></div>
+        <button class="sknapp" data-h2="regn0">Avslutt</button></div>` : ""}
       ${(() => { const ki = this._ki(); if (!ki || !this._harFlyt()) return "";
         const n = ki.neste || {};
         return `<div class="maal">
@@ -12821,16 +13008,27 @@ class KiVanningCard extends HTMLElement {
             n.total_min ? ` · ${n.total_min} min · ca. ${Math.round(n.estimat_liter || 0)} L` : ""}</div>` : ""}
         </div>`; })()}
       <div class="nokkel">
-        ${felt("Vannivå", s.vannivaa, " %")}
-        ${felt("Flyt", s.flyt, "")}
-        ${felt("Strømtrekk", s.strom, "")}
-        ${felt("Neste kjøring", s.neste, "")}
-        ${felt("Siste kjøring", s.siste, "")}
-        ${this._c.vinter ? `<div class="nk" data-e="${this._c.vinter}"><div class="n">Vintermodus</div>
-          <div class="v">${this._on(this._c.vinter) ? "På – alt stengt" : "Av"}</div></div>` : ""}
+        ${flis("Neste kjøring", s.neste, "mdi:calendar-arrow-right", "var(--green,#7ee081)", tid(s.neste))}
+        ${flis("Siste kjøring", s.siste, "mdi:history", "var(--gray1000,#fafbfc)", tid(s.siste))}
+        ${strom ? flis("Strøm", s.strom, "mdi:flash", "var(--yellow,#ffd60a)",
+          `${Math.round(strom.mA)} mA <small>· ca. ${strom.W.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} W</small>`) : ""}
+        ${flyt ? flis("Flyt", s.flyt, "mdi:waves-arrow-right", "var(--blue,#6ec6ff)",
+          `${kiVaEsc(flyt.state)} <small>${kiVaEsc((flyt.attributes || {}).unit_of_measurement || "")}</small>`) : ""}
+        ${this._c.vis_vanniva ? flis("Vannivå", s.vannivaa, "mdi:water-percent", "var(--blue,#6ec6ff)",
+          this._st(s.vannivaa) ? `${kiVaEsc(this._st(s.vannivaa).state)} %` : "") : ""}
+        ${this._c.vinter ? `<div class="nk" data-e="${this._c.vinter}" style="--nk-farge:var(--blue,#6ec6ff)">
+          <span class="ik"><ha-icon icon="mdi:snowflake"></ha-icon></span>
+          <div><div class="n">Vintermodus</div>
+          <div class="v">${this._on(this._c.vinter) ? "På – alt stengt" : "Av"}</div></div></div>` : ""}
       </div>`;
   }
 
+  /* Sonene som fliser i et rutenett, gruppert på boks.
+   *
+   * Før hadde hver sone en rad med seks varighetsknapper under seg, alltid synlig – ni
+   * soner ga 54 knapper på skjermen. Nå vises knappene bare på sonen du trykker på;
+   * den brer seg da over hele bredden. Sonen som vanner, står i blått med pulserende
+   * ikon, så du ser den uten å lete. */
   _panelSoner() {
     const z = this._soner(), c = this._c;
     if (!z.length) return `<div class="tom">Fant ingen soner. Sjekk at OpenSprinkler-integrasjonen er satt opp.</div>`;
@@ -12838,27 +13036,29 @@ class KiVanningCard extends HTMLElement {
     const bokser = {};
     z.forEach((x) => { const b = x.boks || "–"; (bokser[b] = bokser[b] || []).push(x); });
     const varigheter = c.varigheter;
-    return Object.keys(bokser).sort().map((b) => `<div class="boks">
-      <div class="bokstittel"><ha-icon icon="mdi:water-boiler"></ha-icon>${
-        b === "–" ? "Soner" : /^\d+$/.test(b) ? "Boks " + b : b}
-        <span>${bokser[b].length} ${bokser[b].length === 1 ? "sone" : "soner"}</span></div>
-      ${bokser[b].map((x) => {
+    const flereBokser = Object.keys(bokser).length > 1;
+    return Object.keys(bokser).sort().map((b) => `<div class="sonegruppe">
+      ${flereBokser ? `<div class="gruppetittel">${b === "–" ? "Soner" : /^\d+$/.test(b) ? "Boks " + b : kiVaEsc(b)}
+        · ${bokser[b].length} ${bokser[b].length === 1 ? "sone" : "soner"}</div>` : ""}
+      <div class="sonegrid">${bokser[b].map((x) => {
         const gaar = this._on(x.gaar), av = !this._on(x.bryter);
         const st = this._st(x.status);
-        const status = vinter ? "Vinterstengt" : gaar ? (st ? st.state : "Vanner") : av ? "Deaktivert" : (st ? st.state : "Av");
-        return `<div class="sone ${gaar ? "gaar" : ""} ${av ? "av" : ""}">
-          <div class="sonerad" data-e="${x.status}" role="button" tabindex="0">
-            <div class="ic" style="background:rgba(0,0,0,.15)"><ha-icon icon="${kiVaIkon(x.metode || x.navn)}"></ha-icon></div>
-            <div class="n">${kiVaEsc(x.navn)}</div>
-            <div class="l">${kiVaEsc(x.metode || "Sone " + x.nr)} · ${kiVaEsc(status)}</div>
-            <div class="t">${gaar ? "vanner" : ""}</div>
+        const status = vinter ? "Vinterstengt" : gaar ? "Vanner nå" : av ? "Deaktivert"
+          : (st && !["unknown", "unavailable", "idle"].includes(st.state) ? st.state : "Klar");
+        const aapen = this._aapenSone === x.nr;
+        return `<div class="soneflis ${gaar ? "gaar" : ""} ${av ? "av" : ""} ${aapen || gaar ? "aapen" : ""}"
+          data-sone="${x.nr}" role="button" tabindex="0">
+          <div class="topp">
+            <span class="zik"><ha-icon icon="${kiVaIkon(x.metode || x.navn)}"></ha-icon></span>
+            <div><div class="zn">${kiVaEsc(x.navn)}</div>
+              <div class="zs">${kiVaEsc(status)}${x.metode ? ` · ${kiVaEsc(x.metode)}` : ""}</div></div>
           </div>
-          <div class="varigheter" style="--ant:${varigheter.length + 1}">
-            ${varigheter.map((m) => `<button class="vk" data-z="${x.nr}" data-min="${m}">${m}m</button>`).join("")}
-            <button class="vk stopp" data-z="${x.nr}" data-min="0">Stopp</button>
-          </div>
+          ${aapen || gaar ? `<div class="valg">
+            ${gaar ? "" : varigheter.map((m) => `<button class="vk" data-z="${x.nr}" data-min="${m}">${m} min</button>`).join("")}
+            ${gaar ? `<button class="vk stopp" data-z="${x.nr}" data-min="0">Stopp</button>` : ""}
+          </div>` : ""}
         </div>`;
-      }).join("")}
+      }).join("")}</div>
     </div>`).join("");
   }
 
@@ -13006,25 +13206,34 @@ class KiVanningCard extends HTMLElement {
       const naar = o.intervall ? `Hver ${o.intervall}. dag` : pl ? `${pl.i_dag ? "I dag" : "Neste"} kl. ${pl.tid}` : "";
       const total = o.total_min || (pl && pl.total_min) || soner.reduce((a, b) => a + (b.min || 0), 0);
       const liter = pl ? pl.estimat_liter : null;
-      return `<div class="pkort ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
-        <div class="topp">
-          <span class="pik"><ha-icon icon="${gaar ? "mdi:sprinkler-variant" : "mdi:water-outline"}"></ha-icon></span>
-          <div class="navn"><span class="n">${kiVaEsc(x.navn)}</span>
-            ${o.samtidig ? `<span class="merkelapp">Samtidig</span>` : ""}
-            ${gaar ? `<span class="merkelapp">Kjører</span>` : ""}</div>
-          <div style="text-align:right"><div class="klokke">${kiVaEsc(tid)}</div>
-            <div class="naar">${kiVaEsc(naar)}</div></div>
-          <div class="pbryter ${pa ? "pa" : ""}" data-pa="${kiVaEsc(x.navn)}" data-bryter="${x.bryter || ""}"
-            role="switch" tabindex="0" aria-checked="${pa}"><i></i></div>
+      /* Dagene som tekst i meta-linja («man, ons, fre») i stedet for sju piller, og
+         sonene som en liten liste der stolpen viser hvor stor del av tiden hver får. */
+      const dagNavn = { man: "man", tir: "tir", ons: "ons", tor: "tor", fre: "fre", lor: "lør", son: "søn" };
+      const dagsliste = o.intervall ? `hver ${o.intervall}. dag`
+        : (o.dager && o.dager.length && o.dager.length < 7 ? o.dager.map((d) => dagNavn[d] || d).join(", ") : "hver dag");
+      const meta = [dagsliste, total ? `${total} min` : "", liter ? `ca. ${Math.round(liter)} L` : ""].filter(Boolean).join(" · ");
+      const lengst = Math.max(1, ...soner.map((z) => Number(z.min) || 0));
+      return `<div class="pk2 ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
+        <div class="hode">
+          <span class="pik"><ha-icon icon="${gaar ? "mdi:sprinkler-variant" : "mdi:calendar-clock"}"></ha-icon></span>
+          <div><div class="pn"><span>${kiVaEsc(x.navn)}</span>
+              ${o.samtidig ? `<span class="merkelapp ${gaar ? "lys" : ""}">Samtidig</span>` : ""}
+              ${gaar ? `<span class="merkelapp lys">Kjører</span>` : ""}</div>
+            <div class="pm">${kiVaEsc(meta)}</div></div>
+          <div class="ph"><div class="pkl">${kiVaEsc(tid)}</div>
+            <div class="pnaar">${kiVaEsc(naar)}</div></div>
         </div>
-        ${o.intervall ? "" : `<div class="dagsrad">${dagKort.map((d, i) =>
-          `<i class="${(o.dager || dagNokkel).includes(dagNokkel[i]) ? "pa" : ""}">${d}</i>`).join("")}</div>`}
-        ${soner.length ? `<div class="sonebrikker">${soner.map((z) =>
-          `<span class="sonebrikke ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">${kiVaEsc(z.navn)} ${z.min}m</span>`).join("")}</div>` : ""}
-        <div class="pknapper">
+        ${soner.length ? `<div class="psoner">${soner.map((z) => `
+          <div class="ps ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">
+            <div class="psn"><span>${kiVaEsc(z.navn)}</span>
+              <div class="psb"><i style="width:${(((Number(z.min) || 0) / lengst) * 100).toFixed(0)}%"></i></div></div>
+            <div class="pmin">${z.min || 0} m</div>
+          </div>`).join("")}</div>` : ""}
+        <div class="pfot">
           <button class="pk" data-kjorprog="${kiVaEsc(x.navn)}"><ha-icon icon="mdi:play"></ha-icon>Kjør nå</button>
-          <div class="naar" style="text-align:center">${total ? total + " min" : ""}${liter ? " · ca. " + Math.round(liter) + " L" : ""}</div>
-          ${ventil ? `<button class="pk" data-rediger="${kiVaEsc(x.navn)}"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
+          ${ventil ? `<button class="pk ikon" data-rediger="${kiVaEsc(x.navn)}" aria-label="Rediger"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
+          <div class="pbryter ${pa ? "pa" : ""}" data-pa="${kiVaEsc(x.navn)}" data-bryter="${x.bryter || ""}"
+            role="switch" tabindex="0" aria-checked="${pa}" aria-label="Programmet på"><i></i></div>
         </div>
       </div>`;
     }).join("");
@@ -13256,8 +13465,23 @@ class KiVanningCard extends HTMLElement {
       if (m) this._kjor(sone, m); else this._stopp(sone.bryter);
     }));
     r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", (e) => {
-      if (e.target.closest("[data-min]")) return; this._mer(el.dataset.e);
+      if (e.target.closest("[data-min]") || e.target.closest("[data-h2]")) return; this._mer(el.dataset.e);
     }));
+    /* Knappene i statuskortene: stopp programmet som kjører, eller avslutt regnpausen. */
+    r.querySelectorAll("[data-h2]").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (b.dataset.h2 === "stopp") this._stopp(); else this._regn(0);
+    }));
+    /* Et trykk på en sone folder ut varighetene; et nytt trykk legger dem bort igjen. */
+    r.querySelectorAll("[data-sone]").forEach((el) => {
+      const veksle = (e) => {
+        if (e.target.closest("[data-min]")) return;
+        this._aapenSone = this._aapenSone === el.dataset.sone ? null : el.dataset.sone;
+        this._tegn();
+      };
+      el.addEventListener("click", veksle);
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); veksle(e); } });
+    });
     r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
       const forste = this._soner()[0];
       this._nyttProgram = { navn: "", tid: "06:00", dager: ["man", "tor"], intervall: 0, samtidig: false,
