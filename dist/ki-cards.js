@@ -1,4 +1,4 @@
-/* ki-cards v5.62.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.63.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.62.0";
+  KI.VERSION = "5.63.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -32539,7 +32539,19 @@ class FamilyStatusCard extends LitElement {
     if (this._dobbelTimer) {
       window.clearTimeout(this._dobbelTimer);
       this._dobbelTimer = null;
+      /* Andre trykk: var menyen alt åpnet av det første, lukkes den før dobbelttrykket. */
+      if (this._serverGest() === "tap" && this._serverApen) this._serverApen = false;
       this._greetingGest("double_tap");
+      return;
+    }
+    /* Servermenyen skal komme med en gang, ikke etter 250 ms.
+       Ventingen finnes for å skille et trykk fra et dobbelttrykk – men å åpne en meny
+       er ufarlig å angre, så den åpnes på første trykk, og et andre trykk innen
+       fristen lukker den igjen og kjører dobbelttrykket. Før sto menyen og ventet på
+       at fristen skulle gå ut, og det kjentes tregt. */
+    if (this._serverGest() === "tap") {
+      this._greetingGest("tap");
+      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 250);
       return;
     }
     this._dobbelTimer = window.setTimeout(() => {
