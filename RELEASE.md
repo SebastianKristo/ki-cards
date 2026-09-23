@@ -1,29 +1,27 @@
-# ki-cards 5.61.0
+# ki-cards 5.62.0
 
-## Bassengkortet: knappene og dagens regnskap i dashbordets form, og heroen kan tas vekk
+## Bassengkortet: langt trykk, brytere som svarer med en gang, og startknappen inne i kortet
 
-`ki-basseng-card` 1.15.0.
+`ki-basseng-card` 1.16.0.
 
-**Knappene** på Oversikt var seks høye fliser i tre kolonner, med ikonet oppe og navnet nede. Nå er de
-liggende, to i bredden, som de små flisene i dashbordet (`template_toggle_card_small`): ikonsirkelen
-til venstre — den lyse, gjennomskinnelige med tynn kant — og navnet med tilstanden under til høyre.
-Aktive fliser fylles med aktivfargen og får svart tekst. Trykk gir haptikk.
+**Langt trykk åpner entiteten.** Hold på en av knappene på Oversikt (Varm nå, Boost, Spreder,
+Automatikk, Prisstyring, Varmeprioritet), på en bryterrad eller på navnet til en innstilling, så
+åpner mer-info for det du holder på — med haptikk. Et vanlig trykk gjør det samme som før, og et hold
+svelger klikket som ellers ville fulgt.
 
-**Dagens regnskap** — pumpet i dag, effekt nå, spart i dag — beholder én flate med hårfine skiller,
-men teksten er dashbordets: navnet i 12 px/500 med 70 % opasitet i stedet for versaler, tallet i vekt
-300 i stedet for halvfet, og ikonet i tekstfargen.
+**Bryterne viser valget med en gang.** Et trykk på «Program på» sendte tjenestekallet, men flisen sto
+i gammel tilstand til integrasjonen hadde skrevet den nye og Home Assistant hadde sendt den tilbake —
+gjerne et par sekunder. Det leses som at trykket ikke tok, og man trykker igjen. Nå vises valget med
+en gang, og slippes så snart entiteten er enig. Svarer den ikke innen fem sekunder, går flisen tilbake
+til sannheten. Gjelder alle bryterne i kortet.
 
-**`hero: false`** tar vannheroen vekk fra Oversikt — for deg som har den som eget kort i dashbordet
-(`visning: hero`) og ikke vil se den to ganger.
+**Startknappen gikk ut av sprederkortet.** Knappen var 100 % bred *pluss* 12 px marg på hver side, og
+stakk ut til høyre. Bredden tar nå hensyn til margen.
 
-```yaml
-type: custom:ki-basseng-card
-hero: false
-hurtig: …
-graf: true
-```
+Alle tjenestekall gir dessuten haptikk som virker på iPhone (før bare `navigator.vibrate`).
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Oversikt tegnet med
-`hero: false`: ingen hero, seks liggende fliser med ikon, navn og tilstand, og de tre regnskapscellene.
+Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Den optimistiske
+bryteren er kjørt for seg: viser «på» rett etter trykket mens entiteten fortsatt sier «av», slipper
+når entiteten er enig, og faller tilbake etter fem sekunder uten svar.

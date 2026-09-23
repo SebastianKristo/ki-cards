@@ -26,7 +26,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.15.0";
+  const VERSJON = "1.16.0";
 
   /* Finner LitElement i frontend.
    *
@@ -301,9 +301,22 @@
         return v === undefined ? fallback : v;
       }
 
+      /* Bryteren viser det du nettopp valgte, til entiteten svarer.
+       *
+       * Et trykk på «Program på» sender tjenestekallet, men flisen sto i gammel tilstand
+       * til integrasjonen hadde skrevet den nye og Home Assistant hadde sendt den
+       * tilbake – gjerne et par sekunder. Det leses som at trykket ikke tok. Nå vises
+       * valget med en gang, og slippes så snart entiteten er enig (eller etter 5 s hvis
+       * den aldri ble det – da var det noe som ikke tok, og flisen skal si sannheten). */
       on(key) {
         const s = this.st(key);
-        return !!s && s.state === "on";
+        const faktisk = !!s && s.state === "on";
+        const o = this._opt && this._opt[key];
+        if (o) {
+          if (o.pa === faktisk || Date.now() - o.t > 5000) delete this._opt[key];
+          else return o.pa;
+        }
+        return faktisk;
       }
 
       enhet(key) {
@@ -629,7 +642,7 @@
         const id = this.id(key);
         if (!id) return;
         this.hass.callService(domain, service, { entity_id: id, ...data });
-        if (navigator.vibrate) navigator.vibrate(6);
+        this._haptikk("light");
       }
 
       _trykk(key) {
@@ -637,7 +650,10 @@
       }
 
       _veksle(key) {
+        this._opt = this._opt || {};
+        this._opt[key] = { pa: !this.on(key), t: Date.now() };
         this._kall("switch", "toggle", key);
+        this.requestUpdate();
       }
 
       _sett(key, value) {
@@ -781,6 +797,29 @@
           </div>`;
       }
 
+      /* Langt trykk åpner entiteten bak det du holder på. Lytterne legges på hvert
+         element som har en nøkkel; klikket etterpå svelges når det var et hold. */
+      _holdNed(e, key) {
+        this._holdt = false;
+        clearTimeout(this._holdTimer);
+        this._holdTimer = setTimeout(() => {
+          this._holdt = true;
+          this._haptikk("medium");
+          this._mer(key);
+        }, 500);
+      }
+
+      _holdOpp() {
+        clearTimeout(this._holdTimer);
+      }
+
+      _holdKlikk(fn) {
+        return (e) => {
+          if (this._holdt) { this._holdt = false; e.preventDefault(); e.stopPropagation(); return; }
+          fn(e);
+        };
+      }
+
       _apneLukk(navn) {
         this._apne = { ...this._apne, [navn]: !this._apne[navn] };
       }
@@ -790,12 +829,15 @@
       // Flis i samme form som button-card-flisene i dashbordet
       /* Liggende flis, som de små flisene i dashbordet: ikonsirkel til venstre, navnet
          og tilstanden til høyre. Aktiv = fylt med aktivfargen og svart tekst. */
-      _flis(ikon, navn, tekst, aktiv, klikk, farge) {
+      _flis(ikon, navn, tekst, aktiv, klikk, farge, nokkel = null) {
         return html`
           <button
             class="flis ${aktiv ? "aktiv" : ""}"
             style=${aktiv && farge ? `background:${farge}` : ""}
-            @click=${() => { this._haptikk("light"); klikk(); }}
+            @pointerdown=${(e) => nokkel && this._holdNed(e, nokkel)}
+            @pointerup=${() => this._holdOpp()} @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
+            @contextmenu=${(e) => e.preventDefault()}
+            @click=${this._holdKlikk(() => { this._haptikk("light"); klikk(); })}
           >
             <span class="flis-ikon"><ha-icon icon="${ikon}"></ha-icon></span>
             <span class="flis-tekstblokk">
@@ -825,7 +867,10 @@
 
         return html`
           <label class="velger">
-            <span class="velger-tekst">${tekst}</span>
+            <span class="velger-tekst"
+              @pointerdown=${(e) => this._holdNed(e, key)} @pointerup=${() => this._holdOpp()}
+              @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
+              @contextmenu=${(e) => e.preventDefault()}>${tekst}</span>
             <span class="velger-verdi">
               ${nf(naa, des)}${suffiks}
               <ha-icon icon="mdi:chevron-down"></ha-icon>
@@ -873,7 +918,11 @@
         if (!s) return "";
         const paa = s.state === "on";
         return html`
-          <button class="bryterrad" @click=${() => this._veksle(key)}>
+          <button class="bryterrad"
+            @pointerdown=${(e) => this._holdNed(e, key)} @pointerup=${() => this._holdOpp()}
+            @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
+            @contextmenu=${(e) => e.preventDefault()}
+            @click=${this._holdKlikk(() => this._veksle(key))}>
             <span>${tekst}</span>
             <span class="knott ${paa ? "paa" : ""}"></span>
           </button>
@@ -982,7 +1031,8 @@
       /* Nøkkeltall: ikon, verdien stor, navnet dempet under. */
       _stat(ikon, navn, verdi, enhet = "", klikk = null) {
         return html`
-          <button class="stat" @click=${klikk || (() => {})} ?disabled=${!klikk}>
+          <button class="stat" @click=${klikk || (() => {})} ?disabled=${!klikk}
+            @contextmenu=${(e) => e.preventDefault()}>
             <ha-icon icon="${ikon}"></ha-icon>
             <span class="sv">${verdi}${enhet ? html`<small>${enhet}</small>` : ""}</span>
             <span class="sn">${navn}</span>
@@ -1114,14 +1164,14 @@
               tvang ? "til målet" : maltemp != null ? `mot ${nf(maltemp, 0)}°` : "av",
               tvang,
               () => this._veksle("tvingVarme"),
-              "var(--kib-orange)"
+              "var(--kib-orange)", "tvingVarme"
             )}
             ${this._flis(
               "mdi:fan-plus",
               "Boost",
               pumpeGar ? "pumpen går" : "30 min",
               false,
-              () => this._trykk("boost")
+              () => this._trykk("boost"), null, "boost"
             )}
             ${this._flis(
               sprederGar ? "mdi:sprinkler-variant" : "mdi:sprinkler",
@@ -1129,28 +1179,28 @@
               sprederGar ? `${igjen} min igjen` : "start",
               sprederGar,
               () => this._trykk(sprederGar ? "stoppSpreder" : "startSpreder"),
-              "var(--kib-blue)"
+              "var(--kib-blue)", "spreder"
             )}
             ${this._flis(
               "mdi:robot-outline",
               "Automatikk",
               this.on("auto") ? "på" : "av",
               this.on("auto"),
-              () => this._veksle("auto")
+              () => this._veksle("auto"), null, "auto"
             )}
             ${this._flis(
               "mdi:cash-clock",
               "Prisstyring",
               this.on("pris") ? "på" : "av",
               this.on("pris"),
-              () => this._veksle("pris")
+              () => this._veksle("pris"), null, "pris"
             )}
             ${this._flis(
               "mdi:heat-wave",
               "Varmeprioritet",
               this.on("varme") ? "på" : "av",
               this.on("varme"),
-              () => this._veksle("varme")
+              () => this._veksle("varme"), null, "varme"
             )}
           </div>
         `;
@@ -2140,7 +2190,7 @@
           .spredpanel .spredtekst { display: grid; gap: 2px; }
           .spredpanel .spredtekst b { font-size: 16px; font-weight: 600; }
           .spredpanel .spredtekst span { font-size: 12px; opacity: 0.75; }
-          .spredpanel .stor { margin: 12px; }
+          .spredpanel .stor { width: calc(100% - 24px); margin: 12px; }
 
           /* --- temperaturgrafen (1.12) --- */
           .tgraf { display: grid; gap: 6px; }
