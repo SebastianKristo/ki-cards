@@ -1,4 +1,4 @@
-/* ki-cards v5.54.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.55.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.54.0";
+  KI.VERSION = "5.55.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11712,7 +11712,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "3.12.0";
+const KI_VANN_VERSJON = "3.13.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12739,13 +12739,23 @@ class KiVanningCard extends HTMLElement {
       rad(this._kiEnt("nullstill_forbruk"), "Nullstill forbruk", "Kjør"),
       rad(this._kiEnt("nullstill_kalibrering"), "Nullstill kalibrering", "Kjør"),
     ].filter(Boolean).join("");
-    if (!deler) {
+    /* Varslene fra KI Vanning 3.2: én bryter per type, pluss hovedbryteren. De finnes i
+       begge modiene, så de listes for seg under, i samme rekkefølge som integrasjonen. */
+    const varselNavn = { varsel_hoved: "Alle vanningsvarsler", varsel_program: "Program startet og ferdig",
+      varsel_sone: "Hver sone", varsel_regnpause: "Regnpause", varsel_vann_renner: "Vann renner uten sone",
+      varsel_ingen_flyt: "Sone uten vannføring", test_varsel: "Send testvarsel" };
+    const varsler = Object.keys(varselNavn).map((t) => {
+      const id = this._kiEnt(t);
+      return id ? rad(id, varselNavn[t], t === "test_varsel" ? "Send" : undefined) : "";
+    }).filter(Boolean).join("");
+    if (!deler && !varsler) {
       return `<div class="tom">Installer <b>KI Vanning</b> for innstillinger her.</div>`;
     }
     const mangler = !anlegg && !regn && this._ventilmodus()
       ? `<div class="hint">Fant ikke regnpause og hovedbryter – oppdater <b>KI Vanning</b> til 3.0.0
           og last integrasjonen på nytt.</div>` : "";
-    return `<div class="innboks">${deler}</div>${mangler}
+    return `${deler ? `<div class="innboks">${deler}</div>` : ""}${mangler}
+      ${varsler ? `<div class="gruppetittel" style="padding-top:8px">Varsler</div><div class="innboks">${varsler}</div>` : ""}
       ${ki ? `<div class="hint">Regnpause og hovedbryter kommer fra KI Vanning – ingen entiteter å skrive inn.</div>` : ""}`;
   }
 
