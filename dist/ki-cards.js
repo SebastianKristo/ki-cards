@@ -1,4 +1,4 @@
-/* ki-cards v5.53.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.54.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.53.0";
+  KI.VERSION = "5.54.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11712,7 +11712,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "3.11.0";
+const KI_VANN_VERSJON = "3.12.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12023,7 +12023,13 @@ const KI_VANN_STIL = `
     background:color-mix(in srgb, var(--nk-farge, var(--gray1000)) 18%, transparent);
     color:var(--nk-farge, var(--gray1000)); --mdc-icon-size:21px; }
   .nk .n { font-size:12px; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nk .v { font-size:15px; font-weight:500; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Verdien får gå over to linjer. Står «Neste kjøring» og «Siste kjøring» ved siden av
+     hverandre på en mobil, er hver flis rundt 160 px, og «tir. 23. sep kl. 06:00» ble
+     kuttet med ellipse. Dagen og klokka står nå i hvert sitt spenn, så linja brekker
+     mellom dem og aldri midt i et ord. */
+  .nk .v { font-size:15px; font-weight:500; margin-top:1px; line-height:1.25; overflow-wrap:anywhere; }
+  .nk .v .d { white-space:nowrap; }
+  .nk .v .k { white-space:nowrap; font-variant-numeric:tabular-nums; }
   .nk .v small { font-size:12px; font-weight:400; opacity:.6; }
 
   /* ---- statuskort: regnpause og program som kjører ---- */
@@ -12415,6 +12421,24 @@ class KiVanningCard extends HTMLElement {
   }
 
   /* Hvor lenge det er til et tidspunkt: «14 t», «35 min», «2 d». */
+  /* Samme som _tidTekst, men med dagen og klokka i hvert sitt spenn, slik at en smal
+     flis kan brekke linja mellom dem: «i dag» / «kl. 21:00». */
+  _tidFlis(v) {
+    const t = this._tidTekst(v);
+    const m = t.match(/^(.*?)\s+(kl\. \d{2}[:.]\d{2})$/);
+    return m ? `<span class="d">${kiVaEsc(m[1])}</span> <span class="k">${kiVaEsc(m[2])}</span>` : kiVaEsc(t);
+  }
+
+  /* Haptikk som virker på iPhone også: Home Assistant-appen lytter på et haptic-event
+     på window, og navigator.vibrate finnes ikke i Safari. Vi sender begge. */
+  _haptikk(type) {
+    const t = type || "selection";
+    try { window.dispatchEvent(new CustomEvent("haptic", { detail: t, bubbles: true, composed: true })); }
+    catch (e) { /* eldre nettlesere */ }
+    const ms = { selection: 5, light: 8, medium: 14, heavy: 22, success: 12, warning: 20, failure: 30 }[t] || 8;
+    if (typeof navigator !== "undefined" && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* blokkert */ } }
+  }
+
   _igjen(v) {
     const d = new Date(v); if (isNaN(d.getTime())) return "";
     const min = Math.round((d.getTime() - Date.now()) / 60000);
@@ -12548,11 +12572,11 @@ class KiVanningCard extends HTMLElement {
 
   /* ---------- handlinger ---------- */
   _tjeneste(navn, data, mål) {
-    if (navigator.vibrate) navigator.vibrate(10);
+    this._haptikk("light");
     return this._h.callService("opensprinkler", navn, data || {}, mål ? { entity_id: mål } : undefined);
   }
   _ki_tjeneste(navn, data) {
-    if (navigator.vibrate) navigator.vibrate(10);
+    this._haptikk("light");
     return this._h.callService("ki_vanning", navn, data || {});
   }
   _kjor(sone, min) {
@@ -12593,7 +12617,7 @@ class KiVanningCard extends HTMLElement {
     return id ? h.states[id].attributes : null;
   }
   _mer(id) { if (id) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true })); }
-  _veksle(id) { if (navigator.vibrate) navigator.vibrate(8); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
+  _veksle(id) { this._haptikk("light"); this._h.callService("homeassistant", "toggle", { entity_id: id }); }
 
   /* ---------- oppbygging ---------- */
   _bygg() {
@@ -12676,7 +12700,10 @@ class KiVanningCard extends HTMLElement {
       else if (h === "regn0") this._regn(0);
       else this._veksleAnlegg();
     }));
-    r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => { this._fane = b.dataset.f; this._tegn(); }));
+    r.querySelectorAll(".fane").forEach((b) => b.addEventListener("click", () => {
+      if (this._fane !== b.dataset.f) this._haptikk("selection");
+      this._fane = b.dataset.f; this._tegn();
+    }));
     this._bygget = true;
   }
 
@@ -12974,7 +13001,7 @@ class KiVanningCard extends HTMLElement {
         <span class="ik"><ha-icon icon="${ikon}"></ha-icon></span>
         <div><div class="n">${navn}</div><div class="v">${v}</div></div></div>`;
     };
-    const tid = (id) => { const st = this._st(id); return st ? kiVaEsc(this._tidTekst(st.state)) : ""; };
+    const tid = (id) => { const st = this._st(id); return st ? this._tidFlis(st.state) : ""; };
     const strom = this._strom(s.strom);
     const flyt = this._st(s.flyt);
     const regn = this._on(s.regn);
@@ -13382,7 +13409,7 @@ class KiVanningCard extends HTMLElement {
     const r = this.shadowRoot;
     const vert = r.querySelector(".hero, .scene");
     if (!vert || r.querySelector(".innlag")) return;
-    if (navigator.vibrate) navigator.vibrate(8);
+    this._haptikk("light");
     const lag = document.createElement("div");
     lag.className = "innlag";
     lag.innerHTML = `<div class="tittelrad"><b>Innstillinger</b>
@@ -13445,7 +13472,7 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-inn]").forEach((el) => el.addEventListener("click", () => {
       const id = el.dataset.inn, type = el.dataset.type;
       if (type === "bryter") this._veksle(id);
-      else if (type === "knapp") { if (navigator.vibrate) navigator.vibrate(10); this._h.callService("button", "press", { entity_id: id }); }
+      else if (type === "knapp") { this._haptikk("light"); this._h.callService("button", "press", { entity_id: id }); }
       else this._mer(id);
     }));
     r.querySelectorAll("[data-kmnd]").forEach((b) => b.addEventListener("click", () => {
@@ -13476,6 +13503,7 @@ class KiVanningCard extends HTMLElement {
     r.querySelectorAll("[data-sone]").forEach((el) => {
       const veksle = (e) => {
         if (e.target.closest("[data-min]")) return;
+        this._haptikk("selection");
         this._aapenSone = this._aapenSone === el.dataset.sone ? null : el.dataset.sone;
         this._tegn();
       };
