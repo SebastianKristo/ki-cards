@@ -1,20 +1,26 @@
-# ki-cards 5.63.0
+# ki-cards 5.64.0
 
-## family-status-card: servermenyen kommer med en gang igjen
+## Kamerakortet: hvert kamera i mysmarthome-språket
 
-Siden 5.52.0 venter et trykk på navnet 250 ms når dobbelttrykk har en handling — for å se om det
-kommer et trykk til. Med kiosk-vekslingen på dobbelttrykk gjaldt det hvert trykk, også det som
-åpner servermenyen. Det er de 250 millisekundene du har merket.
+`ki-kamera-card` 1.12.0. Visningen for ett kamera — flisene under bildet og aktivitetsloggen — er
+tegnet på nytt etter `DESIGN.md`.
 
-Menyen åpnes nå på første trykk, uten å vente. Ventingen finnes for å skille et trykk fra et
-dobbelttrykk, men å åpne en meny er ufarlig å angre: kommer det et trykk til innen fristen, lukkes
-menyen igjen og dobbelttrykket kjøres som før. Kiosk-vekslingen virker altså fortsatt, og menyen er
-like rask som før 5.52.0.
+**Flisene** (Personvern, Bevegelse, Siste bevegelse) er de liggende flisene fra dashbordet: den lyse
+ikonsirkelen med tynn kant til venstre, navnet i 15 px/500 og tilstanden i 13 px/500 med 70 %
+opasitet under. Personvern på (kameraet av) fylles rødt med svart tekst; bevegelse nå fylles med
+aktivfargen.
 
-Ligger menyen på en annen gest (`server_meny_med: hold`), er ingenting endret.
+**Personvernbryteren svarer med en gang.** Kameraet bruker et par sekunder på å bekrefte, og flisen
+sto i gammel tilstand så lenge — det leses som at trykket ikke tok. Nå vises det nye med en gang, og
+slippes så snart kameraet er enig (eller etter fem sekunder uten svar).
+
+**Loggen** er ett panel med ikonflis og overskrift («Aktivitet» / «siste 24 timer»), og hver linje
+har ikonsirkelen til venstre, navnet i 15 px/500, tilstand og sti i én dempet meta-linje under, og
+klokkeslettet til høyre. Dagoverskriftene i 500/70 % i stedet for versaler i halvfet; den vertikale
+koblingslinja og pilene («→») er borte. Hendelser som slo *på* får aktivfargen i ikonet.
+
+**Langt trykk åpner entiteten** — på flisene og på hver logglinje. Trykk og bytte gir haptikk.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Gestene er kjørt for seg:
-første trykk åpner menyen uten å vente, et andre trykk innen fristen lukker den og veksler kiosk, og
-ett trykk som får stå gir menyen uten kiosk-veksling.
+Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass.

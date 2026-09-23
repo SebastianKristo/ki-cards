@@ -15,7 +15,7 @@
  * JavaScript Module: /local/ki-kamera-card.js
  */
 
-const KI_KAMERA_VERSION = "1.11.0";
+const KI_KAMERA_VERSION = "1.12.0";
 
 console.info(
   `%c KI-KAMERA-CARD %c ${KI_KAMERA_VERSION} `,
@@ -488,17 +488,51 @@ class KiKameraCard extends HTMLElement {
         this._oppsett = el.dataset.verdi;
         this._oppdater();
       } else if (el.dataset.handling === "personvern") {
+        if (this._holdt) { this._holdt = false; return; }
+        this._haptikk("light");
+        /* Vis det nye med en gang. Kameraet bruker et par sekunder på å svare, og
+           en flis som står i gammel tilstand så lenge leses som at trykket ikke tok. */
+        const st = this._hass.states[el.dataset.entity];
+        this._optPersonvern = { id: el.dataset.entity, state: st && st.state === "on" ? "off" : "on", t: Date.now() };
+        this._detaljSignatur = "";
+        this._tegnDetaljer();
         this._hass.callService("switch", "toggle", {
           entity_id: el.dataset.entity,
         });
       } else if (el.dataset.handling === "mer-info") {
+        if (this._holdt) { this._holdt = false; return; }
         const ev = new Event("hass-more-info", { bubbles: true, composed: true });
         ev.detail = { entityId: el.dataset.entity };
         this.dispatchEvent(ev);
       }
     });
 
+    /* Langt trykk på en flis eller en logglinje åpner entiteten. */
+    this._rot.addEventListener("pointerdown", (e) => {
+      const el = e.composedPath().find((n) => n && n.dataset && n.dataset.entity);
+      if (!el) return;
+      clearTimeout(this._holdTimer);
+      this._holdt = false;
+      this._holdTimer = setTimeout(() => {
+        this._holdt = true;
+        this._haptikk("medium");
+        const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+        ev.detail = { entityId: el.dataset.entity };
+        this.dispatchEvent(ev);
+      }, 500);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((t) =>
+      this._rot.addEventListener(t, () => clearTimeout(this._holdTimer)));
+    this._rot.addEventListener("contextmenu", (e) => {
+      if (e.composedPath().some((n) => n && n.dataset && n.dataset.entity)) e.preventDefault();
+    });
+
     this._bygget = true;
+  }
+
+  _haptikk(type = "light") {
+    try { window.dispatchEvent(new CustomEvent("haptic", { detail: type, bubbles: true, composed: true })); } catch (e) { /* eldre */ }
+    if (navigator.vibrate) { try { navigator.vibrate(type === "medium" ? 12 : 8); } catch (e) { /* blokkert */ } }
   }
 
   /* ------------------------------------------------------------ utvalg -- */
@@ -593,11 +627,12 @@ class KiKameraCard extends HTMLElement {
     this._loggKort = el || null;
     if (el) {
       el.hass = this._hass;
-      const tittel = document.createElement("div");
-      tittel.className = "loggtittel";
-      tittel.textContent = "Aktivitet";
-      vert.appendChild(tittel);
-      vert.appendChild(el);
+      const panel = document.createElement("div");
+      panel.className = "loggpanel";
+      panel.innerHTML = `<div class="loggtittel"><span class="pik"><ha-icon icon="mdi:history"></ha-icon></span>
+        <span class="loggnavn">Aktivitet</span><span class="loggunder">siste ${esc(this._config.logbook_hours || 24)} timer</span></div>`;
+      panel.appendChild(el);
+      vert.appendChild(panel);
     }
   }
 
@@ -617,7 +652,12 @@ class KiKameraCard extends HTMLElement {
     }
 
     const s = (id) => (id ? this._hass.states[id] : null);
-    const pv = s(k.privacy);
+    let pv = s(k.privacy);
+    const o = this._optPersonvern;
+    if (o && pv && o.id === k.privacy) {
+      if (o.state === pv.state || Date.now() - o.t > 5000) this._optPersonvern = null;
+      else pv = { ...pv, state: o.state };
+    }
     const bev = s(k.motion);
     const sist = s(k.last_motion);
 
@@ -969,22 +1009,17 @@ class KiKameraCard extends HTMLElement {
         html += `
           <button type="button" class="tl-rad ${aktiv ? "aktiv" : ""}"
             data-handling="mer-info" data-entity="${esc(l.entity_id)}">
-            <span class="tl-tid">${esc(klokke(l.when))}</span>
             <span class="tl-ikon">
               <ha-icon icon="${esc(
                 linjeIkon(hass, l.entity_id, l.state, l.icon)
               )}"></ha-icon>
             </span>
             <span class="tl-tekst">
-              <span class="tl-tittel">${esc(navn)} <i>→</i> ${esc(
-          tilstandTekst(hass, l.entity_id, l.state)
-        )}</span>
-              ${
-                sti.length
-                  ? `<span class="tl-sti">${sti.map(esc).join(" ▸ ")}</span>`
-                  : ""
-              }
+              <span class="tl-tittel">${esc(navn)}</span>
+              <span class="tl-meta">${esc(tilstandTekst(hass, l.entity_id, l.state))}${
+                sti.length ? ` · ${sti.map(esc).join(" ▸ ")}` : ""}</span>
             </span>
+            <span class="tl-tid">${esc(klokke(l.when))}</span>
           </button>`;
       });
       vert.innerHTML = html;
@@ -1243,115 +1278,45 @@ KiKameraCard.styles = `
   .celle.bevegelse .celle-prikk { background: var(--blue, #3b82f6); }
 
   /* ---------- tidslinje ---------- */
-  .tidslinje {
-    position: relative;
-    background: var(--gray200, var(--card-background-color));
-    border-radius: 22px;
-    padding: 6px 14px 10px;
-    box-sizing: border-box;
-    max-width: 100%;
-    overflow: hidden;
-  }
+  .tidslinje { position: relative; padding: 2px 6px 8px; max-width: 100%; overflow: hidden; }
   .tidslinje * { box-sizing: border-box; min-width: 0; }
-  .tl-laster, .tl-tom {
-    padding: 26px 8px;
-    text-align: center;
-    font-size: 14px;
-    color: var(--gray800, var(--secondary-text-color));
-  }
-  .tl-dag {
-    font-size: 12px; font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    opacity: .45;
-    color: var(--gray1000, var(--primary-text-color));
-    padding: 14px 0 8px 78px;
-  }
+  .tl-laster, .tl-tom { padding: 22px 8px; text-align: center; font-size: 14px; font-weight: 500; opacity: .7; }
+  .tl-dag { font-size: 13px; font-weight: 500; opacity: .7; padding: 12px 8px 6px; }
   .tl-rad {
-    position: relative;
-    display: grid;
-    grid-template-columns: 62px 44px minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    padding: 10px 0;
-    background: none;
-    text-align: left;
-    color: var(--gray1000, var(--primary-text-color));
-    border-radius: 12px;
+    display: grid; grid-template-columns: 46px minmax(0, 1fr) auto;
+    align-items: center; gap: 12px;
+    width: 100%; max-width: 100%; min-width: 0;
+    padding: 8px; border: 0; background: none; text-align: left;
+    color: var(--gray1000, var(--primary-text-color)); border-radius: 16px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .15s ease, transform .12s ease;
   }
-  /* koblingslinjen mellom ikonene */
-  .tl-rad::before {
-    content: "";
-    position: absolute;
-    left: 95px;
-    top: 0; bottom: 0;
-    width: 1px;
-    background: rgba(128, 128, 128, .28);
-  }
-  .tl-rad:first-of-type::before { top: 50%; }
-  .tl-rad:last-of-type::before { bottom: 50%; }
-  .tl-tid {
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    color: var(--gray800, var(--secondary-text-color));
-    opacity: .8;
-    white-space: nowrap;
-  }
+  .tl-rad:active { transform: scale(.985); background: rgba(250, 251, 252, .06); }
+  .tl-rad + .tl-rad { border-top: 1px solid rgba(250, 251, 252, .07); border-radius: 0 0 16px 16px; }
   .tl-ikon {
-    position: relative;
-    z-index: 1;
-    flex: 0 0 auto;
-    width: 42px; height: 42px;
-    border-radius: 50%;
+    width: 46px; height: 46px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(128, 128, 128, .22);
-    color: var(--gray1000, var(--primary-text-color));
-    --mdc-icon-size: 21px;
+    background: rgba(250, 251, 252, .1); border: 1px solid rgba(250, 251, 252, .1);
+    color: var(--gray1000, var(--primary-text-color)); --mdc-icon-size: 24px;
   }
-  .tl-rad.aktiv .tl-ikon {
-    background: var(--yellow, #d6a41a);
-    color: var(--black, #1c1c1e);
-  }
-  .tl-tekst {
-    display: flex; flex-direction: column; gap: 3px;
-    min-width: 0; max-width: 100%; overflow: hidden;
-  }
-  .tl-tittel {
-    font-size: 15px; font-weight: 600;
-    line-height: 1.35;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
-  }
-  .tl-tittel i { font-style: normal; opacity: .45; padding: 0 3px; }
-  .tl-sti {
-    font-size: 13px;
-    max-width: 100%;
-    color: var(--gray800, var(--secondary-text-color));
-    opacity: .7;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .tl-rad + .tl-rad .tl-tekst {
-    border-top: 1px solid rgba(128, 128, 128, .14);
-    padding-top: 10px;
-    margin-top: -10px;
-  }
+  .tl-rad.aktiv .tl-ikon { background: var(--active-big, #ee95ff); border-color: transparent; color: var(--black, #1c1c1e); }
+  .tl-tekst { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .tl-tittel { font-size: 15px; font-weight: 500; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-meta { font-size: 13px; font-weight: 500; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-tid { font-size: 13px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   /* ---------- aktivitetslogg ---------- */
-  .logg { display: block; margin-top: 18px; }
-  .loggtittel {
-    font-size: 15px; font-weight: 700;
-    color: var(--gray1000, var(--primary-text-color));
-    padding: 0 6px 8px;
+  .logg { display: block; margin-top: 10px; }
+  .loggpanel { border-radius: 24px; background: var(--gray200, var(--card-background-color)); padding: 8px; }
+  .loggtittel { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; align-items: center; padding: 6px 6px 4px; }
+  .loggtittel .pik {
+    width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: rgba(250, 251, 252, .1); border: 1px solid rgba(250, 251, 252, .1); --mdc-icon-size: 24px;
   }
-  .logg .skall {
-    border-radius: 22px;
-    overflow: hidden;
-    background: var(--gray200, var(--card-background-color));
-  }
+  .loggnavn { font-size: 14px; font-weight: 500; opacity: .7; }
+  .loggunder { font-size: 16px; font-weight: 300; grid-column: 2; margin-top: -2px; }
+  .loggtittel .loggnavn { grid-column: 2; grid-row: 1; }
+  .loggtittel .pik { grid-row: 1 / 3; }
 
   /* ---------- innhold ---------- */
   .innhold { display: block; }
@@ -1367,37 +1332,31 @@ KiKameraCard.styles = `
   }
   /* ---------- detaljfliser ---------- */
   .detaljer { display: block; }
-  .fliser {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
-    margin-top: 12px;
-  }
+  .fliser { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
   .flis {
-    display: grid; grid-template-columns: 44px 1fr;
-    align-items: center; gap: 10px;
-    padding: 10px 12px 10px 6px;
-    border-radius: 18px; text-align: left;
+    display: grid; grid-template-columns: 46px minmax(0, 1fr);
+    align-items: center; gap: 12px;
+    min-height: 66px; padding: 10px 12px 10px 10px;
+    border: 0; border-radius: 24px; text-align: left; cursor: pointer;
     background: var(--gray200, var(--card-background-color));
     color: var(--gray1000, var(--primary-text-color));
-    transition: background .2s ease, color .2s ease;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .25s ease, color .25s ease, transform .14s cubic-bezier(.2, 1.3, .3, 1);
   }
-  .flis.varsel { background: var(--red, #e5484d); color: var(--gray100, #fff); }
-  .flis.aktiv { background: var(--blue, #3b82f6); color: var(--gray100, #fff); }
+  .flis:active { transform: scale(.97); }
+  .flis.varsel { background: var(--red, #e5484d); color: var(--black, #1c1c1e); }
+  .flis.aktiv { background: var(--active-big, #ee95ff); color: var(--black, #1c1c1e); }
   .flis:focus-visible { outline: 2px solid var(--active-big, var(--primary-color)); outline-offset: 1px; }
   .flis-ikon {
-    width: 40px; height: 40px; border-radius: 50%;
+    width: 46px; height: 46px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, .12);
-    --mdc-icon-size: 21px;
-    justify-self: end;
+    background: rgba(250, 251, 252, .1); border: 1px solid rgba(250, 251, 252, .1);
+    --mdc-icon-size: 24px;
   }
-  .flis.varsel .flis-ikon, .flis.aktiv .flis-ikon { background: rgba(250, 251, 252, .16); }
+  .flis.varsel .flis-ikon, .flis.aktiv .flis-ikon { background: rgba(0, 0, 0, .1); border-color: rgba(0, 0, 0, .08); }
   .flis-tekst { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .flis-navn { font-size: 14px; font-weight: 600;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .flis-under { font-size: 12px; font-weight: 500; opacity: .7;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flis-navn { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flis-under { font-size: 13px; font-weight: 500; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .tomt {
     padding: 28px 18px;
@@ -1408,13 +1367,12 @@ KiKameraCard.styles = `
   }
 
   @media (max-width: 430px) {
-    .tidslinje { padding: 4px 10px 8px; }
-    .tl-rad { grid-template-columns: 48px 36px minmax(0, 1fr); gap: 9px; }
-    .tl-rad::before { left: 75px; }
-    .tl-ikon { width: 36px; height: 36px; --mdc-icon-size: 18px; }
-    .tl-tid { font-size: 11px; }
+    .tidslinje { padding: 2px 4px 6px; }
+    .tl-rad { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; }
+    .tl-ikon { width: 40px; height: 40px; --mdc-icon-size: 21px; }
+    .tl-tid { font-size: 12px; }
     .tl-tittel { font-size: 14px; }
-    .tl-sti { font-size: 12px; }
+    .tl-meta { font-size: 12px; }
     .tl-dag { padding-left: 57px; }
   }
   @media (prefers-reduced-motion: reduce) {
