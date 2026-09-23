@@ -23,7 +23,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.12.0";
+  const VERSJON = "1.13.0";
 
   /* Finner LitElement i frontend.
    *
@@ -420,6 +420,25 @@
           </div>`;
       }
 
+      /* Fingeren over grafen. Brøken langs bredden lagres; _graf regner resten. Bare
+         mens fingeren er nede på mobil (pointerdown → move), så rulling ikke stjeles. */
+      _grafPek(e) {
+        if (e.pointerType !== "mouse" && e.type === "pointermove" && e.buttons === 0) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        if (!r.width) return;
+        const f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        if (this._pek === f) return;
+        this._pek = f;
+        if (e.type === "pointerdown") try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+        this.requestUpdate();
+      }
+
+      _grafSlipp() {
+        if (this._pek === undefined || this._pek === null) return;
+        this._pek = null;
+        this.requestUpdate();
+      }
+
       _byttVindu(timer) {
         this._timer = timer;
         this._hentHistorikk(true);
@@ -473,6 +492,7 @@
           return html`<div class="dempet senter graf-tom">Ikke nok temperaturhistorikk ennå.</div>`;
         }
         const fra = h.fra, til = h.til, spenn = til - fra;
+        const timer = spenn / 3600000;
         const W = 300, H = 100, N = 48;
 
         // 1) gjennomsnitt i 48 like store bøtter, 2) glidende snitt over tre
@@ -526,11 +546,30 @@
         }).join(" ");
         const pumpetMin = ekte.reduce((sum, [a, b]) => sum + (b - a) / 60000, 0);
 
+        /* Fingeren over grafen: nærmeste punkt på kurva, klokkeslettet og om pumpa gikk.
+           Nå-lappen skjules imens, så de to ikke ligger oppå hverandre. */
+        const pek = this._pek;
+        let pekHtml = "";
+        if (pek && pkt.length) {
+          const t = fra + pek * spenn;
+          const n = pkt.reduce((b, q) => (Math.abs(q.t - t) < Math.abs(b.t - t) ? q : b), pkt[0]);
+          const gikk = ekte.some(([a, b]) => t >= a && t <= b);
+          const px = (X(n.t) / W) * 100, py = (Y(n.v) / H) * 100;
+          const d = new Date(n.t);
+          const kl = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+          const naar = timer <= 30 ? kl : `${d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", "")} ${kl}`;
+          pekHtml = html`
+            <div class="tg-pekline" style="left:${px.toFixed(1)}%"></div>
+            <span class="tg-pekdot" style="left:${px.toFixed(1)}%;top:${py.toFixed(1)}%"></span>
+            <div class="tg-pekboks ${px > 62 ? "venstre" : ""}" style="left:${px.toFixed(1)}%">
+              <b>${nf(n.v, 1)}°</b><span>${naar}</span>${gikk ? html`<i>pumpa gikk</i>` : ""}
+            </div>`;
+        }
+
         const malY = mal != null ? Y(Number(mal)) : null;
         const naX = Math.max(0, Math.min(100, (X(siste.t) / W) * 100));
         const naY = Math.max(0, Math.min(100, (Y(siste.v) / H) * 100));
         const endring = siste.v - T[0].v;
-        const timer = spenn / 3600000;
 
         // Fem merker langs tida
         const merker = [0, 0.25, 0.5, 0.75, 1].map((f) => {
@@ -543,7 +582,10 @@
 
         return html`
           <div class="tgraf">
-            <div class="tflate">
+            <div class="tflate ${pek ? "peker" : ""}"
+              @pointerdown=${(e) => this._grafPek(e)} @pointermove=${(e) => this._grafPek(e)}
+              @pointerup=${() => this._grafSlipp()} @pointerleave=${() => this._grafSlipp()}
+              @pointercancel=${() => this._grafSlipp()}>
               <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="kib-tg" x1="0" y1="0" x2="0" y2="1">
@@ -562,6 +604,7 @@
               <span class="tg-y bunn">${nf(lo, 1)}°</span>
               <span class="tg-na" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%"></span>
               <span class="tg-natekst ${naY < 22 ? "under" : ""}" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%">${nf(siste.v, 1)}°</span>
+              ${pekHtml}
             </div>
             <div class="tg-akse">
               ${merker.map((m) => html`<span style="left:${(m.f * 100).toFixed(0)}%">${m.tekst}</span>`)}
@@ -887,10 +930,10 @@
       /* Et panel: overskrift med farget ikonflis, noe valgfritt til høyre, og innholdet
          under. Sirkulasjon, spreder og innstillinger er bygget av slike, i stedet for
          lange lister med rader rett på bakgrunnen. */
-      _panel(ikon, farge, tittel, under, innhold, hoyre = "") {
+      _panel(ikon, farge, tittel, under, innhold, hoyre = "", klikk = null) {
         return html`
           <section class="panel" style="--pf:${farge}">
-            <header class="phode">
+            <header class="phode ${klikk ? "trykkbar" : ""}" @click=${klikk || (() => {})}>
               <span class="pik"><ha-icon icon="${ikon}"></ha-icon></span>
               <div class="ptekst">
                 <div class="ptittel">${tittel}</div>
@@ -905,12 +948,12 @@
       /* Ring for «hvor langt har vi kommet» – omsetninger mot målet, spredertid mot taket.
          Hele svg-en står i én mal; Lit har ingen svg-tag her, og en nøstet mal ville lagt
          sirklene i HTML-navnerommet, der de ikke tegnes. */
-      _ring(pst, farge, stor, liten) {
+      _ring(pst, farge, stor, liten, klikk = null) {
         const r = 42;
         const omkrets = 2 * Math.PI * r;
         const fylt = Math.max(0, Math.min(100, Number(pst) || 0));
         return html`
-          <div class="ring" style="--rf:${farge}">
+          <div class="ring ${klikk ? "trykkbar" : ""}" style="--rf:${farge}" @click=${klikk || (() => {})}>
             <svg viewBox="0 0 100 100">
               <circle class="rbak" cx="50" cy="50" r="${r}"></circle>
               <circle class="rfor" cx="50" cy="50" r="${r}"
@@ -1192,7 +1235,7 @@
             gjort >= mal ? "Målet er nådd" : `${nf(Math.max(0, mal - gjort), 2)} igjen til målet`,
             html`
               <div class="ringrad">
-                ${this._ring(pst, "var(--kib-blue)", `${nf(gjort, 2)}×`, `av ${nf(mal, 2)}×`)}
+                ${this._ring(pst, "var(--kib-blue)", `${nf(gjort, 2)}×`, `av ${nf(mal, 2)}×`, () => this._mer("omsetninger"))}
                 <div class="statliste">
                   ${this._stat("mdi:timer-outline", "Pumpetid i dag", nf(this.val("pumpetid", 0), 1), " t", () => this._mer("pumpetid"))}
                   ${this._stat("mdi:clock-start", "Neste start", neste ? klokke(neste) || String(neste) : "–", "", () => this._mer("nesteStart"))}
@@ -1203,14 +1246,15 @@
                 Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger i døgnet.</div>` : ""}`)}
 
           ${this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Temperatur og sirkulasjon", "",
-            this._graf(), this._vinduvelger())}
+            this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))}
 
           ${this._panel("mdi:calendar-clock", "var(--kib-accent)", "Planen",
             snittPlan != null ? `Snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : "",
             html`
               <div class="plabel">I dag</div>
               ${this._planstripe(bl, true)}
-              ${blm.length ? html`<div class="plabel">I morgen</div>${this._planstripe(blm, false)}` : ""}`)}
+              ${blm.length ? html`<div class="plabel">I morgen</div>${this._planstripe(blm, false)}` : ""}`,
+            "", () => this._mer("modus"))}
 
           ${this._panel("mdi:tune-variant", "var(--kib-muted)", "Innstillinger", "", html`
             <div class="pliste">
@@ -1291,7 +1335,7 @@
             maks ? `${nf(Math.max(0, maks - brukt), 0)} min igjen av taket` : "Ingen tak satt",
             html`
               <div class="ringrad">
-                ${this._ring(maks ? (brukt / maks) * 100 : 0, "var(--kib-blue)", `${nf(brukt, 0)}`, maks ? `av ${nf(maks, 0)} min` : "min")}
+                ${this._ring(maks ? (brukt / maks) * 100 : 0, "var(--kib-blue)", `${nf(brukt, 0)}`, maks ? `av ${nf(maks, 0)} min` : "min", () => this._mer("spredertid"))}
                 <div class="statliste">
                   ${this._stat("mdi:timer-sand", "Varighet", nf(varighet, 0), " min")}
                   ${this._stat("mdi:repeat", "Start hver", intervall ? nf(intervall, 0) : "–", intervall ? " t" : "")}
@@ -1389,7 +1433,7 @@
               ${this._tallrad()}
               ${this._config.graf !== false
                 ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
-                    this._graf(), this._vinduvelger())
+                    this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))
                 : ""}
               ${this.on("overstyrt")
                 ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>`
@@ -1965,15 +2009,19 @@
             gap: 12px;
             min-width: 0;
           }
-          .phode { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+          /* Ikonflisen er den fra mysmarthome: lys, gjennomskinnelig sirkel med tynn kant,
+             hvitt ikon. Fargen (--pf) brukes bare i ringer og stolper, ikke i ikonet. */
+          .phode { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+          .phode.trykkbar { cursor: pointer; }
           .pik {
-            width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-            background: color-mix(in srgb, var(--pf, var(--kib-muted)) 20%, transparent);
-            color: var(--pf, var(--kib-text));
+            width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+            background: rgba(250, 251, 252, 0.1);
+            border: 1px solid rgba(250, 251, 252, 0.1);
+            color: var(--kib-text);
           }
-          .pik ha-icon { --mdc-icon-size: 21px; }
-          .ptittel { font-size: 15px; font-weight: 600; }
-          .punder { font-size: 12px; color: var(--kib-muted); margin-top: 1px; }
+          .pik ha-icon { --mdc-icon-size: 24px; }
+          .ptittel { font-size: 14px; font-weight: 500; opacity: 0.7; }
+          .punder { font-size: 16px; font-weight: 300; margin-top: 1px; line-height: 1.2; }
           .ptekst { min-width: 0; }
           .ptekst div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -1986,8 +2034,9 @@
           .ring .rfor { stroke: var(--rf, var(--kib-accent)); stroke-linecap: round;
             transition: stroke-dashoffset 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
           .rtekst { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-          .rtekst b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-          .rtekst span { font-size: 11px; color: var(--kib-muted); }
+          .ring.trykkbar { cursor: pointer; }
+          .rtekst b { font-size: 26px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+          .rtekst span { font-size: 12px; font-weight: 500; opacity: 0.7; }
           .statliste { display: grid; gap: 6px; min-width: 0; }
           .statgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
           .stat {
@@ -1998,10 +2047,11 @@
           }
           .stat[disabled] { cursor: default; }
           .stat ha-icon { grid-area: i; --mdc-icon-size: 20px; color: var(--kib-muted); }
-          .stat .sv { grid-area: v; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+          .stat .sv { grid-area: v; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .stat .sv small { font-size: 11px; font-weight: 500; opacity: 0.6; margin-left: 1px; }
-          .stat .sn { grid-area: n; font-size: 11px; color: var(--kib-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .stat .sv small { font-size: 12px; font-weight: 500; opacity: 0.7; margin-left: 2px; }
+          .stat .sn { grid-area: n; font-size: 12px; font-weight: 500; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .stat ha-icon { color: var(--kib-text); opacity: 0.85; }
           .statgrid .stat { padding: 12px; }
           .tips { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--kib-muted);
             padding: 8px 12px; border-radius: 14px; background: var(--kib-inner); }
@@ -2026,7 +2076,19 @@
 
           /* --- temperaturgrafen (1.12) --- */
           .tgraf { display: grid; gap: 6px; }
-          .tflate { position: relative; height: 150px; margin-right: 34px; }
+          .tflate { position: relative; height: 150px; margin-right: 34px; touch-action: pan-y; }
+          .tflate.peker { touch-action: none; }
+          .tflate.peker .tg-na, .tflate.peker .tg-natekst { opacity: 0; }
+          .tg-pekline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--kib-text); opacity: 0.35; }
+          .tg-pekdot { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--kib-text);
+            border: 2px solid var(--kib-surface); transform: translate(-50%, -50%); }
+          .tg-pekboks { position: absolute; top: 0; transform: translateX(8px); display: grid; gap: 1px;
+            padding: 6px 10px; border-radius: 12px; background: var(--kib-text); color: var(--kib-surface);
+            white-space: nowrap; pointer-events: none; }
+          .tg-pekboks.venstre { transform: translateX(calc(-100% - 8px)); }
+          .tg-pekboks b { font-size: 16px; font-weight: 500; }
+          .tg-pekboks span { font-size: 11px; opacity: 0.8; }
+          .tg-pekboks i { font-style: normal; font-size: 11px; color: var(--kib-blue); }
           .tflate svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; color: var(--kib-orange); }
           .tg-pumpe { fill: var(--kib-blue); opacity: 0.16; }
           .tg-mal { fill: none; stroke: var(--kib-text); stroke-opacity: 0.35; stroke-width: 1; stroke-dasharray: 4 4;
@@ -2096,7 +2158,7 @@
           .vpstatus.av .vpik ha-icon { --mdc-icon-size: 21px; }
           .vpstatus.varme .vpik ha-icon { animation: kib-varme 2.4s ease-in-out infinite; }
           @keyframes kib-varme { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-          .vptittel { font-size: 16px; font-weight: 600; }
+          .vptittel { font-size: 16px; font-weight: 500; }
           .vpstatus.av .vptittel { font-size: 14px; font-weight: 500; }
           .vpunder { font-size: 13px; opacity: 0.88; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
           .vpchip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); }
@@ -2589,7 +2651,7 @@
             background: var(--kib-accent);
             color: var(--kib-sort);
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 500;
             box-sizing: border-box;
           }
           .stor ha-icon {

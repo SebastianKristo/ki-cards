@@ -81,6 +81,9 @@ function toCssSize(value, fallbackPx) {
   return String(value);
 }
 
+/* Malen «Vær»-profilen skriver inn: temperatur og tilstand, som i appen. */
+const VAER_MAL = "{temp} • {vaer}";
+
 /* Værtilstandene i Home Assistant på norsk, slik appen viser dem. */
 const VAER_NB = {
   "clear-night": "Klar himmel", sunny: "Sol", partlycloudy: "Delvis skyet", cloudy: "Skyet",
@@ -1680,20 +1683,52 @@ class FamilyStatusCardEditor extends LitElement {
     `;
   }
 
+  /* Fargefelt med velger.
+   *
+   * Før var fargeruta bare en visning: den viste fargen, men trykk på den gjorde
+   * ingenting, og den eneste måten å endre fargen på var å skrive en CSS-verdi i
+   * tekstfeltet. Nå åpner ruta en palett med fargene fra mysmarthome-temaet, en
+   * egen fargevelger for en hvilken som helst farge, og «Arv fra temaet» som tømmer. */
   _color(label, field) {
     const value = this._config[field] || "";
+    const apen = this._fargeApen === field;
+    const palett = [
+      ["var(--active-big)", "Aktiv"], ["var(--red)", "Rød"], ["var(--orange)", "Oransje"],
+      ["var(--yellow)", "Gul"], ["var(--green)", "Grønn"], ["var(--blue)", "Blå"],
+      ["var(--purple)", "Lilla"], ["var(--pink)", "Rosa"], ["var(--gray1000)", "Tekst"],
+      ["var(--gray800)", "Dempet"], ["var(--gray200)", "Flate"], ["var(--black)", "Svart"],
+    ];
+    const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : "#ee95ff";
     return html`
-      <div class="color-field">
-        <div
+      <div class="color-field ${apen ? "apen" : ""}">
+        <button
           class="swatch"
+          type="button"
           style=${value ? `background: ${value}` : ""}
           title=${value || "Arver fra temaet"}
-        ></div>
+          aria-label="Velg farge"
+          @click=${(e) => { e.stopPropagation(); this._fargeApen = apen ? null : field; this.requestUpdate(); }}
+        ></button>
         <ha-textfield
           label=${label}
           .value=${value}
           @input=${(e) => this._update(field, e.target.value)}
         ></ha-textfield>
+        ${apen ? html`
+          <div class="palett" @click=${(e) => e.stopPropagation()}>
+            ${palett.map(([v, navn]) => html`
+              <button type="button" class="pfarge ${value === v ? "valgt" : ""}" title=${navn}
+                style=${`background:${v}`}
+                @click=${() => { this._update(field, v); this._fargeApen = null; this.requestUpdate(); }}></button>`)}
+            <label class="pegen" title="Egen farge">
+              <input type="color" .value=${hex}
+                @input=${(e) => this._update(field, e.target.value)}
+                @change=${() => { this._fargeApen = null; this.requestUpdate(); }} />
+              <ha-icon icon="mdi:eyedropper-variant"></ha-icon>
+            </label>
+            <button type="button" class="parv"
+              @click=${() => { this._update(field, ""); this._fargeApen = null; this.requestUpdate(); }}>Arv fra temaet</button>
+          </div>` : ""}
       </div>
     `;
   }
@@ -1854,7 +1889,20 @@ class FamilyStatusCardEditor extends LitElement {
               .value=${cfg.server_plass || "tittel"}
               @value-changed=${(e) => this._update("server_plass", e.detail.value)}
             ></ha-selector>
-            ${this._text("Undertekst", "undertekst")}
+            <ha-selector
+              .hass=${this.hass}
+              .label=${"Linja under navnet"}
+              .selector=${{ select: { mode: "dropdown", options: [
+                { value: "ingen", label: "Ingen" },
+                { value: "vaer", label: "Vær – temperatur og tilstand" },
+                { value: "egen", label: "Egen tekst" }] } }}
+              .value=${!cfg.undertekst ? "ingen" : cfg.undertekst === VAER_MAL ? "vaer" : "egen"}
+              @value-changed=${(e) => {
+                const v = e.detail.value;
+                this._update("undertekst", v === "ingen" ? "" : v === "vaer" ? VAER_MAL : (cfg.undertekst && cfg.undertekst !== VAER_MAL ? cfg.undertekst : "Hei {name}"));
+              }}
+            ></ha-selector>
+            ${cfg.undertekst && cfg.undertekst !== VAER_MAL ? this._text("Undertekst", "undertekst") : ""}
             <div class="hint">
               Linja under navnet. {temp} og {vaer} hentes fra værentiteten, {name} og {server}
               som i hilsenen: <b>{temp} • {vaer}</b>
@@ -2361,15 +2409,70 @@ class FamilyStatusCardEditor extends LitElement {
         flex: 1;
         min-width: 0;
       }
+      .color-field {
+        position: relative;
+        flex-wrap: wrap;
+      }
       .swatch {
         flex: none;
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 10px;
         border: 1px solid var(--divider-color);
+        cursor: pointer;
         background-image: linear-gradient(45deg, var(--divider-color) 25%, transparent 25%),
           linear-gradient(-45deg, var(--divider-color) 25%, transparent 25%);
         background-size: 8px 8px;
+      }
+      .palett {
+        flex-basis: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 12px;
+        background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+      }
+      .pfarge {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        padding: 0;
+      }
+      .pfarge.valgt {
+        border-color: var(--primary-text-color);
+      }
+      .pegen {
+        position: relative;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 1px dashed var(--divider-color);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        --mdc-icon-size: 16px;
+      }
+      .pegen input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+      }
+      .parv {
+        margin-left: auto;
+        border: 0;
+        background: none;
+        color: var(--primary-color);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
       }
       .switch-row {
         display: flex;
