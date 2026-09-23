@@ -1,4 +1,4 @@
-/* ki-cards v5.48.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-21 */
+/* ki-cards v5.49.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.48.0";
+  KI.VERSION = "5.49.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17104,8 +17104,17 @@ try {
  *   # eller: { kalender: calendar.birthdays, dager: 45 }
  *   # eller: { regex: bursdag, entities: [...] }
  * plakater: true            # vis plakater i lista
+ *
+ * Plex:
+ * plex_serier: sensor.d_day_darling_plex_recently_added_show
+ * plex_filmer: sensor.d_day_darling_plex_recently_added_movie
+ *   # eller plex: sensor.d_day_darling_plex_recently_added  (blandet sensor, eller en liste)
+ * Da får kommende episoder og filmer en hake når de alt ligger i Plex, og fanerada får
+ * «Plex» med det som nettopp er lagt til. Merk: sensorene fra Plex holder bare de siste
+ * tilleggene, så en hake betyr «lagt til nylig» – at den mangler, betyr ikke at du ikke
+ * har den.
  */
-const KI_LANS_VERSJON = "1.4.1";
+const KI_LANS_VERSJON = "1.5.0";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -17129,6 +17138,11 @@ const KI_LANS_STIL = `
     background:rgba(255,255,255,.16); backdrop-filter:blur(6px); white-space:nowrap; }
   .merke.naa { background:var(--active-big,#ee95ff); color:rgba(70,58,64,.95); }
   .merke.film { background:rgba(255,214,138,.22); }
+  /* Haken for «ligger i Plex». Grønn, og alltid med tekst ved siden i heroen – et
+     grønt symbol alene sier ikke hva det betyr. */
+  .merke.plex { background:rgba(52,199,89,.26); display:inline-flex; align-items:center; gap:5px; }
+  .merke.plex ha-icon { --mdc-icon-size:14px; }
+  .hake { --mdc-icon-size:15px; color:var(--green,#34c759); vertical-align:-3px; margin-left:5px; flex:none; }
   .hero h3 { margin:0; font-size:21px; font-weight:600; line-height:1.15; text-shadow:0 2px 12px rgba(0,0,0,.6);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .hero .und { font-size:13px; opacity:.85; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -17288,24 +17302,78 @@ class KiLanseringCard extends HTMLElement {
   }
   set hass(h) {
     const g = this._h; this._h = h; if (!this._c) return;
-    const ids = [this._c.serier, this._c.filmer].filter(Boolean);
+    const ids = [this._c.serier, this._c.filmer, ...this._plexKilder().map((x) => x.id)].filter(Boolean);
     if (!g || ids.some((id) => g.states[id] !== h.states[id])) this._tegn();
   }
   connectedCallback() { clearInterval(this._i); this._i = setInterval(() => this._tegn(), 60000); if (this._h) this._tegn(); }
   disconnectedCallback() { clearInterval(this._i); }
+
+  /* Plex-sensorene, med typen de inneholder. En sensor uten _show/_movie i navnet kan
+     være blandet; da avgjøres typen per element. Musikk hoppes over. */
+  _plexKilder() {
+    const c = this._c || {};
+    const ra = [];
+    const legg = (id, type) => { if (typeof id === 'string' && id) ra.push({ id, type }); };
+    legg(c.plex_serier, 'serie');
+    legg(c.plex_filmer, 'film');
+    const p = c.plex;
+    if (typeof p === 'string') legg(p, null);
+    else if (Array.isArray(p)) p.forEach((x) => legg(x, null));
+    else if (p && typeof p === 'object') {
+      legg(p.serier, 'serie'); legg(p.filmer, 'film');
+      (Array.isArray(p.alle) ? p.alle : [p.alle]).forEach((x) => legg(x, null));
+    }
+    return ra
+      .filter((x) => !/_artist|_music|_musikk|_album/.test(x.id))
+      .map((x) => ({ id: x.id, type: x.type
+        || (/_show|_serie|_tv/.test(x.id) ? 'serie' : /_movie|_film/.test(x.id) ? 'film' : null) }));
+  }
+
+  /* Det Plex nettopp har lagt til, nyeste først. */
+  _plex() {
+    const ut = [];
+    this._plexKilder().forEach(({ id, type }) => {
+      this._les(id, type || 'serie').forEach((x) => {
+        ut.push({ ...x, type: type || (x.nummer || x.episode ? 'serie' : 'film'), plex: true });
+      });
+    });
+    return ut.filter((x) => !isNaN(x.naar)).sort((a, b) => b.naar - a.naar);
+  }
+
+  /* Nøkkel for å kjenne igjen samme episode eller film på tvers av Sonarr/Radarr og
+     Plex. Tegnsetting og store bokstaver varierer mellom kildene, så den strippes bort. */
+  _nokkel(x) {
+    const rent = String(x.tittel || '').toLowerCase()
+      .replace(/\(\d{4}\)/g, '').replace(/[^a-z0-9æøå]+/g, '');
+    if (x.type === 'serie') {
+      const num = String(x.nummer || '').toUpperCase().replace(/[^SE0-9]/g, '');
+      return num ? `serie|${rent}|${num}` : '';
+    }
+    return `film|${rent}`;
+  }
+
+  _iPlex() {
+    if (!this._plexKilder().length) return null;
+    const kart = new Map();
+    this._plex().forEach((x) => {
+      const n = this._nokkel(x);
+      if (n && !kart.has(n)) kart.set(n, x);
+    });
+    return kart;
+  }
 
   /* Sonarr og Radarr legger et oppsettobjekt først i lista – det hopper vi over */
   _les(id, type) {
     const st = this._h && this._h.states[id];
     if (!st || !Array.isArray(st.attributes.data)) return [];
     return st.attributes.data
-      .filter((x) => x && x.airdate && x.title)
+      .filter((x) => x && (x.airdate || x.aired) && x.title)
       .map((x) => ({
         type, kilde: id,
         tittel: x.title,
         episode: x.episode && x.episode !== "TBA" ? x.episode : "",
         nummer: x.number || "",
-        naar: new Date(x.airdate),
+        naar: new Date(x.airdate || x.aired),
         lengde: Number(x.runtime) || 0,
         studio: x.studio || "",
         rating: x.rating || "",
@@ -17320,10 +17388,16 @@ class KiLanseringCard extends HTMLElement {
   }
   _alle() {
     const c = this._c;
+    if (this._fane === 'plex') return this._plex();
+    const kart = this._iPlex();
     const ut = [...this._les(c.serier, "serie"), ...this._les(c.filmer, "film")]
       .filter((x) => !isNaN(x.naar))
+      .map((x) => {
+        const treff = kart && kart.get(this._nokkel(x));
+        return treff ? { ...x, iPlex: true, plexLenke: treff.lenke || '' } : x;
+      })
       .sort((a, b) => a.naar - b.naar);
-    return this._fane === "alle" ? ut : ut.filter((x) => x.type === this._fane);
+    return this._fane === "alle" || !this._fane ? ut : ut.filter((x) => x.type === this._fane);
   }
 
   _naartekst(d) {
@@ -17338,6 +17412,13 @@ class KiLanseringCard extends HTMLElement {
       return { kort: kl, lang: `I dag kl. ${kl}`, naa: min > -180 };
     }
     if (diff === 1) return { kort: "i morgen", lang: `I morgen kl. ${kl}` };
+    /* Plex-fanen viser det som ALT er lagt til, altså datoer bakover. Uten dette ville
+       «i forgårs» blitt til ukedagen, som leses som noe som kommer. */
+    if (diff === -1) return { kort: "i går", lang: `I går kl. ${kl}` };
+    if (diff < -1) {
+      const dato = `${d.getDate()}. ${KI_LA_MND[d.getMonth()]}`;
+      return { kort: diff > -7 ? `${-diff} d siden` : dato, lang: `${dato} kl. ${kl}` };
+    }
     if (diff < 7) {
       const u = d.toLocaleDateString("nb-NO", { weekday: "long" });
       return { kort: u.slice(0, 3), lang: u.charAt(0).toUpperCase() + u.slice(1) + ` kl. ${kl}` };
@@ -17579,7 +17660,9 @@ class KiLanseringCard extends HTMLElement {
       return `<div class="rad ${dag.getTime() === i_dag.getTime() ? "idag" : ""}" data-i="${i + forskyv}"
         role="button" tabindex="0">
         ${c.plakater !== false ? `<span class="p" style="${x.plakat ? `background-image:url('${kiLaEsc(x.plakat)}')` : ""}"></span>` : "<span></span>"}
-        <span><span class="n">${kiLaEsc(x.tittel)}</span><span class="d">${kiLaEsc(under)}</span></span>
+        <span><span class="n">${kiLaEsc(x.tittel)}${x.iPlex
+          ? `<ha-icon class="hake" icon="mdi:check-circle" title="Ligger i Plex"></ha-icon>` : ""}</span>
+          <span class="d">${kiLaEsc(under)}</span></span>
         <span class="hoyre"><span class="dag">${kiLaEsc(n.kort)}</span>
           <span class="dato">${kiLaEsc(x.naar.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }))}</span></span>
       </div>`;
@@ -17593,6 +17676,7 @@ class KiLanseringCard extends HTMLElement {
     const fra = c.visning === "liste" ? 0 : 1;
     const resten = this._alt ? alle.slice(fra) : alle.slice(fra, fra + Number(c.antall || 6));
     const begge = !!c.serier && !!c.filmer;
+    const harPlex = !!this._plexKilder().length;
 
     const hero = forste && c.visning !== "liste" && !this._visKal ? (() => {
       const n = this._naartekst(forste.naar);
@@ -17605,6 +17689,7 @@ class KiLanseringCard extends HTMLElement {
             <span class="merke ${n.naa ? "naa" : ""}">${kiLaEsc(n.lang)}</span>
             ${forste.type === "film" ? `<span class="merke film">${forste.kino ? "Kino" : "Film"}</span>` : ""}
             ${forste.nummer ? `<span class="merke">${kiLaEsc(forste.nummer)}</span>` : ""}
+            ${forste.iPlex ? `<span class="merke plex"><ha-icon icon="mdi:check-circle"></ha-icon>I Plex</span>` : ""}
           </div>
           <h3>${kiLaEsc(forste.tittel)}</h3>
           ${forste.episode ? `<div class="und">${kiLaEsc(forste.episode)}</div>` : ""}
@@ -17637,9 +17722,10 @@ class KiLanseringCard extends HTMLElement {
 
     const html = `<style>${KI_LANS_STIL}</style>
       <div class="rot">
-        ${begge || c.kalender !== false ? `<div class="faner"><div class="skinne">
+        ${begge || harPlex || c.kalender !== false ? `<div class="faner"><div class="skinne">
           ${begge ? [["alle", "Alle"], ["serie", "Serier"], ["film", "Filmer"]].map(([k, n]) =>
             `<button class="fane ${this._fane === k ? "valgt" : ""}" data-f="${k}">${n}</button>`).join("") : ""}
+          ${harPlex ? `<button class="fane ${this._fane === "plex" ? "valgt" : ""}" data-f="plex">Plex</button>` : ""}
           ${c.kalender !== false ? `<button class="fane ${this._visKal ? "valgt" : ""}" data-v="kal"
             title="Kalender">${begge ? `<ha-icon icon="mdi:calendar-month" style="--mdc-icon-size:18px"></ha-icon>` : "Kalender"}</button>` : ""}
         </div></div>` : ""}
@@ -17715,7 +17801,8 @@ class KiLanseringCardEditor extends HTMLElement {
     if (!this._f) {
       this._f = document.createElement("ha-form");
       const n = { serier: "Sonarr-sensor", filmer: "Radarr-sensor", antall: "Antall i lista",
-        visning: "Visning", plakater: "Vis plakater" };
+        visning: "Visning", plakater: "Vis plakater",
+        plex_serier: "Plex – nylig lagt til serier", plex_filmer: "Plex – nylig lagt til filmer" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -17729,6 +17816,8 @@ class KiLanseringCardEditor extends HTMLElement {
       { name: "visning", selector: { select: { mode: "dropdown", options: [
         { value: "full", label: "Hero og liste" }, { value: "liste", label: "Bare liste" },
         { value: "hero", label: "Bare hero" }] } } },
+      { name: "plex_serier", selector: { entity: { domain: "sensor" } } },
+      { name: "plex_filmer", selector: { entity: { domain: "sensor" } } },
       { name: "plakater", selector: { boolean: {} } },
     ];
   }

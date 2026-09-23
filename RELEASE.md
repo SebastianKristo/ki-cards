@@ -1,31 +1,38 @@
-# ki-cards 5.48.0
+# ki-cards 5.49.0
 
-## family-status-card: velg siden serverbyttet åpner
-
-`server_sti` fantes, men het bare «Side som åpnes» i editoren og sto som standard på `lovelace` —
-altså standarddashbordet på den andre serveren, ikke ditt.
+## ki-lansering-card kjenner igjen det Plex alt har
 
 ```yaml
-server_sti: /dashboard-mysmarthome     # skråstrek foran er valgfritt
+type: custom:ki-lansering-card
+serier: sensor.sonarr_sonarr_upcoming_media
+filmer: sensor.radarr_radarr_upcoming_media
+plex_serier: sensor.d_day_darling_plex_recently_added_show
+plex_filmer: sensor.d_day_darling_plex_recently_added_movie
+antall: 6
+plakater: true
 ```
 
-gir `homeassistant://navigate/dashboard-mysmarthome?server=Strømstad`.
+**Hake på det som ligger i Plex.** En episode eller film som er kommet inn, får en grønn hake i
+lista og merket «I Plex» i heroen. Episoder kjennes igjen på tittel **og** nummer (S05E03), filmer
+på tittel alene; tegnsetting, store bokstaver og årstall i parentes strippes bort først, siden
+Sonarr, Radarr og Plex skriver titlene litt ulikt.
 
-**Ny standard:** uten `server_sti` åpner byttet **samme dashbord som du står i nå**. Står du i
-`/dashboard-mysmarthome` i Oslo og bytter til Toten, havner du i `/dashboard-mysmarthome` på Toten.
-Bare hvis kortet ikke vet hvor det står, brukes `lovelace` som før. Et sted kan fortsatt ha sin
-egen `sti:`, som vinner over begge.
+**Ny fane «Plex»** med det som nettopp er lagt til, nyeste først — samme hero og liste som ellers.
+Datoene bakover leses nå riktig: «i går», «4 d siden», og eldre med dato. Før ble «i forgårs» til
+ukedagen, som ser ut som noe som kommer.
 
-**Servernavnet skrives som det står.** Lenka var kodet fullt, så «Strømstad» ble til
-`Str%C3%B8mstad`. Mushroom-kortet ditt som virker, har `server=Strømstad` med ø-en rett i lenka, og
-det er ikke sikkert appen dekoder navnet før den leter etter serveren. Nå kodes bare tegn som ville
-brutt selve lenka (mellomrom, `&`, `?`, `#`, `%`).
+Én sensor holder også, om den blander serier og filmer: `plex: sensor.d_day_darling_plex_recently_added`
+(eller en liste). Typen avgjøres da per element — har det episodenummer, er det en serie.
+Musikksensoren hoppes over automatisk.
 
-Feltet i editoren heter nå «Side som åpnes (f.eks. /dashboard-mysmarthome)».
+**Verdt å vite:** Plex-sensorene holder bare de siste tilleggene. En hake betyr derfor «lagt til
+nylig», og at den mangler betyr *ikke* at du ikke har den fra før. Derfor er det bare hake for det
+som finnes — aldri et kryss for det som ikke gjør det.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Lenkene er bygget for
-seg: `server_sti: /dashboard-mysmarthome` → `…/dashboard-mysmarthome?server=Strømstad`; uten sti,
-stående i `/dashboard-mysmarthome/hjem` → `…/dashboard-mysmarthome?server=Toten`; `sti: hytta` på
-stedet vinner over `server_sti`; ingen sti og ukjent side → `…/lovelace?server=Oslo`.
+Begge byggesjekkene kjørt: 111 kort leser styles, 61 kort bygges med hass. Kortet er i tillegg kjørt
+med oppdiktede sensorer: «slow horses / s05e03» i Plex treffer «Slow Horses / S05E03» fra Sonarr, og
+«Dune: Part Three (2026)» treffer «Dune: Part Three» fra Radarr, mens The Last of Us står uten hake.
+Heroen viser «I Plex», lista én hake, musikksensoren er utelatt, Plex-fanen står nyeste først med
+«4 d siden», og uten `plex_*` i oppsettet er kortet nøyaktig som før — ingen hake og ingen Plex-fane.
