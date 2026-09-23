@@ -1,4 +1,4 @@
-/* ki-cards v5.57.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.58.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.57.0";
+  KI.VERSION = "5.58.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15028,7 +15028,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.11.0";
+  const VERSJON = "1.12.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15459,89 +15459,127 @@ try {
        * Ingen strukket svg, så ingen forvrengt tekst. Ingen levende måling, så ingenting
        * som hopper mens du ser på det.
        */
+      /* Vanntemperaturen som en myk kurve over tid, med pumpeperiodene som blå felt bak.
+       *
+       * Søylene per time (1.10) sa riktig ting – steg eller falt vannet – men var tunge å
+       * lese: en skog av små streker opp og ned fra en midtlinje. En kurve er det øyet
+       * forventer av en temperatur, og med feltene bak ser man likevel hvorfor den steg.
+       *
+       * Kurva og feltene ligger i en strukket svg (fyller bredden), med
+       * vector-effect:non-scaling-stroke så streken er like tykk overalt. Tekst og
+       * «nå»-punktet ligger som HTML oppå, plassert i prosent – de strekkes ikke.
+       * Målingene jevnes ut på 48 punkter over vinduet, så målestøy ikke blir fjell.
+       */
       _graf() {
         const h = this._hist;
         if (!h || h.feil) return html`<div class="dempet senter graf-tom">Henter historikk …</div>`;
-        if (!h.temp || h.temp.length < 2) {
-          return html`<div class="dempet senter graf-tom">
-            Ikke nok temperaturhistorikk ennå.</div>`;
+        const T = (h.temp || []).filter((p) => isFinite(p.v));
+        if (T.length < 2) {
+          return html`<div class="dempet senter graf-tom">Ikke nok temperaturhistorikk ennå.</div>`;
         }
+        const fra = h.fra, til = h.til, spenn = til - fra;
+        const W = 300, H = 100, N = 48;
 
-        /* Del vinduet i timer, og finn første og siste temperatur i hver time.
-           Differansen er endringen den timen. */
-        const timer = Math.max(6, Math.min(this._timer, 168));
-        const bøtter = [];
-        const start = new Date(h.til);
-        start.setMinutes(0, 0, 0);
-        for (let i = timer - 1; i >= 0; i--) {
-          const fra = start.getTime() - i * 3600000;
-          bøtter.push({ fra, til: fra + 3600000, temp: [], min: 0 });
+        // 1) gjennomsnitt i 48 like store bøtter, 2) glidende snitt over tre
+        const botter = Array.from({ length: N }, () => []);
+        for (const p of T) {
+          const i = Math.floor(((p.t - fra) / spenn) * N);
+          if (i >= 0 && i < N) botter[i].push(p.v);
         }
-        const finn = (t) => bøtter.find((b) => t >= b.fra && t < b.til);
-        for (const p of h.temp) { const b = finn(p.t); if (b) b.temp.push(p.v); }
+        let pkt = botter
+          .map((a, i) => (a.length ? { t: fra + ((i + 0.5) / N) * spenn, v: a.reduce((x, y) => x + y, 0) / a.length } : null))
+          .filter(Boolean);
+        // Tomme bøtter i starten: ta med siste måling før vinduet, så kurva går helt ut.
+        if (!pkt.length) pkt = [{ t: fra, v: T[0].v }, { t: til, v: T[T.length - 1].v }];
+        if (pkt.length === 1) pkt.push({ t: til, v: pkt[0].v });
+        pkt = pkt.map((p, i, a) => ({ t: p.t, v: (a[Math.max(0, i - 1)].v + p.v + a[Math.min(a.length - 1, i + 1)].v) / 3 }));
 
-        /* Minutter pumpa gikk per time. Vi går gjennom effektmålingene og legger tiden
-           mellom to målinger på timen den tilhører, når effekten var over terskelen. */
-        const E = h.effekt || [];
-        for (let i = 1; i < E.length; i++) {
-          if (E[i - 1].v <= 40) continue;
-          const b = finn(E[i - 1].t);
-          if (b) b.min += Math.min(60, (E[i].t - E[i - 1].t) / 60000);
-        }
-
-        const med = bøtter.filter((b) => b.temp.length);
-        if (!med.length) {
-          return html`<div class="dempet senter graf-tom">
-            Ingen temperaturmålinger i vinduet.</div>`;
-        }
-        for (const b of med) {
-          b.forste = b.temp[0];
-          b.siste = b.temp[b.temp.length - 1];
-          b.endring = b.siste - b.forste;
-        }
-        const maksEndring = Math.max(0.15, ...med.map((b) => Math.abs(b.endring)));
-        const na = med[med.length - 1].siste;
-        const alle = med.flatMap((b) => b.temp);
-        const sumMin = bøtter.reduce((s2, b) => s2 + b.min, 0);
         const mal = this.attr("vanntemp", "maltemperatur");
+        const siste = T[T.length - 1];
+        const verdier = pkt.map((p) => p.v).concat([siste.v], mal != null ? [Number(mal)] : []);
+        let lo = Math.min(...verdier), hi = Math.max(...verdier);
+        if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+        const pad = (hi - lo) * 0.2; lo -= pad; hi += pad;
+        const X = (t) => ((t - fra) / spenn) * W;
+        const Y = (v) => H - ((v - lo) / (hi - lo)) * H;
 
-        const klokke = (t) => String(new Date(t).getHours()).padStart(2, "0");
-        const vis = timer <= 24 ? bøtter : bøtter.filter((_, i) => i % Math.ceil(timer / 24) === 0);
+        // Catmull-Rom → bezier, så kurva går gjennom punktene uten knekker
+        const P = pkt.map((p) => [X(p.t), Y(p.v)]);
+        let linje = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
+        for (let i = 0; i < P.length - 1; i++) {
+          const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+          const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+          const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+          linje += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+        }
+        const flate = `${linje} L${P[P.length - 1][0].toFixed(1)},${H} L${P[0][0].toFixed(1)},${H} Z`;
+
+        // Pumpeperioder: over 40 W, slått sammen, kortere enn to minutter forkastes
+        const E = h.effekt || [];
+        const felt = [];
+        let aapen = null;
+        for (let i = 0; i < E.length; i++) {
+          const gar = E[i].v > 40;
+          if (gar && aapen === null) aapen = E[i].t;
+          if (!gar && aapen !== null) { felt.push([aapen, E[i].t]); aapen = null; }
+        }
+        if (aapen !== null) felt.push([aapen, til]);
+        const ekte = felt.filter(([a, b]) => b - a >= 120000);
+        const feltD = ekte.map(([a, b]) => {
+          const x0 = Math.max(0, X(a)), x1 = Math.min(W, X(b));
+          return `M${x0.toFixed(1)},0 H${x1.toFixed(1)} V${H} H${x0.toFixed(1)} Z`;
+        }).join(" ");
+        const pumpetMin = ekte.reduce((sum, [a, b]) => sum + (b - a) / 60000, 0);
+
+        const malY = mal != null ? Y(Number(mal)) : null;
+        const naX = Math.max(0, Math.min(100, (X(siste.t) / W) * 100));
+        const naY = Math.max(0, Math.min(100, (Y(siste.v) / H) * 100));
+        const endring = siste.v - T[0].v;
+        const timer = spenn / 3600000;
+
+        // Fem merker langs tida
+        const merker = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+          const d = new Date(fra + f * spenn);
+          const tekst = timer <= 30
+            ? `${String(d.getHours()).padStart(2, "0")}:00`
+            : d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", "");
+          return { f, tekst: f === 1 ? "nå" : tekst };
+        });
 
         return html`
-          <div class="soyler">
-            ${vis.map((b) => {
-              const har = b.temp.length > 0;
-              const e = har ? b.endring : 0;
-              const h2 = Math.abs(e) / maksEndring * 44;
-              return html`
-                <div class="soyle ${har ? "" : "tom"}"
-                     title="kl. ${klokke(b.fra)} · ${har
-                       ? `${nf(b.siste, 1)}° (${e >= 0 ? "+" : ""}${nf(e, 2)}°)` : "ingen data"}${
-                       b.min ? ` · pumpet ${Math.round(b.min)} min` : ""}">
-                  <div class="opp">${e > 0 ? html`<i class="stigning"
-                    style="height:${h2.toFixed(1)}px"></i>` : ""}</div>
-                  <div class="midt"></div>
-                  <div class="ned">${e < 0 ? html`<i class="fall"
-                    style="height:${h2.toFixed(1)}px"></i>` : ""}</div>
-                  <div class="pumpe"><i style="height:${
-                    (Math.min(60, b.min) / 60 * 10).toFixed(1)}px"></i></div>
-                </div>`;
-            })}
-          </div>
-          <div class="soyleakse">
-            <span>kl. ${klokke(bøtter[0].fra)}</span>
-            <span>${timer <= 24 ? "siste døgn" : `siste ${Math.round(timer / 24)} døgn`}</span>
-            <span>kl. ${klokke(bøtter[bøtter.length - 1].fra)}</span>
-          </div>
-          <div class="graf-tekst">
-            <span><i class="prikk temp"></i>${nf(na, 1)}° nå${
-              mal != null ? ` · mål ${nf(mal, 0)}°` : ""} · spenn ${
-              nf(Math.min(...alle), 1)}–${nf(Math.max(...alle), 1)}°</span>
-            <span><i class="prikk sirk"></i>${sumMin >= 60
-              ? `pumpet ${nf(sumMin / 60, 1)} t` : `pumpet ${Math.round(sumMin)} min`}</span>
-          </div>
-        `;
+          <div class="tgraf">
+            <div class="tflate">
+              <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="kib-tg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="currentColor" stop-opacity="0.42"></stop>
+                    <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                  </linearGradient>
+                </defs>
+                <path class="tg-pumpe" d="${feltD}"></path>
+                <path class="tg-mal" d="${malY !== null ? `M0,${malY.toFixed(1)} H${W}` : ""}"></path>
+                <path class="tg-flate" d="${flate}"></path>
+                <path class="tg-linje" d="${linje}"></path>
+              </svg>
+              ${malY !== null && malY > 4 && malY < H - 4
+                ? html`<span class="tg-malmerke" style="top:${((malY / H) * 100).toFixed(1)}%">mål ${nf(mal, 0)}°</span>` : ""}
+              <span class="tg-y topp">${nf(hi, 1)}°</span>
+              <span class="tg-y bunn">${nf(lo, 1)}°</span>
+              <span class="tg-na" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%"></span>
+              <span class="tg-natekst ${naY < 22 ? "under" : ""}" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%">${nf(siste.v, 1)}°</span>
+            </div>
+            <div class="tg-akse">
+              ${merker.map((m) => html`<span style="left:${(m.f * 100).toFixed(0)}%">${m.tekst}</span>`)}
+            </div>
+            <div class="tg-chips">
+              <span class="chip"><i class="prikk temp"></i>${nf(siste.v, 1)}° nå</span>
+              ${mal != null ? html`<span class="chip">mål ${nf(mal, 0)}°</span>` : ""}
+              <span class="chip ${endring >= 0 ? "opp" : "ned"}">${endring >= 0 ? "▲" : "▼"} ${nf(Math.abs(endring), 1)}°
+                ${timer <= 30 ? "siste døgn" : `siste ${Math.round(timer / 24)} døgn`}</span>
+              <span class="chip"><i class="prikk sirk"></i>pumpet ${pumpetMin >= 60
+                ? `${nf(pumpetMin / 60, 1)} t` : `${Math.round(pumpetMin)} min`}</span>
+            </div>
+          </div>`;
       }
 
       /* --- handlinger ----------------------------------------------- */
@@ -15851,6 +15889,63 @@ try {
         `;
       }
 
+      /* Et panel: overskrift med farget ikonflis, noe valgfritt til høyre, og innholdet
+         under. Sirkulasjon, spreder og innstillinger er bygget av slike, i stedet for
+         lange lister med rader rett på bakgrunnen. */
+      _panel(ikon, farge, tittel, under, innhold, hoyre = "") {
+        return html`
+          <section class="panel" style="--pf:${farge}">
+            <header class="phode">
+              <span class="pik"><ha-icon icon="${ikon}"></ha-icon></span>
+              <div class="ptekst">
+                <div class="ptittel">${tittel}</div>
+                ${under ? html`<div class="punder">${under}</div>` : ""}
+              </div>
+              ${hoyre}
+            </header>
+            ${innhold}
+          </section>`;
+      }
+
+      /* Ring for «hvor langt har vi kommet» – omsetninger mot målet, spredertid mot taket.
+         Hele svg-en står i én mal; Lit har ingen svg-tag her, og en nøstet mal ville lagt
+         sirklene i HTML-navnerommet, der de ikke tegnes. */
+      _ring(pst, farge, stor, liten) {
+        const r = 42;
+        const omkrets = 2 * Math.PI * r;
+        const fylt = Math.max(0, Math.min(100, Number(pst) || 0));
+        return html`
+          <div class="ring" style="--rf:${farge}">
+            <svg viewBox="0 0 100 100">
+              <circle class="rbak" cx="50" cy="50" r="${r}"></circle>
+              <circle class="rfor" cx="50" cy="50" r="${r}"
+                stroke-dasharray="${omkrets.toFixed(1)}"
+                stroke-dashoffset="${(omkrets * (1 - fylt / 100)).toFixed(1)}"></circle>
+            </svg>
+            <div class="rtekst"><b>${stor}</b><span>${liten}</span></div>
+          </div>`;
+      }
+
+      /* Nøkkeltall: ikon, verdien stor, navnet dempet under. */
+      _stat(ikon, navn, verdi, enhet = "", klikk = null) {
+        return html`
+          <button class="stat" @click=${klikk || (() => {})} ?disabled=${!klikk}>
+            <ha-icon icon="${ikon}"></ha-icon>
+            <span class="sv">${verdi}${enhet ? html`<small>${enhet}</small>` : ""}</span>
+            <span class="sn">${navn}</span>
+          </button>`;
+      }
+
+      _vinduvelger() {
+        return html`
+          <span class="vindu">
+            ${[24, 72, 168].map((t) => html`
+              <button class="${this._timer === t ? "aktiv" : ""}" @click=${() => this._byttVindu(t)}>
+                ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
+              </button>`)}
+          </span>`;
+      }
+
       _seksjon(navn, ikon, tittel, undertekst, innhold) {
         const apen = !!this._apne[navn];
         return html`
@@ -16092,59 +16187,43 @@ try {
         const snittDogn = this.attr("modus", "snittpris_dogn");
         const anbefalt = this.attr("omsetninger", "anbefalt");
         const enOms = this.attr("omsetninger", "en_omsetning_timer");
-        const gjort = this.val("omsetninger", 0) || 0;
+        const gjort = Number(this.val("omsetninger", 0)) || 0;
         const mal = Number(this.attr("omsetninger", "mal", this.val("mal", 1.5))) || 1.5;
         const neste = this.val("nesteStart");
+        const pst = Math.min(100, (gjort / mal) * 100);
 
-        /* Tallene først, i samme tette rutenett som resten av dashbordet, og så
-           innstillingene bak et tannhjul-lignende skille. */
         return html`
-          <div class="iradliste">
-            ${this._infoRad("mdi:autorenew", "Omsetninger",
-              `${nf(gjort, 2)} av ${nf(mal, 2)}`, "", Math.min(100, (gjort / mal) * 100))}
-            ${this._infoRad("mdi:timer-outline", "Pumpetid i dag",
-              nf(this.val("pumpetid", 0), 1), " t")}
-            ${this._infoRad("mdi:clock-start", "Neste start", neste ? String(neste) : "–", "")}
-            ${this._infoRad("mdi:water-sync", "Én omsetning tar", nf(enOms, 1), " t")}
-          </div>
+          ${this._panel("mdi:autorenew", "var(--kib-blue)", "Omsetninger i dag",
+            gjort >= mal ? "Målet er nådd" : `${nf(Math.max(0, mal - gjort), 2)} igjen til målet`,
+            html`
+              <div class="ringrad">
+                ${this._ring(pst, "var(--kib-blue)", `${nf(gjort, 2)}×`, `av ${nf(mal, 2)}×`)}
+                <div class="statliste">
+                  ${this._stat("mdi:timer-outline", "Pumpetid i dag", nf(this.val("pumpetid", 0), 1), " t", () => this._mer("pumpetid"))}
+                  ${this._stat("mdi:clock-start", "Neste start", neste ? klokke(neste) || String(neste) : "–", "", () => this._mer("nesteStart"))}
+                  ${this._stat("mdi:water-sync", "Én omsetning", nf(enOms, 1), " t")}
+                </div>
+              </div>
+              ${anbefalt ? html`<div class="tips"><ha-icon icon="mdi:thermometer-water"></ha-icon>
+                Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger i døgnet.</div>` : ""}`)}
 
-          <div class="grafblokk" style="margin-top:8px">
-            <div class="grafhode">
-              <span>Temperatur og sirkulasjon</span>
-              <span class="vindu">
-                ${[24, 72, 168].map((t) => html`
-                  <button class="${this._timer === t ? "aktiv" : ""}"
-                          @click=${() => this._byttVindu(t)}>
-                    ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
-                  </button>`)}
-              </span>
-            </div>
-            ${this._graf()}
-          </div>
+          ${this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Temperatur og sirkulasjon", "",
+            this._graf(), this._vinduvelger())}
 
-          <div class="grafblokk" style="margin-top:8px">
-            <div class="grafhode">
-              <span>Planen i dag</span>
-              <span class="dempet">${snittPlan != null
-                ? `snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : ""}</span>
-            </div>
-            ${this._planstripe(bl, true)}
-          </div>
+          ${this._panel("mdi:calendar-clock", "var(--kib-accent)", "Planen",
+            snittPlan != null ? `Snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : "",
+            html`
+              <div class="plabel">I dag</div>
+              ${this._planstripe(bl, true)}
+              ${blm.length ? html`<div class="plabel">I morgen</div>${this._planstripe(blm, false)}` : ""}`)}
 
-          ${blm.length ? html`
-            <div class="grafblokk" style="margin-top:8px">
-              <div class="grafhode"><span>I morgen</span></div>
-              ${this._planstripe(blm, false)}
-            </div>` : ""}
-
-          ${anbefalt ? html`<div class="dempet" style="margin-top:8px">
-            Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger.</div>` : ""}
-
-          <div class="skille"></div>
-          ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
-          ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
-          ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
-          ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
+          ${this._panel("mdi:tune-variant", "var(--kib-muted)", "Innstillinger", "", html`
+            <div class="pliste">
+              ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
+              ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
+              ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
+              ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
+            </div>`)}
         `;
       }
 
@@ -16171,16 +16250,13 @@ try {
         const gar = this.on("spreder");
         const igjen = this.val("spredertid", 0) || 0;
         const varighet = this.val("spredVarighet", 10) || 10;
-        const brukt = this.attr("spredertid", "brukt_i_dag_min", 0);
-        const maks = this.val("spredMaks", 0) || 0;
-        const intervall = this.val("spredIntervall", 0) || 0;
-        const andel = maks ? Math.min(100, (brukt / maks) * 100) : undefined;
+        const brukt = Number(this.attr("spredertid", "brukt_i_dag_min", 0)) || 0;
+        const maks = Number(this.val("spredMaks", 0)) || 0;
+        const intervall = Number(this.val("spredIntervall", 0)) || 0;
+        const programPa = this.on("spredprogram");
 
         return html`
-          <!-- Sprederen som en SVG-scene, i samme form som sprinkleren i
-               vanningskortet: hodet vipper, strålene svinger i samme takt, og dråpene
-               kastes ut langs buen. Forrige utgave var div-er med rette streker, og
-               vann beveger seg ikke i rette streker. -->
+          <section class="panel spredpanel ${gar ? "gar" : ""}">
           <div class="spredscene ${gar ? "gar" : ""}">
             <svg viewBox="0 0 320 120" preserveAspectRatio="xMidYMid meet">
               <rect class="sp-vann" x="0" y="96" width="320" height="24"></rect>
@@ -16204,58 +16280,71 @@ try {
               </g>
             </svg>
             <div class="spredtekst">
-              ${gar ? `Sprederen går · ${Math.ceil(igjen)} min igjen` : "Sprederen står"}
+              <b>${gar ? "Sprederen går" : "Sprederen står"}</b>
+              <span>${gar ? `${Math.ceil(igjen)} min igjen` : `Klar for ${Math.round(varighet)} min`}</span>
             </div>
           </div>
 
-          <button
-            class="stor ${gar ? "stopp" : ""}"
-            @click=${() => this._trykk(gar ? "stoppSpreder" : "startSpreder")}
-          >
-            <ha-icon icon="${gar ? "mdi:stop" : "mdi:play"}"></ha-icon>
-            ${gar
-              ? `Stopp sprederen · ${Math.ceil(igjen)} min igjen`
-              : `Start sprederen i ${Math.round(varighet)} min`}
-          </button>
+            <button class="stor ${gar ? "stopp" : ""}"
+              @click=${() => { this._haptikk("medium"); this._trykk(gar ? "stoppSpreder" : "startSpreder"); }}>
+              <ha-icon icon="${gar ? "mdi:stop" : "mdi:play"}"></ha-icon>
+              ${gar ? "Stopp sprederen" : `Start i ${Math.round(varighet)} min`}
+            </button>
+          </section>
 
-          <div class="iradliste" style="margin-top:8px">
-            ${this._infoRad("mdi:sprinkler-variant", "Brukt i dag",
-              maks ? `${nf(brukt, 0)} av ${nf(maks, 0)}` : nf(brukt, 0), " min", andel)}
-            ${this._infoRad("mdi:timer-sand", "Varighet", nf(varighet, 0), " min")}
-            ${this._infoRad("mdi:repeat", "Program: start hver",
-              intervall ? nf(intervall, 0) : "–", intervall ? " t" : "")}
-            ${gar ? this._infoRad("mdi:timer-outline", "Igjen nå",
-              String(Math.ceil(igjen)), " min") : ""}
-          </div>
+          ${this._panel("mdi:sprinkler-variant", "var(--kib-blue)", "I dag",
+            maks ? `${nf(Math.max(0, maks - brukt), 0)} min igjen av taket` : "Ingen tak satt",
+            html`
+              <div class="ringrad">
+                ${this._ring(maks ? (brukt / maks) * 100 : 0, "var(--kib-blue)", `${nf(brukt, 0)}`, maks ? `av ${nf(maks, 0)} min` : "min")}
+                <div class="statliste">
+                  ${this._stat("mdi:timer-sand", "Varighet", nf(varighet, 0), " min")}
+                  ${this._stat("mdi:repeat", "Start hver", intervall ? nf(intervall, 0) : "–", intervall ? " t" : "")}
+                  ${this._stat("mdi:calendar-check", "Program", programPa ? "På" : "Av", "")}
+                </div>
+              </div>`)}
 
-          <div class="skille"></div>
-          ${this._velger("spredVarighet", "Varighet", { suffiks: " min" })}
-          ${this._velger("spredIntervall", "Program: start hver", { suffiks: " t" })}
-          ${this._velger("spredMaks", "Maks per døgn", { step: 10, suffiks: " min" })}
-          ${this._bryterRad("spredprogram", "Program på")}
-          ${this._bryterRad("frostvakt", "Frostvakt")}
+          ${this._panel("mdi:calendar-sync", "var(--kib-accent)", "Program", programPa ? "Går av seg selv" : "Bare når du starter", html`
+            <div class="pliste">
+              ${this._bryterRad("spredprogram", "Program på")}
+              ${this._velger("spredVarighet", "Varighet", { suffiks: " min" })}
+              ${this._velger("spredIntervall", "Start hver", { suffiks: " t" })}
+              ${this._velger("spredMaks", "Maks per døgn", { step: 10, suffiks: " min" })}
+              ${this._bryterRad("frostvakt", "Frostvakt")}
+            </div>`)}
         `;
       }
 
       _innstillinger() {
         const energi = (this.val("pumpeEnergi", 0) || 0) + (this.val("vpEnergi", 0) || 0);
         return html`
-          ${this._velger("minTid", "Minste kjøretid", { step: 5, suffiks: " min" })}
-          ${this._velger("overstyringTid", "Manuell overstyring varer", { step: 15, suffiks: " min" })}
-          ${this._velger("varmeStart", "Varmevindu start", { suffiks: ":00" })}
-          ${this._velger("varmeSlutt", "Varmevindu slutt", { suffiks: ":00" })}
-          ${this._velger("basislast", "Pumpe basislast", { step: 10, suffiks: " W" })}
-          ${this._bryterRad("styrVp", "Styr varmepumpe")}
-          ${this._bryterRad("pulsVarme", "Puls med varme")}
-          <div class="skille"></div>
-          ${this._rad("Pumpet totalt", `${nf(this.val("volumTotalt", 0), 1)} m³`)}
-          ${this._rad("Pumpet i dag", `${nf(this.val("volum", 0), 1)} m³`)}
-          ${this._rad("Energi i dag", `${nf(energi, 1)} kWh`)}
-          ${this._rad("Kostnad i dag", `${nf(this.val("kostnad", 0), 1)} ${this.enhet("kostnad")}`)}
-          <button class="stor stille" @click=${() => this._trykk("nullstill")}>
-            <ha-icon icon="mdi:backup-restore"></ha-icon>Nullstill dagens tellere
-          </button>
-          <div class="dempet senter">ki-basseng-card ${VERSJON} · ${this._prefiks || ""}</div>
+          ${this._panel("mdi:pump", "var(--kib-blue)", "Pumpe", "Hvor lenge og hvor mye", html`
+            <div class="pliste">
+              ${this._velger("minTid", "Minste kjøretid", { step: 5, suffiks: " min" })}
+              ${this._velger("basislast", "Basislast", { step: 10, suffiks: " W" })}
+              ${this._velger("overstyringTid", "Manuell overstyring varer", { step: 15, suffiks: " min" })}
+            </div>`)}
+
+          ${this._panel("mdi:heat-wave", "var(--kib-red)", "Varme", "Når varmepumpa får gå", html`
+            <div class="pliste">
+              ${this._bryterRad("styrVp", "Styr varmepumpa")}
+              ${this._velger("varmeStart", "Varmevindu fra", { suffiks: ":00" })}
+              ${this._velger("varmeSlutt", "Varmevindu til", { suffiks: ":00" })}
+              ${this._bryterRad("pulsVarme", "Puls med varme")}
+            </div>`)}
+
+          ${this._panel("mdi:chart-box-outline", "var(--kib-accent)", "Tellere", "", html`
+            <div class="statgrid">
+              ${this._stat("mdi:water", "Pumpet i dag", nf(this.val("volum", 0), 1), " m³", () => this._mer("volum"))}
+              ${this._stat("mdi:water-sync", "Pumpet totalt", nf(this.val("volumTotalt", 0), 1), " m³", () => this._mer("volumTotalt"))}
+              ${this._stat("mdi:lightning-bolt", "Energi i dag", nf(energi, 1), " kWh")}
+              ${this._stat("mdi:cash", "Kostnad i dag", nf(this.val("kostnad", 0), 1), ` ${this.enhet("kostnad") || "kr"}`, () => this._mer("kostnad"))}
+            </div>
+            <button class="stor stille" @click=${() => { this._haptikk("medium"); this._trykk("nullstill"); }}>
+              <ha-icon icon="mdi:backup-restore"></ha-icon>Nullstill dagens tellere
+            </button>`)}
+
+          <div class="dempet senter versjon">ki-basseng-card ${VERSJON} · ${this._prefiks || ""}</div>
         `;
       }
 
@@ -16304,26 +16393,8 @@ try {
               ${this._knapper()}
               ${this._tallrad()}
               ${this._config.graf !== false
-                ? html`
-                    <div class="grafblokk">
-                      <div class="grafhode">
-                        <span>Vanntemperatur</span>
-                        <span class="vindu">
-                          ${[24, 72, 168].map(
-                            (t) => html`
-                              <button
-                                class="${this._timer === t ? "aktiv" : ""}"
-                                @click=${() => this._byttVindu(t)}
-                              >
-                                ${t === 24 ? "24 t" : t === 72 ? "3 d" : "7 d"}
-                              </button>
-                            `
-                          )}
-                        </span>
-                      </div>
-                      ${this._graf()}
-                    </div>
-                  `
+                ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
+                    this._graf(), this._vinduvelger())
                 : ""}
               ${this.on("overstyrt")
                 ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>`
@@ -16887,6 +16958,115 @@ try {
             padding: 0 6px;
             font-size: 12px;
             color: var(--kib-muted);
+          }
+
+          /* --- paneler (1.12) --- */
+          .panel {
+            background: var(--kib-surface);
+            border-radius: 24px;
+            padding: 14px;
+            margin-top: 10px;
+            display: grid;
+            gap: 12px;
+            min-width: 0;
+          }
+          .phode { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+          .pik {
+            width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+            background: color-mix(in srgb, var(--pf, var(--kib-muted)) 20%, transparent);
+            color: var(--pf, var(--kib-text));
+          }
+          .pik ha-icon { --mdc-icon-size: 21px; }
+          .ptittel { font-size: 15px; font-weight: 600; }
+          .punder { font-size: 12px; color: var(--kib-muted); margin-top: 1px; }
+          .ptekst { min-width: 0; }
+          .ptekst div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+          /* ring + nøkkeltall */
+          .ringrad { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; align-items: center; }
+          .ring { position: relative; width: 116px; height: 116px; }
+          .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+          .ring circle { fill: none; stroke-width: 9; }
+          .ring .rbak { stroke: var(--kib-inner); }
+          .ring .rfor { stroke: var(--rf, var(--kib-accent)); stroke-linecap: round;
+            transition: stroke-dashoffset 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+          .rtekst { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+          .rtekst b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+          .rtekst span { font-size: 11px; color: var(--kib-muted); }
+          .statliste { display: grid; gap: 6px; min-width: 0; }
+          .statgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+          .stat {
+            display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i v" "i n";
+            column-gap: 10px; align-items: center; text-align: left;
+            padding: 8px 12px; border-radius: 16px; background: var(--kib-inner); color: var(--kib-text);
+            cursor: pointer; min-width: 0;
+          }
+          .stat[disabled] { cursor: default; }
+          .stat ha-icon { grid-area: i; --mdc-icon-size: 20px; color: var(--kib-muted); }
+          .stat .sv { grid-area: v; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .stat .sv small { font-size: 11px; font-weight: 500; opacity: 0.6; margin-left: 1px; }
+          .stat .sn { grid-area: n; font-size: 11px; color: var(--kib-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .statgrid .stat { padding: 12px; }
+          .tips { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--kib-muted);
+            padding: 8px 12px; border-radius: 14px; background: var(--kib-inner); }
+          .tips ha-icon { --mdc-icon-size: 18px; color: var(--kib-orange); flex: none; }
+          .plabel { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--kib-muted); margin-bottom: -6px; }
+
+          /* innstillinger som liste med skillelinjer inne i panelet */
+          .pliste { display: grid; }
+          .pliste > * { border-top: 1px solid var(--kib-inner); min-height: 50px; }
+          .pliste > *:first-child { border-top: none; }
+          .pliste .velger-tekst, .pliste .bryterrad { color: var(--kib-text); }
+          .pliste .bryterrad { padding: 0; background: none; }
+
+          /* spreder: scenen i eget panel, knappen under */
+          .spredpanel { padding: 0; overflow: hidden; gap: 0; }
+          .spredpanel .spredscene { border-radius: 0; margin: 0; }
+          .spredpanel .spredtekst { display: grid; gap: 2px; }
+          .spredpanel .spredtekst b { font-size: 16px; font-weight: 600; }
+          .spredpanel .spredtekst span { font-size: 12px; opacity: 0.75; }
+          .spredpanel .stor { margin: 12px; }
+
+          /* --- temperaturgrafen (1.12) --- */
+          .tgraf { display: grid; gap: 6px; }
+          .tflate { position: relative; height: 150px; margin-right: 34px; }
+          .tflate svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; color: var(--kib-orange); }
+          .tg-pumpe { fill: var(--kib-blue); opacity: 0.16; }
+          .tg-mal { fill: none; stroke: var(--kib-text); stroke-opacity: 0.35; stroke-width: 1; stroke-dasharray: 4 4;
+            vector-effect: non-scaling-stroke; }
+          .tg-flate { fill: url(#kib-tg); }
+          .tg-linje { fill: none; stroke: var(--kib-orange); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+            vector-effect: non-scaling-stroke; }
+          .tg-na { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--kib-orange);
+            border: 2px solid var(--kib-surface); transform: translate(-50%, -50%);
+            box-shadow: 0 0 0 0 color-mix(in srgb, var(--kib-orange) 60%, transparent); animation: kib-puls 2.2s ease-out infinite; }
+          @keyframes kib-puls { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--kib-orange) 55%, transparent); }
+            100% { box-shadow: 0 0 0 10px transparent; } }
+          .tg-natekst { position: absolute; transform: translate(-100%, -170%); font-size: 12px; font-weight: 600;
+            padding: 2px 7px; border-radius: 999px; background: var(--kib-orange); color: var(--kib-sort); white-space: nowrap; }
+          .tg-natekst.under { transform: translate(-100%, 70%); }
+          .tg-malmerke { position: absolute; right: -34px; transform: translateY(-50%); font-size: 10px; color: var(--kib-muted); }
+          .tg-y { position: absolute; right: -34px; font-size: 10px; color: var(--kib-muted); font-variant-numeric: tabular-nums; }
+          .tg-y.topp { top: 0; }
+          .tg-y.bunn { bottom: 0; }
+          .tg-akse { position: relative; height: 14px; margin-right: 34px; }
+          .tg-akse span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--kib-muted); white-space: nowrap; }
+          .tg-akse span:first-child { transform: none; }
+          .tg-akse span:last-child { transform: translateX(-100%); }
+          .tg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+          .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 10px;
+            border-radius: 999px; background: var(--kib-inner); white-space: nowrap; }
+          .chip.opp { color: var(--kib-orange); }
+          .chip.ned { color: var(--kib-blue); }
+          .chip .prikk { margin: 0; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+          .chip .prikk.temp { background: var(--kib-orange); }
+          .chip .prikk.sirk { background: var(--kib-blue); }
+          .versjon { margin-top: 12px; font-size: 11px; }
+          @media (prefers-reduced-motion: reduce) {
+            .tg-na { animation: none; }
+            .ring .rfor { transition: none; }
           }
 
           /* Varmepumpa: et statuskort øverst, samme form som i vanningskortet. */

@@ -1,38 +1,50 @@
-# ki-cards 5.57.0
+# ki-cards 5.58.0
 
-## Nytt kort: `ki-basseng-hero-card`
+## ki-basseng-card 1.12.0: nye faner og ny temperaturgraf
 
-Et animert bassengkort i samme stil som de andre hero-kortene, lagt inn i bundelen som
-`src/91-ki-basseng-hero-card.js` — det trenger ikke lenger installeres som egen ressurs.
+Sirkulasjon, spreder og innstillinger var lange lister med rader rett på bakgrunnen. Nå er de bygget av
+**paneler** — én flate per tema, med farget ikonflis og overskrift — og nøkkeltallene er grafiske.
 
-```yaml
-type: custom:ki-basseng-hero-card
-varmepumpe: climate.basseng_bassengvarmepumpe
-pumpe: switch.bassengpumpe
-lys: light.bassenglys
-stillemodus: switch.baseng_basengvarmepumpe_stillemodus
-ute: sensor.outdoor_meter_temperature
-tap_action: { action: navigate, navigation_path: "#badebasseng" }
-```
+### Grafen på Oversikt
 
-Scenen viser bassenget fra siden:
+Timesøylene opp og ned fra en midtlinje sa riktig ting, men var tunge å lese. Nå er det en **myk kurve**
+med toning under, og pumpeperiodene som **blå felt bak** — så du ser både hvor varmt vannet er og
+hvorfor det steg.
 
-- vannflaten bølger, og farge og høyde følger vanntemperaturen (fra kaldt til varmt, 18–30 °)
-- bobler stiger når sirkulasjonspumpa går
-- varmepumpa snurrer og blåser varme bølger når den varmer — saktere i stillemodus
-- damp stiger fra vannet når det varmes
-- bassenglyset lyser opp vannet nedenfra
-- står varmepumpa i auto, blinker et gult varsel, siden den kan kjøle i auto
+- en stiplet linje for måltemperaturen, med merke i kanten
+- et pulserende punkt for «nå», med temperaturen på en lapp
+- tidsakse (klokkeslett for døgnet, ukedager for 3 og 7 døgn) og skala i kanten
+- brikker under: temperatur nå, mål, endring i vinduet (▲/▼) og hvor lenge pumpa har gått
 
-Alle entitetene har standardverdier for ditt oppsett, så `type:` alene holder.
+Målingene jevnes ut på 48 punkter over vinduet, så målestøy ikke blir fjell. Kurva og feltene ligger i en
+strukket svg med `vector-effect: non-scaling-stroke`, så streken er like tykk overalt; tekst og punkt
+ligger som HTML oppå og forvrenges ikke. Pumpefelt kortere enn to minutter regnes som blaff.
 
-Kortet er tatt inn uendret og registrerer seg gjennom `KI.define` som resten. En eldre kopi
-installert som egen ressurs kolliderer derfor ikke, men hoppes over med en advarsel i konsollen.
-Kortet har fått ikon i `brand/` og en rad i kort-tabellen i README.
+### Sirkulasjon
+
+- **Omsetninger i dag** som en ring mot målet, med pumpetid, neste start og hvor lenge én omsetning tar
+  ved siden av — og et tips når vanntemperaturen tilsier et annet mål
+- **Temperatur og sirkulasjon** med den nye grafen og vindusvalget i panelhodet
+- **Planen** for i dag og i morgen, med snittprisen i overskriften
+- **Innstillinger** samlet i ett panel
+
+### Spreder
+
+- scenen og start/stopp-knappen i samme panel, med status og tid igjen
+- **I dag** som en ring for brukt tid mot døgntaket, med varighet, intervall og om programmet er på
+- **Program** med alle valgene og frostvakt samlet
+
+### Innstillinger
+
+Delt i **Pumpe**, **Varme** og **Tellere**. Tellerne er fire fliser — pumpet i dag, pumpet totalt,
+energi og kostnad — som åpner historikken når du trykker.
+
+Start, stopp og nullstill gir haptikk i appen. Valgene bruker fortsatt telefonens egen hjulvelger.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass — ett mer enn før. Kortet er
-i tillegg tegnet i alle tilstandene til varmepumpa: varme (med pumpe, lys og stillemodus), auto, av og
-utilgjengelig — riktig tilstandsklasse på scenen hver gang, og ingen `NaN` eller `undefined` i
-markeringen.
+Begge byggesjekkene kjørt: 114 kort leser styles, 62 kort bygges med hass. Kortet er i tillegg tegnet
+med et døgn oppdiktet historikk: kurva som bezier-bane, seks pumpefelt, mållinjen, nå-punktet, fire
+brikker og tidsaksen «16:00 22:00 04:00 10:00 nå». Sirkulasjon gir fire paneler med ring og tre
+nøkkeltall, spreder tre paneler med ring, innstillinger tre paneler med fire tellerfliser — ingen `NaN`
+eller `undefined` noe sted.
