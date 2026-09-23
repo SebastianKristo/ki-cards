@@ -1,4 +1,4 @@
-/* ki-cards v5.60.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.61.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.60.0";
+  KI.VERSION = "5.61.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15014,6 +15014,7 @@ try {
  * - Grafer hentes fra HA sin historikk, ikke fra en ekstra sensor.
  * - Tegner bare når bassengets egne entiteter faktisk har endret seg.
  *
+ * hero: false    – ta vekk vannheroen fra Oversikt (når den står som eget kort i dashbordet)
  * visning: hero  – bare vannheroen (temperatur, status, omsetninger), som eget kort i dashbordet.
  *
  * Varmepumpe og hurtigknapper (1.11) – det som før lå som egne kort over kortet i popupen:
@@ -15030,7 +15031,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.14.0";
+  const VERSJON = "1.15.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15792,16 +15793,20 @@ try {
       /* --- byggeklosser --------------------------------------------- */
 
       // Flis i samme form som button-card-flisene i dashbordet
+      /* Liggende flis, som de små flisene i dashbordet: ikonsirkel til venstre, navnet
+         og tilstanden til høyre. Aktiv = fylt med aktivfargen og svart tekst. */
       _flis(ikon, navn, tekst, aktiv, klikk, farge) {
         return html`
           <button
             class="flis ${aktiv ? "aktiv" : ""}"
             style=${aktiv && farge ? `background:${farge}` : ""}
-            @click=${klikk}
+            @click=${() => { this._haptikk("light"); klikk(); }}
           >
             <span class="flis-ikon"><ha-icon icon="${ikon}"></ha-icon></span>
-            <span class="flis-navn">${navn}</span>
-            <span class="flis-tekst">${tekst}</span>
+            <span class="flis-tekstblokk">
+              <span class="flis-navn">${navn}</span>
+              <span class="flis-tekst">${tekst}</span>
+            </span>
           </button>
         `;
       }
@@ -16490,7 +16495,7 @@ try {
             ${medFaner && faneListe.length > 1 ? this._faner(faneListe, aktiv) : ""}
             <div class="innhold">
               ${vis("oversikt") ? html`
-              ${this._hero()}
+              ${this._config.hero === false ? "" : this._hero()}
               ${this._plan()}
               <div class="plan-tekst">
                 <span>
@@ -17280,63 +17285,46 @@ try {
             .vpstatus.varme .vpik ha-icon { animation: none; }
           }
 
-          /* Knappefliser, samme form som button-card-flisene */
+          /* Knappefliser: liggende, to i bredden, som template_toggle_card_small */
           .fliser {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
           }
           .flis {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            padding: 14px 12px 12px;
+            display: grid;
+            grid-template-columns: 46px minmax(0, 1fr);
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px 10px 10px;
+            min-height: 66px;
             border-radius: 24px;
             background: var(--kib-surface);
+            color: var(--kib-text);
+            text-align: left;
             min-width: 0;
-            transition: background 0.2s ease;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.25s ease, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1);
           }
+          .flis:active { transform: scale(0.97); }
           .flis-ikon {
             display: grid;
             place-items: center;
-            width: 38px;
-            height: 38px;
-            margin-bottom: 8px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
-            background: var(--kib-inner);
+            background: rgba(250, 251, 252, 0.1);
+            border: 1px solid rgba(250, 251, 252, 0.1);
           }
-          .flis-ikon ha-icon {
-            --mdc-icon-size: 21px;
-            color: var(--kib-text);
-          }
-          .flis-navn {
-            font-size: 13px;
-            font-weight: 600;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .flis-tekst {
-            font-size: 11px;
-            color: var(--kib-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .flis.aktiv {
-            background: var(--kib-accent);
-            color: var(--kib-sort);
-          }
-          .flis.aktiv .flis-ikon {
-            background: rgba(0, 0, 0, 0.12);
-          }
-          .flis.aktiv .flis-ikon ha-icon,
-          .flis.aktiv .flis-tekst {
-            color: var(--kib-sort);
-          }
-          .flis.aktiv .flis-tekst {
-            opacity: 0.7;
-          }
+          .flis-ikon ha-icon { --mdc-icon-size: 24px; color: var(--kib-text); }
+          .flis-tekstblokk { display: grid; gap: 1px; min-width: 0; }
+          .flis-navn { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .flis-tekst { font-size: 13px; font-weight: 500; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .flis.aktiv { background: var(--kib-accent); color: var(--kib-sort); }
+          .flis.aktiv .flis-ikon { background: rgba(0, 0, 0, 0.1); border-color: rgba(0, 0, 0, 0.08); }
+          .flis.aktiv .flis-ikon ha-icon { color: var(--kib-sort); }
+          .flis.aktiv .flis-tekst { opacity: 0.75; }
 
           /* --- dagens regnskap: én flate, tre celler, hårfine skiller --- */
           .idag {
@@ -17370,28 +17358,28 @@ try {
             background: rgba(128, 128, 128, 0.22);
           }
           .idagcelle ha-icon {
-            --mdc-icon-size: 18px;
-            color: var(--kib-muted);
-            opacity: 0.7;
+            --mdc-icon-size: 20px;
+            color: var(--kib-text);
+            opacity: 0.8;
           }
           .idagn {
-            font-size: 10.5px;
-            opacity: 0.55;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0.7;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 100%;
           }
           .idagv {
-            font-size: 21px;
-            font-weight: 600;
-            letter-spacing: -0.025em;
+            font-size: 24px;
+            font-weight: 300;
+            letter-spacing: -0.02em;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
+            line-height: 1.15;
           }
-          .idagv small { font-size: 11.5px; font-weight: 500; opacity: 0.5; margin-left: 2px; }
+          .idagv small { font-size: 12px; font-weight: 500; opacity: 0.7; margin-left: 2px; }
           .idagv.gron { color: var(--kib-green, #5ad18b); }
 
           /* Klassene tall, tall-verdi og tall-tekst er fjernet — de hørte til de tre
