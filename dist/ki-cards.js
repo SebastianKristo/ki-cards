@@ -1,4 +1,4 @@
-/* ki-cards v5.50.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
+/* ki-cards v5.52.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-23 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.50.0";
+  KI.VERSION = "5.52.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -17115,7 +17115,7 @@ try {
  * tilleggene, så en hake betyr «lagt til nylig» – at den mangler, betyr ikke at du ikke
  * har den.
  */
-const KI_LANS_VERSJON = "1.6.0";
+const KI_LANS_VERSJON = "1.6.1";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -17220,17 +17220,25 @@ const KI_LANS_STIL = `
      Lista kan være lang: har du bladd deg ned til rad nummer tolv og trykker, lå laget
      oppe ved kortets topp - altså utenfor skjermen, og du måtte rulle opp for å se det
      du nettopp trykket på. */
+  /* Laget ligger INNE i det dempede feltet og midtstilles med flex.
+     Første forsøk satte det fast med left/top:50% og en transform. Da lå toppen av
+     kortet over kanten av det synlige feltet i popupen, og plakaten og tittelen ble
+     klippet bort - det øverste man så, var datoen. Med flex kan det ikke havne
+     utenfor feltet det midtstilles i. */
   .detaljvern { position:fixed; inset:0; z-index:12; background:rgba(0,0,0,.55);
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:16px;
     animation:la-vern .18s ease-out; }
   @keyframes la-vern { from { opacity:0 } }
-  .detalj.skjerm { position:fixed; inset:auto; z-index:13;
-    left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(520px, calc(100vw - 24px)); height:min(78vh, 700px);
+  .detalj.skjerm { position:relative; inset:auto; z-index:13;
+    width:min(520px, 100%); height:auto; max-height:min(78vh, 700px);
+    display:flex; flex-direction:column;
     border-radius:26px; box-shadow:0 24px 64px rgba(0,0,0,.6);
     animation:la-detalj-skjerm .24s var(--fjaer, ease); }
+  /* Innholdet eier rullingen, så plakaten og tittelen alltid står øverst når det åpnes. */
+  .detalj.skjerm .inn { height:auto; flex:1; min-height:0; overflow-y:auto; }
   @keyframes la-detalj-skjerm {
-    from { opacity:0; transform:translate(-50%,-46%) scale(.96) } }
+    from { opacity:0; transform:translateY(10px) scale(.97) } }
   @media (prefers-reduced-motion: reduce) {
     .detalj, .detalj.skjerm, .detaljvern { animation:none; } }
   .detalj .bak { position:absolute; inset:0; background-size:cover; background-position:center top;
@@ -17476,8 +17484,7 @@ class KiLanseringCard extends HTMLElement {
     ].filter(Boolean);
 
     const skjerm = String(this._c.detalj_plass || "skjerm").toLowerCase() !== "kort";
-    return `${skjerm ? `<div class="detaljvern" data-lukk="1"></div>` : ""}
-    <div class="detalj ${skjerm ? "skjerm" : ""}">
+    const panel = `<div class="detalj ${skjerm ? "skjerm" : ""}">
       ${x.bakgrunn ? `<div class="bak" style="background-image:url('${kiLaEsc(x.bakgrunn)}')"></div>` : ""}
       <div class="skygge"></div>
       <button class="lukk" data-lukk="1" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
@@ -17505,6 +17512,7 @@ class KiLanseringCard extends HTMLElement {
         </div>
       </div>
     </div>`;
+    return skjerm ? `<div class="detaljvern" data-lukk="1">${panel}</div>` : panel;
   }
 
   /* Sveip mellom hero-sidene, med retningslås så siden kan rulles som normalt */
@@ -17790,14 +17798,20 @@ class KiLanseringCard extends HTMLElement {
       requestAnimationFrame(() => {
         const r = lag.getBoundingClientRect();
         const h = window.innerHeight || 0;
-        if (r.height && (r.bottom < 40 || r.top > h - 40)) lag.scrollIntoView({ block: "center" });
+        /* Klippet i toppen eller bunnen teller også – ikke bare helt utenfor. */
+        if (r.height && (r.top < 0 || r.bottom > h)) lag.scrollIntoView({ block: "center" });
       });
     }
     if (!lag) this._sjekket = false;
 
     // detaljlaget: lukk og lenkeknapper
     for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
-      b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });
+      b.addEventListener("click", (e) => {
+        /* Vernet dekker hele skjermen og har selve kortet inni seg: bare et trykk på
+           selve bakgrunnen skal lukke, ikke et trykk inne i kortet. */
+        if (b.classList.contains("detaljvern") && e.target !== b) return;
+        e.stopPropagation(); this._detalj = null; this._tegn();
+      });
     for (const b of this.shadowRoot.querySelectorAll(".detalj [data-url]"))
       b.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -31308,12 +31322,79 @@ class FamilyStatusCard extends LitElement {
     this._greetingTimer = window.setTimeout(() => {
       this._greetingTimer = null;
       this._holdt = true;
-      const entity = this.cfg.greeting_hold_entity;
-      if (entity) {
-        this._haptic(this.cfg.haptic_hold);
-        this.hass.callService("homeassistant", "toggle", { entity_id: entity });
-      }
+      this._greetingGest("hold");
     }, 500);
+  }
+
+  /* ── handlinger på hilsenen ──────────────────────────────────────────────
+   *
+   * Tre gester, hver med sin handling i samme form som resten av Home Assistant:
+   *
+   *   greeting_tap_action:        { action: navigate, navigation_path: /config }
+   *   greeting_double_tap_action: { action: perform-action, perform_action: input_boolean.toggle,
+   *                                 target: { entity_id: input_boolean.kiosk_mode } }
+   *   greeting_hold_action:       …
+   *
+   * De gamle feltene virker fortsatt som reserve: greeting_navigation_path for trykk og
+   * greeting_hold_entity for langt trykk. Servermenyen ligger på gesten server_meny_med
+   * (trykk som standard), og vinner over handlingen for den gesten.
+   */
+  _greetingHandling(gest) {
+    const c = this.cfg;
+    const satt = { tap: c.greeting_tap_action, double_tap: c.greeting_double_tap_action,
+      hold: c.greeting_hold_action }[gest];
+    if (satt && satt.action) return satt;
+    if (gest === "tap" && c.greeting_navigation_path)
+      return { action: "navigate", navigation_path: c.greeting_navigation_path };
+    if (gest === "hold" && c.greeting_hold_entity)
+      return { action: "toggle", entity: c.greeting_hold_entity };
+    return { action: "none" };
+  }
+
+  _serverGest() {
+    if (!this._storLinjeErMeny()) return "";
+    const v = String(this.cfg.server_meny_med || "tap").toLowerCase();
+    if (v.startsWith("d")) return "double_tap";
+    if (v.startsWith("h") || v.startsWith("l")) return "hold";
+    if (v.startsWith("n") || v === "ingen") return "";
+    return "tap";
+  }
+
+  _greetingGest(gest) {
+    if (this._serverGest() === gest) {
+      this._haptic(this.cfg.haptic_tap);
+      this._serverApen = !this._serverApen;
+      return;
+    }
+    const h = this._greetingHandling(gest);
+    if (!h || h.action === "none") return;
+    this._haptic(gest === "hold" ? this.cfg.haptic_hold : this.cfg.haptic_tap);
+    this._kjorHandling(h);
+  }
+
+  _kjorHandling(h) {
+    const a = h.action;
+    if (a === "navigate") return this._navigate(h.navigation_path);
+    if (a === "url") { if (h.url_path) window.open(h.url_path); return; }
+    if (a === "toggle") {
+      const id = h.entity || (h.target && h.target.entity_id);
+      if (id) this.hass.callService("homeassistant", "toggle", { entity_id: id });
+      return;
+    }
+    if (a === "more-info") {
+      const id = h.entity || (h.target && h.target.entity_id);
+      if (id) this._fire("hass-more-info", { entityId: id });
+      return;
+    }
+    if (a === "perform-action" || a === "call-service") {
+      const tjeneste = h.perform_action || h.service || "";
+      const [domene, navn] = tjeneste.split(".");
+      if (domene && navn)
+        this.hass.callService(domene, navn, h.data || h.service_data || {}, h.target);
+      return;
+    }
+    /* Alt annet (assist o.l.) sendes videre til Home Assistant, som kjenner resten. */
+    this._fire("hass-action", { config: { tap_action: h }, action: "tap" });
   }
 
   _onGreetingPointerUp() {
@@ -31326,15 +31407,23 @@ class FamilyStatusCard extends LitElement {
   _onGreetingClick(e) {
     /* Et langt trykk er allerede håndtert; da skal det ikke også telle som trykk. */
     if (this._holdt) { this._holdt = false; return; }
-    this._haptic(this.cfg.haptic_tap);
-    /* Står servernavnet i den store linja (eller bare navnet), er trykk = velg server.
-       Står det under, gjør hilsenen det den alltid har gjort. */
-    if (this._storLinjeErMeny()) {
-      if (e) e.stopPropagation();
-      this._serverApen = !this._serverApen;
+    if (e) e.stopPropagation();
+    /* Dobbelttrykk: finnes det noe å gjøre på dobbelttrykk, venter vi 250 ms før et
+       enkelt trykk utføres. Finnes det ikke, kjøres trykket med en gang - ingen grunn
+       til å gjøre hvert trykk tregere for en gest som ikke brukes. */
+    const harDobbel = this._serverGest() === "double_tap"
+      || this._greetingHandling("double_tap").action !== "none";
+    if (!harDobbel) { this._greetingGest("tap"); return; }
+    if (this._dobbelTimer) {
+      window.clearTimeout(this._dobbelTimer);
+      this._dobbelTimer = null;
+      this._greetingGest("double_tap");
       return;
     }
-    this._navigate(this.cfg.greeting_navigation_path);
+    this._dobbelTimer = window.setTimeout(() => {
+      this._dobbelTimer = null;
+      this._greetingGest("tap");
+    }, 250);
   }
 
   _onGreetingPointerCancel() {
@@ -32284,14 +32373,23 @@ class FamilyStatusCardEditor extends LitElement {
               ${this._number("Skriftstørrelse", "greeting_font_size", 22)}
               ${this._color("Farge", "greeting_color")}
             </div>
-            ${this._text("Naviger til ved trykk", "greeting_navigation_path")}
-            <ha-entity-picker
-              label="Veksle ved langt trykk (valgfri)"
-              .hass=${this.hass}
-              .value=${cfg.greeting_hold_entity || ""}
-              .includeDomains=${["input_boolean", "switch"]}
-              @value-changed=${(e) => this._update("greeting_hold_entity", e.detail.value)}
-            ></ha-entity-picker>
+            <div class="hint">
+              Hva som skjer når du trykker på hilsenen. Samme valg som ellers i Home Assistant:
+              naviger, utfør handling, veksle, åpne URL eller mer info.
+            </div>
+            ${[["greeting_tap_action", "Trykk", "tap"],
+               ["greeting_double_tap_action", "Dobbelttrykk", "double_tap"],
+               ["greeting_hold_action", "Langt trykk", "hold"]].map(([felt, navn, gest]) => html`
+              <ha-selector
+                .hass=${this.hass}
+                .label=${navn}
+                .selector=${{ ui_action: { default_action: "none" } }}
+                .value=${cfg[felt] || (gest === "tap" && cfg.greeting_navigation_path
+                  ? { action: "navigate", navigation_path: cfg.greeting_navigation_path }
+                  : gest === "hold" && cfg.greeting_hold_entity
+                    ? { action: "toggle", entity: cfg.greeting_hold_entity } : undefined)}
+                @value-changed=${(e) => this._update(felt, e.detail.value)}
+              ></ha-selector>`)}
           </div>
         </ha-expansion-panel>
 
@@ -32319,6 +32417,15 @@ class FamilyStatusCardEditor extends LitElement {
               ${this._text("Denne serverens navn (valgfri)", "server_navn")}
               ${this._text("Side som åpnes (f.eks. /dashboard-mysmarthome)", "server_sti")}
             </div>
+            <ha-selector
+              .hass=${this.hass}
+              .label=${"Servermenyen åpnes med"}
+              .selector=${{ select: { mode: "dropdown", options: [
+                { value: "tap", label: "Trykk" }, { value: "double_tap", label: "Dobbelttrykk" },
+                { value: "hold", label: "Langt trykk" }, { value: "ingen", label: "Ingen gest" }] } }}
+              .value=${cfg.server_meny_med || "tap"}
+              @value-changed=${(e) => this._update("server_meny_med", e.detail.value)}
+            ></ha-selector>
             <ha-selector
               .hass=${this.hass}
               .label=${"Hvor servernavnet står"}

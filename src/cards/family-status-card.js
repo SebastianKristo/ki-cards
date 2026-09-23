@@ -740,12 +740,79 @@ class FamilyStatusCard extends LitElement {
     this._greetingTimer = window.setTimeout(() => {
       this._greetingTimer = null;
       this._holdt = true;
-      const entity = this.cfg.greeting_hold_entity;
-      if (entity) {
-        this._haptic(this.cfg.haptic_hold);
-        this.hass.callService("homeassistant", "toggle", { entity_id: entity });
-      }
+      this._greetingGest("hold");
     }, 500);
+  }
+
+  /* ── handlinger på hilsenen ──────────────────────────────────────────────
+   *
+   * Tre gester, hver med sin handling i samme form som resten av Home Assistant:
+   *
+   *   greeting_tap_action:        { action: navigate, navigation_path: /config }
+   *   greeting_double_tap_action: { action: perform-action, perform_action: input_boolean.toggle,
+   *                                 target: { entity_id: input_boolean.kiosk_mode } }
+   *   greeting_hold_action:       …
+   *
+   * De gamle feltene virker fortsatt som reserve: greeting_navigation_path for trykk og
+   * greeting_hold_entity for langt trykk. Servermenyen ligger på gesten server_meny_med
+   * (trykk som standard), og vinner over handlingen for den gesten.
+   */
+  _greetingHandling(gest) {
+    const c = this.cfg;
+    const satt = { tap: c.greeting_tap_action, double_tap: c.greeting_double_tap_action,
+      hold: c.greeting_hold_action }[gest];
+    if (satt && satt.action) return satt;
+    if (gest === "tap" && c.greeting_navigation_path)
+      return { action: "navigate", navigation_path: c.greeting_navigation_path };
+    if (gest === "hold" && c.greeting_hold_entity)
+      return { action: "toggle", entity: c.greeting_hold_entity };
+    return { action: "none" };
+  }
+
+  _serverGest() {
+    if (!this._storLinjeErMeny()) return "";
+    const v = String(this.cfg.server_meny_med || "tap").toLowerCase();
+    if (v.startsWith("d")) return "double_tap";
+    if (v.startsWith("h") || v.startsWith("l")) return "hold";
+    if (v.startsWith("n") || v === "ingen") return "";
+    return "tap";
+  }
+
+  _greetingGest(gest) {
+    if (this._serverGest() === gest) {
+      this._haptic(this.cfg.haptic_tap);
+      this._serverApen = !this._serverApen;
+      return;
+    }
+    const h = this._greetingHandling(gest);
+    if (!h || h.action === "none") return;
+    this._haptic(gest === "hold" ? this.cfg.haptic_hold : this.cfg.haptic_tap);
+    this._kjorHandling(h);
+  }
+
+  _kjorHandling(h) {
+    const a = h.action;
+    if (a === "navigate") return this._navigate(h.navigation_path);
+    if (a === "url") { if (h.url_path) window.open(h.url_path); return; }
+    if (a === "toggle") {
+      const id = h.entity || (h.target && h.target.entity_id);
+      if (id) this.hass.callService("homeassistant", "toggle", { entity_id: id });
+      return;
+    }
+    if (a === "more-info") {
+      const id = h.entity || (h.target && h.target.entity_id);
+      if (id) this._fire("hass-more-info", { entityId: id });
+      return;
+    }
+    if (a === "perform-action" || a === "call-service") {
+      const tjeneste = h.perform_action || h.service || "";
+      const [domene, navn] = tjeneste.split(".");
+      if (domene && navn)
+        this.hass.callService(domene, navn, h.data || h.service_data || {}, h.target);
+      return;
+    }
+    /* Alt annet (assist o.l.) sendes videre til Home Assistant, som kjenner resten. */
+    this._fire("hass-action", { config: { tap_action: h }, action: "tap" });
   }
 
   _onGreetingPointerUp() {
@@ -758,15 +825,23 @@ class FamilyStatusCard extends LitElement {
   _onGreetingClick(e) {
     /* Et langt trykk er allerede håndtert; da skal det ikke også telle som trykk. */
     if (this._holdt) { this._holdt = false; return; }
-    this._haptic(this.cfg.haptic_tap);
-    /* Står servernavnet i den store linja (eller bare navnet), er trykk = velg server.
-       Står det under, gjør hilsenen det den alltid har gjort. */
-    if (this._storLinjeErMeny()) {
-      if (e) e.stopPropagation();
-      this._serverApen = !this._serverApen;
+    if (e) e.stopPropagation();
+    /* Dobbelttrykk: finnes det noe å gjøre på dobbelttrykk, venter vi 250 ms før et
+       enkelt trykk utføres. Finnes det ikke, kjøres trykket med en gang - ingen grunn
+       til å gjøre hvert trykk tregere for en gest som ikke brukes. */
+    const harDobbel = this._serverGest() === "double_tap"
+      || this._greetingHandling("double_tap").action !== "none";
+    if (!harDobbel) { this._greetingGest("tap"); return; }
+    if (this._dobbelTimer) {
+      window.clearTimeout(this._dobbelTimer);
+      this._dobbelTimer = null;
+      this._greetingGest("double_tap");
       return;
     }
-    this._navigate(this.cfg.greeting_navigation_path);
+    this._dobbelTimer = window.setTimeout(() => {
+      this._dobbelTimer = null;
+      this._greetingGest("tap");
+    }, 250);
   }
 
   _onGreetingPointerCancel() {
@@ -1716,14 +1791,23 @@ class FamilyStatusCardEditor extends LitElement {
               ${this._number("Skriftstørrelse", "greeting_font_size", 22)}
               ${this._color("Farge", "greeting_color")}
             </div>
-            ${this._text("Naviger til ved trykk", "greeting_navigation_path")}
-            <ha-entity-picker
-              label="Veksle ved langt trykk (valgfri)"
-              .hass=${this.hass}
-              .value=${cfg.greeting_hold_entity || ""}
-              .includeDomains=${["input_boolean", "switch"]}
-              @value-changed=${(e) => this._update("greeting_hold_entity", e.detail.value)}
-            ></ha-entity-picker>
+            <div class="hint">
+              Hva som skjer når du trykker på hilsenen. Samme valg som ellers i Home Assistant:
+              naviger, utfør handling, veksle, åpne URL eller mer info.
+            </div>
+            ${[["greeting_tap_action", "Trykk", "tap"],
+               ["greeting_double_tap_action", "Dobbelttrykk", "double_tap"],
+               ["greeting_hold_action", "Langt trykk", "hold"]].map(([felt, navn, gest]) => html`
+              <ha-selector
+                .hass=${this.hass}
+                .label=${navn}
+                .selector=${{ ui_action: { default_action: "none" } }}
+                .value=${cfg[felt] || (gest === "tap" && cfg.greeting_navigation_path
+                  ? { action: "navigate", navigation_path: cfg.greeting_navigation_path }
+                  : gest === "hold" && cfg.greeting_hold_entity
+                    ? { action: "toggle", entity: cfg.greeting_hold_entity } : undefined)}
+                @value-changed=${(e) => this._update(felt, e.detail.value)}
+              ></ha-selector>`)}
           </div>
         </ha-expansion-panel>
 
@@ -1751,6 +1835,15 @@ class FamilyStatusCardEditor extends LitElement {
               ${this._text("Denne serverens navn (valgfri)", "server_navn")}
               ${this._text("Side som åpnes (f.eks. /dashboard-mysmarthome)", "server_sti")}
             </div>
+            <ha-selector
+              .hass=${this.hass}
+              .label=${"Servermenyen åpnes med"}
+              .selector=${{ select: { mode: "dropdown", options: [
+                { value: "tap", label: "Trykk" }, { value: "double_tap", label: "Dobbelttrykk" },
+                { value: "hold", label: "Langt trykk" }, { value: "ingen", label: "Ingen gest" }] } }}
+              .value=${cfg.server_meny_med || "tap"}
+              @value-changed=${(e) => this._update("server_meny_med", e.detail.value)}
+            ></ha-selector>
             <ha-selector
               .hass=${this.hass}
               .label=${"Hvor servernavnet står"}

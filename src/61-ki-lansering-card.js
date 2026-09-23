@@ -23,7 +23,7 @@
  * tilleggene, så en hake betyr «lagt til nylig» – at den mangler, betyr ikke at du ikke
  * har den.
  */
-const KI_LANS_VERSJON = "1.6.0";
+const KI_LANS_VERSJON = "1.6.1";
 
 const KI_LANS_STIL = `
   :host { display:block; max-width:100%; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -128,17 +128,25 @@ const KI_LANS_STIL = `
      Lista kan være lang: har du bladd deg ned til rad nummer tolv og trykker, lå laget
      oppe ved kortets topp - altså utenfor skjermen, og du måtte rulle opp for å se det
      du nettopp trykket på. */
+  /* Laget ligger INNE i det dempede feltet og midtstilles med flex.
+     Første forsøk satte det fast med left/top:50% og en transform. Da lå toppen av
+     kortet over kanten av det synlige feltet i popupen, og plakaten og tittelen ble
+     klippet bort - det øverste man så, var datoen. Med flex kan det ikke havne
+     utenfor feltet det midtstilles i. */
   .detaljvern { position:fixed; inset:0; z-index:12; background:rgba(0,0,0,.55);
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:16px;
     animation:la-vern .18s ease-out; }
   @keyframes la-vern { from { opacity:0 } }
-  .detalj.skjerm { position:fixed; inset:auto; z-index:13;
-    left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(520px, calc(100vw - 24px)); height:min(78vh, 700px);
+  .detalj.skjerm { position:relative; inset:auto; z-index:13;
+    width:min(520px, 100%); height:auto; max-height:min(78vh, 700px);
+    display:flex; flex-direction:column;
     border-radius:26px; box-shadow:0 24px 64px rgba(0,0,0,.6);
     animation:la-detalj-skjerm .24s var(--fjaer, ease); }
+  /* Innholdet eier rullingen, så plakaten og tittelen alltid står øverst når det åpnes. */
+  .detalj.skjerm .inn { height:auto; flex:1; min-height:0; overflow-y:auto; }
   @keyframes la-detalj-skjerm {
-    from { opacity:0; transform:translate(-50%,-46%) scale(.96) } }
+    from { opacity:0; transform:translateY(10px) scale(.97) } }
   @media (prefers-reduced-motion: reduce) {
     .detalj, .detalj.skjerm, .detaljvern { animation:none; } }
   .detalj .bak { position:absolute; inset:0; background-size:cover; background-position:center top;
@@ -384,8 +392,7 @@ class KiLanseringCard extends HTMLElement {
     ].filter(Boolean);
 
     const skjerm = String(this._c.detalj_plass || "skjerm").toLowerCase() !== "kort";
-    return `${skjerm ? `<div class="detaljvern" data-lukk="1"></div>` : ""}
-    <div class="detalj ${skjerm ? "skjerm" : ""}">
+    const panel = `<div class="detalj ${skjerm ? "skjerm" : ""}">
       ${x.bakgrunn ? `<div class="bak" style="background-image:url('${kiLaEsc(x.bakgrunn)}')"></div>` : ""}
       <div class="skygge"></div>
       <button class="lukk" data-lukk="1" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
@@ -413,6 +420,7 @@ class KiLanseringCard extends HTMLElement {
         </div>
       </div>
     </div>`;
+    return skjerm ? `<div class="detaljvern" data-lukk="1">${panel}</div>` : panel;
   }
 
   /* Sveip mellom hero-sidene, med retningslås så siden kan rulles som normalt */
@@ -698,14 +706,20 @@ class KiLanseringCard extends HTMLElement {
       requestAnimationFrame(() => {
         const r = lag.getBoundingClientRect();
         const h = window.innerHeight || 0;
-        if (r.height && (r.bottom < 40 || r.top > h - 40)) lag.scrollIntoView({ block: "center" });
+        /* Klippet i toppen eller bunnen teller også – ikke bare helt utenfor. */
+        if (r.height && (r.top < 0 || r.bottom > h)) lag.scrollIntoView({ block: "center" });
       });
     }
     if (!lag) this._sjekket = false;
 
     // detaljlaget: lukk og lenkeknapper
     for (const b of this.shadowRoot.querySelectorAll("[data-lukk]"))
-      b.addEventListener("click", (e) => { e.stopPropagation(); this._detalj = null; this._tegn(); });
+      b.addEventListener("click", (e) => {
+        /* Vernet dekker hele skjermen og har selve kortet inni seg: bare et trykk på
+           selve bakgrunnen skal lukke, ikke et trykk inne i kortet. */
+        if (b.classList.contains("detaljvern") && e.target !== b) return;
+        e.stopPropagation(); this._detalj = null; this._tegn();
+      });
     for (const b of this.shadowRoot.querySelectorAll(".detalj [data-url]"))
       b.addEventListener("click", (e) => {
         e.stopPropagation();
