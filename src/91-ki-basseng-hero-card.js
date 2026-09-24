@@ -17,6 +17,10 @@
  *  tap_action: { action: navigate, navigation_path: "#badebasseng" }
  *  ki: true                                  # tall fra KI Basseng når integrasjonen finnes:
  *                                            # omsetninger mot målet, og modus i pillen
+ *  pooltak: switch.ki_basseng_pooltak_pa     # valgfritt; med KI Basseng finnes den selv
+ *
+ *  Med KI Basseng 1.3 viser scenen også pooltaket (lameller over vannet), nattsenkingen
+ *  (måne, dempet himmel og «Nattsenking til 04:00» i pillen) og minner om klortabletten.
  */
 (() => {
   const STANDARD = {
@@ -30,6 +34,7 @@
     ute: "sensor.outdoor_meter_temperature",
     kald: 18, varm: 30,      // skala for vannfargen
     ki: true,                // hent omsetninger og modus fra KI Basseng når den finnes
+    pooltak: null,           // bryter/binærsensor for taket; med KI Basseng brukes pooltak_pa
   };
   const MODUS = { filtrering: ["Filtrerer", "mdi:pump"], oppvarming: ["Varmer opp", "mdi:heat-wave"],
     vedlikehold: ["Vedlikehold", "mdi:timer-play-outline"], boost: ["Boost", "mdi:fan-plus"],
@@ -94,6 +99,13 @@
     .bk.varmer .v2 { animation-delay:.9s; } .bk.varmer .v3 { animation-delay:1.8s; }
     @keyframes stig { 0% { opacity:0; transform:translateY(4px); } 30% { opacity:.8; } 100% { opacity:0; transform:translateY(-12px); } }
     .stillemerke { opacity:0; transition:opacity .6s; } .bk.stille .stillemerke { opacity:1; }
+    .lokk { opacity:0; transform:translateY(-10px); transition:opacity .5s, transform .6s cubic-bezier(.3,1.3,.5,1); }
+    .bk.tak .lokk { opacity:1; transform:none; }
+    .lokk rect { fill:#5f7383; } .lokk .lamell { stroke:#8196a6; stroke-width:1; }
+    .bk.tak .bolge { animation-duration:16s; }
+    .mane { opacity:0; transition:opacity 1s; } .bk.natt .mane { opacity:1; }
+    .bk.natt { background:linear-gradient(165deg,#0d1020 0%,#121a2e 55%,#15203a 100%); }
+    .bk.natt .pille { background:rgba(167,139,250,.32); }
     .av .vp, .av .rist { opacity:.45; }
     @media (prefers-reduced-motion: reduce) { .bk * { animation:none !important; } }
     @media (max-width:380px) { .scene { width:56%; } .tekst { max-width:46%; } }
@@ -120,6 +132,11 @@
       <circle class="boble bo3" cx="126" cy="149" r="1.1"/><circle class="boble bo4" cx="135" cy="146" r="1.5"/>
     </g>
     <rect class="lampe" x="38" y="132" width="6" height="4" rx="1.5"/>
+    <!-- pooltaket: lameller over vannflaten -->
+    <g class="lokk"><rect x="26" y="96" width="136" height="7" rx="3"/>
+      <path class="lamell" d="M36 96 v7 M50 96 v7 M64 96 v7 M78 96 v7 M92 96 v7 M106 96 v7 M120 96 v7 M134 96 v7 M148 96 v7"/></g>
+    <!-- månen under nattsenking -->
+    <g class="mane" transform="translate(60 40)"><circle r="9" fill="#f3f0dc"/><circle cx="4" cy="-3" r="8" fill="#121a2e"/></g>
     <!-- stige -->
     <path d="M34 90 q6 -12 12 0" fill="none" stroke="#8b9aa4" stroke-width="2" stroke-linecap="round"/>
     <!-- damp over vannet -->
@@ -149,16 +166,18 @@
           { name: "stillemodus", selector: { entity: { domain: "switch" } } },
           { name: "vanntemp", selector: { entity: { domain: "sensor" } } },
           { name: "ute", selector: { entity: { domain: "sensor" } } },
+          { name: "pooltak", selector: { entity: { domain: ["switch", "input_boolean", "binary_sensor", "cover"] } } },
           { name: "tap_action", selector: { ui_action: {} } },
         ],
         computeLabel: (s) => ({ navn: "Navn", varmepumpe: "Varmepumpe", pumpe: "Sirkulasjonspumpe", lys: "Bassenglys", stillemodus: "Stillemodus",
-          vanntemp: "Vanntemperatur (valgfritt)", ute: "Utetemperatur (valgfritt)", tap_action: "Trykk" }[s.name] || s.name),
+          vanntemp: "Vanntemperatur (valgfritt)", ute: "Utetemperatur (valgfritt)", pooltak: "Pooltak (valgfritt)", tap_action: "Trykk" }[s.name] || s.name),
       };
     }
     setConfig(c) { this._c = { ...STANDARD, ...(c || {}) }; this._bygget = false; if (this._hass) this._oppdater(); }
     set hass(h) {
       this._hass = h; if (!this._c) return;
-      const ids = Object.values(this._c).filter((v) => typeof v === "string" && v.includes("."));
+      const ids = Object.values(this._c).filter((v) => typeof v === "string" && v.includes("."))
+        .concat(this._kiIder || []);
       const n = ids.map((id) => h.states[id]);
       if (this._bygget && this._siste && n.every((s, i) => s === this._siste[i])) return;
       this._siste = n; this._oppdater();
@@ -194,8 +213,17 @@
       this._kiId = id;
       const p = S[id].attributes.prefiks;
       const oms = S[`sensor.${p}_omsetninger_i_dag`];
+      const senking = S[`sensor.${p}_nattsenking`];
+      const tak = S[`switch.${p}_pooltak_pa`];
+      const klor = S[`binary_sensor.${p}_klortablett_bor_legges_i`];
+      const maltemp = S[`sensor.${p}_maltemperatur`];
       return { modus: S[id].state, gjort: oms ? parseFloat(oms.state) : NaN,
-        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null };
+        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null,
+        natt: senking && senking.state === "aktiv" ? (senking.attributes.til || "") : null,
+        tak: tak ? tak.state === "on" : null,
+        klor: !!(klor && klor.state === "on"),
+        maltemp: maltemp && ok(maltemp) ? parseFloat(maltemp.state) : NaN,
+        ider: [senking, tak, klor, maltemp].filter(Boolean).map((x) => x.entity_id) };
     }
 
     _oppdater() {
@@ -207,7 +235,11 @@
       const handling = vp ? String(vp.attributes.hvac_action || "") : "";
       const vann = c.vanntemp && ok(s(c.vanntemp)) ? parseFloat(s(c.vanntemp).state)
         : vp ? parseFloat(vp.attributes.current_temperature) : NaN;
-      const mal = vp ? parseFloat(vp.attributes.temperature) : NaN;
+      this._kiIder = ki ? [ki.id, ki.omsId, ...ki.ider].filter(Boolean) : [];
+      const mal = ki && !isNaN(ki.maltemp) ? ki.maltemp : vp ? parseFloat(vp.attributes.temperature) : NaN;
+      const takEnt = s(c.pooltak);
+      const tak = takEnt ? ["on", "closed"].includes(takEnt.state) : !!(ki && ki.tak);
+      const natt = ki && ki.natt !== null ? ki.natt : null;
       const ute = ok(s(c.ute)) ? parseFloat(s(c.ute).state) : NaN;
       const pumpe = s(c.pumpe) && s(c.pumpe).state === "on";
       const lys = s(c.lys) && s(c.lys).state === "on";
@@ -223,6 +255,8 @@
       kort.classList.toggle("lys", !!lys);
       kort.classList.toggle("stille", !!stille);
       kort.classList.toggle("av", av);
+      kort.classList.toggle("tak", tak);
+      kort.classList.toggle("natt", natt !== null);
       $(".enhet").classList.toggle("av", av);
       kort.style.setProperty("--vifte", (stille ? 2.6 : 1.2) + "s");
 
@@ -233,7 +267,8 @@
 
       $(".n").textContent = c.navn;
       let pt, ik;
-      if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
+      if (natt !== null) { pt = natt ? `Nattsenking til ${natt}` : "Nattsenking"; ik = "mdi:weather-night"; }
+      else if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
       else if (auto) { pt = "Står i auto"; ik = "mdi:alert-outline"; }
       else if (varmer) { pt = stille ? "Varmer · stillemodus" : "Varmer"; ik = "mdi:heat-wave"; }
       // KI Basseng vet hva anlegget gjør; det slår «på måltemperatur» når varmepumpa bare venter
@@ -246,7 +281,9 @@
       $(".stor").innerHTML = isNaN(vann) ? "--" : `${komma(vann, 1)}<small>°C</small>`;
       const deler = [];
       if (ki && !isNaN(ki.gjort)) deler.push(isNaN(ki.mal) ? `${komma(ki.gjort, 2)} omsetninger` : `${komma(ki.gjort, 2)} av ${komma(ki.mal, 2)} omsetninger`);
-      if (!isNaN(mal)) deler.push(`mål ${Math.round(mal)}°`);
+      if (!isNaN(mal)) deler.push(`mål ${komma(mal, mal % 1 ? 1 : 0)}°`);
+      if (tak) deler.push("tak på");
+      if (ki && ki.klor) deler.push("klortablett!");
       if (!ki) deler.push(pumpe ? "pumpe på" : "pumpe av");
       if (!isNaN(ute)) deler.push(`ute ${komma(ute, 1)}°`);
       $(".sub").textContent = deler.join("  ·  ");

@@ -1,12 +1,17 @@
-# Badebasseng-popupen.
+# Badebasseng-popupen (ki-cards 5.68 / ki-basseng-card 2.0).
 #
 # Endret denne runden:
-#   · Ikonraden med lys, pumpe og varmepumpe er flyttet OPP, rett under bannerne. Det er
-#     knappene man åpner popupen for, og de sto nederst etter hele kortet.
-#   · Grafene for vanntemperatur og sirkulasjon er av. De sa mindre enn de tok av plass.
-#     `graf: true` på kortet skrur dem på igjen om du vil se dem.
-#   · Effekt, pumpetid og spart i dag ligger nå på én flate med hårfine skiller i stedet
-#     for tre løse bokser (ki-cards 3.97.0).
+#   · Alt ligger i ett kort. Varmepumpe-bannerne og ikonrada var ~150 linjer button-card
+#     over kortet; nå tegner kortet dem selv (`varmepumpe:`, `stillemodus:`, `hurtig:`),
+#     med samme tre tilstander – av, på og uten svar.
+#   · Ny fane «Varme»: temperatur mot målet med −/+ for ønsket temperatur, pooltaket som
+#     én stor bryter, nattsenkingen (vinduet i natt, hva den sparer, og hvorfor) og
+#     klorloggen med «Logg klortablett».
+#   · Oversikt har fått fliser for pooltak, nattsenking og klor, og varsler øverst når
+#     det er på tide med klortablett eller varmepumpa står av for natta.
+#   · Pooltaket har ingen egen entitet her; det er bryteren fra integrasjonen,
+#     switch.ki_basseng_pooltak_pa, som gjelder. Den er en flis på Oversikt og den store
+#     bryteren på Varme.
 
 type: custom:bubble-card
 card_type: pop-up
@@ -40,174 +45,26 @@ cards:
   - type: custom:gap-card
     height: 0
 
-  # Varmepumpa står i auto. Den hopper dit selv, og i auto kan den kjøle.
-  - type: conditional
-    conditions:
-      - condition: state
-        entity: climate.basseng_bassengvarmepumpe
-        state: auto
-    card:
-      type: custom:button-card
-      entity: climate.basseng_bassengvarmepumpe
-      name: >-
-        <strong>Varmepumpa står i auto.</strong> I auto kan den kjøle. KI Basseng
-        setter den tilbake til heat automatisk.
-      icon: mdi:alert-outline
-      tap_action:
-        action: more-info
-      styles: &banner
-        card:
-          - padding: 0
-          - background: var(--orange)
-        grid:
-          - grid-template-areas: '"i n"'
-          - grid-template-columns: 76px 1fr
-        img_cell:
-          - justify-self: start
-          - background: rgba(0,0,0, 0.1)
-          - margin: 4px 4px
-          - border-radius: 50%
-          - width: 58px
-          - height: 58px
-        icon:
-          - width: 30px
-          - height: 30px
-          - color: var(--black)
-        name:
-          - justify-self: start
-          - color: var(--black)
-          - font-size: 14px
-
-  # Varmer nå
-  - type: conditional
-    conditions:
-      - condition: state
-        entity: climate.basseng_bassengvarmepumpe
-        state: heat
-    card:
-      type: custom:button-card
-      entity: climate.basseng_bassengvarmepumpe
-      name: |
-        [[[
-          const na = entity.attributes.current_temperature;
-          const mal = entity.attributes.temperature;
-          const stille = states['switch.baseng_basengvarmepumpe_stillemodus'];
-          const d = [];
-          if (na !== undefined && na !== null) d.push(Math.round(na * 10) / 10 + '°');
-          if (mal !== undefined && mal !== null) d.push('mål ' + Math.round(mal) + '°');
-          if (stille && stille.state === 'on') d.push('stillemodus');
-          return '<strong>Varmer bassenget</strong>' + (d.length ? ' · ' + d.join(' · ') : '');
-        ]]]
-      icon: mdi:heat-wave
-      tap_action:
-        action: more-info
-      styles:
-        <<: *banner
-        card:
-          - padding: 0
-          - background: var(--red)
-
-  # Knappene øverst: det man åpner popupen for. Hver har tre tilstander — av, på, og
-  # uten svar, siden bassengutstyr står ute og mister nett.
-  - square: false
-    columns: 5
-    type: grid
-    cards:
-      - &ikonknapp
-        type: custom:button-card
-        entity: light.bassenglys
-        aspect_ratio: 1/1
-        show_name: false
-        icon: mdi:lightbulb-outline
-        tap_action:
-          action: toggle
-        hold_action:
-          action: more-info
-        state:
-          - value: 'on'
-            icon: mdi:lightbulb-on
-            styles:
-              card: [{ background: var(--active-big) }]
-              icon: [{ color: var(--black) }]
-          - value: unavailable
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-          - value: unknown
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-        styles:
-          icon:
-            - color: inherit
-          card:
-            - border-radius: 24px
-            - background: var(--gray200)
-
-      - <<: *ikonknapp
-        entity: switch.bassengpumpe
-        icon: mdi:pump
-        state:
-          - value: 'on'
-            styles:
-              card: [{ background: var(--active-big) }]
-              icon: [{ color: var(--black) }]
-          - value: unavailable
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-
-      # Varmepumpa: rød når den varmer, oransje når den har hoppet i auto
-      - <<: *ikonknapp
-        entity: climate.basseng_bassengvarmepumpe
-        icon: mdi:power
-        state:
-          - value: heat
-            icon: mdi:heat-wave
-            styles:
-              card: [{ background: var(--red) }]
-              icon: [{ color: var(--black) }]
-          - value: auto
-            icon: mdi:alert-outline
-            styles:
-              card: [{ background: var(--orange) }]
-              icon: [{ color: var(--black) }]
-          - value: unavailable
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-
-      - <<: *ikonknapp
-        entity: switch.baseng_basengvarmepumpe_stillemodus
-        icon: mdi:volume-off
-        state:
-          - value: 'on'
-            styles:
-              card: [{ background: var(--active-big) }]
-              icon: [{ color: var(--black) }]
-          - value: unavailable
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-
-      - <<: *ikonknapp
-        entity: switch.baseng_stikkontakt
-        icon: mdi:power-socket-eu
-        state:
-          - value: 'on'
-            styles:
-              card: [{ background: var(--active-big) }]
-              icon: [{ color: var(--black) }]
-          - value: unavailable
-            styles:
-              card: [{ background: none }, { border: 1px dashed var(--gray400) }]
-              icon: [{ color: var(--gray600) }, { opacity: 0.6 }]
-
-  # Kortet: hero med animasjon, sirkulasjonsplanen som stripe, sprederscenen, og
-  # innstillinger bak tannhjulet i fanerada.
   - type: custom:ki-basseng-card
+    varmepumpe: climate.basseng_bassengvarmepumpe
+    stillemodus: switch.baseng_basengvarmepumpe_stillemodus
+    # Knappene øverst: det man åpner popupen for. Trykk veksler, langt trykk åpner.
+    hurtig:
+      - entity: light.bassenglys
+        navn: Lys
+      - entity: switch.bassengpumpe
+        navn: Pumpe
+      - entity: climate.basseng_bassengvarmepumpe
+        navn: Varme
+      - entity: switch.baseng_basengvarmepumpe_stillemodus
+        navn: Stille
+        ikon: mdi:volume-off
+      - entity: switch.baseng_stikkontakt
+        navn: Stikk
+        ikon: mdi:power-socket-eu
     faner:
       - oversikt
+      - varme
       - sirkulasjon
       - spreder
       - innstillinger
