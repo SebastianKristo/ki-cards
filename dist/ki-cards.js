@@ -1,4 +1,4 @@
-/* ki-cards v5.68.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-24 */
+/* ki-cards v5.69.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-24 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.68.0";
+  KI.VERSION = "5.69.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,13 +15004,15 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 2.0.0 - del av ki-cards
+ * ki-basseng-card 2.1.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
  *   temperatur, pooltaket som stor bryter, nattsenkingen (vindu, besparelse, hvorfor)
  *   og klorloggen. Oversikt får fliser for pooltak, nattsenking og klor, og varsler
  *   øverst. Mot eldre integrasjon uten varmemodell skjules alt dette av seg selv.
+ * 2.1: ny temperaturgraf (endring, maks/min, natt, pumpe- og varmebaner), klorkalender
+ *   og «hvem la i» med navn fra integrasjonen, og fanene satt sammen til færre flater.
  *
  * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
  *   faner: false gir én flyt med utvidbare seksjoner i stedet.
@@ -15036,7 +15038,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "2.0.0";
+  const VERSJON = "2.1.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15142,6 +15144,7 @@ try {
       kriterium: ["select", ["nattsenking_skal_spare", "nattsenking_kriterium"]],
       loggKlor: ["button", ["logg_klortablett"]],
       angreKlor: ["button", ["angre_siste_klortablett", "angre_klortablett"]],
+      klorNavn: ["text", ["navn_i_klorloggen", "klor_navn"]],
     };
 
     const MODUS = {
@@ -15240,6 +15243,9 @@ try {
         this._sistSok = 0;
         this._sistHist = 0;
         this._henter = false;
+        try { this._klorHvem = localStorage.getItem("kib-klor-hvem"); } catch (e) { this._klorHvem = null; }
+        this._kalMnd = 0;
+        this._kalValgt = null;
       }
 
       setConfig(config) {
@@ -15511,45 +15517,20 @@ try {
         this._hentHistorikk(true);
       }
 
-      /* Temperatur og sirkulasjon i samme graf.
+      /* Vanntemperaturen, redesignet (2.1).
        *
-       * Konseptet var riktig fra før — bånd for pumpeperiodene bak temperaturkurven —
-       * men utførelsen hadde tre feil:
+       * Én akse: grader. Pumpa og varmepumpa er ikke en akse nummer to, men to baner
+       * under grafen som viser NÅR de gikk – samme tidslinje, så man ser at vannet
+       * steg mens varmen gikk. Natta (varmevinduets slutt til start) er skyggelagt,
+       * og timene varmen gikk er tonet bak kurva.
        *
-       *  1. Alt lå i ÉN svg med `preserveAspectRatio="none"`. Den strekker innholdet
-       *     etter bredden, så aksetallene ble forvrengt og strektykkelsen ujevn. Nå er
-       *     det to lag: kurvene i en strukket svg, tekst og punkter i en som ikke
-       *     strekkes.
-       *  2. Terskelen for «pumpa går» var 10 W. Standby-trekk ligger over det, så det
-       *     ble bånd hele døgnet. Nå 40 W, og bånd kortere enn to minutter forkastes —
-       *     et blaff er ikke en pumpeperiode.
-       *  3. Flaten under temperaturkurven la seg over båndene og gjorde begge grumsete.
-       *     Kurven står nå som en rein strek.
-       */
-      /* Timesøyler i stedet for en kurve.
+       * Toppen sier det viktigste i tall: temperaturen nå, endringen over vinduet, og
+       * når det var varmest og kaldest. Fingeren over grafen viser verdien, klokka og
+       * om pumpe og varme gikk akkurat da.
        *
-       * Kurven var feil form for dette. En temperaturkurve over et døgn er nesten flat,
-       * og da blir den enten en kjedelig strek eller — med stramt vindu — en dramatisk
-       * fjellkjede av målestøy. Ingen av dem sier noe.
-       *
-       * Én søyle per time sier det kurven ikke kunne: hvor mye vannet steg eller falt
-       * DEN timen, og om pumpa gikk mens det skjedde. Søylen går opp fra midtlinja når
-       * temperaturen steg, ned når den falt, og det blå merket under viser minuttene
-       * pumpa gikk i samme time.
-       *
-       * Ingen strukket svg, så ingen forvrengt tekst. Ingen levende måling, så ingenting
-       * som hopper mens du ser på det.
-       */
-      /* Vanntemperaturen som en myk kurve over tid, med pumpeperiodene som blå felt bak.
-       *
-       * Søylene per time (1.10) sa riktig ting – steg eller falt vannet – men var tunge å
-       * lese: en skog av små streker opp og ned fra en midtlinje. En kurve er det øyet
-       * forventer av en temperatur, og med feltene bak ser man likevel hvorfor den steg.
-       *
-       * Kurva og feltene ligger i en strukket svg (fyller bredden), med
-       * vector-effect:non-scaling-stroke så streken er like tykk overalt. Tekst og
-       * «nå»-punktet ligger som HTML oppå, plassert i prosent – de strekkes ikke.
-       * Målingene jevnes ut på 48 punkter over vinduet, så målestøy ikke blir fjell.
+       * Kurva og flaten ligger i en strukket svg (fyller bredden, streken er like tykk
+       * overalt). Alt annet – natt, baner, merker, tekst – er HTML plassert i prosent,
+       * så ingenting strekkes.
        */
       _graf() {
         const h = this._hist;
@@ -15560,9 +15541,8 @@ try {
         }
         const fra = h.fra, til = h.til, spenn = til - fra;
         const timer = spenn / 3600000;
-        const W = 300, H = 100, N = 48;
+        const W = 300, H = 120, N = Math.min(96, Math.max(24, Math.round(timer * 2)));
 
-        // 1) gjennomsnitt i 48 like store bøtter, 2) glidende snitt over tre
         const botter = Array.from({ length: N }, () => []);
         for (const p of T) {
           const i = Math.floor(((p.t - fra) / spenn) * N);
@@ -15571,21 +15551,24 @@ try {
         let pkt = botter
           .map((a, i) => (a.length ? { t: fra + ((i + 0.5) / N) * spenn, v: a.reduce((x, y) => x + y, 0) / a.length } : null))
           .filter(Boolean);
-        // Tomme bøtter i starten: ta med siste måling før vinduet, så kurva går helt ut.
         if (!pkt.length) pkt = [{ t: fra, v: T[0].v }, { t: til, v: T[T.length - 1].v }];
         if (pkt.length === 1) pkt.push({ t: til, v: pkt[0].v });
         pkt = pkt.map((p, i, a) => ({ t: p.t, v: (a[Math.max(0, i - 1)].v + p.v + a[Math.min(a.length - 1, i + 1)].v) / 3 }));
 
-        const mal = this.attr("vanntemp", "maltemperatur");
+        const mal = this._malTemp();
         const siste = T[T.length - 1];
-        const verdier = pkt.map((p) => p.v).concat([siste.v], mal != null ? [Number(mal)] : []);
+        const iVindu = T.filter((p) => p.t >= fra);
+        const maks = (iVindu.length ? iVindu : T).reduce((a, b) => (b.v > a.v ? b : a));
+        const min = (iVindu.length ? iVindu : T).reduce((a, b) => (b.v < a.v ? b : a));
+        const verdier = pkt.map((p) => p.v).concat([siste.v, maks.v, min.v], mal != null ? [mal] : []);
         let lo = Math.min(...verdier), hi = Math.max(...verdier);
-        if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
-        const pad = (hi - lo) * 0.2; lo -= pad; hi += pad;
+        if (hi - lo < 1.5) { const m = (hi + lo) / 2; lo = m - 0.75; hi = m + 0.75; }
+        const pad = (hi - lo) * 0.18; lo -= pad; hi += pad;
         const X = (t) => ((t - fra) / spenn) * W;
         const Y = (v) => H - ((v - lo) / (hi - lo)) * H;
+        const px = (t) => Math.max(0, Math.min(100, (X(t) / W) * 100));
+        const py = (v) => Math.max(0, Math.min(100, (Y(v) / H) * 100));
 
-        // Catmull-Rom → bezier, så kurva går gjennom punktene uten knekker
         const P = pkt.map((p) => [X(p.t), Y(p.v)]);
         let linje = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
         for (let i = 0; i < P.length - 1; i++) {
@@ -15596,93 +15579,120 @@ try {
         }
         const flate = `${linje} L${P[P.length - 1][0].toFixed(1)},${H} L${P[0][0].toFixed(1)},${H} Z`;
 
-        // Pumpeperioder: over 40 W, slått sammen, kortere enn to minutter forkastes
-        const E = h.effekt || [];
-        const felt = [];
-        let aapen = null;
-        for (let i = 0; i < E.length; i++) {
-          const gar = E[i].v > 40;
-          if (gar && aapen === null) aapen = E[i].t;
-          if (!gar && aapen !== null) { felt.push([aapen, E[i].t]); aapen = null; }
-        }
-        if (aapen !== null) felt.push([aapen, til]);
-        const ekte = felt.filter(([a, b]) => b - a >= 120000);
-        const feltD = ekte.map(([a, b]) => {
-          const x0 = Math.max(0, X(a)), x1 = Math.min(W, X(b));
-          return `M${x0.toFixed(1)},0 H${x1.toFixed(1)} V${H} H${x0.toFixed(1)} Z`;
-        }).join(" ");
-        const pumpetMin = ekte.reduce((sum, [a, b]) => sum + (b - a) / 60000, 0);
+        /* Perioder over en terskel, slått sammen; blaff under to minutter forkastes. */
+        const perioder = (liste, terskel) => {
+          const ut = [];
+          let aapen = null;
+          for (const p of liste) {
+            const gar = p.v > terskel;
+            if (gar && aapen === null) aapen = p.t;
+            if (!gar && aapen !== null) { ut.push([aapen, p.t]); aapen = null; }
+          }
+          if (aapen !== null) ut.push([aapen, til]);
+          return ut.map(([a, b]) => [Math.max(a, fra), Math.min(b, til)]).filter(([a, b]) => b - a >= 120000);
+        };
+        const pumpe = perioder(h.effekt || [], 40);
+        const varme = perioder(h.vp || [], 100);
+        const timerI = (per) => per.reduce((s, [a, b]) => s + (b - a), 0) / 3600000;
+        const segmenter = (per) => per.map(([a, b]) => html`<i style="left:${px(a).toFixed(2)}%;width:${Math.max(0.6, px(b) - px(a)).toFixed(2)}%"></i>`);
 
-        /* Fingeren over grafen: nærmeste punkt på kurva, klokkeslettet og om pumpa gikk.
-           Nå-lappen skjules imens, så de to ikke ligger oppå hverandre. */
+        /* Natta: fra varmevinduets slutt til start, hver natt i vinduet */
+        const slutt = Number(this.val("varmeSlutt", 22)) % 24;
+        const start = Number(this.val("varmeStart", 6)) % 24;
+        const netter = [];
+        if (slutt !== start) {
+          const d0 = new Date(fra); d0.setHours(0, 0, 0, 0);
+          for (let d = d0.getTime() - 86400000; d <= til; d += 86400000) {
+            const a = d + slutt * 3600000;
+            const b = d + (start > slutt ? start : start + 24) * 3600000;
+            if (b > fra && a < til) netter.push([Math.max(a, fra), Math.min(b, til)]);
+          }
+        }
+
+        const kl = (t) => {
+          const d = new Date(t);
+          const k = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+          return timer <= 30 ? k : `${d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", "")} ${k}`;
+        };
+        const endring = siste.v - (T.find((p) => p.t >= fra) || T[0]).v;
+        const periodeTekst = timer <= 30 ? "siste døgn" : `siste ${Math.round(timer / 24)} døgn`;
+
         const pek = this._pek;
         let pekHtml = "";
-        if (pek && pkt.length) {
+        if (pek !== null && pek !== undefined) {
           const t = fra + pek * spenn;
           const n = pkt.reduce((b, q) => (Math.abs(q.t - t) < Math.abs(b.t - t) ? q : b), pkt[0]);
-          const gikk = ekte.some(([a, b]) => t >= a && t <= b);
-          const px = (X(n.t) / W) * 100, py = (Y(n.v) / H) * 100;
-          const d = new Date(n.t);
-          const kl = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-          const naar = timer <= 30 ? kl : `${d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", "")} ${kl}`;
+          const i = (per) => per.some(([a, b]) => t >= a && t <= b);
+          const x = px(n.t);
           pekHtml = html`
-            <div class="tg-pekline" style="left:${px.toFixed(1)}%"></div>
-            <span class="tg-pekdot" style="left:${px.toFixed(1)}%;top:${py.toFixed(1)}%"></span>
-            <div class="tg-pekboks ${px > 62 ? "venstre" : ""}" style="left:${px.toFixed(1)}%">
-              <b>${nf(n.v, 1)}°</b><span>${naar}</span>${gikk ? html`<i>pumpa gikk</i>` : ""}
+            <div class="vg-pekline" style="left:${x.toFixed(1)}%"></div>
+            <div class="vg-pekboks ${x > 60 ? "venstre" : ""}" style="left:${x.toFixed(1)}%">
+              <b>${nf(n.v, 1)}°</b><span>${kl(n.t)}</span>
+              <span class="vg-flagg">
+                ${i(pumpe) ? html`<em class="p">pumpe</em>` : ""}${i(varme) ? html`<em class="v">varme</em>` : ""}
+              </span>
             </div>`;
         }
 
-        const malY = mal != null ? Y(Number(mal)) : null;
-        const naX = Math.max(0, Math.min(100, (X(siste.t) / W) * 100));
-        const naY = Math.max(0, Math.min(100, (Y(siste.v) / H) * 100));
-        const endring = siste.v - T[0].v;
-
-        // Fem merker langs tida
         const merker = [0, 0.25, 0.5, 0.75, 1].map((f) => {
           const d = new Date(fra + f * spenn);
           const tekst = timer <= 30
-            ? `${String(d.getHours()).padStart(2, "0")}:00`
+            ? `${String(d.getHours()).padStart(2, "0")}`
             : d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", "");
           return { f, tekst: f === 1 ? "nå" : tekst };
         });
+        const malY = mal != null ? py(mal) : null;
 
         return html`
-          <div class="tgraf">
-            <div class="tflate ${pek ? "peker" : ""}"
+          <div class="vg">
+            <div class="vg-topp">
+              <div class="vg-stor">
+                <small>Endring ${periodeTekst}</small>
+                <b class="${endring >= 0.05 ? "opp" : endring <= -0.05 ? "ned" : ""}">${endring >= 0.05 ? "+" : endring <= -0.05 ? "−" : "±"}${nf(Math.abs(endring), 1)}°</b>
+              </div>
+              <div class="vg-ekstrem">
+                <span><small>maks</small> ${nf(maks.v, 1)}° <em>${kl(maks.t)}</em></span>
+                <span><small>min</small> ${nf(min.v, 1)}° <em>${kl(min.t)}</em></span>
+              </div>
+            </div>
+            <div class="vg-plot ${pekHtml ? "peker" : ""}"
               @pointerdown=${(e) => this._grafPek(e)} @pointermove=${(e) => this._grafPek(e)}
               @pointerup=${() => this._grafSlipp()} @pointerleave=${() => this._grafSlipp()}
               @pointercancel=${() => this._grafSlipp()}>
-              <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="kib-tg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="currentColor" stop-opacity="0.42"></stop>
-                    <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
-                  </linearGradient>
-                </defs>
-                <path class="tg-pumpe" d="${feltD}"></path>
-                <path class="tg-mal" d="${malY !== null ? `M0,${malY.toFixed(1)} H${W}` : ""}"></path>
-                <path class="tg-flate" d="${flate}"></path>
-                <path class="tg-linje" d="${linje}"></path>
-              </svg>
-              ${malY !== null && malY > 4 && malY < H - 4
-                ? html`<span class="tg-malmerke" style="top:${((malY / H) * 100).toFixed(1)}%">mål ${nf(mal, 0)}°</span>` : ""}
-              <span class="tg-y topp">${nf(hi, 1)}°</span>
-              <span class="tg-y bunn">${nf(lo, 1)}°</span>
-              <span class="tg-na" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%"></span>
-              <span class="tg-natekst ${naY < 22 ? "under" : ""}" style="left:${naX.toFixed(1)}%;top:${naY.toFixed(1)}%">${nf(siste.v, 1)}°</span>
+              <div class="vg-flate">
+                ${netter.map(([a, b]) => html`<i class="vg-natt" style="left:${px(a).toFixed(2)}%;width:${(px(b) - px(a)).toFixed(2)}%"></i>`)}
+                ${varme.map(([a, b]) => html`<i class="vg-varmetone" style="left:${px(a).toFixed(2)}%;width:${(px(b) - px(a)).toFixed(2)}%"></i>`)}
+                ${[0.25, 0.5, 0.75].map((f) => html`<i class="vg-rute" style="top:${f * 100}%"></i>`)}
+                <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="kib-vg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="currentColor" stop-opacity="0.38"></stop>
+                      <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <path class="vg-fyll" d="${flate}"></path>
+                  <path class="vg-mal" d="${malY !== null ? `M0,${((malY / 100) * H).toFixed(1)} H${W}` : ""}"></path>
+                  <path class="vg-linje" d="${linje}"></path>
+                </svg>
+                ${malY !== null ? html`<span class="vg-mallapp" style="top:${malY.toFixed(1)}%">mål ${nf(mal, mal % 1 ? 1 : 0)}°</span>` : ""}
+                <span class="vg-y topp">${nf(hi, 1)}°</span>
+                <span class="vg-y bunn">${nf(lo, 1)}°</span>
+                <span class="vg-ekstrempkt" style="left:${px(maks.t).toFixed(1)}%;top:${py(maks.v).toFixed(1)}%"></span>
+                <span class="vg-ekstrempkt" style="left:${px(min.t).toFixed(1)}%;top:${py(min.v).toFixed(1)}%"></span>
+                <span class="vg-napkt" style="left:${Math.min(px(siste.t), 98).toFixed(1)}%;top:${py(siste.v).toFixed(1)}%"></span>
+              </div>
+              <div class="vg-bane pumpe" title="Pumpe">${segmenter(pumpe)}</div>
+              <div class="vg-bane varme" title="Varme">${segmenter(varme)}</div>
               ${pekHtml}
             </div>
-            <div class="tg-akse">
+            <div class="vg-akse">
               ${merker.map((m) => html`<span style="left:${(m.f * 100).toFixed(0)}%">${m.tekst}</span>`)}
             </div>
-            <div class="tg-chips">
-              <span class="chip"><i class="prikk temp"></i>${nf(siste.v, 1)}° nå</span>
-              ${mal != null ? html`<span class="chip">mål ${nf(mal, 0)}°</span>` : ""}
-              <span class="chip ${endring >= 0 ? "opp" : "ned"}">${endring >= 0 ? "▲" : "▼"} ${nf(Math.abs(endring), 1)}°
-                ${timer <= 30 ? "siste døgn" : `siste ${Math.round(timer / 24)} døgn`}</span>
-              <span class="chip"><i class="prikk sirk"></i>pumpet ${pumpetMin >= 60
-                ? `${nf(pumpetMin / 60, 1)} t` : `${Math.round(pumpetMin)} min`}</span>
+            <div class="vg-forklaring">
+              <span><i class="vg-f pumpe"></i>Pumpe <b>${nf(timerI(pumpe), 1)} t</b></span>
+              <span><i class="vg-f varme"></i>Varme <b>${nf(timerI(varme), 1)} t</b></span>
+              ${netter.length ? html`<span><i class="vg-f vg-f-natt"></i>Natt</span>` : ""}
+              ${mal != null ? html`<span><i class="vg-f mal"></i>Mål</span>` : ""}
             </div>
           </div>`;
       }
@@ -16218,7 +16228,8 @@ try {
           ${this.st("styrSettpunkt") && !this.on("styrSettpunkt") ? html`<div class="tips">
             <ha-icon icon="mdi:information-outline"></ha-icon>
             Styr settpunkt er av – varmepumpas eget settpunkt gjelder.</div>` : ""}
-        `, "", () => this._mer("maltemp"));
+          ${this._config.graf !== false ? html`<div class="skille"></div>${this._graf()}` : ""}
+        `, this._config.graf !== false ? this._vinduvelger() : "", () => this._mer("maltemp"));
       }
 
       /* Natta som en stripe fra varmevinduets slutt til start, med av-vinduet inntegnet. */
@@ -16337,6 +16348,16 @@ try {
           </button>`;
       }
 
+      /* Klortabletter (2.1): hvem som legger i, en månedskalender og loggen.
+       *
+       * Navnene kommer fra tekstfeltet «Navn i klorloggen» i integrasjonen, og kan
+       * legges til under tannhjulet. Huk av den som la i, og trykk Logg; da går
+       * navnet med i loggen. Uten navn logges det som før.
+       *
+       * Kalenderen viser måneden med en prikk per dag det ble lagt i (initialene til
+       * den som gjorde det), neste forfallsdag med ring, og i dag. Trykk på en dag
+       * for å se hva som ble logget.
+       */
       _klorPanel() {
         if (!this.st("sisteKlor") && !this.st("loggKlor")) return "";
         const siste = this.val("sisteKlor");
@@ -16344,13 +16365,16 @@ try {
         const intervall = Number(this.attr("nesteKlor", "intervall_dager", this.val("klorIntervall", 7))) || 7;
         const forfall = this.on("klorForfall");
         const neste = this.val("nesteKlor");
-        const historikk = (this.attr("sisteKlor", "historikk", []) || []).slice(0, 5);
         const uke = this.attr("sisteKlor", "siste_7_dager", 0);
+        const navn = this._klorNavn();
+        const perPerson = this.attr("sisteKlor", "per_person", {}) || {};
         const pst = siste && isFinite(dager) ? Math.min(100, (dager / intervall) * 100) : 100;
         const dato = (v) => {
           const d = new Date(v);
           return isNaN(d) ? "–" : d.toLocaleDateString("nb-NO", { weekday: "short", day: "numeric", month: "short" }).replace(".", "");
         };
+        const valgt = navn.includes(this._klorHvem) ? this._klorHvem : null;
+
         return this._panel("mdi:pill", forfall ? "var(--kib-orange)" : "var(--kib-green)", "Klortabletter",
           !siste ? "Ingen er logget ennå"
             : forfall ? `På tide – ${nf(dager, 0)} dager siden sist`
@@ -16365,23 +16389,151 @@ try {
                 ${this._stat("mdi:counter", "Siste 7 dager", String(uke), " stk")}
               </div>
             </div>
-            <button class="stor ${forfall ? "varsle" : ""}"
-              @click=${() => { this._haptikk("success"); this._trykk("loggKlor"); }}>
-              <ha-icon icon="mdi:pill"></ha-icon>Logg klortablett
-            </button>
-            ${historikk.length ? html`
-              <div class="klorlogg">
-                ${historikk.map((h, i) => html`
-                  <div class="klorrad">
-                    <span>${dato(h.tid)}</span>
-                    <span>${h.antall || 1} stk${h.notat ? ` · ${h.notat}` : ""}</span>
-                    <span>${h.vanntemp != null ? `${nf(h.vanntemp, 1)}°` : ""}</span>
-                    ${i === 0 && this.st("angreKlor") ? html`<button class="angre" title="Angre"
-                      @click=${() => { this._haptikk("medium"); this._trykk("angreKlor"); }}>
-                      <ha-icon icon="mdi:undo"></ha-icon></button>` : html`<span></span>`}
-                  </div>`)}
+
+            ${navn.length ? html`
+              <div class="hvem">
+                <span class="hvem-tekst">Hvem la i?</span>
+                <div class="hvem-rad">
+                  ${navn.map((n) => html`
+                    <button class="hvem-chip ${valgt === n ? "valgt" : ""}"
+                      @click=${() => { this._haptikk("selection"); this._settKlorHvem(valgt === n ? null : n); }}>
+                      <span class="hvem-sjekk"><ha-icon icon="${valgt === n ? "mdi:check" : "mdi:account"}"></ha-icon></span>
+                      ${n}${perPerson[n] ? html`<small>${perPerson[n]}</small>` : ""}
+                    </button>`)}
+                </div>
               </div>` : ""}
+
+            <button class="stor ${forfall ? "varsle" : ""}" @click=${() => this._loggKlor(valgt)}>
+              <ha-icon icon="mdi:pill"></ha-icon>${valgt ? `Logg klortablett · ${valgt}` : "Logg klortablett"}
+            </button>
+
+            ${this._klorKalender(neste)}
           `, "", () => this._mer("sisteKlor"));
+      }
+
+      _klorNavn() {
+        const fra = this.attr("sisteKlor", "navn");
+        if (Array.isArray(fra)) return fra;
+        const felt = this.val("klorNavn");
+        return typeof felt === "string" ? felt.split(",").map((x) => x.trim()).filter(Boolean) : [];
+      }
+
+      /* Valgt navn huskes per nettleser, så den som bruker dashbordet sitt slipper å
+         velge seg selv hver gang. */
+      _settKlorHvem(n) {
+        this._klorHvem = n;
+        try { if (n) localStorage.setItem("kib-klor-hvem", n); else localStorage.removeItem("kib-klor-hvem"); } catch (e) { /* privat modus */ }
+        this.requestUpdate();
+      }
+
+      _loggKlor(hvem) {
+        this._haptikk("success");
+        if (hvem) {
+          this.hass.callService("ki_basseng", "logg_klortablett", { antall: 1, hvem });
+        } else {
+          this._trykk("loggKlor");
+        }
+      }
+
+      _klorKalender(neste) {
+        const logg = this.attr("sisteKlor", "logg") || this.attr("sisteKlor", "historikk", []) || [];
+        const idag = new Date();
+        const forskyv = this._kalMnd || 0;
+        const m0 = new Date(idag.getFullYear(), idag.getMonth() + forskyv, 1);
+        const aar = m0.getFullYear(), mnd = m0.getMonth();
+        const dagerIMnd = new Date(aar, mnd + 1, 0).getDate();
+        const forste = (m0.getDay() + 6) % 7; // mandag først
+        const nokkel = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const perDag = {};
+        for (const r of logg) {
+          const d = new Date(r.tid);
+          if (isNaN(d)) continue;
+          (perDag[nokkel(d)] = perDag[nokkel(d)] || []).push(r);
+        }
+        const nesteD = neste ? new Date(neste) : null;
+        const celler = [];
+        for (let i = 0; i < forste; i++) celler.push(html`<span class="kal-tom"></span>`);
+        for (let dag = 1; dag <= dagerIMnd; dag++) {
+          const d = new Date(aar, mnd, dag);
+          const k = nokkel(d);
+          const rader = perDag[k] || [];
+          const erIdag = k === nokkel(idag);
+          const erNeste = nesteD && !isNaN(nesteD) && k === nokkel(nesteD);
+          const forbi = d < new Date(idag.getFullYear(), idag.getMonth(), idag.getDate());
+          const init = [...new Set(rader.map((r) => (r.hvem || "").trim()).filter(Boolean))]
+            .map((n) => n.slice(0, 1).toUpperCase()).join("");
+          celler.push(html`
+            <button class="kal-dag ${rader.length ? "lagt" : ""} ${erIdag ? "kal-idag" : ""} ${erNeste ? "neste" : ""} ${this._kalValgt === k ? "valgt" : ""} ${forbi && !rader.length ? "forbi" : ""}"
+              @click=${() => { this._kalValgt = this._kalValgt === k ? null : k; this.requestUpdate(); }}>
+              <span class="kal-tall">${dag}</span>
+              ${rader.length ? html`<span class="kal-prikk">${init || rader.reduce((s, r) => s + (r.antall || 1), 0)}</span>` : ""}
+            </button>`);
+        }
+        const valgteRader = this._kalValgt ? (perDag[this._kalValgt] || []) : [];
+        const tittel = m0.toLocaleDateString("nb-NO", { month: "long", year: "numeric" });
+        const iMnd = logg.filter((r) => { const d = new Date(r.tid); return d.getFullYear() === aar && d.getMonth() === mnd; })
+          .reduce((s, r) => s + (r.antall || 1), 0);
+        return html`
+          <div class="kal">
+            <div class="kal-hode">
+              <button class="kal-pil" aria-label="Forrige måned" @click=${() => { this._kalMnd = forskyv - 1; this._kalValgt = null; this.requestUpdate(); }}>
+                <ha-icon icon="mdi:chevron-left"></ha-icon></button>
+              <span class="kal-tittel">${tittel}<small>${iMnd} stk</small></span>
+              <button class="kal-pil" aria-label="Neste måned" ?disabled=${forskyv >= 1}
+                @click=${() => { this._kalMnd = forskyv + 1; this._kalValgt = null; this.requestUpdate(); }}>
+                <ha-icon icon="mdi:chevron-right"></ha-icon></button>
+            </div>
+            <div class="kal-uke">${["ma", "ti", "on", "to", "fr", "lø", "sø"].map((u) => html`<span>${u}</span>`)}</div>
+            <div class="kal-grid">${celler}</div>
+            ${this._kalValgt ? html`
+              <div class="kal-detalj">
+                ${valgteRader.length ? valgteRader.map((r) => html`
+                  <div class="klorrad">
+                    <span>${new Date(r.tid).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}</span>
+                    <span>${r.antall || 1} stk${r.hvem ? ` · ${r.hvem}` : ""}</span>
+                    <span></span><span></span>
+                  </div>`) : html`<div class="dempet">Ingen klortablett denne dagen.</div>`}
+              </div>` : ""}
+            <div class="kal-forklaring">
+              <span><i class="kf lagt"></i>Lagt i</span>
+              <span><i class="kf neste"></i>Neste</span>
+              <span><i class="kf kf-idag"></i>I dag</span>
+              ${this.st("angreKlor") && logg.length ? html`<button class="angre-tekst"
+                @click=${() => { this._haptikk("medium"); this._trykk("angreKlor"); }}>
+                <ha-icon icon="mdi:undo"></ha-icon>Angre siste</button>` : ""}
+            </div>
+          </div>`;
+      }
+
+      /* Navnene redigeres her og lagres i integrasjonen (text-entiteten), så de er de
+         samme på alle skjermer. */
+      _klorNavnPanel() {
+        const id = this.id("klorNavn");
+        if (!id) return "";
+        const navn = this._klorNavn();
+        const lagre = (liste) => {
+          this.hass.callService("text", "set_value", { entity_id: id, value: liste.join(", ") });
+          this._haptikk("light");
+        };
+        const leggTil = (e) => {
+          e.preventDefault();
+          const felt = this.shadowRoot.querySelector(".navn-felt");
+          const nytt = (felt.value || "").trim();
+          if (!nytt || navn.some((n) => n.toLowerCase() === nytt.toLowerCase())) { felt.value = ""; return; }
+          lagre([...navn, nytt]);
+          felt.value = "";
+        };
+        return this._panel("mdi:account-multiple-check", "var(--kib-green)", "Klorlogg",
+          navn.length ? `${navn.length} ${navn.length === 1 ? "person" : "personer"} kan hukes av` : "Legg til hvem som legger i klor", html`
+          ${navn.length ? html`<div class="navneliste">
+            ${navn.map((n) => html`<span class="navnechip">${n}
+              <button aria-label="Fjern ${n}" @click=${() => lagre(navn.filter((x) => x !== n))}>
+                <ha-icon icon="mdi:close"></ha-icon></button></span>`)}
+          </div>` : ""}
+          <form class="navn-ny" @submit=${leggTil}>
+            <input class="navn-felt" type="text" placeholder="Navn, f.eks. Sebastian" maxlength="40" autocomplete="off">
+            <button type="submit"><ha-icon icon="mdi:plus"></ha-icon>Legg til</button>
+          </form>`);
       }
 
       /* Til Varme-fanen, eller åpne Varme-seksjonen når kortet står uten faner. Er
@@ -16687,10 +16839,16 @@ try {
         const mal = Number(this.attr("omsetninger", "mal", this.val("mal", 1.5))) || 1.5;
         const neste = this.val("nesteStart");
         const pst = Math.min(100, (gjort / mal) * 100);
+        const valuta = this.enhet("kostnad") || "";
+        const billigere = snittPlan != null && snittDogn != null && snittDogn > 0
+          ? Math.round((1 - snittPlan / snittDogn) * 100) : null;
 
+        /* Omsetninger, planen og prisen er ett regnskap: hvor mye vann som må
+           gjennom filteret, når det skjer, og hva det koster. Før var det tre løse
+           paneler; nå er det ett, delt med hårfine skiller. */
         return html`
-          ${this._panel("mdi:autorenew", "var(--kib-blue)", "Omsetninger i dag",
-            gjort >= mal ? "Målet er nådd" : `${nf(Math.max(0, mal - gjort), 2)} igjen til målet`,
+          ${this._panel("mdi:autorenew", "var(--kib-blue)", "Sirkulasjon i dag",
+            gjort >= mal ? "Målet er nådd" : `${nf(Math.max(0, mal - gjort), 2)} omsetninger igjen`,
             html`
               <div class="ringrad">
                 ${this._ring(pst, "var(--kib-blue)", `${nf(gjort, 2)}×`, `av ${nf(mal, 2)}×`, () => this._mer("omsetninger"))}
@@ -16701,20 +16859,26 @@ try {
                 </div>
               </div>
               ${anbefalt ? html`<div class="tips"><ha-icon icon="mdi:thermometer-water"></ha-icon>
-                Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger i døgnet.</div>` : ""}`)}
-
-          ${this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Temperatur og sirkulasjon", "",
-            this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))}
-
-          ${this._panel("mdi:calendar-clock", "var(--kib-accent)", "Planen",
-            snittPlan != null ? `Snitt ${nf(snittPlan, 2)} mot ${nf(snittDogn, 2)} for døgnet` : "",
-            html`
+                Vanntemperaturen tilsier ${nf(anbefalt, 2)} omsetninger i døgnet.</div>` : ""}
+              <div class="skille"></div>
               <div class="plabel">I dag</div>
               ${this._planstripe(bl, true)}
-              ${blm.length ? html`<div class="plabel">I morgen</div>${this._planstripe(blm, false)}` : ""}`,
-            "", () => this._mer("modus"))}
+              ${blm.length ? html`<div class="plabel">I morgen</div>${this._planstripe(blm, false)}` : ""}
+              ${snittPlan != null ? html`
+                <div class="skille"></div>
+                <div class="prisrad">
+                  <div><small>Snitt i planen</small><b>${nf(snittPlan, 2)}</b><em>${valuta}/kWh</em></div>
+                  <div><small>Snitt i døgnet</small><b>${nf(snittDogn, 2)}</b><em>${valuta}/kWh</em></div>
+                  ${billigere !== null ? html`<div class="${billigere > 0 ? "gron" : ""}"><small>Billigere</small><b>${billigere}</b><em>%</em></div>` : ""}
+                </div>` : ""}
+            `, "", () => this._mer("modus"))}
 
-          ${this._panel("mdi:tune-variant", "var(--kib-muted)", "Innstillinger", "", html`
+          ${this._config.graf !== false && !this._harVarme()
+            ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Temperatur og sirkulasjon", "",
+              this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))
+            : ""}
+
+          ${this._panel("mdi:tune-variant", "var(--kib-muted)", "Styring", "Profil, mål og plan", html`
             <div class="pliste">
               ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
               ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
@@ -16837,19 +17001,15 @@ try {
               <ha-icon icon="${gar ? "mdi:stop" : "mdi:play"}"></ha-icon>
               ${gar ? "Stopp sprederen" : `Start i ${Math.round(varighet)} min`}
             </button>
+            <div class="spredtall">
+              <button @click=${() => this._mer("spredertid")}>
+                <small>Brukt i dag</small><b>${nf(brukt, 0)}<em>${maks ? ` / ${nf(maks, 0)}` : ""} min</em></b>
+                ${maks ? html`<span class="ispor"><i style="width:${Math.min(100, (brukt / maks) * 100).toFixed(1)}%"></i></span>` : ""}
+              </button>
+              <button @click=${() => this._mer("spredVarighet")}><small>Varighet</small><b>${nf(varighet, 0)}<em> min</em></b></button>
+              <button @click=${() => this._mer("spredprogram")}><small>Program</small><b>${programPa ? (intervall ? `hver ${nf(intervall, 0)} t` : "på") : "av"}</b></button>
+            </div>
           </section>
-
-          ${this._panel("mdi:sprinkler-variant", "var(--kib-blue)", "I dag",
-            maks ? `${nf(Math.max(0, maks - brukt), 0)} min igjen av taket` : "Ingen tak satt",
-            html`
-              <div class="ringrad">
-                ${this._ring(maks ? (brukt / maks) * 100 : 0, "var(--kib-blue)", `${nf(brukt, 0)}`, maks ? `av ${nf(maks, 0)} min` : "min", () => this._mer("spredertid"))}
-                <div class="statliste">
-                  ${this._stat("mdi:timer-sand", "Varighet", nf(varighet, 0), " min")}
-                  ${this._stat("mdi:repeat", "Start hver", intervall ? nf(intervall, 0) : "–", intervall ? " t" : "")}
-                  ${this._stat("mdi:calendar-check", "Program", programPa ? "På" : "Av", "")}
-                </div>
-              </div>`)}
 
           ${this._panel("mdi:calendar-sync", "var(--kib-accent)", "Program", programPa ? "Går av seg selv" : "Bare når du starter", html`
             <div class="pliste">
@@ -16882,6 +17042,7 @@ try {
             </div>`)}
 
           ${this._modellPanel()}
+          ${this._klorNavnPanel()}
 
           ${this._panel("mdi:chart-box-outline", "var(--kib-accent)", "Tellere", "", html`
             <div class="statgrid">
@@ -16948,7 +17109,7 @@ try {
               </div>
               ${this._knapper()}
               ${this._tallrad()}
-              ${this._config.graf !== false
+              ${this._config.graf !== false && !this._harVarme()
                 ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
                     this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))
                 : ""}
@@ -17017,6 +17178,7 @@ try {
             --kib-sort: var(--black, #000);
             --kib-purple: var(--purple, #a78bfa);
             --kib-green: var(--green, #4dd07a);
+            --kib-vann: var(--cyan, #3fc1c9);
             display: block;
             max-width: 100%;
             overflow: hidden;
@@ -18335,6 +18497,148 @@ try {
 
           .chips { display: flex; flex-wrap: wrap; gap: 6px; }
           .fliser.odde > :last-child { grid-column: 1 / -1; }
+          /* --- 2.1: sammensatte paneler, ny temperaturgraf, klorkalender --- */
+          .skille { height: 1px; background: var(--kib-inner); margin: 2px -14px; }
+
+          .vg { display: grid; gap: 8px; --vg: var(--kib-vann); }
+          .vg-topp { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+          .vg-stor { display: grid; gap: 2px; }
+          .vg-stor small { font-size: 12px; font-weight: 500; opacity: 0.65; }
+          .vg-stor b { font-size: 26px; font-weight: 300; line-height: 1.1; font-variant-numeric: tabular-nums; }
+          .vg-stor b.opp { color: var(--kib-orange); }
+          .vg-stor b.ned { color: var(--kib-blue); }
+          .vg-ekstrem { display: grid; gap: 2px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+          .vg-ekstrem small { font-size: 11px; opacity: 0.6; margin-right: 2px; }
+          .vg-ekstrem em { font-style: normal; font-size: 11px; opacity: 0.6; margin-left: 2px; }
+          .vg-plot { position: relative; display: grid; gap: 4px; touch-action: pan-y; cursor: crosshair; }
+          .vg-flate { position: relative; height: 132px; border-radius: 12px; overflow: hidden; }
+          .vg-flate svg { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--vg); overflow: visible; }
+          .vg-natt { position: absolute; top: 0; bottom: 0; background: rgba(167, 139, 250, 0.08); }
+          .vg-varmetone { position: absolute; top: 0; bottom: 0;
+            background: linear-gradient(180deg, color-mix(in srgb, var(--kib-orange) 16%, transparent), transparent 85%); }
+          .vg-rute { position: absolute; left: 0; right: 0; height: 1px; background: var(--kib-inner); }
+          .vg-fyll { fill: url(#kib-vg); }
+          .vg-linje { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+            vector-effect: non-scaling-stroke; }
+          .vg-mal { fill: none; stroke: var(--kib-text); stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 4 4;
+            vector-effect: non-scaling-stroke; }
+          .vg-mallapp { position: absolute; right: 6px; transform: translateY(-50%); font-size: 11px; font-weight: 500;
+            padding: 2px 7px; border-radius: 999px; background: var(--kib-surface); color: var(--kib-text);
+            border: 1px solid var(--kib-inner); pointer-events: none; }
+          .vg-y { position: absolute; left: 6px; font-size: 10.5px; color: var(--kib-muted);
+            font-variant-numeric: tabular-nums; pointer-events: none; }
+          .vg-y.topp { top: 4px; } .vg-y.bunn { bottom: 4px; }
+          .vg-ekstrempkt { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
+            background: var(--kib-surface); box-shadow: 0 0 0 2px var(--vg); pointer-events: none; }
+          .vg-napkt { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+            background: var(--vg); box-shadow: 0 0 0 2px var(--kib-surface); animation: kib-puls 2.4s ease-in-out infinite;
+            pointer-events: none; }
+          .vg-bane { position: relative; height: 8px; border-radius: 4px; background: var(--kib-inner); overflow: hidden; }
+          .vg-bane i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+          .vg-bane.pumpe i { background: var(--kib-blue); }
+          .vg-bane.varme i { background: var(--kib-orange); }
+          .vg-akse { position: relative; height: 14px; font-size: 11px; color: var(--kib-muted); font-variant-numeric: tabular-nums; }
+          .vg-akse span { position: absolute; transform: translateX(-50%); }
+          .vg-akse span:first-child { transform: none; }
+          .vg-akse span:last-child { transform: translateX(-100%); }
+          .vg-forklaring { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--kib-muted); }
+          .vg-forklaring span { display: inline-flex; align-items: center; gap: 6px; }
+          .vg-forklaring b { color: var(--kib-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+          .vg-f { width: 12px; height: 8px; border-radius: 3px; display: inline-block; }
+          .vg-f.pumpe { background: var(--kib-blue); } .vg-f.varme { background: var(--kib-orange); }
+          .vg-f.vg-f-natt { background: rgba(167, 139, 250, 0.35); }
+          .vg-f.mal { height: 0; border-top: 1.5px dashed var(--kib-text); opacity: 0.6; border-radius: 0; }
+          .vg-pekline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--kib-text); opacity: 0.5;
+            pointer-events: none; }
+          .vg-pekboks { position: absolute; top: 6px; transform: translateX(8px); display: grid; gap: 1px;
+            padding: 7px 10px; border-radius: 12px; background: var(--kib-surface); border: 1px solid var(--kib-inner);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); font-size: 12px; pointer-events: none; white-space: nowrap; z-index: 2; }
+          .vg-pekboks.venstre { transform: translateX(calc(-100% - 8px)); }
+          .vg-pekboks b { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+          .vg-pekboks span { color: var(--kib-muted); }
+          .vg-flagg { display: flex; gap: 4px; }
+          .vg-flagg em { font-style: normal; font-size: 10.5px; font-weight: 500; padding: 1px 6px; border-radius: 999px; color: var(--kib-sort); }
+          .vg-flagg em.p { background: var(--kib-blue); } .vg-flagg em.v { background: var(--kib-orange); }
+          .vg-plot.peker .vg-napkt { opacity: 0; }
+
+          .hvem { display: grid; gap: 8px; }
+          .hvem-tekst { font-size: 13px; font-weight: 500; opacity: 0.7; }
+          .hvem-rad { display: flex; flex-wrap: wrap; gap: 8px; }
+          .hvem-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: 999px;
+            background: var(--kib-inner); color: var(--kib-text); font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: background 0.2s, transform 0.12s cubic-bezier(0.2, 1.3, 0.3, 1); }
+          .hvem-chip:active { transform: scale(0.95); }
+          .hvem-chip small { font-size: 11px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+          .hvem-sjekk { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+            background: rgba(250, 251, 252, 0.1); }
+          .hvem-sjekk ha-icon { --mdc-icon-size: 17px; }
+          .hvem-chip.valgt { background: var(--kib-green); color: var(--kib-sort); }
+          .hvem-chip.valgt .hvem-sjekk { background: rgba(0, 0, 0, 0.14); }
+
+          .kal { display: grid; gap: 6px; background: var(--kib-inner); border-radius: 18px; padding: 10px; }
+          .kal-hode { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; }
+          .kal-tittel { text-align: center; font-size: 14px; font-weight: 500; text-transform: capitalize; }
+          .kal-tittel small { display: block; font-size: 11px; font-weight: 500; opacity: 0.6; text-transform: none; }
+          .kal-pil { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+            background: var(--kib-surface); color: var(--kib-text); cursor: pointer; }
+          .kal-pil[disabled] { opacity: 0.3; cursor: default; }
+          .kal-pil ha-icon { --mdc-icon-size: 20px; }
+          .kal-uke, .kal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+          .kal-uke span { text-align: center; font-size: 11px; font-weight: 500; opacity: 0.55; }
+          .kal-dag { position: relative; aspect-ratio: 1 / 1; border-radius: 12px; background: none; color: var(--kib-text);
+            display: grid; place-items: center; text-align: center; cursor: pointer; font-variant-numeric: tabular-nums; padding: 0; }
+          .kal-tall { font-size: 13px; width: 100%; text-align: center; }
+          .kal-dag.forbi .kal-tall { opacity: 0.45; }
+          .kal-dag.kal-idag { box-shadow: inset 0 0 0 1.5px var(--kib-text); }
+          .kal-dag.neste { box-shadow: inset 0 0 0 2px var(--kib-orange); }
+          .kal-dag.lagt { background: var(--kib-green); color: var(--kib-sort); }
+          .kal-dag.valgt { outline: 2px solid var(--kib-accent); outline-offset: 1px; }
+          .kal-prikk { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 600;
+            line-height: 1; letter-spacing: 0.02em; }
+          .kal-dag.lagt .kal-tall { transform: translateY(-3px); }
+          .kal-detalj { background: var(--kib-surface); border-radius: 12px; padding: 4px 10px; }
+          .kal-detalj .klorrad:first-child { border-top: none; }
+          .kal-forklaring { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 11.5px; color: var(--kib-muted); }
+          .kal-forklaring span { display: inline-flex; align-items: center; gap: 5px; }
+          .kf { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+          .kf.lagt { background: var(--kib-green); }
+          .kf.neste { box-shadow: inset 0 0 0 2px var(--kib-orange); }
+          .kf.kf-idag { box-shadow: inset 0 0 0 1.5px var(--kib-text); }
+          .angre-tekst { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px;
+            border-radius: 999px; background: var(--kib-surface); color: var(--kib-text); font-size: 12px; cursor: pointer; }
+          .angre-tekst ha-icon { --mdc-icon-size: 14px; }
+
+          .navneliste { display: flex; flex-wrap: wrap; gap: 6px; }
+          .navnechip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; border-radius: 999px;
+            background: var(--kib-inner); font-size: 14px; font-weight: 500; }
+          .navnechip button { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+            background: rgba(250, 251, 252, 0.08); color: var(--kib-text); cursor: pointer; }
+          .navnechip ha-icon { --mdc-icon-size: 15px; }
+          .navn-ny { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0; }
+          .navn-felt { font: inherit; font-size: 15px; color: var(--kib-text); background: var(--kib-inner); border: none;
+            border-radius: 14px; padding: 12px 14px; outline: none; min-width: 0; }
+          .navn-felt:focus { box-shadow: inset 0 0 0 1.5px var(--kib-accent); }
+          .navn-ny button { display: inline-flex; align-items: center; gap: 4px; padding: 0 16px; border-radius: 14px;
+            background: var(--kib-accent); color: var(--kib-sort); font-size: 14px; font-weight: 500; cursor: pointer; }
+          .navn-ny ha-icon { --mdc-icon-size: 18px; }
+
+          .prisrad { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+          .prisrad > div { display: grid; gap: 1px; }
+          .prisrad small { font-size: 11.5px; font-weight: 500; opacity: 0.65; }
+          .prisrad b { font-size: 20px; font-weight: 300; font-variant-numeric: tabular-nums; }
+          .prisrad em { font-style: normal; font-size: 11px; opacity: 0.6; }
+          .prisrad .gron b { color: var(--kib-green); }
+
+          .spredtall { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+            background: var(--kib-inner); border-radius: 16px; overflow: hidden; }
+          .spredtall button { display: grid; gap: 2px; align-content: start; padding: 10px 12px; background: var(--kib-surface);
+            color: var(--kib-text); text-align: left; cursor: pointer; min-width: 0; }
+          .spredtall small { font-size: 11.5px; font-weight: 500; opacity: 0.65; }
+          .spredtall b { font-size: 18px; font-weight: 300; font-variant-numeric: tabular-nums; white-space: nowrap; }
+          .spredtall em { font-style: normal; font-size: 12px; opacity: 0.6; }
+          .spredtall .ispor { margin-top: 4px; }
+          @media (prefers-reduced-motion: reduce) { .vg-napkt { animation: none; } }
+
           @media (prefers-reduced-motion: reduce) {
             .tb-bolge, .natt.aktiv .natt-av { animation: none; }
             .tb-tak, .sspor i { transition: none; }
