@@ -1,4 +1,4 @@
-/* ki-cards v5.67.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-24 */
+/* ki-cards v5.68.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-24 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.67.0";
+  KI.VERSION = "5.68.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,8 +15004,13 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 1.2.0 - del av ki-cards
+ * ki-basseng-card 2.0.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
+ *
+ * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
+ *   temperatur, pooltaket som stor bryter, nattsenkingen (vindu, besparelse, hvorfor)
+ *   og klorloggen. Oversikt får fliser for pooltak, nattsenking og klor, og varsler
+ *   øverst. Mot eldre integrasjon uten varmemodell skjules alt dette av seg selv.
  *
  * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
  *   faner: false gir én flyt med utvidbare seksjoner i stedet.
@@ -15031,7 +15036,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "1.16.0";
+  const VERSJON = "2.0.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15111,6 +15116,32 @@ try {
       stoppSpreder: ["button", ["stopp_spreder"]],
       boost: ["button", ["boost_sirkulasjon"]],
       nullstill: ["button", ["nullstill_dagens_tellere", "nullstill_i_dag"]],
+      /* Varmemodellen og klorloggen (KI Basseng 1.3) */
+      maltemp: ["sensor", ["maltemperatur"]],
+      senking: ["sensor", ["nattsenking"]],
+      senkingSpar: ["sensor", ["nattsenking_besparelse"]],
+      varmetap: ["sensor", ["varmetap"]],
+      sol: ["sensor", ["solinnstraling"]],
+      sisteKlor: ["sensor", ["siste_klortablett"]],
+      nesteKlor: ["sensor", ["neste_klortablett"]],
+      klorForfall: ["binary_sensor", ["klortablett_bor_legges_i"]],
+      hjemme: ["binary_sensor", ["noen_hjemme"]],
+      senkingAktiv: ["binary_sensor", ["nattsenking_aktiv"]],
+      smartSenking: ["switch", ["smart_nattsenking"]],
+      pooltak: ["switch", ["pooltak_pa", "pooltak"]],
+      styrSettpunkt: ["switch", ["styr_settpunkt"]],
+      solvarme: ["switch", ["solvarme"]],
+      tvingHeat: ["switch", ["tving_varmepumpa_til_heat", "tving_heat"]],
+      onsketTemp: ["number", ["onsket_temperatur"]],
+      borteSenking: ["number", ["senking_nar_ingen_er_hjemme", "borte_senking"]],
+      maksSenking: ["number", ["maks_nattsenking"]],
+      uApen: ["number", ["varmetap_uten_tak"]],
+      uTak: ["number", ["varmetap_med_tak"]],
+      solTak: ["number", ["sol_gjennom_taket"]],
+      klorIntervall: ["number", ["klortablett_intervall"]],
+      kriterium: ["select", ["nattsenking_skal_spare", "nattsenking_kriterium"]],
+      loggKlor: ["button", ["logg_klortablett"]],
+      angreKlor: ["button", ["angre_siste_klortablett", "angre_klortablett"]],
     };
 
     const MODUS = {
@@ -15121,6 +15152,21 @@ try {
       spreder: ["Spreder", "var(--kib-blue)", "mdi:sprinkler"],
       hvile: ["Hviler", "var(--kib-muted)", "mdi:pause"],
       manuell: ["Manuell", "var(--kib-red)", "mdi:hand-back-right-outline"],
+      solvarme: ["Solvarme", "var(--kib-orange)", "mdi:solar-power-variant"],
+    };
+
+    /* Nattsenkingens tilstand: tekst, farge, ikon */
+    const SENKING = {
+      aktiv: ["Varmepumpa står av", "var(--kib-purple)", "mdi:weather-night"],
+      planlagt: ["Planlagt i natt", "var(--kib-accent)", "mdi:calendar-clock"],
+      lonner_seg_ikke: ["Lønner seg ikke i natt", "var(--kib-muted)", "mdi:scale-balance"],
+      av: ["Av", "var(--kib-muted)", "mdi:power-off"],
+    };
+
+    const KRITERIUM = {
+      begge: "Penger, aldri mer strøm",
+      kostnad: "Penger",
+      energi: "Strøm (kWh)",
     };
 
     const PROFIL = {
@@ -15665,8 +15711,8 @@ try {
         this._kall("number", "set_value", key, { value });
       }
 
-      _velg(option) {
-        this._kall("select", "select_option", "profil", { option });
+      _velg(option, key = "profil") {
+        this._kall("select", "select_option", key, { option });
       }
 
       _mer(key) {
@@ -15906,7 +15952,7 @@ try {
             <span class="velger-verdi">
               ${tekster[s.state] || s.state}
               <ha-icon icon="mdi:chevron-down"></ha-icon>
-              <select .value=${s.state} @change=${(e) => this._velg(e.target.value)}>
+              <select .value=${s.state} @change=${(e) => this._velg(e.target.value, key)}>
                 ${opts.map(
                   (o) => html`<option value="${o}" ?selected=${o === s.state}>
                     ${tekster[o] || o}
@@ -15942,6 +15988,7 @@ try {
         const valgt = this._config.faner;
         const alle = [
           { id: "oversikt", navn: "Oversikt" },
+          { id: "varme", navn: "Varme" },
           { id: "sirkulasjon", navn: "Sirkulasjon" },
           { id: "spreder", navn: "Spreder" },
           /* Innstillinger er ikke en likeverdig fane — den åpnes fra tannhjulet til
@@ -15950,10 +15997,11 @@ try {
         ];
         if (Array.isArray(valgt) && valgt.length) {
           return valgt
+            .filter((v) => v !== "varme" || this._harVarme())
             .map((v) => alle.find((f) => f.id === v) || (typeof v === "object" && v.id ? { id: v.id, navn: v.navn || v.id } : null))
             .filter(Boolean);
         }
-        return alle;
+        return alle.filter((f) => f.id !== "varme" || this._harVarme());
       }
 
       /* Fanerada er den fra ki-tabs-card: tynn ring, piller, og glidepilla fra
@@ -15971,7 +16019,7 @@ try {
         const cog = liste.find((f) => f.tannhjul);
         return html`
           <div class="fanerad">
-          <div class="faner">
+          <div class="faner ${vanlige.length >= 4 ? "mange" : ""}">
             ${vanlige.map(
               (f) => html`
                 <button
@@ -16070,6 +16118,341 @@ try {
         `;
       }
 
+      /* --- varme (2.0) ----------------------------------------------- */
+
+      /* Er integrasjonen ny nok til å ha varmemodellen? Uten den skjules Varme-fanen
+         og de nye flisene, så kortet fortsatt fungerer mot KI Basseng 1.2. */
+      _harVarme() {
+        return !!(this.st("maltemp") || this.st("senking") || this.st("onsketTemp"));
+      }
+
+      _malTemp() {
+        const m = this.val("maltemp");
+        if (m !== null && m !== undefined && m !== "") return Number(m);
+        const a = this.attr("vanntemp", "maltemperatur");
+        return a === undefined || a === null ? null : Number(a);
+      }
+
+      /* Vanntemperaturen vi stoler på: modellens estimat når pumpa står (da måler
+         følerne vannet i røret), ellers sensoren. */
+      _vannTemp() {
+        const est = this.attr("maltemp", "estimert_vanntemperatur");
+        if (!this.on("skalGa") && est !== undefined && est !== null) return Number(est);
+        const t = this.val("vanntemp");
+        return t === null ? (est == null ? null : Number(est)) : Number(t);
+      }
+
+      _borte() {
+        return !!this.st("hjemme") && !this.on("hjemme");
+      }
+
+      _taket() {
+        if (this.st("pooltak")) return this.on("pooltak");
+        return !!this.attr("varmetap", "pooltak", false);
+      }
+
+      /* Stor −/+ for ett tall. Holder valget lokalt til entiteten svarer, så to raske
+         trykk blir +1,0 og ikke +0,5 to ganger fra samme utgangspunkt. */
+      _stepperStor(key, tekst, steg, des = 1, suffiks = "") {
+        const s = this.st(key);
+        if (!s) return "";
+        const faktisk = Number(s.state);
+        this._lokal = this._lokal || {};
+        const l = this._lokal[key];
+        if (l && (Math.abs(l.v - faktisk) < 1e-6 || Date.now() - l.t > 4000)) delete this._lokal[key];
+        const v = this._lokal[key] ? this._lokal[key].v : faktisk;
+        const min = Number(s.attributes.min ?? 0);
+        const maks = Number(s.attributes.max ?? 100);
+        /* Leser verdien på trykket, ikke fra forrige tegning: to trykk før Lit har
+           tegnet på nytt skal gi to steg. */
+        const naa = () => (this._lokal[key] ? this._lokal[key].v : Number(this.hass.states[s.entity_id].state));
+        const sett = (retning) => {
+          const fra = naa();
+          const ny = Math.max(min, Math.min(maks, +(fra + retning * steg).toFixed(4)));
+          if (ny === fra) return;
+          this._lokal[key] = { v: ny, t: Date.now() };
+          this._haptikk("selection");
+          this._sett(key, ny);
+          this.requestUpdate();
+        };
+        return html`
+          <div class="steg">
+            <span class="steg-tekst">${tekst}</span>
+            <div class="steg-styr">
+              <button aria-label="Mindre" ?disabled=${v <= min} @click=${() => sett(-1)}>
+                <ha-icon icon="mdi:minus"></ha-icon></button>
+              <span class="steg-verdi" @click=${() => this._mer(key)}>${nf(v, des)}${suffiks}</span>
+              <button aria-label="Mer" ?disabled=${v >= maks} @click=${() => sett(1)}>
+                <ha-icon icon="mdi:plus"></ha-icon></button>
+            </div>
+          </div>`;
+      }
+
+      /* Temperatur: ringen viser hvor nær målet vannet er, ti grader under er tom. */
+      _temperaturPanel() {
+        const vann = this._vannTemp();
+        const mal = this._malTemp();
+        const onsket = this.val("onsketTemp");
+        const borte = this._borte();
+        const pst = vann != null && mal != null ? Math.max(3, Math.min(100, 100 - (mal - vann) * 10)) : 0;
+        const nadd = vann != null && mal != null && vann >= mal - 0.2;
+        const ute = this.attr("varmetap", "utetemperatur");
+        const tap = this.val("varmetap");
+        const solW = this.attr("varmetap", "solgevinst_w");
+        const under = vann == null || mal == null ? ""
+          : nadd ? "Vannet er på målet"
+          : `${nf(mal - vann, 1)}° under målet`;
+        return this._panel("mdi:pool-thermometer", "var(--kib-orange)", "Temperatur", under, html`
+          <div class="ringrad">
+            ${this._ring(pst, nadd ? "var(--kib-green)" : "var(--kib-orange)",
+              `${nf(vann, 1)}°`, mal != null ? `mål ${nf(mal, 1)}°` : "", () => this._mer("maltemp"))}
+            <div class="statliste">
+              ${this._stat("mdi:thermometer", "Ute", nf(ute, 1), "°", () => this._mer("varmetap"))}
+              ${this._stat("mdi:waves-arrow-up", "Varmetap nå", nf(tap, 0), " W", () => this._mer("varmetap"))}
+              ${this._stat("mdi:weather-sunny", "Sol inn", nf(solW, 0), " W", () => this._mer("sol"))}
+            </div>
+          </div>
+          ${this._stepperStor("onsketTemp", "Ønsket temperatur", 0.5, 1, "°")}
+          ${borte ? html`<div class="tips"><ha-icon icon="mdi:home-export-outline"></ha-icon>
+            Ingen er hjemme – målet er senket ${nf(this.val("borteSenking", 0), 1)}° fra ${nf(onsket, 1)}°.</div>` : ""}
+          ${this.st("styrSettpunkt") && !this.on("styrSettpunkt") ? html`<div class="tips">
+            <ha-icon icon="mdi:information-outline"></ha-icon>
+            Styr settpunkt er av – varmepumpas eget settpunkt gjelder.</div>` : ""}
+        `, "", () => this._mer("maltemp"));
+      }
+
+      /* Natta som en stripe fra varmevinduets slutt til start, med av-vinduet inntegnet. */
+      _nattlinje(fra, til, aktiv) {
+        const slutt = Number(this.val("varmeSlutt", 22)) % 24;
+        const start = Number(this.val("varmeStart", 6)) % 24;
+        const lengde = ((start - slutt + 24) % 24) || 24;
+        const pos = (hhmm) => {
+          if (!hhmm) return null;
+          const [h, m] = String(hhmm).split(":").map(Number);
+          if (isNaN(h)) return null;
+          return (((h + (m || 0) / 60) - slutt + 24) % 24) / lengde;
+        };
+        const a = pos(fra);
+        let b = pos(til);
+        if (a !== null && b !== null && b <= a) b = 1;
+        const na = new Date();
+        const naPos = pos(`${na.getHours()}:${na.getMinutes()}`);
+        const merker = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+          const t = Math.round(slutt + f * lengde) % 24;
+          return { f, t: String(t).padStart(2, "0") };
+        });
+        return html`
+          <div class="natt ${aktiv ? "aktiv" : ""}">
+            ${a !== null && b !== null ? html`<i class="natt-av" style="left:${(a * 100).toFixed(1)}%;width:${((b - a) * 100).toFixed(1)}%"></i>` : ""}
+            ${naPos !== null && naPos <= 1 ? html`<i class="natt-na" style="left:${(naPos * 100).toFixed(1)}%"></i>` : ""}
+          </div>
+          <div class="natt-akse">${merker.map((m) => html`<span style="left:${m.f * 100}%">${m.t}</span>`)}</div>`;
+      }
+
+      _senkingPanel() {
+        const s = this.st("senking");
+        if (!s) return "";
+        const tilstand = s.state;
+        const [tekst, farge, ikon] = SENKING[tilstand] || SENKING.av;
+        const a = s.attributes || {};
+        const valuta = this.enhet("kostnad") || "kr";
+        const uten = Number(a.uten_senking_kwh), med = Number(a.med_senking_kwh);
+        const utenK = Number(a.uten_senking_kostnad);
+        const harSammenligning = isFinite(uten) && isFinite(med) && uten > 0;
+        const topp = harSammenligning ? Math.max(uten, med) : 1;
+        const vindu = a.fra && a.til ? `${a.fra}–${a.til}` : "";
+        const alt = (a.beste_alternativer || []).slice(0, 3);
+        const chip = html`<span class="tilstandchip" style="--c:${farge}"><ha-icon icon="${ikon}"></ha-icon>${
+          tilstand === "aktiv" || tilstand === "planlagt" ? vindu || tekst : tekst}</span>`;
+
+        return this._panel("mdi:weather-night", farge, "Nattsenking",
+          tilstand === "aktiv" ? `Står av til ${a.til || "–"}`
+            : tilstand === "planlagt" ? `Av ${vindu} i natt`
+            : tilstand === "lonner_seg_ikke" ? "Holder varmen i natt" : "Slått av",
+          html`
+            ${tilstand !== "av" ? this._nattlinje(a.fra, a.til, tilstand === "aktiv") : ""}
+            ${a.spart_kwh ? html`
+              <div class="spar">
+                <div><b>${nf(a.spart_kwh, 1)}</b><small>kWh spart</small></div>
+                <div><b>${nf(a.spart_kostnad, 2)}</b><small>${valuta} spart</small></div>
+                ${a.laveste_temperatur != null ? html`<div><b>${nf(a.laveste_temperatur, 1)}°</b><small>laveste</small></div>` : ""}
+              </div>` : ""}
+            ${harSammenligning ? html`
+              <div class="sammen">
+                <div class="srad"><span>Holde varmen</span>
+                  <span class="sspor"><i style="width:${(uten / topp * 100).toFixed(1)}%"></i></span>
+                  <span class="sv">${nf(uten, 1)} kWh${isFinite(utenK) ? ` · ${nf(utenK, 2)} ${valuta}` : ""}</span></div>
+                <div class="srad med"><span>Med senking</span>
+                  <span class="sspor"><i style="width:${(med / topp * 100).toFixed(1)}%"></i></span>
+                  <span class="sv">${nf(med, 1)} kWh</span></div>
+              </div>` : ""}
+            ${a.begrunnelse ? html`<div class="tips"><ha-icon icon="mdi:head-lightbulb-outline"></ha-icon>${a.begrunnelse}</div>` : ""}
+            ${alt.length && tilstand === "lonner_seg_ikke" ? html`
+              <div class="alternativ">
+                <div class="plabel">Beste vinduer den vurderte</div>
+                ${alt.map((x) => html`<div class="altrad ${x.klar ? "" : "ikke"}">
+                  <span>${x.fra}–${x.til}</span><span>${nf(x.kwh, 1)} kWh</span>
+                  <span>${x.klar ? `min ${nf(x.temp_min, 1)}°` : "rekker ikke"}</span></div>`)}
+              </div>` : ""}
+            <div class="pliste">
+              ${this._bryterRad("smartSenking", "Smart nattsenking")}
+              ${this._velgerEntitet("kriterium", "Skal spare", KRITERIUM)}
+              ${this._velger("maksSenking", "Maks senking", { step: 0.5, desimaler: 1, suffiks: "°" })}
+            </div>`,
+          chip, () => this._mer("senking"));
+      }
+
+      /* Pooltaket: én stor bryter med bassenget tegnet, og hva taket betyr for tapet nå. */
+      _pooltakPanel() {
+        if (!this.st("pooltak")) return "";
+        const pa = this._taket();
+        const tap = Number(this.val("varmetap"));
+        const uA = Number(this.val("uApen", 15)), uT = Number(this.val("uTak", 5));
+        let effekt = "";
+        if (isFinite(tap) && tap > 0 && uA > 0 && uT > 0) {
+          effekt = pa
+            ? `Taket sparer ca. ${nf(tap * (uA / uT - 1), 0)} W nå`
+            : `Med tak ville tapet vært ca. ${nf(tap * (uT / uA), 0)} W`;
+        }
+        return html`
+          <button class="takflis ${pa ? "pa" : ""}"
+            @pointerdown=${(e) => this._holdNed(e, "pooltak")} @pointerup=${() => this._holdOpp()}
+            @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
+            @contextmenu=${(e) => e.preventDefault()}
+            @click=${this._holdKlikk(() => this._veksle("pooltak"))}>
+            <svg class="takbilde" viewBox="0 0 120 64" aria-hidden="true">
+              <rect x="6" y="22" width="108" height="36" rx="8" class="tb-kant"></rect>
+              <rect x="12" y="28" width="96" height="24" rx="5" class="tb-vann"></rect>
+              <path class="tb-bolge" d="M12 34 q8 -4 16 0 t16 0 t16 0 t16 0 t16 0 t16 0"></path>
+              <g class="tb-tak">
+                <rect x="4" y="20" width="112" height="12" rx="6"></rect>
+                <path d="M16 26 H104" class="tb-som"></path>
+              </g>
+            </svg>
+            <span class="taktekst">
+              <b>${pa ? "Pooltaket ligger på" : "Pooltaket er av"}</b>
+              <span>${effekt || (pa ? "Mindre varmetap, mindre sol" : "Trykk når du legger på taket")}</span>
+            </span>
+            <span class="knott ${pa ? "paa" : ""}"></span>
+          </button>`;
+      }
+
+      _klorPanel() {
+        if (!this.st("sisteKlor") && !this.st("loggKlor")) return "";
+        const siste = this.val("sisteKlor");
+        const dager = Number(this.attr("sisteKlor", "dager_siden"));
+        const intervall = Number(this.attr("nesteKlor", "intervall_dager", this.val("klorIntervall", 7))) || 7;
+        const forfall = this.on("klorForfall");
+        const neste = this.val("nesteKlor");
+        const historikk = (this.attr("sisteKlor", "historikk", []) || []).slice(0, 5);
+        const uke = this.attr("sisteKlor", "siste_7_dager", 0);
+        const pst = siste && isFinite(dager) ? Math.min(100, (dager / intervall) * 100) : 100;
+        const dato = (v) => {
+          const d = new Date(v);
+          return isNaN(d) ? "–" : d.toLocaleDateString("nb-NO", { weekday: "short", day: "numeric", month: "short" }).replace(".", "");
+        };
+        return this._panel("mdi:pill", forfall ? "var(--kib-orange)" : "var(--kib-green)", "Klortabletter",
+          !siste ? "Ingen er logget ennå"
+            : forfall ? `På tide – ${nf(dager, 0)} dager siden sist`
+            : `Neste ${dato(neste)}`,
+          html`
+            <div class="ringrad">
+              ${this._ring(pst, forfall ? "var(--kib-orange)" : "var(--kib-green)",
+                siste ? nf(dager, dager < 10 ? 1 : 0) : "–", "dager siden", () => this._mer("sisteKlor"))}
+              <div class="statliste">
+                ${this._stat("mdi:calendar-check", "Sist", siste ? dato(siste) : "Aldri", "", () => this._mer("sisteKlor"))}
+                ${this._stat("mdi:calendar-refresh", "Intervall", nf(intervall, 1), " d", () => this._mer("nesteKlor"))}
+                ${this._stat("mdi:counter", "Siste 7 dager", String(uke), " stk")}
+              </div>
+            </div>
+            <button class="stor ${forfall ? "varsle" : ""}"
+              @click=${() => { this._haptikk("success"); this._trykk("loggKlor"); }}>
+              <ha-icon icon="mdi:pill"></ha-icon>Logg klortablett
+            </button>
+            ${historikk.length ? html`
+              <div class="klorlogg">
+                ${historikk.map((h, i) => html`
+                  <div class="klorrad">
+                    <span>${dato(h.tid)}</span>
+                    <span>${h.antall || 1} stk${h.notat ? ` · ${h.notat}` : ""}</span>
+                    <span>${h.vanntemp != null ? `${nf(h.vanntemp, 1)}°` : ""}</span>
+                    ${i === 0 && this.st("angreKlor") ? html`<button class="angre" title="Angre"
+                      @click=${() => { this._haptikk("medium"); this._trykk("angreKlor"); }}>
+                      <ha-icon icon="mdi:undo"></ha-icon></button>` : html`<span></span>`}
+                  </div>`)}
+              </div>` : ""}
+          `, "", () => this._mer("sisteKlor"));
+      }
+
+      /* Til Varme-fanen, eller åpne Varme-seksjonen når kortet står uten faner. Er
+         fanen valgt bort i `faner:`, åpnes nattsenkingen som mer-info i stedet. */
+      _tilVarme() {
+        this._haptikk("selection");
+        if (this._config.faner === false) {
+          this._apne = { ...this._apne, varme: true };
+        } else if (this._faneListe().some((f) => f.id === "varme")) {
+          this._fane = "varme";
+        } else {
+          this._mer("senking");
+        }
+      }
+
+      _varmeFane() {
+        return html`
+          ${this._temperaturPanel()}
+          ${this._pooltakPanel()}
+          ${this._senkingPanel()}
+          ${this._klorPanel()}
+        `;
+      }
+
+      /* Varmemodellen under tannhjulet: tallene den regner med, og det den har lært. */
+      _modellPanel() {
+        if (!this._harVarme()) return "";
+        const f = (n) => this.attr("varmetap", n);
+        const laert = [
+          ["Tap uten tak", f("laert_tapsfaktor_uten_tak")],
+          ["Tap med tak", f("laert_tapsfaktor_med_tak")],
+          ["COP", f("laert_cop_faktor")],
+        ].filter(([, v]) => v !== undefined && v !== null);
+        return this._panel("mdi:function-variant", "var(--kib-orange)", "Varmemodell", "Tallene nattsenkingen regner med", html`
+          <div class="pliste">
+            ${this._bryterRad("styrSettpunkt", "Styr settpunkt")}
+            ${this._velger("borteSenking", "Senking når ingen er hjemme", { step: 0.5, desimaler: 1, suffiks: "°" })}
+            ${this._velger("uApen", "Varmetap uten tak", { step: 0.5, desimaler: 1, suffiks: " W/m²K" })}
+            ${this._velger("uTak", "Varmetap med tak", { step: 0.5, desimaler: 1, suffiks: " W/m²K" })}
+            ${this._velger("solTak", "Sol gjennom taket", { step: 5, suffiks: " %" })}
+            ${this._bryterRad("solvarme", "Solvarme (med solfanger)")}
+            ${this._velger("klorIntervall", "Klortablett hver", { step: 0.5, desimaler: 1, suffiks: " d" })}
+            ${this._bryterRad("tvingHeat", "Tving varmepumpa til heat")}
+          </div>
+          ${laert.length ? html`<div class="chips">${laert.map(([n, v]) =>
+            html`<span class="chip">${n} ×${nf(v, 2)}</span>`)}</div>
+            <div class="dempet">Faktorene læres fra målinger. 1,00 betyr at tabellverdiene stemmer.</div>` : ""}
+        `);
+      }
+
+      /* Varsler øverst i Oversikt: bare det som ber om noe. */
+      _varsler() {
+        const ut = [];
+        if (this.on("klorForfall")) {
+          const d = Number(this.attr("sisteKlor", "dager_siden"));
+          ut.push(html`<button class="banner klor" @click=${() => { this._tilVarme(); }}>
+            <span class="bik"><ha-icon icon="mdi:pill"></ha-icon></span>
+            <span><b>På tide med klortablett</b>${isFinite(d) ? html`<small>${nf(d, 0)} dager siden sist</small>` : html`<small>Ingen logget ennå</small>`}</span>
+            <span class="bknapp" @click=${(e) => { e.stopPropagation(); this._haptikk("success"); this._trykk("loggKlor"); }}>Logg</span>
+          </button>`);
+        }
+        if (this.val("senking") === "aktiv") {
+          ut.push(html`<button class="banner natt-b" @click=${() => { this._tilVarme(); }}>
+            <span class="bik"><ha-icon icon="mdi:weather-night"></ha-icon></span>
+            <span><b>Nattsenking til ${this.attr("senking", "til", "–")}</b>
+              <small>Sparer ${nf(this.attr("senking", "spart_kwh"), 1)} kWh i natt</small></span>
+          </button>`);
+        }
+        return ut.length ? html`<div class="bannere">${ut}</div>` : "";
+      }
+
       /* --- deler ----------------------------------------------------- */
 
       _hero() {
@@ -16078,9 +16461,12 @@ try {
         const gjort = this.val("omsetninger", 0) || 0;
         const mal = Number(this.attr("omsetninger", "mal", this.val("mal", 1.5))) || 1.5;
         const andel = Math.max(0, Math.min(1, gjort / mal));
-        const gar = this.on("skalGa") || ["filtrering", "oppvarming", "boost"].includes(modus);
-        const temp = this.val("vanntemp");
-        const maltemp = this.attr("vanntemp", "maltemperatur");
+        const gar = this.on("skalGa") || ["filtrering", "oppvarming", "boost", "solvarme"].includes(modus);
+        const temp = this._harVarme() ? this._vannTemp() : this.val("vanntemp");
+        const maltemp = this._malTemp();
+        const tak = this.st("pooltak") ? this._taket() : false;
+        const natt = this.val("senking") === "aktiv";
+        const borte = this._borte();
         const begrunnelse = this.attr("modus", "begrunnelse", "");
         /* To animasjoner som betyr to forskjellige ting, og de kan skje samtidig:
            sirkulasjon er vann som beveger seg, oppvarming er varme som stiger.
@@ -16092,7 +16478,7 @@ try {
           || Number(this.val("vpEffekt", 0)) > 100;
 
         return html`
-          <div class="hero ${gar ? "gar" : ""}" @click=${() => this._mer("modus")}>
+          <div class="hero ${gar ? "gar" : ""} ${tak ? "tak" : ""} ${natt ? "natt" : ""}" @click=${() => this._mer("modus")}>
             <div class="vann" style="height:${Math.round(andel * 100)}%">
               <div class="bolge"></div>
               <div class="bolge b2"></div>
@@ -16103,6 +16489,7 @@ try {
             </div>
             ${varmer ? html`<div class="varmedis">${
               [0, 1, 2, 3].map((i) => html`<i style="--i:${i}"></i>`)}</div>` : ""}
+            ${tak ? html`<div class="lokk"></div>` : ""}
             <div class="hero-innhold">
               <div class="hero-topp">
                 <div>
@@ -16110,11 +16497,17 @@ try {
                     ${nf(temp, 1)}<span>°C</span>
                   </div>
                   ${maltemp != null
-                    ? html`<div class="maltemp">mål ${nf(maltemp, 0)} °C</div>`
+                    ? html`<div class="maltemp">mål ${nf(maltemp, maltemp % 1 ? 1 : 0)} °C${borte ? " · borte" : ""}</div>`
                     : ""}
                 </div>
-                <div class="merke" style="--merke:${farge}">
-                  <ha-icon icon="${ikon}"></ha-icon>${tekst}
+                <div class="merker">
+                  <div class="merke" style="--merke:${farge}">
+                    <ha-icon icon="${ikon}"></ha-icon>${tekst}
+                  </div>
+                  ${natt ? html`<div class="merke liten" style="--merke:var(--kib-purple)">
+                    <ha-icon icon="mdi:weather-night"></ha-icon>til ${this.attr("senking", "til", "")}</div>` : ""}
+                  ${tak ? html`<div class="merke liten" style="--merke:var(--kib-muted)">
+                    <ha-icon icon="mdi:pool"></ha-icon>tak på</div>` : ""}
                 </div>
               </div>
               <div class="hero-bunn">
@@ -16157,58 +16550,52 @@ try {
       _knapper() {
         const sprederGar = this.on("spreder");
         const igjen = Math.ceil(this.val("spredertid", 0) || 0);
-        const tvang = this.on("tvingVarme");
-        const maltemp = this.attr("vanntemp", "maltemperatur");
+        const maltemp = this._malTemp();
         const pumpeGar = this.on("skalGa");
+        const fliser = [];
 
-        return html`
-          <div class="fliser">
-            ${this._flis(
-              tvang ? "mdi:fire" : "mdi:fire-off",
-              "Varm nå",
-              tvang ? "til målet" : maltemp != null ? `mot ${nf(maltemp, 0)}°` : "av",
-              tvang,
-              () => this._veksle("tvingVarme"),
-              "var(--kib-orange)", "tvingVarme"
-            )}
-            ${this._flis(
-              "mdi:fan-plus",
-              "Boost",
-              pumpeGar ? "pumpen går" : "30 min",
-              false,
-              () => this._trykk("boost"), null, "boost"
-            )}
-            ${this._flis(
-              sprederGar ? "mdi:sprinkler-variant" : "mdi:sprinkler",
-              "Spreder",
-              sprederGar ? `${igjen} min igjen` : "start",
-              sprederGar,
-              () => this._trykk(sprederGar ? "stoppSpreder" : "startSpreder"),
-              "var(--kib-blue)", "spreder"
-            )}
-            ${this._flis(
-              "mdi:robot-outline",
-              "Automatikk",
-              this.on("auto") ? "på" : "av",
-              this.on("auto"),
-              () => this._veksle("auto"), null, "auto"
-            )}
-            ${this._flis(
-              "mdi:cash-clock",
-              "Prisstyring",
-              this.on("pris") ? "på" : "av",
-              this.on("pris"),
-              () => this._veksle("pris"), null, "pris"
-            )}
-            ${this._flis(
-              "mdi:heat-wave",
-              "Varmeprioritet",
-              this.on("varme") ? "på" : "av",
-              this.on("varme"),
-              () => this._veksle("varme"), null, "varme"
-            )}
-          </div>
-        `;
+        if (this.st("tvingVarme")) {
+          const tvang = this.on("tvingVarme");
+          fliser.push(this._flis(tvang ? "mdi:fire" : "mdi:fire-off", "Varm nå",
+            tvang ? "til målet" : maltemp != null ? `mot ${nf(maltemp, 0)}°` : "av",
+            tvang, () => this._veksle("tvingVarme"), "var(--kib-orange)", "tvingVarme"));
+        }
+        if (this.st("pooltak")) {
+          const tak = this._taket();
+          fliser.push(this._flis(tak ? "mdi:pool" : "mdi:waves", "Pooltak", tak ? "ligger på" : "av",
+            tak, () => this._veksle("pooltak"), null, "pooltak"));
+        }
+        if (this.st("senking")) {
+          const t = this.val("senking");
+          const vindu = this.attr("senking", "fra") ? `${this.attr("senking", "fra")}–${this.attr("senking", "til")}` : "";
+          const tekst = t === "aktiv" ? `av til ${this.attr("senking", "til")}`
+            : t === "planlagt" ? vindu : t === "lonner_seg_ikke" ? "lønner seg ikke" : "av";
+          fliser.push(this._flis("mdi:weather-night", "Nattsenking", tekst, t === "aktiv",
+            () => { this._tilVarme(); }, "var(--kib-purple)", "senking"));
+        }
+        if (this.st("loggKlor")) {
+          const forfall = this.on("klorForfall");
+          const d = Number(this.attr("sisteKlor", "dager_siden"));
+          fliser.push(this._flis("mdi:pill", "Klor",
+            forfall ? "på tide · logg" : isFinite(d) ? `${nf(d, 0)} d siden · logg` : "logg",
+            forfall, () => { this._haptikk("success"); this._trykk("loggKlor"); }, "var(--kib-orange)", "sisteKlor"));
+        }
+        fliser.push(this._flis("mdi:fan-plus", "Boost", pumpeGar ? "pumpen går" : "30 min",
+          false, () => this._trykk("boost"), null, "boost"));
+        fliser.push(this._flis(sprederGar ? "mdi:sprinkler-variant" : "mdi:sprinkler", "Spreder",
+          sprederGar ? `${igjen} min igjen` : "start", sprederGar,
+          () => this._trykk(sprederGar ? "stoppSpreder" : "startSpreder"), "var(--kib-blue)", "spreder"));
+        fliser.push(this._flis("mdi:robot-outline", "Automatikk", this.on("auto") ? "på" : "av",
+          this.on("auto"), () => this._veksle("auto"), null, "auto"));
+        /* Uten varmemodellen (KI Basseng 1.2) er det plass til de to gamle bryterne. */
+        if (!this._harVarme()) {
+          fliser.push(this._flis("mdi:cash-clock", "Prisstyring", this.on("pris") ? "på" : "av",
+            this.on("pris"), () => this._veksle("pris"), null, "pris"));
+          fliser.push(this._flis("mdi:heat-wave", "Varmeprioritet", this.on("varme") ? "på" : "av",
+            this.on("varme"), () => this._veksle("varme"), null, "varme"));
+        }
+        /* Et oddetall fliser gir et hull nederst til høyre; den siste strekkes da. */
+        return html`<div class="fliser ${fliser.length % 2 ? "odde" : ""}">${fliser}</div>`;
       }
 
       _tallrad() {
@@ -16333,6 +16720,8 @@ try {
               ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
               ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
               ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
+              ${this._bryterRad("pris", "Prisstyring")}
+              ${this._bryterRad("varme", "Varmeprioritet")}
             </div>`)}
         `;
       }
@@ -16483,13 +16872,16 @@ try {
               ${this._velger("overstyringTid", "Manuell overstyring varer", { step: 15, suffiks: " min" })}
             </div>`)}
 
-          ${this._panel("mdi:heat-wave", "var(--kib-red)", "Varme", "Når varmepumpa får gå", html`
+          ${this._panel("mdi:heat-wave", "var(--kib-red)", "Varme",
+            this._harVarme() ? "Natta går fra vinduets slutt til start" : "Når varmepumpa får gå", html`
             <div class="pliste">
               ${this._bryterRad("styrVp", "Styr varmepumpa")}
               ${this._velger("varmeStart", "Varmevindu fra", { suffiks: ":00" })}
               ${this._velger("varmeSlutt", "Varmevindu til", { suffiks: ":00" })}
               ${this._bryterRad("pulsVarme", "Puls med varme")}
             </div>`)}
+
+          ${this._modellPanel()}
 
           ${this._panel("mdi:chart-box-outline", "var(--kib-accent)", "Tellere", "", html`
             <div class="statgrid">
@@ -16521,7 +16913,7 @@ try {
           `;
         }
         const modus = this.val("modus", "hvile");
-        const pagar = ["filtrering", "oppvarming", "boost"].includes(modus);
+        const pagar = ["filtrering", "oppvarming", "boost", "solvarme"].includes(modus);
         const neste = klokke(this.val("nesteStart"));
         const planlagt = this.attr("modus", "timer_planlagt", 0);
 
@@ -16545,6 +16937,7 @@ try {
             ${medFaner && faneListe.length > 1 ? this._faner(faneListe, aktiv) : ""}
             <div class="innhold">
               ${vis("oversikt") ? html`
+              ${this._varsler()}
               ${this._config.hero === false ? "" : this._hero()}
               ${this._plan()}
               <div class="plan-tekst">
@@ -16568,11 +16961,19 @@ try {
               ` : ""}
               ${medFaner
                 ? html`
+                    ${vis("varme") ? html`<div class="faneinnhold">${this._varmeFane()}</div>` : ""}
                     ${vis("sirkulasjon") ? html`<div class="faneinnhold">${this._sirkulasjon()}</div>` : ""}
                     ${vis("spreder") ? html`<div class="faneinnhold">${this._spreder()}</div>` : ""}
                     ${vis("innstillinger") ? html`<div class="faneinnhold">${this._innstillinger()}</div>` : ""}
                   `
                 : html`
+              ${this._harVarme() ? this._seksjon(
+                "varme",
+                "mdi:pool-thermometer",
+                "Varme",
+                this._malTemp() != null ? `mål ${nf(this._malTemp(), 1)}°` : "",
+                () => this._varmeFane()
+              ) : ""}
               ${this._seksjon(
                 "sirk",
                 "mdi:pump",
@@ -16614,6 +17015,8 @@ try {
             --kib-orange: var(--orange, #f0a03c);
             --kib-red: var(--red, #e8604c);
             --kib-sort: var(--black, #000);
+            --kib-purple: var(--purple, #a78bfa);
+            --kib-green: var(--green, #4dd07a);
             display: block;
             max-width: 100%;
             overflow: hidden;
@@ -16856,6 +17259,8 @@ try {
           .fane:hover {
             color: rgba(255, 255, 255, 0.95);
           }
+          /* Fire faner (med Varme) skal få plass ved siden av tannhjulet på en telefon */
+          .faner.mange .fane { padding: 9px 12px; font-size: 14px; }
           .fane.aktiv {
             background: var(--kib-accent);
             color: rgba(70, 58, 64, 0.95);
@@ -17809,6 +18214,130 @@ try {
             .pil {
               transition: none;
             }
+          }
+
+          /* --- 2.0: varme, nattsenking, pooltak og klor ------------------ */
+          .merker { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+          .merke.liten { padding: 3px 10px 3px 8px; font-size: 12px; font-weight: 500; }
+          .merke.liten ha-icon { --mdc-icon-size: 14px; }
+          /* Pooltaket som et lokk over vannflaten: stripete, litt gjennomskinnelig */
+          .lokk {
+            position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
+            background: repeating-linear-gradient(90deg, rgba(120, 140, 160, 0.34) 0 22px, rgba(150, 170, 190, 0.26) 22px 44px);
+            border-top: 3px solid rgba(190, 205, 220, 0.55);
+            pointer-events: none;
+          }
+          .hero.tak .bolge { animation-duration: 14s; opacity: 0.35; }
+          .hero.natt::before {
+            content: ""; position: absolute; inset: 0; pointer-events: none;
+            background: radial-gradient(60% 80% at 85% 0%, rgba(167, 139, 250, 0.22), transparent 70%);
+          }
+
+          .steg { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 6px 4px 2px; }
+          .steg-tekst { font-size: 14px; font-weight: 500; }
+          .steg-styr { display: flex; align-items: center; gap: 6px; background: var(--kib-inner);
+            border-radius: 999px; padding: 4px; }
+          .steg-styr button { width: 40px; height: 40px; border-radius: 50%; background: var(--kib-surface);
+            color: var(--kib-text); display: grid; place-items: center; cursor: pointer;
+            transition: transform 0.12s cubic-bezier(0.2, 1.3, 0.3, 1); }
+          .steg-styr button:active { transform: scale(0.9); }
+          .steg-styr button[disabled] { opacity: 0.35; cursor: default; }
+          .steg-styr ha-icon { --mdc-icon-size: 20px; }
+          .steg-verdi { min-width: 64px; text-align: center; font-size: 22px; font-weight: 300;
+            font-variant-numeric: tabular-nums; cursor: pointer; }
+
+          .tilstandchip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px 5px 8px;
+            border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap;
+            background: color-mix(in srgb, var(--c) 22%, transparent); color: var(--kib-text); }
+          .tilstandchip ha-icon { --mdc-icon-size: 15px; color: var(--c); }
+
+          .natt { position: relative; height: 26px; border-radius: 13px; overflow: hidden;
+            background: linear-gradient(90deg, #1b2440, #10152a 50%, #1f2a44); }
+          .natt-av { position: absolute; top: 0; bottom: 0; border-radius: 13px;
+            background: repeating-linear-gradient(135deg, var(--kib-purple) 0 6px,
+              color-mix(in srgb, var(--kib-purple) 70%, transparent) 6px 12px); opacity: 0.85; }
+          .natt.aktiv .natt-av { animation: stripepuls 2.4s ease-in-out infinite; }
+          .natt-na { position: absolute; top: 3px; bottom: 3px; width: 3px; margin-left: -1.5px;
+            border-radius: 2px; background: #fff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.6); }
+          .natt-akse { position: relative; height: 16px; font-size: 11px; color: var(--kib-muted);
+            font-variant-numeric: tabular-nums; }
+          .natt-akse span { position: absolute; transform: translateX(-50%); }
+          .natt-akse span:first-child { transform: none; }
+          .natt-akse span:last-child { transform: translateX(-100%); }
+
+          .spar { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+          .spar > div { background: var(--kib-inner); border-radius: 16px; padding: 10px 12px; display: grid; }
+          .spar b { font-size: 22px; font-weight: 300; font-variant-numeric: tabular-nums; }
+          .spar small { font-size: 12px; font-weight: 500; opacity: 0.7; }
+
+          .sammen { display: grid; gap: 8px; }
+          .srad { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+            font-size: 13px; }
+          .srad > span:first-child { opacity: 0.7; font-weight: 500; }
+          .sspor { height: 8px; border-radius: 4px; background: var(--kib-inner); overflow: hidden; }
+          .sspor i { display: block; height: 100%; border-radius: 4px; background: var(--kib-muted);
+            transition: width 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+          .srad.med .sspor i { background: var(--kib-purple); }
+          .srad .sv { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+          .alternativ { display: grid; gap: 4px; }
+          .altrad { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; font-size: 13px;
+            font-variant-numeric: tabular-nums; padding: 4px 2px; }
+          .altrad.ikke { opacity: 0.5; }
+
+          .takflis { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+            width: 100%; margin-top: 10px; padding: 12px 16px 12px 12px; border-radius: 24px; box-sizing: border-box;
+            background: var(--kib-surface); color: var(--kib-text); text-align: left; cursor: pointer;
+            transition: background 0.25s ease, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1); }
+          .takflis:active { transform: scale(0.98); }
+          .takflis.pa { background: var(--kib-accent); color: var(--kib-sort); }
+          .takbilde { width: 96px; height: 52px; overflow: visible; }
+          .tb-kant { fill: rgba(250, 251, 252, 0.1); }
+          .tb-vann { fill: var(--kib-blue); opacity: 0.75; }
+          .tb-bolge { fill: none; stroke: rgba(255, 255, 255, 0.6); stroke-width: 1.5;
+            animation: tb-bolge 3s ease-in-out infinite; }
+          @keyframes tb-bolge { 50% { transform: translateX(-4px); } }
+          .tb-tak { transform: translateY(-16px); opacity: 0;
+            transition: transform 0.5s cubic-bezier(0.3, 1.3, 0.5, 1), opacity 0.3s; }
+          .tb-tak rect { fill: rgba(0, 0, 0, 0.55); }
+          .tb-som { stroke: rgba(255, 255, 255, 0.35); stroke-width: 1.2; stroke-dasharray: 3 4; }
+          .takflis.pa .tb-tak { transform: translateY(8px); opacity: 1; }
+          .takflis.pa .tb-kant { fill: rgba(0, 0, 0, 0.12); }
+          .taktekst { display: grid; gap: 2px; min-width: 0; }
+          .taktekst b { font-size: 15px; font-weight: 500; }
+          .taktekst span { font-size: 13px; font-weight: 500; opacity: 0.7; }
+          .takflis.pa .knott { background: rgba(0, 0, 0, 0.18); }
+
+          .klorlogg { display: grid; }
+          .klorrad { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto 32px; gap: 10px;
+            align-items: center; min-height: 40px; font-size: 13px; border-top: 1px solid var(--kib-inner);
+            font-variant-numeric: tabular-nums; }
+          .klorrad span:nth-child(2) { opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .angre { width: 32px; height: 32px; border-radius: 50%; background: var(--kib-inner);
+            color: var(--kib-text); display: grid; place-items: center; cursor: pointer; }
+          .angre ha-icon { --mdc-icon-size: 16px; }
+          .stor.varsle { background: var(--kib-orange); }
+
+          .bannere { display: grid; gap: 8px; margin-bottom: 10px; }
+          .banner { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+            width: 100%; padding: 4px 14px 4px 4px; border-radius: 999px; box-sizing: border-box;
+            color: var(--kib-sort); text-align: left; cursor: pointer; }
+          .banner.klor { background: var(--kib-orange); }
+          .banner.natt-b { background: var(--kib-purple); grid-template-columns: 58px minmax(0, 1fr); }
+          .bik { width: 58px; height: 58px; border-radius: 50%; background: rgba(0, 0, 0, 0.1);
+            display: grid; place-items: center; }
+          .bik ha-icon { --mdc-icon-size: 28px; }
+          .banner b { display: block; font-size: 14px; font-weight: 500; }
+          .banner small { display: block; font-size: 13px; opacity: 0.75; }
+          .bknapp { padding: 8px 14px; border-radius: 999px; background: rgba(0, 0, 0, 0.14);
+            font-size: 13px; font-weight: 500; }
+
+          .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+          .fliser.odde > :last-child { grid-column: 1 / -1; }
+          @media (prefers-reduced-motion: reduce) {
+            .tb-bolge, .natt.aktiv .natt-av { animation: none; }
+            .tb-tak, .sspor i { transition: none; }
           }
         `;
       }
@@ -31458,6 +31987,10 @@ try {
  *  tap_action: { action: navigate, navigation_path: "#badebasseng" }
  *  ki: true                                  # tall fra KI Basseng når integrasjonen finnes:
  *                                            # omsetninger mot målet, og modus i pillen
+ *  pooltak: switch.ki_basseng_pooltak_pa     # valgfritt; med KI Basseng finnes den selv
+ *
+ *  Med KI Basseng 1.3 viser scenen også pooltaket (lameller over vannet), nattsenkingen
+ *  (måne, dempet himmel og «Nattsenking til 04:00» i pillen) og minner om klortabletten.
  */
 (() => {
   const STANDARD = {
@@ -31471,6 +32004,7 @@ try {
     ute: "sensor.outdoor_meter_temperature",
     kald: 18, varm: 30,      // skala for vannfargen
     ki: true,                // hent omsetninger og modus fra KI Basseng når den finnes
+    pooltak: null,           // bryter/binærsensor for taket; med KI Basseng brukes pooltak_pa
   };
   const MODUS = { filtrering: ["Filtrerer", "mdi:pump"], oppvarming: ["Varmer opp", "mdi:heat-wave"],
     vedlikehold: ["Vedlikehold", "mdi:timer-play-outline"], boost: ["Boost", "mdi:fan-plus"],
@@ -31535,6 +32069,13 @@ try {
     .bk.varmer .v2 { animation-delay:.9s; } .bk.varmer .v3 { animation-delay:1.8s; }
     @keyframes stig { 0% { opacity:0; transform:translateY(4px); } 30% { opacity:.8; } 100% { opacity:0; transform:translateY(-12px); } }
     .stillemerke { opacity:0; transition:opacity .6s; } .bk.stille .stillemerke { opacity:1; }
+    .lokk { opacity:0; transform:translateY(-10px); transition:opacity .5s, transform .6s cubic-bezier(.3,1.3,.5,1); }
+    .bk.tak .lokk { opacity:1; transform:none; }
+    .lokk rect { fill:#5f7383; } .lokk .lamell { stroke:#8196a6; stroke-width:1; }
+    .bk.tak .bolge { animation-duration:16s; }
+    .mane { opacity:0; transition:opacity 1s; } .bk.natt .mane { opacity:1; }
+    .bk.natt { background:linear-gradient(165deg,#0d1020 0%,#121a2e 55%,#15203a 100%); }
+    .bk.natt .pille { background:rgba(167,139,250,.32); }
     .av .vp, .av .rist { opacity:.45; }
     @media (prefers-reduced-motion: reduce) { .bk * { animation:none !important; } }
     @media (max-width:380px) { .scene { width:56%; } .tekst { max-width:46%; } }
@@ -31561,6 +32102,11 @@ try {
       <circle class="boble bo3" cx="126" cy="149" r="1.1"/><circle class="boble bo4" cx="135" cy="146" r="1.5"/>
     </g>
     <rect class="lampe" x="38" y="132" width="6" height="4" rx="1.5"/>
+    <!-- pooltaket: lameller over vannflaten -->
+    <g class="lokk"><rect x="26" y="96" width="136" height="7" rx="3"/>
+      <path class="lamell" d="M36 96 v7 M50 96 v7 M64 96 v7 M78 96 v7 M92 96 v7 M106 96 v7 M120 96 v7 M134 96 v7 M148 96 v7"/></g>
+    <!-- månen under nattsenking -->
+    <g class="mane" transform="translate(60 40)"><circle r="9" fill="#f3f0dc"/><circle cx="4" cy="-3" r="8" fill="#121a2e"/></g>
     <!-- stige -->
     <path d="M34 90 q6 -12 12 0" fill="none" stroke="#8b9aa4" stroke-width="2" stroke-linecap="round"/>
     <!-- damp over vannet -->
@@ -31590,16 +32136,18 @@ try {
           { name: "stillemodus", selector: { entity: { domain: "switch" } } },
           { name: "vanntemp", selector: { entity: { domain: "sensor" } } },
           { name: "ute", selector: { entity: { domain: "sensor" } } },
+          { name: "pooltak", selector: { entity: { domain: ["switch", "input_boolean", "binary_sensor", "cover"] } } },
           { name: "tap_action", selector: { ui_action: {} } },
         ],
         computeLabel: (s) => ({ navn: "Navn", varmepumpe: "Varmepumpe", pumpe: "Sirkulasjonspumpe", lys: "Bassenglys", stillemodus: "Stillemodus",
-          vanntemp: "Vanntemperatur (valgfritt)", ute: "Utetemperatur (valgfritt)", tap_action: "Trykk" }[s.name] || s.name),
+          vanntemp: "Vanntemperatur (valgfritt)", ute: "Utetemperatur (valgfritt)", pooltak: "Pooltak (valgfritt)", tap_action: "Trykk" }[s.name] || s.name),
       };
     }
     setConfig(c) { this._c = { ...STANDARD, ...(c || {}) }; this._bygget = false; if (this._hass) this._oppdater(); }
     set hass(h) {
       this._hass = h; if (!this._c) return;
-      const ids = Object.values(this._c).filter((v) => typeof v === "string" && v.includes("."));
+      const ids = Object.values(this._c).filter((v) => typeof v === "string" && v.includes("."))
+        .concat(this._kiIder || []);
       const n = ids.map((id) => h.states[id]);
       if (this._bygget && this._siste && n.every((s, i) => s === this._siste[i])) return;
       this._siste = n; this._oppdater();
@@ -31635,8 +32183,17 @@ try {
       this._kiId = id;
       const p = S[id].attributes.prefiks;
       const oms = S[`sensor.${p}_omsetninger_i_dag`];
+      const senking = S[`sensor.${p}_nattsenking`];
+      const tak = S[`switch.${p}_pooltak_pa`];
+      const klor = S[`binary_sensor.${p}_klortablett_bor_legges_i`];
+      const maltemp = S[`sensor.${p}_maltemperatur`];
       return { modus: S[id].state, gjort: oms ? parseFloat(oms.state) : NaN,
-        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null };
+        mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null,
+        natt: senking && senking.state === "aktiv" ? (senking.attributes.til || "") : null,
+        tak: tak ? tak.state === "on" : null,
+        klor: !!(klor && klor.state === "on"),
+        maltemp: maltemp && ok(maltemp) ? parseFloat(maltemp.state) : NaN,
+        ider: [senking, tak, klor, maltemp].filter(Boolean).map((x) => x.entity_id) };
     }
 
     _oppdater() {
@@ -31648,7 +32205,11 @@ try {
       const handling = vp ? String(vp.attributes.hvac_action || "") : "";
       const vann = c.vanntemp && ok(s(c.vanntemp)) ? parseFloat(s(c.vanntemp).state)
         : vp ? parseFloat(vp.attributes.current_temperature) : NaN;
-      const mal = vp ? parseFloat(vp.attributes.temperature) : NaN;
+      this._kiIder = ki ? [ki.id, ki.omsId, ...ki.ider].filter(Boolean) : [];
+      const mal = ki && !isNaN(ki.maltemp) ? ki.maltemp : vp ? parseFloat(vp.attributes.temperature) : NaN;
+      const takEnt = s(c.pooltak);
+      const tak = takEnt ? ["on", "closed"].includes(takEnt.state) : !!(ki && ki.tak);
+      const natt = ki && ki.natt !== null ? ki.natt : null;
       const ute = ok(s(c.ute)) ? parseFloat(s(c.ute).state) : NaN;
       const pumpe = s(c.pumpe) && s(c.pumpe).state === "on";
       const lys = s(c.lys) && s(c.lys).state === "on";
@@ -31664,6 +32225,8 @@ try {
       kort.classList.toggle("lys", !!lys);
       kort.classList.toggle("stille", !!stille);
       kort.classList.toggle("av", av);
+      kort.classList.toggle("tak", tak);
+      kort.classList.toggle("natt", natt !== null);
       $(".enhet").classList.toggle("av", av);
       kort.style.setProperty("--vifte", (stille ? 2.6 : 1.2) + "s");
 
@@ -31674,7 +32237,8 @@ try {
 
       $(".n").textContent = c.navn;
       let pt, ik;
-      if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
+      if (natt !== null) { pt = natt ? `Nattsenking til ${natt}` : "Nattsenking"; ik = "mdi:weather-night"; }
+      else if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
       else if (auto) { pt = "Står i auto"; ik = "mdi:alert-outline"; }
       else if (varmer) { pt = stille ? "Varmer · stillemodus" : "Varmer"; ik = "mdi:heat-wave"; }
       // KI Basseng vet hva anlegget gjør; det slår «på måltemperatur» når varmepumpa bare venter
@@ -31687,7 +32251,9 @@ try {
       $(".stor").innerHTML = isNaN(vann) ? "--" : `${komma(vann, 1)}<small>°C</small>`;
       const deler = [];
       if (ki && !isNaN(ki.gjort)) deler.push(isNaN(ki.mal) ? `${komma(ki.gjort, 2)} omsetninger` : `${komma(ki.gjort, 2)} av ${komma(ki.mal, 2)} omsetninger`);
-      if (!isNaN(mal)) deler.push(`mål ${Math.round(mal)}°`);
+      if (!isNaN(mal)) deler.push(`mål ${komma(mal, mal % 1 ? 1 : 0)}°`);
+      if (tak) deler.push("tak på");
+      if (ki && ki.klor) deler.push("klortablett!");
       if (!ki) deler.push(pumpe ? "pumpe på" : "pumpe av");
       if (!isNaN(ute)) deler.push(`ute ${komma(ute, 1)}°`);
       $(".sub").textContent = deler.join("  ·  ");

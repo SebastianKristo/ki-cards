@@ -1,3 +1,61 @@
+# ki-cards 5.68.0
+
+## ki-basseng-card 2.0.0: varme, nattsenking, pooltak og klor
+
+For [KI Basseng 1.3](https://github.com/SebastianKristo/ki-basseng), som fikk en varmemodell
+som avgjør om varmepumpa skal stå av om natta, ønsket temperatur, pooltak og klorlogg.
+
+**Ny fane: Varme.** Fire flater:
+
+- **Temperatur.** Ringen viser vannet mot målet og blir grønn når målet er nådd. Ved siden av
+  står ute, varmetap nå og sol inn. Ønsket temperatur har store −/+. To raske trykk gir to
+  steg, ikke samme steg to ganger. Er ingen hjemme, står det hvor mye målet er senket.
+- **Pooltaket** er én stor bryter med bassenget tegnet. Taket glir på når du slår det på.
+  Teksten regner ut hva taket betyr for tapet akkurat nå: «Taket sparer ca. 1220 W nå».
+- **Nattsenking.** Natta er en stripe fra varmevinduets slutt til start, med av-vinduet
+  skravert og en nå-strek. Under står kWh og kroner spart, laveste temperatur, og to stolper:
+  «Holde varmen» mot «Med senking». Lønner det seg ikke, vises de beste vinduene den vurderte,
+  og hvilke som ikke rakk å varme opp igjen. Bryter, kriterium og maks senking ligger nederst.
+- **Klortabletter.** Ringen viser dager siden sist mot intervallet og blir oransje når det er
+  på tide. En stor «Logg klortablett», og de fem siste innslagene med notat og vanntemperatur.
+  Det siste kan angres.
+
+**Oversikt.** Nye fliser for *Pooltak* (trykk slår av og på), *Nattsenking* (viser vinduet og
+åpner Varme) og *Klor* (trykk logger en tablett). Prisstyring og varmeprioritet er flyttet
+til innstillingene under Sirkulasjon. Øverst kommer et oransje varsel når det er på tide med
+klor, med «Logg» rett i varselet, og et lilla varsel mens varmepumpa står av for natta.
+Vannbildet får et lokk når taket ligger på, og merker for «til 04:00» og «tak på».
+
+**Innstillinger** har fått panelet *Varmemodell*: styr settpunkt, borte-senking, varmetap
+med og uten tak, sol gjennom taket, solvarme, klorintervall og tving heat. Under står
+faktorene modellen har lært.
+
+Med fire faner får alle plass ved siden av tannhjulet på en telefon. Mot KI Basseng 1.2
+(uten varmemodell) skjules Varme-fanen og de nye flisene, og de gamle kommer tilbake.
+
+## ki-basseng-hero-card
+
+Scenen viser pooltaket som lameller over vannet, og under nattsenking får den måne, en
+mørkere himmel og «Nattsenking til 04:00» i pillen. Undertekstene sier «tak på» og
+«klortablett!» når det gjelder. Måltemperaturen hentes fra KI Basseng når den finnes.
+`pooltak:` kan settes for bassenger uten integrasjonen.
+
+## Popupen
+
+`examples/basseng-popup.yaml` er ett kort i stedet for to varmepumpe-banner og en rad med
+fem button-card over kortet. Kortet tegner dem selv med `varmepumpe:`, `stillemodus:` og
+`hurtig:`. Faner: oversikt, varme, sirkulasjon, spreder, innstillinger.
+
+### Kontrollert
+
+Begge byggesjekkene kjørt (115 stiler, 62 kort). Kortet er tegnet i Chromium med tre sett
+data: nattsenking planlagt og klor på tide; tak på, nattsenking aktiv og ingen hjemme; og
+KI Basseng 1.2 uten varmemodell. Trykk sender riktige kall: Klor →
+`button.press` på `logg_klortablett`, Pooltak → `switch.toggle` på `pooltak_pa`, to trykk
+på + → `number.set_value` 27,5 og så 28.
+
+---
+
 # ki-cards 5.67.0
 
 ## ki-veggpanel-card 1.2.0: sidemeny, Norgespris og nattskjerm
