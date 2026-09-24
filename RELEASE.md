@@ -1,3 +1,58 @@
+# ki-cards 5.69.0
+
+## ki-basseng-card 2.1.0: ny temperaturgraf, klorkalender og strammere faner
+
+Krever [KI Basseng 1.4](https://github.com/SebastianKristo/ki-basseng) for navn i klorloggen.
+Resten virker også mot 1.3.
+
+**Temperaturgrafen er tegnet på nytt**, og ligger nå i Temperatur-panelet på Varme:
+
+- **Toppen:** endringen over vinduet i stort («+0,5°»), og når det var varmest og kaldest.
+  Temperaturen nå står bare i ringen, så den ikke vises to ganger med to forskjellige kilder.
+- **Kurva:** én akse med grader. Målet er stiplet med en lapp, maks og min er markert, og
+  nå-prikken pulserer.
+- **Natt og varme:** natta (varmevinduets slutt til start) er skyggelagt, og timene
+  varmepumpa gikk er tonet bak kurva.
+- **Baner:** pumpe og varme er to smale baner under kurva, på samme tidslinje. De er ikke en
+  akse nummer to. Forklaringen under viser timer for hver.
+- **Fingeren** over grafen viser verdi, klokkeslett og om pumpe og varme gikk da.
+- **Vindu:** 24 t, 3 d og 7 d velges i panelhodet.
+
+**Klor:**
+
+- **«Hvem la i?»** Navnene fra integrasjonen står som knapper du huker av. Trykker du Logg,
+  går navnet med i loggen. Valget huskes per nettleser.
+- **Månedskalender:** dagene det ble lagt i er grønne med initialene til den som gjorde det.
+  Neste forfallsdag har oransje ring, og i dag hvit. Du kan bla bakover i månedene, og et
+  trykk på en dag viser hva som ble logget. «Angre siste» ligger ved forklaringen.
+- **Navnene** legges til og fjernes under tannhjulet, i panelet *Klorlogg*. De lagres i
+  integrasjonen og er like på alle skjermer.
+
+**Fanene er satt sammen til færre flater:**
+
+- **Sirkulasjon:** omsetninger, planen for i dag og i morgen og prisene er ett panel,
+  «Sirkulasjon i dag», med hårfine skiller. Prisene står som tall, med hvor mye billigere
+  planen er enn døgnet. Profil, mål, plan og brytere ligger i *Styring*.
+- **Spreder:** tallene (brukt i dag med stolpe mot taket, varighet og program) ligger rett
+  under startknappen i scenepanelet, og ikke i et eget panel.
+- **Oversikt og Sirkulasjon:** viser ikke lenger grafen når Varme-fanen finnes.
+
+### Kontrollert
+
+Begge byggesjekkene er kjørt (115 stiler, 62 kort). Alle fem fanene er tegnet i Chromium med et
+døgn historikk: senking om natta, oppvarming 04–07:30 og 13–14:30, og pumpeblokker. Trykk sender
+riktige kall:
+
+- navneknapp + Logg gir `ki_basseng.logg_klortablett` med `hvem: Sebastian`
+- «Legg til» gir `text.set_value` med «Sebastian, Ida, Ola, Kari»
+- × på Ida gir «Sebastian, Ola»
+
+Et trykk på en dag i kalenderen viser innslaget, og pilen blar til august.
+
+To klassenavn som kolliderte med eksisterende stiler er rettet før bygging: `idag` og `natt`.
+
+---
+
 # ki-cards 5.68.0
 
 ## ki-basseng-card 2.0.0: varme, nattsenking, pooltak og klor
