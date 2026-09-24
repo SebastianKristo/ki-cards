@@ -27,12 +27,15 @@
  * klima: [climate.stue_oljefyr, climate.stue_panelovn]
  * strom: { pris: sensor.…, effekt: sensor.strommaler_effekt, trykk: "#strom" }
  * lys:   { gruppe: light.stue, lamper: [light.a, { entity: light.b, navn: Leselampe }] }
+ * skjerm: true            # fyller skjermen; hver kolonne ruller for seg (false = vanlig høyde)
+ * luft_topp: 40             # px som trekkes fra skjermhøyden (margen i visningen)
+ * luft_bunn: 110            # plass nederst til den flytende navbaren
  * dekker:
  *   - { navn: Markise, ikon: mdi:awning-outline, hoved: cover.markise,
  *       deler: [{ navn: Venstre, entity: cover.markise_venstre }, …], invertert: true }
  */
 (() => {
-  const VERSJON = "1.0.0";
+  const VERSJON = "1.1.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -89,7 +92,14 @@
     /* kolonner */
     .kol3 { display: grid; grid-template-columns: 340px minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
     .kol { display: grid; gap: 14px; align-content: start; }
-    @container (max-width: 980px) { .kol3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .kol.midt { grid-column: 1 / -1; order: -1; } }
+    /* Skjermmodus: panelet fyller høyden, og hver kolonne ruller for seg – så ingenting
+       havner under navbaren, og det lange (lys, gardiner) ikke skyver resten ned. */
+    .vp.skjerm { height: var(--vp-h); grid-template-rows: auto minmax(0, 1fr); }
+    .vp.skjerm .kol3 { min-height: 0; height: 100%; align-items: stretch; }
+    .vp.skjerm .kol { overflow-y: auto; overscroll-behavior: contain; padding-bottom: var(--vp-bunn);
+      scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
+    .vp.skjerm .kol::-webkit-scrollbar { display: none; }
+    @container (max-width: 980px) { .vp.skjerm { height: auto; } .vp.skjerm .kol { overflow: visible; -webkit-mask-image: none; } .kol3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .kol.midt { grid-column: 1 / -1; order: -1; } }
     @container (max-width: 640px) { .kol3 { grid-template-columns: minmax(0, 1fr); } .kol.midt { order: 0; } }
 
     .kort { background: var(--gray200); border-radius: 24px; padding: 16px; display: grid; gap: 12px; }
@@ -121,7 +131,7 @@
     .klima { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .termo { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; }
     .termo b { text-align: center; font-size: 46px; font-weight: 300; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
-    .termo b small { font-size: 20px; opacity: .7; }
+    .termo b sup { font-size: 22px; font-weight: 300; opacity: .7; vertical-align: top; position: relative; top: 6px; margin-left: 1px; }
     .rund { width: 48px; height: 48px; border-radius: 50%; background: var(--gray100); display: grid; place-items: center; transition: transform .12s; }
     .rund:active { transform: scale(.9); }
     .termo.venter b { opacity: .55; }
@@ -130,7 +140,7 @@
     .tallrad { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
     .tall { font-size: 30px; font-weight: 300; line-height: 1.1; font-variant-numeric: tabular-nums; }
     .tall small { font-size: 14px; font-weight: 500; opacity: .7; }
-    .soyler { position: relative; height: 110px; display: flex; align-items: flex-end; gap: 3px; touch-action: pan-y; }
+    .soyler { position: relative; height: 96px; display: flex; align-items: flex-end; gap: 3px; touch-action: pan-y; }
     .soyler.peker { touch-action: none; }
     .soyler i { flex: 1; border-radius: 3px; min-height: 3px; transition: opacity .15s; }
     .soyler i.bil { background: color-mix(in srgb, var(--green, #72cf93) 75%, transparent); }
@@ -146,7 +156,29 @@
     .lapp span { font-size: 11px; opacity: .8; }
     .akse { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; opacity: .7; }
 
-    /* lys */
+    /* lys: fliser to i bredden. Fyllet viser lysstyrken; dra sidelengs for å dimme. */
+    .lysgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .lflis { position: relative; overflow: hidden; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px;
+      align-items: center; min-height: 64px; padding: 10px 12px 10px 10px; border-radius: 20px; background: var(--gray100);
+      text-align: left; touch-action: pan-y; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .lflis:active { transform: scale(.97); }
+    .lflis .fyll { position: absolute; inset: 0 auto 0 0; background: var(--active-big); transition: width .25s ease; pointer-events: none; }
+    .lflis.drar .fyll { transition: none; }
+    .lflis > :not(.fyll) { position: relative; }
+    .lflis .lik { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+      background: rgba(250,251,252,.1); border: 1px solid rgba(250,251,252,.1); }
+    .lflis .lik ha-icon { --mdc-icon-size: 21px; }
+    .lflis .lt { display: grid; min-width: 0; }
+    .lflis .ln { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lflis .lv { font-size: 13px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; }
+    .lflis.pa { color: var(--black); }
+    .lflis.pa .lik { background: rgba(0,0,0,.1); border-color: rgba(0,0,0,.08); }
+    .lflis.pa.helt { background: var(--active-big); }
+    /* segment for markise/gardiner */
+    .seg { display: inline-flex; gap: 4px; padding: 2px; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; justify-self: start; }
+    .seg button { height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; opacity: .72; }
+    .seg button.valgt { background: var(--active-big); color: var(--black); opacity: 1; }
+    /* lys (gammel rad) */
     .lampe { display: grid; grid-template-columns: minmax(0, 1fr) auto 50px; gap: 6px 10px; align-items: center; text-align: left; }
     .lampe .ln { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lampe .lv { font-size: 15px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; }
@@ -259,8 +291,10 @@
     /* ---------- bygging ---------- */
     _bygg() {
       const r = this.shadowRoot;
+      const skjerm = this._c.skjerm !== false;
+      const luft = Number(this._c.luft_topp ?? 40), bunn = Number(this._c.luft_bunn ?? 110);
       r.innerHTML = `<style>${CSS}</style>
-        <div class="vp">
+        <div class="vp ${skjerm ? "skjerm" : ""}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunn}px">
           <div class="topp" id="topp"></div>
           <div class="kol3">
             <div class="kol venstre">
@@ -348,6 +382,43 @@
         dra.addEventListener("pointercancel", slipp);
         this._draTil(dra, e);
       });
+      // lysflisene: dra sidelengs for å dimme. Et trykk er fortsatt av/på; først når
+      // fingeren har flyttet seg 10 px sidelengs, blir det dimming.
+      r.addEventListener("pointerdown", (e) => {
+        const fl = e.composedPath().find((n) => n && n.classList && n.classList.contains("lflis"));
+        if (!fl || !fl.dataset.dimm) return;
+        const x0 = e.clientX, y0 = e.clientY;
+        let drar = false;
+        const flytt = (ev) => {
+          if (!drar) {
+            if (Math.abs(ev.clientY - y0) > 12 && Math.abs(ev.clientY - y0) > Math.abs(ev.clientX - x0)) { slutt(); return; }
+            if (Math.abs(ev.clientX - x0) < 10) return;
+            drar = true; clearTimeout(timer); fl.classList.add("drar");
+            try { fl.setPointerCapture(ev.pointerId); } catch (x) { /* ok */ }
+          }
+          const rr = fl.getBoundingClientRect();
+          const v = Math.round(Math.max(1, Math.min(100, ((ev.clientX - rr.left) / (rr.width || 1)) * 100)));
+          fl._verdi = v;
+          const fy = fl.querySelector(".fyll"); if (fy) fy.style.width = `${v}%`;
+          const lv = fl.querySelector(".lv"); if (lv) lv.textContent = `${v} %`;
+          fl.classList.add("pa");
+        };
+        const slutt = () => {
+          fl.removeEventListener("pointermove", flytt);
+          fl.removeEventListener("pointerup", slutt);
+          fl.removeEventListener("pointercancel", slutt);
+          if (!drar) return;
+          fl.classList.remove("drar");
+          holdt = true;                       // klikket som følger, er ikke et trykk
+          const id = fl.dataset.id, v = fl._verdi;
+          this._haptikk("light");
+          this._opt[id] = { state: "on", pst: v, t: Date.now() };
+          this._hass.callService("light", "turn_on", { entity_id: id, brightness_pct: v });
+        };
+        fl.addEventListener("pointermove", flytt);
+        fl.addEventListener("pointerup", slutt);
+        fl.addEventListener("pointercancel", slutt);
+      });
       // strømprisen: fingeren over søylene
       r.addEventListener("pointerdown", (e) => { const s = e.composedPath().find((n) => n && n.classList && n.classList.contains("soyler")); if (s) this._pris(s, e, true); });
       const slippPris = () => { if (this._prisPek != null) { this._prisPek = null; this._sist.strom = null; this._tegnStrom(); } };
@@ -381,6 +452,13 @@
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
+      if (t === "dekkeseg") {
+        this._haptikk("selection");
+        this._dekkeValgt = Number(el.dataset.i);
+        this._sist.dekker = null;
+        this._tegnDekker();
+        return;
+      }
       if (t === "preset") {
         this._haptikk("light");
         const d = (this._c.dekker || [])[Number(el.dataset.i)];
@@ -542,7 +620,7 @@
             <span><div class="navn">${esc(x.navn || a.friendly_name || x.entity)}</div><div class="liten">${hva}${rom}</div></span><span></span></button>
           <div class="termo ${venter ? "venter" : ""}">
             <button class="rund" data-tap="temp" data-id="${esc(x.entity)}" data-steg="-1" aria-label="Senk"><ha-icon icon="mdi:minus"></ha-icon></button>
-            <b>${isNaN(mal) ? "–" : komma(mal, 1)}<small>°</small></b>
+            <b>${isNaN(mal) ? "–" : komma(mal, 1)}<sup>°</sup></b>
             <button class="rund" data-tap="temp" data-id="${esc(x.entity)}" data-steg="1" aria-label="Øk"><ha-icon icon="mdi:plus"></ha-icon></button>
           </div></div>`;
       }).join("")}</div>`;
@@ -550,7 +628,33 @@
 
     /* Timeprisene for i dag, som i ki-strompris-card: raw_today (Nord Pool),
        prices_today (objektliste) eller today (tall). */
+    /* Prisene som kroner per time for i dag.
+     *
+     * To ting i 1.0 ga «152,48 kr/kWh»: sensoren oppgir øre, og siden 1. oktober 2025
+     * er Nord Pool-prisene per kvarter – 96 søyler i stedet for 24. Nå regnes øre om
+     * til kroner (enheten sier «øre», eller prisene er urimelig høye for kroner), og
+     * kvarterene slås sammen til timer, så søylene er til å lese. */
     _priser(id) {
+      const raa = this._raaPriser(id);
+      if (!raa || !raa.length) return raa;
+      const s = this._st(id);
+      const enhet = String((s && s.attributes.unit_of_measurement) || "").toLowerCase();
+      const median = [...raa.map((x) => x.v)].sort((a, b) => a - b)[Math.floor(raa.length / 2)];
+      const ore = enhet.includes("øre") || enhet.includes("ore") || (!enhet.includes("kr") && !enhet.includes("nok") && median > 20);
+      const skala = ore || (this._c.strom && this._c.strom.ore) ? 0.01 : 1;
+      this._prisSkala = skala;
+      const timer = new Map();
+      for (const x of raa) {
+        const d = new Date(x.t); d.setMinutes(0, 0, 0);
+        const k = d.getTime();
+        if (!timer.has(k)) timer.set(k, []);
+        timer.get(k).push(x.v * skala);
+      }
+      return [...timer.entries()].sort((a, b) => a[0] - b[0])
+        .map(([t, v]) => ({ t, v: v.reduce((a, b) => a + b, 0) / v.length }));
+    }
+
+    _raaPriser(id) {
       const s = this._st(id); if (!s) return null;
       const a = s.attributes;
       const obj = a.raw_today || a.prices_today || a.today_raw;
@@ -597,7 +701,7 @@
       const eff = this._st(c.effekt);
       const naa = Date.now();
       const iNaa = p.findIndex((x, i) => x.t <= naa && (i === p.length - 1 || p[i + 1].t > naa));
-      const prisNaa = iNaa >= 0 ? p[iNaa].v : Number((this._st(kilde) || {}).state);
+      const prisNaa = iNaa >= 0 ? p[iNaa].v : Number((this._st(kilde) || {}).state) * (this._prisSkala || 1);
       const maks = Math.max(...p.map((x) => x.v), 0.01);
       const sortert = p.map((x) => x.v).sort((a, b) => a - b);
       const kv = (q) => sortert[Math.floor(q * (sortert.length - 1))] || 0;
@@ -636,20 +740,26 @@
         <button class="hode" data-tap="${k.gruppe ? "veksle" : "mer"}" data-id="${esc(k.gruppe || "")}" ${k.gruppe ? `data-hold="${esc(k.gruppe)}"` : ""}>
           <span class="ik ${pa ? "fylt" : ""}"><ha-icon icon="${esc(k.ikon || "mdi:lightbulb-group")}"></ha-icon></span>
           <span><div class="navn">${esc(k.navn || "Lys i stua")}</div><div class="status">${lamper.length ? `${pa} av ${lamper.length} på` : (g && g.state === "on" ? "På" : "Av")}</div></span><span></span></button>
+        <div class="lysgrid">
         ${lamper.map((x) => {
           const st = this._st(x.entity);
           if (!st) return "";
           const erPa = this._optFor(x.entity, "state", st.state) === "on";
+          const modi = st.attributes.supported_color_modes;
+          const kanDimmes = Array.isArray(modi) ? !modi.every((m) => m === "onoff") : st.attributes.brightness != null;
           const faktiskPst = st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) : erPa ? 100 : 0;
           const pst = erPa ? this._optFor(x.entity, "pst", faktiskPst, (o, f) => Math.abs(o - f) <= 2) : 0;
-          const kanDimmes = st.attributes.supported_color_modes ? !st.attributes.supported_color_modes.every((m) => m === "onoff") : true;
-          return `<div class="lampe">
-            <button class="ln" style="text-align:left" data-tap="veksle" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">${esc(x.navn || st.attributes.friendly_name || x.entity)}</button>
-            <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span>
-            <button class="bryter ${erPa ? "pa" : ""}" data-tap="veksle" data-id="${esc(x.entity)}" aria-label="Slå av og på"></button>
-            ${kanDimmes ? `<div class="dra ${erPa ? "" : "av"}" data-slag="lys" data-id="${esc(x.entity)}"><i style="width:${pst}%"></i><b style="left:${pst}%"></b></div>` : ""}
-          </div>`;
+          const helt = erPa && (!kanDimmes || pst >= 99);
+          const navn = x.navn || st.attributes.friendly_name || x.entity;
+          return `<button class="lflis ${erPa ? "pa" : ""} ${helt ? "helt" : ""}" data-tap="veksle" data-id="${esc(x.entity)}"
+              data-hold="${esc(x.entity)}" ${kanDimmes ? `data-dimm="1"` : ""} aria-label="${esc(navn)}">
+            ${kanDimmes ? `<span class="fyll" style="width:${erPa ? pst : 0}%"></span>` : ""}
+            <span class="lik"><ha-icon icon="${esc(x.ikon || st.attributes.icon || (erPa ? "mdi:lightbulb-on" : "mdi:lightbulb-outline"))}"></ha-icon></span>
+            <span class="lt"><span class="ln">${esc(navn)}</span>
+              <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span></span>
+          </button>`;
         }).join("")}
+        </div>
       </div>`;
     }
 
@@ -659,7 +769,13 @@
       if (!dk.length) { vert.innerHTML = ""; return; }
       const alle = dk.flatMap((d) => [d.hoved, ...(d.deler || []).map((x) => x.entity)]).filter(Boolean);
       if (!this._endret("dekker", alle)) return;
+      /* Flere dekker (markise, gardiner) deler ett kort med et segment øverst, i stedet
+         for å stå under hverandre – høyre kolonne ble lenger enn skjermen. */
+      const valgt = Math.min(this._dekkeValgt || 0, dk.length - 1);
+      const seg = dk.length > 1 ? `<div class="seg">${dk.map((d, i) =>
+        `<button class="${i === valgt ? "valgt" : ""}" data-tap="dekkeseg" data-i="${i}">${esc(d.navn || `Nr. ${i + 1}`)}</button>`).join("")}</div>` : "";
       vert.innerHTML = dk.map((d, i) => {
+        if (i !== valgt) return "";
         const inv = d.invertert !== false;
         const vis = (id) => {
           const st = this._st(id);
@@ -669,7 +785,7 @@
         const deler = (d.deler && d.deler.length ? d.deler : [{ navn: "", entity: d.hoved }]).filter((x) => this._st(x.entity));
         const snitt = deler.length ? Math.round(deler.reduce((s, x) => s + vis(x.entity), 0) / deler.length) : 0;
         const tekst = inv ? (snitt <= 2 ? "Oppe" : snitt >= 98 ? "Nede" : `${snitt} % nede`) : (snitt >= 98 ? "Åpen" : snitt <= 2 ? "Lukket" : `${snitt} % åpen`);
-        return `<div class="kort" style="${i ? "margin-top:14px" : ""}">
+        return `<div class="kort">${seg}
           <button class="hode" data-tap="mer" data-id="${esc(d.hoved || deler[0] && deler[0].entity)}" data-hold="${esc(d.hoved || deler[0] && deler[0].entity)}">
             <span class="ik"><ha-icon icon="${esc(d.ikon || "mdi:blinds")}"></ha-icon></span>
             <span><div class="navn">${esc(d.navn || "")}</div><div class="status">${tekst}</div></span><span></span></button>

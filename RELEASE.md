@@ -1,43 +1,31 @@
-# ki-cards 5.65.0
+# ki-cards 5.66.0
 
-## Nytt kort: `ki-veggpanel-card`
+## ki-veggpanel-card 1.1.0: passer skjermen, riktig strømpris, lysfliser
 
-Hele veggpanelet for stua som ett kort, laget for iPad liggende og tegnet etter `DESIGN.md`. Det er
-skissen fra lerretet, bygget som et eget kort i stedet for button-card-maler.
+Etter første kjøring på iPaden.
 
-```yaml
-type: custom:ki-veggpanel-card
-topp: { stovsuger_trykk: "#rolf" }
-prosa: { … }            # ki-prosa-card, montert slik det er
-familie: { … }          # family-status-card
-media: { … }            # ki-media-card
-scener: [ { navn, ikon, tap_action, aktiv } ]
-klima: [ climate.stue_oljefyr, climate.stue_panelovn ]
-strom: { effekt: sensor.strommaler_effekt, trykk: "#strom" }
-lys: { gruppe: light.stue, lamper: [ … ] }
-dekker: [ { navn, ikon, hoved, deler: [ { navn, entity } ] } ]
-```
+**Strømprisen sto som «152,48 kr/kWh».** To ting: sensoren oppgir **øre**, og siden Nord Pool gikk over til
+kvarterpriser er det 96 verdier i døgnet, ikke 24. Nå regnes øre om til kroner — når enheten sier øre, eller
+prisene er urimelig høye for kroner (`strom: { ore: true }` tvinger det) — og kvarterene slås sammen til
+timer. Søylene er 24 igjen, og lappen under fingeren viser snittet for timen.
 
-- **Toppstripa:** klokke og dato, og piller for vær, hjemme, lås, alarm og støvsuger. Hver pille kan
-  åpne en popup (`vaer_trykk`, `alarm_trykk` …) og åpner ellers mer-info.
-- **Scener:** liggende fliser; `aktiv:` fyller flisen når entiteten er på. Et trykk blinker flisen,
-  så du ser at det tok.
-- **Termostater:** stort settpunkt med − og +. Trykkene samles i 0,8 s og sendes som ett kall, og tallet
-  står på det du har trykket deg fram til imens. Ikonet blir oransje når ovnen faktisk varmer.
-- **Strøm:** pris nå og effekt, og dagens priser som søyler — grønt billig, oransje middels, rødt dyrt,
-  timen nå i aktivfargen. Dra fingeren over, så får du prisen og timen.
-- **Lys:** bryter per lampe og en stolpe du drar for lysstyrke. Lamper uten dimming får bare bryteren.
-- **Gardiner og markise:** en stolpe per side som dras, og 0–100 % som forhåndsvalg. Prosenten er «nede»,
-  som i knappene dine (`invertert: false` snur det).
-- **Langt trykk** åpner entiteten overalt. Alt som endres, vises med en gang og slippes når entiteten
-  er enig. Haptikk på alle trykk.
-- **Smalere skjerm:** tre kolonner på iPad liggende, to på høykant (media øverst), én på telefon.
+**Panelet passer skjermen.** Høyre kolonne med åtte lamper, markise og gardiner var mye lenger enn iPaden,
+og strømkortet havnet under navbaren. Nå fyller panelet skjermhøyden, og hver kolonne ruller for seg med
+en myk fade nederst og plass til navbaren (`luft_bunn: 110`). `skjerm: false` gir vanlig høyde. På smalere
+skjermer ruller hele siden som før.
+
+**Lysene er fliser, to i bredden.** Hver flis er ikon, navn og tilstand. Trykk slår av og på; **dra sidelengs**
+for å dimme — fyllet i flisen *er* lysstyrken. Lamper uten dimming fylles helt når de er på. Før sto en
+stolpe under hver lampe, også de som var av, og lista ble dobbelt så høy.
+
+**Markise og gardiner deler ett kort** med et segment øverst, i stedet for å stå under hverandre.
+
+**Gradetegnet** på termostatene lå nede ved grunnlinja og så ut som et punktum («21,5.»). Det står nå høyt,
+som et vanlig gradetegn.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 115 kort leser styles. Kortet er i tillegg kjørt i en simulert DOM med stuas
-oppsett: toppstripa med fem piller, scenene, prosa-, familie- og mediekortet montert, to termostater med
-«22,0°» og oransje ikon på den som varmer, 24 prissøyler med timen nå markert, fingeren på kl. 18 som gir
-«0,92 kr kl. 18–19», lys «1 av 2 på» med dra-stolpe bare på lampen som kan dimmes, markise «63 % nede».
-To trykk på + viser 23,0° uten å sende noe før fristen, 100 % sender posisjon 0 til begge sidene, og
-Filmkveld kaller `scene.turn_on`. Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Kortet er kjørt med 96 kvarterpriser i øre: «0,54 kr/kWh» nå, 24 søyler, og
+fingeren på kl. 18 gir «0,94 kr kl. 18–19». Lysflisene: den dimbare med fyll og «70 %», den uten dimming
+uten fyll. Segmentet bytter fra Markise til Gardiner. Gradetegnet er hevet, og panelet står i skjermmodus.
+Ingen `NaN` eller `undefined`.
