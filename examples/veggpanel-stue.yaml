@@ -1,0 +1,171 @@
+# ki-veggpanel-card 1.2 – stua (Tab A8, liggende)
+#
+# Erstatter to kort i visningen «Stue»:
+#   - custom:ki-veggpanel-card  (denne blokka)
+#   - custom:mysmart-floating-navbar  (SLETT den – sidemenyen tar over)
+# Alle popupene (bubble-card) står urørt under.
+
+- type: custom:ki-veggpanel-card
+  luft_topp: 40
+  topp:
+    vaer: weather.forecast_home
+    hjemme: sensor.antall_personer_hjemme
+    las: lock.dorlas_blatann
+    alarm: alarm_control_panel.alarm
+    stovsuger: vacuum.sir_sweeps_a_lot
+    stovsuger_trykk: '#rolf'
+  meny:
+    - { ikon: mdi:robot-vacuum, sti: '#rolf', navn: Støvsuger,
+        varsel: { entity: binary_sensor.sir_sweeps_a_lot_water_box_attached, state: 'off' } }
+    - { ikon: mdi:power-plug-outline, sti: '#strom', navn: Strøm }
+    - { ikon: mdi:music, sti: '#media', navn: Media }
+    - { ikon: phu:tesla-icon, sti: '#tesla', navn: Tesla }
+    - { ikon: mdi:thermostat, sti: '#klima', navn: Klima }
+    - { ikon: mdi:server-outline, sti: '#server', navn: Server }
+    - { ikon: phu:3dprinter-printing, sti: '#3d', navn: 3D-printer }
+    - { ikon: mdi:sprout-outline, sti: '#planter', navn: Planter }
+    - { ikon: mdi:sleep, sti: '#sovn', navn: Søvn }
+    - { ikon: mdi:desktop-classic, sti: '#datamaskiner', navn: Datamaskiner }
+    - { ikon: mdi:sprinkler, sti: '#vanning', navn: Vanning }
+    - { ikon: mdi:tune-variant, sti: '#settings', navn: Innstillinger, nederst: true }
+  prosa:
+    vaer:
+      entity: sensor.dashboard_index
+      attributt: weather
+      enhet: °
+      mellomrom: false
+      ikon: attributt:current.icon
+      ikon_plassering: slutt
+      små_bokstaver: true
+    apparater:
+      - navn: Vaskemaskinen
+        vis:
+          entity: input_select.vaskemaskin_status
+          state: Vasker
+        verdi: sensor.vaskemaskin_power
+        ikon: ki:vaskemaskin
+        animasjon: auto
+    pris:
+      entity: sensor.norgespris_total_strompris_norgespris
+  familie:
+    greeting: Familien
+    show_names: true
+    name_font_size: 13
+    home_icon: fapro:house-fill
+    home_color: var(--green)
+    show_sleep_badge: true
+    sleep_icon: mdi:sleep
+    sleep_color: 'var(--purple, #6f6bd8)'
+    default_icon: mdi:airplane
+    default_color: var(--purple)
+    dialog_background: var(--gray200)
+    dialog_active_color: var(--active-big)
+    dialog_active_text_color: var(--black)
+    away_active_color: 'var(--blue, #4a90e2)'
+    away_active_text_color: 'var(--white, #ffffff)'
+    awake_active_color: 'var(--orange, #f2a33c)'
+    awake_active_text_color: 'var(--black, #101010)'
+    asleep_active_color: 'var(--purple, #6f6bd8)'
+    asleep_active_text_color: 'var(--white, #ffffff)'
+    haptic: true
+    tap_behavior: dialog
+    auto_zones: true
+    persons:
+      - person: person.sebastian_kristo_jemtland
+        presence_switch: switch.sebastian_posisjon_hjemme_borte
+        sleep_switch: switch.homey_logic_sebastian_sovn_vaken
+        display_name: Sebastian
+      - person: person.cybele_kristo
+        presence_switch: switch.cybele_posisjon_hjemme_borte
+        sleep_switch: switch.homey_logic_cybele_sovn_vaken
+        display_name: Cybele
+      - person: person.rune_jemtland
+        presence_switch: switch.rune_posisjon_hjemme_borte
+        sleep_switch: switch.homey_logic_rune_sovn_vaken
+        display_name: Rune
+  scener:
+    - navn: Filmkveld
+      ikon: mdi:movie-open
+      tap_action:
+        action: perform-action
+        perform_action: scene.turn_on
+        target: { entity_id: scene.filmkveld }
+        data: { transition: 1 }
+    - navn: Middag
+      ikon: mdi:food
+      tap_action:
+        action: perform-action
+        perform_action: scene.turn_on
+        target: { entity_id: scene.stue_nede_middag }
+        data: { transition: 1 }
+    - navn: Nattmodus
+      ikon: mdi:lightbulb-night-outline
+      entity: switch.nattmodus
+      aktiv: switch.nattmodus
+      tap_action: { action: toggle }
+    - navn: Alt lys av
+      ikon: mdi:lightbulb-group-off
+      tap_action: { action: perform-action, perform_action: script.stue_lys_av }
+    - navn: Natta
+      ikon: mdi:power
+      tap_action:
+        action: perform-action
+        perform_action: script.turn_on
+        target: { entity_id: script.husets_nattmodus }
+    - navn: Kamera
+      ikon: mdi:cctv
+      tap_action: { action: navigate, navigation_path: /dashboard-kamera }
+  media:
+    visning: stor
+    media:
+      - media_player.rn602_stue
+      - media_player.stue_tv
+    velger:
+      - media_player.rn602_stue
+      - media_player.stue_tv
+  klima:
+    - { entity: climate.stue_oljefyr, navn: Oljefyr, ikon: mdi:fire }
+    - { entity: climate.stue_panelovn, navn: Panelovn, ikon: mdi:radiator }
+  strom:
+    effekt: sensor.strommaler_effekt
+    fast: sensor.norgespris_pris_na        # NY: Norgespris stort, spot ved siden av
+    fast_navn: Norgespris nå
+    pris: sensor.totalpris_inkludert_grid_el_company_og_stromstotte
+    trykk: '#strom'
+  lys:
+    gruppe: light.stue
+    navn: Lys i stua
+    lamper:
+      - light.sofabord
+      - light.stalampe_hjorne
+      - light.peislampe
+      - light.spisebord
+      - light.stalampe_piano
+      - light.stalampe
+      - light.skjenklampe
+      - { entity: light.taklist, navn: Taklist }
+  dekker:
+    - navn: Markise
+      ikon: mdi:awning-outline
+      hoved: cover.markise
+      deler:
+        - { navn: Venstre, entity: cover.markise_venstre }
+        - { navn: Høyre, entity: cover.markise_hoyre }
+    - navn: Gardiner
+      ikon: mdi:curtains
+      hoved: cover.stue_gardiner
+      invertert: false                     # «Åpen/Lukket» i stedet for «Oppe/Nede»
+      deler:
+        - { navn: Venstre, entity: cover.stue_gardiner_venstre }
+        - { navn: Høyre, entity: cover.stue_gardiner_hoyre }
+  natt:
+    entity: switch.nattmodus
+    etter: 90
+    vekking: sensor.soverom_vekking_neste_alarm
+    handlinger:
+      - navn: Alt lys av
+        ikon: mdi:lightbulb-group-off
+        tap_action: { action: perform-action, perform_action: script.stue_lys_av }
+      - navn: Kamera
+        ikon: mdi:cctv
+        tap_action: { action: navigate, navigation_path: /dashboard-kamera }

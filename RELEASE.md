@@ -1,3 +1,42 @@
+# ki-cards 5.67.0
+
+## ki-veggpanel-card 1.2.0: sidemeny, Norgespris og nattskjerm
+
+Etter redesignet av stua på Tab A8-en.
+
+**Sidemeny i stedet for flytende navbar** (`meny:`). Navbaren la seg over strømkortet; nå står menyen
+fast til venstre, med varselprikk (`varsel: { entity, state }`) og punkter som kan skyves ned med
+`nederst: true`. Med meny faller tannhjulet i toppstripa bort, og luften nederst går fra 110 til 16 px.
+På smale skjermer legger menyen seg vannrett over panelet.
+
+**Strømkortet viser Norgespris** (`strom.fast`) stort, spotprisen ved siden av og effekten til høyre.
+Søylene er **de neste 24 timene** når morgendagens priser finnes (`raw_tomorrow`), ellers i dag med det
+passerte dempet. De tre billigste timene på rad er blå, og forklaringen sier «Billigst 03–06».
+
+**Lysene er rader igjen** (`lys.visning: rader`, standard) – navn, lysstyrke, bryter – og hele raden er
+knappen. Dra sidelengs på en dimbar lampe for å dimme. «Slå av / Slå på» øverst styrer hele gruppa.
+`visning: fliser` gir 1.1-flisene.
+
+**Markise og gardiner som rader** med opp / stopp / ned (`dekker_visning: kompakt`, standard). Trykk på
+navnet åpner entiteten. `dekker_visning: full` gir segmentet, dra og forhåndsvalgene fra 1.1.
+
+**Nattskjerm** (`natt:`). Når `switch.nattmodus` er på og panelet har stått urørt i `etter` sekunder,
+fylles skjermen av en stor, dempet klokke med lås, alarm, vær, neste vekking og egne knapper. Et trykk
+vekker panelet uten å treffe det som ligger under.
+
+**Småting:** større klokke, støvsugerpillen sier «Støvsuger ladet», termostaten viser «Venter · 22,8°»
+på én linje og tallet får plass i smale kolonner.
+
+Eksempel for stua: `examples/veggpanel-stue.yaml`.
+
+### Kontrollert
+
+Begge byggesjekkene kjørt. Kortet er tegnet i Chromium på 1280×800 med stuas entiteter: meny med
+varselprikk, 1,16 kr Norgespris og 1,52 kr spot, 24 søyler fra «Nå» med 03–06 som billigst, åtte
+lysrader (5 av 8 på), markise «3 % nede» og gardiner «Åpen». Trykk sender riktige kall: lampe →
+`homeassistant.toggle`, «Slå av» → `light.turn_off` på `light.stue`, ned → `cover.close_cover`,
++ → `climate.set_temperature` 22. Nattskjermen vises med nattmodus på.
+
 # ki-cards 5.66.0
 
 ## ki-veggpanel-card 1.1.0: passer skjermen, riktig strømpris, lysfliser
