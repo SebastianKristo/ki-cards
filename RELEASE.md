@@ -1,3 +1,19 @@
+# ki-cards 5.77.3
+
+## ki-basseng-card 3.2.3
+
+- **Temperaturknappene på Varme** har den valgte i midten, så det alltid er et steg ned og
+  et steg opp (26° gir 24–28°). Før sto rada fast på 26–30°, så etter 26° kom du ikke
+  lavere.
+- **De viser riktig temperatur.** Styrer KI Basseng settpunktet, er det «Ønsket
+  temperatur» som gjelder. Står «Styr settpunkt» av, leser og setter knappene
+  varmepumpas eget settpunkt, så en endring på varmepumpa vises her også. Før sto 26°
+  rosa selv etter at varmepumpa var satt til noe annet.
+- **Mål og Effekt nå** på Varme er dashbordets `universal_sensor_ny`-kort med trykkmerke.
+  Med `varmepumpe:` satt er den venstre flisen fortsatt varmepumpa med av/på-bryter.
+
+---
+
 # ki-cards 5.77.2
 
 ## ki-basseng-card 3.2.2
