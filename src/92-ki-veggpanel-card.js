@@ -79,7 +79,7 @@
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.11.0";
+  const VERSJON = "1.11.1";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -1324,9 +1324,11 @@
       const sjekkIds = [].concat(n.sjekk || []).map((x) => (typeof x === "string" ? x : x && x.entity)).filter(Boolean);
       if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, t.vaer, ...sjekkIds, ...lamper.map((x) => x.entity)]) && this._nkSig === sig) return;
       this._nkSig = sig;
-      if (!vis) { vert.innerHTML = ""; return; }
+      if (!vis) { vert.innerHTML = ""; delete vert.dataset.modus; this._nkInnhold = null; return; }
       const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
-      const siden = st && st.last_changed ? kl(new Date(st.last_changed)) : "";
+      const opt = this._opt[n.entity];
+      const siden = opt && opt.state !== undefined && opt.state !== st.state ? kl(new Date(opt.t))
+        : st && st.last_changed ? kl(new Date(st.last_changed)) : "";
       const h = naa.getHours();
       const tittel = morgen ? "God morgen" : n.tittel || (h >= 20 || h < 4 ? "God natt" : h < 10 ? "God morgen" : "Nattmodus er på");
       const bit = [];
@@ -1366,15 +1368,14 @@
       if (morgen) {
         const straaler = [-50, -30, -10, 10, 30, 50].map((g, i) => `<i class="straale" style="transform:rotate(${g}deg);animation-delay:-${i * 0.8}s"></i>`).join("");
         const fugler = [[30, 0], [44, -6], [22, -12]].map(([y, d], i) => `<i class="fugl" style="top:${y}px;animation-delay:${d - i * 2}s"></i>`).join("");
-        vert.innerHTML = `<div class="nattkort morgen">
+        this._nkSett(vert, "morgen", () => `<div class="nattkort morgen">
           <div class="himmel" aria-hidden="true">${straaler}<span class="sol"></span>${fugler}</div>
           <button class="nk-lukk" data-tap="morgenlukk" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
-          <div class="nk-innhold">
-            <div class="nk-etikett"><ha-icon icon="mdi:weather-sunset-up"></ha-icon>Morgen</div>
+          <div class="nk-innhold"></div></div>`,
+          `<div class="nk-etikett"><ha-icon icon="mdi:weather-sunset-up"></ha-icon>Morgen</div>
             <div class="nk-tittel">${esc(tittel)}</div>
             ${under ? `<div class="nk-under">${esc(under)}</div>` : ""}
-            ${bit.length ? `<div class="nk-bitar">${bit.join("")}</div>` : ""}
-          </div></div>`;
+            ${bit.length ? `<div class="nk-bitar">${bit.join("")}</div>` : ""}`);
         return;
       }
       const stjerner = Array.from({ length: 26 }, (_, i) => {
@@ -1383,23 +1384,38 @@
       }).join("");
       const hl = (n.handlinger || []).map((x, i) => `<button class="nk-knapp" data-tap="natthandling" data-i="${i}">
           <ha-icon icon="${esc(x.ikon || "mdi:gesture-tap")}"></ha-icon>${esc(x.navn || "")}</button>`).join("");
-      vert.innerHTML = `<div class="nattkort" data-hold="${esc(n.entity)}">
+      this._nkSett(vert, "natt", () => `<div class="nattkort" data-hold="${esc(n.entity)}">
         <div class="himmel" aria-hidden="true">
           ${stjerner}
           <span class="skudd"></span>
           <span class="maane"><span class="skygge"></span></span>
           <span class="sky s1"></span><span class="sky s2"></span>
         </div>
-        <div class="nk-innhold">
-          <div class="nk-etikett"><ha-icon icon="mdi:weather-night"></ha-icon>Nattmodus</div>
+        <div class="nk-innhold"></div>
+      </div>`,
+        `<div class="nk-etikett"><ha-icon icon="mdi:weather-night"></ha-icon>Nattmodus</div>
           <div class="nk-tittel">${esc(tittel)}</div>
           ${under ? `<div class="nk-under">${esc(under)}</div>` : ""}
           ${bit.length ? `<div class="nk-bitar">${bit.join("")}</div>` : ""}
           <div class="nk-knapper">${hl}
             <button class="nk-knapp av" data-tap="veksle" data-id="${esc(n.entity)}"><ha-icon icon="mdi:weather-sunny"></ha-icon>Slå av</button>
-          </div>
-        </div>
-      </div>`;
+          </div>`);
+    }
+
+    /* Nattkortet bygges én gang per modus (natt / morgen): himmelen, månen, stjernene og
+       inngangsanimasjonen. Etterpå byttes bare teksten og brikkene inni – og bare når de faktisk
+       er endret. Før ble hele kortet bygget på nytt hver gang bryteren bekreftet eller et lys
+       skiftet, og da startet inngangen og himmelen på nytt: to små hakk rett etter at kortet kom. */
+    _nkSett(vert, modus, skall, innhold) {
+      if (vert.dataset.modus !== modus) {
+        vert.dataset.modus = modus;
+        vert.innerHTML = skall();
+        this._nkInnhold = null;
+      }
+      if (this._nkInnhold === innhold) return;
+      this._nkInnhold = innhold;
+      const el = vert.querySelector(".nk-innhold");
+      if (el) el.innerHTML = innhold;
     }
 
     _tegnScener() {
