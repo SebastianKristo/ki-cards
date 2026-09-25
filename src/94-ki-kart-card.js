@@ -7,7 +7,8 @@
  *
  * type: custom:ki-kart-card
  * personer: [person.sebastian_kristo_jemtland, person.cybele_kristo, person.rune_jemtland]
- * bil: device_tracker.tesla_model_y_location     # finnes av seg selv (Tesla-sporer med posisjon)
+ * bil: sensor.tesla_model_y_plassering          # sporer eller sensor; finnes av seg selv. Har den ingen
+ *                                                #   gyldig posisjon (0,0), vises adressen i stedet
  * bil_batteri: sensor.tesla_model_y_batteri       # finnes av seg selv
  * soner: auto                                     # auto = alle zone.*, eller en liste
  * visning: stor                                  # stor (standard): kartet fyller skjermen, personer og
@@ -19,7 +20,7 @@
  * zoom: 11
  */
 (() => {
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SONEFARGER = ["var(--green, #6fcf8e)", "var(--blue, #6f9fe0)", "var(--orange, #f2a33c)", "var(--purple, #b39cf0)",
     "var(--pink, #ff8ac0)", "var(--teal, #40c8e0)", "var(--yellow, #f2c94c)"];
@@ -135,7 +136,8 @@
       const kandidater = Object.keys(S).filter((id) => id.startsWith("device_tracker.") && navn.test(id)
         && !/route|rute|destin|mal$/i.test(id) && S[id].attributes.latitude != null);
       kandidater.sort((a, b) => (/location|plassering|posisjon/.test(b) ? 1 : 0) - (/location|plassering|posisjon/.test(a) ? 1 : 0));
-      this._bilAuto = kandidater[0] || null;
+      const sensor = Object.keys(S).find((id) => id.startsWith("sensor.") && navn.test(id) && /plassering|location|posisjon|adresse/i.test(id));
+      this._bilAuto = kandidater.find((id) => this._pos(id)) || sensor || kandidater[0] || null;
       return this._bilAuto;
     }
 
@@ -155,7 +157,10 @@
     _pos(id) {
       const s = this._hass.states[id];
       if (!s || s.attributes.latitude == null) return null;
-      return { lat: Number(s.attributes.latitude), lon: Number(s.attributes.longitude) };
+      const lat = Number(s.attributes.latitude), lon = Number(s.attributes.longitude);
+      // 0,0 (og tomme verdier) betyr at kilden ikke har en posisjon – ikke Guineabukta
+      if (!isFinite(lat) || !isFinite(lon) || (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001)) return null;
+      return { lat, lon };
     }
 
     _soneNavn(tilstand) {
@@ -210,16 +215,22 @@
       const bil = this._bil();
       if (bil && this._hass.states[bil]) {
         const s = this._hass.states[bil];
-        const z = soneFor(s.state);
         const pos = this._pos(bil);
-        const avstand = hjem && pos && s.state !== "home" ? km(hjem, pos) : null;
+        const erSporer = bil.startsWith("device_tracker.");
+        // En sensor har adressen som tilstand; sonen finnes da ut fra posisjonen (innenfor sonens radius).
+        let z = erSporer ? soneFor(s.state) : null;
+        if (!z && pos) z = soner.find((id) => { const zp = this._pos(id); const r = Number((this._hass.states[id] || {}).attributes.radius) || 100;
+          return zp && km(zp, pos) * 1000 <= r; }) || null;
+        const stedTekst = erSporer ? this._soneNavn(s.state)
+          : z ? (this._hass.states[z].attributes.friendly_name || z) : (["unknown", "unavailable", ""].includes(s.state) ? "Ukjent" : s.state);
+        const avstand = hjem && pos && z !== "zone.home" ? km(hjem, pos) : null;
         const bat = this._hass.states[this._bilBatteri()];
         const batPst = bat ? Math.round(Number(bat.state)) : null;
         rader.push(`<button class="rad ${this._stor() ? "glass" : ""}" data-mer="${esc(bil)}">
           <span class="bilde" style="--rf:${z ? farge[z] : "var(--gray400, #48474a)"}"><ha-icon icon="mdi:car-electric"></ha-icon>
-            <span class="merke"><ha-icon icon="${s.state === "home" ? "mdi:home" : "mdi:map-marker"}"></ha-icon></span></span>
+            <span class="merke"><ha-icon icon="${z === "zone.home" ? "mdi:home" : "mdi:map-marker"}"></ha-icon></span></span>
           <span><div class="navn">${esc(this._c.bil_tittel || "Bilen")}</div>
-            <div class="hvor">${esc(this._soneNavn(s.state))} · ${esc(siden(s.last_changed))}</div></span>
+            <div class="hvor">${esc(stedTekst)} · ${esc(siden(s.last_changed))}</div></span>
           <span class="hoyre">${batPst != null && !isNaN(batPst) ? `<b>${batPst} %</b><small>${avstand != null ? `${avstand < 10 ? avstand.toFixed(1).replace(".", ",") : Math.round(avstand)} km unna` : "batteri"}</small>`
             : avstand != null ? `<b>${Math.round(avstand)} km</b><small>fra hjemme</small>` : ""}</span>
         </button>`);
@@ -229,7 +240,11 @@
       const hvem = {};
       for (const id of [...this._personer(), bil].filter(Boolean)) {
         const s = this._hass.states[id]; if (!s) continue;
-        const z = soneFor(s.state); if (!z) continue;
+        let z = soneFor(s.state);
+        if (!z && id === bil) { const pos = this._pos(id);
+          z = pos ? soner.find((zid) => { const zp = this._pos(zid); const r = Number((this._hass.states[zid] || {}).attributes.radius) || 100;
+            return zp && km(zp, pos) * 1000 <= r; }) : null; }
+        if (!z) continue;
         (hvem[z] = hvem[z] || []).push(id === bil ? (this._c.bil_tittel || "Bilen") : (s.attributes.friendly_name || id).split(" ")[0]);
       }
       const soneBrikker = soner.map((z) => {
@@ -265,7 +280,8 @@
 
     async _monterKart() {
       const vert = this.shadowRoot.querySelector(".kart");
-      const entities = [...this._personer(), this._bil(), ...this._soner()].filter(Boolean);
+      const bil = this._bil();
+      const entities = [...this._personer(), bil && this._pos(bil) ? bil : null, ...this._soner()].filter(Boolean);
       try {
         const hjelp = await window.loadCardHelpers();
         const konf = {

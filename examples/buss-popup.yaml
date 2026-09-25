@@ -1,9 +1,9 @@
-# Buss-popupen (#buss): avgangene fra Entur begge veier.
+# Kollektiv-popupen (#buss): buss, T-bane og trikk fra Entur.
 # Legges sammen med de andre popupene i stue-visningen.
 type: custom:bubble-card
 card_type: pop-up
-name: Buss
-icon: mdi:bus
+name: Kollektiv
+icon: mdi:bus-clock
 hash: '#buss'
 button_type: name
 is_sidebar_hidden: true
@@ -11,7 +11,9 @@ bg_blur: '20'
 shadow_opacity: '20'
 bg_opacity: '88'
 margin_top_mobile: 50px
-margin_top_desktop: 50px
+margin_top_desktop: 30px
+# Bred popup, så kartet får nesten hele skjermen
+width_desktop: 94%
 card_layout: large
 styles: >
   .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
@@ -40,16 +42,48 @@ styles: >
   }
 cards:
   - type: custom:ki-entur-card
-    tittel: Buss 45
-    retninger:
-      - navn: Til Majorstuen
-        fra: Amagerveien
+    tittel: Kollektiv
+    antall: 4
+    tavler:
+      - navn: Til byen
+        fra: Amagerveien · Hovseter
         sensorer:
-          - sensor.transport_amagerveien_platform_11676
-        mot: Majorstuen
-        # gange: 4
-      - navn: Til Amagerveien
+          - sensor.transport_amagerveien_platform_11676      # 45 mot Majorstuen
+          - sensor.transport_hovseter_platform_a             # 46 mot Majorstuen
+          - entity: sensor.transport_hovseter_platform_1     # T-bane 2 mot sentrum
+            linje: '2'
+        # gange: 4                                          # minutter til holdeplassen
+      - navn: Hjem
         fra: Majorstuen
         sensorer:
-          - sensor.transport_majorstuen    # etter at Majorstuen er lagt til i Entur-integrasjonen
-        mot: Voksen skog
+          - entity: sensor.transport_majorstuen_platform_j   # 45 mot Voksen skog (forbi Amagerveien)
+            mot: Voksen skog
+          - entity: sensor.transport_majorstuen_platform_g   # 46 mot Ullerntoppen (forbi Hovseter)
+            mot: Ullerntoppen
+          - entity: sensor.transport_majorstuen_platform_2   # T-bane 2 mot Østerås (Hovseter)
+            linje: '2'
+      - navn: Trikk mot Majorstuen
+        fra: Holbergs plass · Homansbyen · Frydenlund
+        sensorer:
+          - entity: sensor.transport_holbergs_plass_platform_b
+            mot: Majorstuen
+          - entity: sensor.transport_homansbyen_platform_8120
+            mot: Majorstuen
+          - entity: sensor.transport_frydenlund_platform_11484
+            mot: Majorstuen
+      - navn: Bislett
+        sensorer:
+          - sensor.transport_bislett_platform_a
+          - sensor.transport_bislett_platform_b
+          - sensor.transport_bislett_platform_c
+          - sensor.transport_bislett_platform_d
+      - navn: Smestad
+        sensorer:
+          - sensor.transport_smestad_platform_1
+          - sensor.transport_smestad_platform_2
+          - sensor.transport_smestad_platform_c
+          - sensor.transport_smestad_platform_d
+      - navn: Radiumhospitalet
+        sensorer:
+          - sensor.transport_radiumhospitalet_platform_12013
+          - sensor.transport_radiumhospitalet_platform_12016
