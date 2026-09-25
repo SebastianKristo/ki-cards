@@ -1,34 +1,24 @@
-# ki-cards 8.99.7
+# ki-cards 8.99.8
 
-Bygget oppå 8.99.6 fra GitHub.
+Bygget oppå 8.99.7 fra GitHub.
 
-## ki-kamera-card: ruteoppsett per bruker og enhet
+## ki-vanning-card 4.3.1: flatt, uten glass
 
-Hver bruker kan ha sitt eget ruteoppsett i Alle-visningen, og hver enhet sitt eget — iPaden på veggen, telefonen og
-PC-en husker hver sin, og to brukere på samme iPad har hver sin.
+Mange av kortene i vanningspopupen hadde et glasspreg: tynne hvite kanter, blå gradienter, halvgjennomsiktige
+hvite knapper og uskarphet bak. Nå følger de DESIGN.md:
 
-**Tilpass rutene …** nederst i oppsettsmenyen (trykk på kameraikonet ved tittelen) åpner et panel under tittelen:
-- **Oppsett:** Mosaikk, Hovedkamera, Rutenett eller Liste.
-- **Rekkefølge:** flytt kameraene opp og ned — det første er hovedkameraet i Hovedkamera og Mosaikk.
-- **Vis / skjul:** øyet tar et kamera ut av Alle-visningen (fanen for kameraet er der fortsatt).
-- **Tilbake til standard** fjerner det du har tilpasset.
+- **Flater** i `--gray200` uten kant, skygge, gradient eller gjennomsiktighet — Neste vanning, Neste 7 dager, fliser,
+  sonelistene, programmene, agendaen.
+- **Statuskortene** (regnpause, hovedventilen stengt) er flate grå kort med fargen i ikonsirkelen: blå for regn,
+  oransje for hovedventilen.
+- **Det som vanner** — en sone eller et program — får en flat blå tone og en helblå ikonsirkel i stedet for gradient.
+- **Knapper og brikker** er flate i `--gray100` i stedet for halvgjennomsiktig hvitt.
+- **Innstillingene** åpnes på en tett bakgrunn uten uskarphet, og tannhjulet i scenen har ingen uskarphet bak seg.
+- Ikonet på sonen som vanner, pulserer ikke lenger.
 
-Valget lagres i nettleseren under brukeren, så det følger brukeren på den enheten. Kameraene huskes på navnet, så
-rekkefølgen tåler at nye kameraer legges til. Å velge et oppsett rett i menyen lagres også nå.
-
-**Standard per bruker** kan settes i konfigurasjonen — det gjelder til brukeren tilpasser selv:
-
-```yaml
-per_bruker:
-  Rune:
-    grid_layout: liste
-    rekkefolge: [Hage, Inngang]
-    skjul: [Garasje]
-```
+Hagescenen øverst er som før.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Kortet er kjørt med fire kameraer og tre brukere: Sebastian åpner «Tilpass rutene …»
-(«For Sebastian på denne enheten», fire rader), skjuler Bod, flytter Hage opp og velger Hovedkamera — det lagres og
-står likt i en ny visning; Cybele har fortsatt standardoppsettet; Rune får listeoppsettet fra `per_bruker`; og
-«Tilbake til standard» fjerner det lagrede.
+Begge byggesjekkene kjørt. Kortet er kjørt med demo-dataene i alle fanene; den flate stilen ligger sist, så den
+gjelder over de eldre reglene. Ingen `NaN` eller `undefined`.

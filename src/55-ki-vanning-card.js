@@ -18,7 +18,7 @@
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.3.0";
+const KI_VANN_VERSJON = "4.3.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -642,6 +642,34 @@ const KI_VANN_STIL = `
   .v4dag .ar .t { width:40px; flex:none; font-size:13px; opacity:.8; font-variant-numeric:tabular-nums; }
   .v4dag .ar i { width:6px; height:6px; border-radius:3px; flex:none; background:color-mix(in srgb, var(--blue,#6ec6ff) 60%, transparent); }
   .v4dag .ar .n { flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* ---------- flatt, uten glass ----------
+     Etter DESIGN.md: flater i --gray200 uten kant, skygge, gjennomsiktighet, uskarphet eller
+     gradient. Tynne hvite kanter, blå gradienter og halvgjennomsiktige hvite knapper ga et
+     «glass»-preg. Farge brukes bare som aksent – i ikonsirkelen og i det som er aktivt. */
+  .v4kort, .v4flis, .v4liste, .v4agenda, .v4prog { border:0; box-shadow:none; background:var(--gray200,#262629); }
+  .v4prog.gaar { box-shadow:none; }
+  .v4prog.gaar .v4spill { background:var(--blue,#6ec6ff); color:#141416; }
+  .v4knapper button.strek, .v4av, .v4brikker span, .tp-nullstill { box-shadow:none; background:var(--gray100,#1f1f21); opacity:1; }
+  .v4brikker span { opacity:.6; }
+  .v4sone .fyll { background:color-mix(in srgb, var(--blue,#6ec6ff) 16%, transparent); }
+  .v4sone.gaar .v4ik { animation:none; }
+  .statuskort { background:var(--gray200,#262629); color:var(--gray1000,#f2f1ee); }
+  .statuskort.program { background:var(--gray200,#262629); }
+  .statuskort .sik { background:color-mix(in srgb, var(--sk-farge, var(--blue,#6ec6ff)) 22%, var(--gray200,#262629)); color:var(--sk-farge, var(--blue,#6ec6ff)); }
+  .statuskort .sknapp { background:var(--gray100,#1f1f21); }
+  .statuskort .igjen { background:var(--gray100,#1f1f21); }
+  .statuskort .igjen i { background:var(--blue,#6ec6ff); opacity:1; }
+  .soneflis.gaar, .pk2.gaar { background:color-mix(in srgb, var(--blue,#6ec6ff) 24%, var(--gray200,#262629)); color:inherit; }
+  .soneflis.gaar .zik, .pk2.gaar .pik { background:var(--blue,#6ec6ff); color:#141416; }
+  .soneflis.gaar .vk, .pk2.gaar .ps .psb, .pk2.gaar .pk, .pkort.gaar .pk, .pkort.gaar .sonebrikke { background:var(--gray100,#1f1f21); }
+  .dagsrad i, .sonebrikke, .pk { background:var(--gray100,#1f1f21); }
+  .pbryter { background:var(--gray400,#48474a); }
+  .cog { backdrop-filter:none; background:rgba(0,0,0,.4); }
+  .innlag { backdrop-filter:none; background:var(--gray000,#141416); }
+  .innlag .lukk { background:var(--gray200,#262629); }
+  .graflapp { box-shadow:none; }
+
 `;
 
 const kiVaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
