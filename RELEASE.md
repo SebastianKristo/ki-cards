@@ -1,3 +1,19 @@
+# ki-cards 5.76.0
+
+## ki-basseng-card 3.1.0: mer som resten av dashbordet
+
+- **Setningene** («Vannet når 27° om ca 2 t 10 min …») tegnes nå av `ki-prosa-card`, det
+  samme kortet som forsideteksten. Et trykk på en pille åpner verdien. Størrelsen settes
+  med `prosa_storrelse:` (standard `1.2em`). Er ki-prosa-card ikke lastet, tegner
+  bassengkortet setningen selv.
+- **Flisene du blar i** er som `css-swipe-card` i Strøm-kortet: 190 px med prikkene. Aktiv
+  prikk er `--gray400`, de andre `--gray200`, uten kant.
+- **Temperaturvalgene** er kvadratiske som ladegrense-knappene i Tesla-kortet: 24 px
+  hjørner, trykkmerket 36 × 3 px øverst og aktivfargen når verdien er valgt. Profilscenene
+  har samme trykkmerke.
+
+---
+
 # ki-cards 5.75.0
 
 ## ki-basseng-card 3.0.0: nytt oppsett for bassengpopupen
