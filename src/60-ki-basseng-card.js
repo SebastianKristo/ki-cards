@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 3.0.0 - del av ki-cards
+ * ki-basseng-card 3.1.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -24,6 +24,9 @@
  *   – Klor: trykk på den som la i, antall, kalenderen og klorloggens innstillinger.
  *   En `faner:`-liste skrevet for 2.x (uten klor) får Klor etter Varme, og Sirkulasjon
  *   faller bort – den ligger under grafen på Varme nå.
+ * 3.1: setningene tegnes av ki-prosa-card (som forsideteksten), flisene du blar i er som
+ *   css-swipe-card i Strøm-kortet, og temperaturvalgene er kvadratiske som ladegrense-
+ *   knappene i Tesla-kortet.
  *
  * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
  *   faner: false gir én flyt med utvidbare seksjoner i stedet.
@@ -49,7 +52,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.0.0";
+  const VERSJON = "3.1.0";
 
   /* Finner LitElement i frontend.
    *
@@ -1741,7 +1744,6 @@
 
       /* «Vannet er 26,3° og når 27° om ca 2 t 10 min, og det koster ca 4 kroner.» */
       _varmeSetning() {
-        const pl = (v, k, e) => this._pl(v, k, e);
         const vann = this._vannTemp(), mal = this._malTemp();
         if (vann == null || mal == null) return "";
         const v = `${nf(vann, 1)}°`, m = `${nf(mal, mal % 1 ? 1 : 0)}°`;
@@ -1749,22 +1751,24 @@
         const kost = this.attr("maltemp", "oppvarming_kostnad");
         const rekker = this.attr("maltemp", "rekker_malet");
         const valuta = this.enhet("kostnad") || "kr";
-        const deler = [];
         const harKost = kost != null && Number(kost) > 0.005;
-        if (vann >= mal - 0.2) {
-          deler.push(html`Vannet er ${pl(v, "vanntemp")} og holder målet på ${pl(m, "onsketTemp", ".")}`);
-        } else if (min != null && min > 0) {
-          deler.push(html`Vannet er ${pl(v, "vanntemp")} og når ${pl(m, "onsketTemp")} om ca ${pl(varighet(min), "maltemp", harKost ? "," : ".")}${
-            harKost ? html` og det koster ca ${pl(kroner(kost, valuta), "maltemp", ".")}` : ""}`);
+        const deler = [{ t: "Vannet er {pille}", v, k: "vanntemp" }];
+        if (vann >= mal - 0.2) deler.push({ t: "og holder målet på {pille}.", v: m, k: "onsketTemp" });
+        else if (min != null && min > 0) {
+          deler.push({ t: "og når {pille}", v: m, k: "onsketTemp" });
+          deler.push({ t: `om ca {pille}${harKost ? "," : "."}`, v: varighet(min), k: "maltemp" });
+          if (harKost) deler.push({ t: "og det koster ca {pille}.", v: kroner(kost, valuta), k: "maltemp" });
         } else if (rekker === false) {
-          deler.push(html`Vannet er ${pl(v, "vanntemp", ".")} Varmepumpa rekker ikke ${pl(m, "onsketTemp")} med dette været.`);
+          deler[0].t = "Vannet er {pille}.";
+          deler.push({ t: "Varmepumpa rekker ikke {pille} med dette været.", v: m, k: "onsketTemp" });
         } else {
-          deler.push(html`Vannet er ${pl(v, "vanntemp", ",")} og målet er ${pl(m, "onsketTemp", ".")}`);
+          deler[0].t = "Vannet er {pille},";
+          deler.push({ t: "og målet er {pille}.", v: m, k: "onsketTemp" });
         }
         if (this._borte()) {
-          deler.push(html` Ingen er hjemme, så målet er senket ${pl(`${nf(this.val("borteSenking", 0), 1)}°`, "borteSenking", ".")}`);
+          deler.push({ t: "Ingen er hjemme, så målet er senket {pille}.", v: `${nf(this.val("borteSenking", 0), 1)}°`, k: "borteSenking" });
         }
-        return html`<p class="setn3">${deler}</p>`;
+        return this._prosa("varme", deler);
       }
 
       _varmeTips() {
@@ -2337,40 +2341,71 @@
         if (i !== (this._sveipIdx[nokkel] || 0)) this._sveipIdx = { ...this._sveipIdx, [nokkel]: i };
       }
 
-      /* En pille i setningen: verdien i hvitt, og et trykk åpner entiteten bak. */
-      _pl(verdi, key, etter = "") {
-        const pille = html`<b class="pl3" @click=${(e) => { e.stopPropagation(); if (key) this._mer(key); }}>${verdi}</b>`;
-        return etter ? html`<span class="pl3-hel">${pille}${etter}</span>` : pille;
+      /* Setningene tegnes av ki-prosa-card, samme kort som forsideteksten i dashbordet.
+       *
+       * Hver del er { t, v, k }: teksten med {pille} der verdien står, verdien, og
+       * entiteten et trykk på pillen åpner. ki-prosa-card har én pille per setning, så
+       * en lang setning deles i biter som står etter hverandre. Er ki-prosa-card ikke
+       * lastet (kortet brukt alene), tegnes de samme bitene her. */
+      _prosa(navn, deler) {
+        if (!deler.length) return "";
+        const std = { vaer: false, pris: false, effekt: false, lys: false, kalender: false, ringeklokke: false,
+          laser: false, planter: false, bursdag: false, apparater: false, hjemkomst: false, spot: false };
+        if (customElements.get("ki-prosa-card")) {
+          this._prosaEl = this._prosaEl || {};
+          let el = this._prosaEl[navn];
+          if (!el) { el = document.createElement("ki-prosa-card"); el.classList.add("prosa3"); this._prosaEl[navn] = el; }
+          const konf = {
+            ...std,
+            storrelse: this._config.prosa_storrelse || "1.2em",
+            setninger: deler.map((d) => (d.v === undefined ? { tekst: d.t }
+              : { tekst: d.t, pille: { mal: d.v, mer: d.k ? this.id(d.k) || undefined : undefined, id: `${navn}-${d.t}` } })),
+          };
+          const json = JSON.stringify(konf);
+          if (el._kibKonf !== json) { el._kibKonf = json; el.setConfig(konf); }
+          el.hass = this.hass;
+          return el;
+        }
+        return html`<p class="setn3">${deler.map((d, i) => {
+          const [for_, etter = ""] = d.t.split("{pille}");
+          return html`${i ? " " : ""}${for_}${d.v === undefined ? "" : html`<b class="pl3"
+            @click=${(e) => { e.stopPropagation(); if (d.k) this._mer(d.k); }}>${d.v}</b>`}${etter}`;
+        })}</p>`;
       }
 
-      /* Hva som skjer, sagt i én setning (som i Strøm-kortet):
+      /* Hva som skjer, sagt i setninger (som forsideteksten):
          «Vannet når 27° om ca 2 t 10 min. Pumpa starter 23:00, og i natt står varmen
          av 23–04 og sparer ca 2 kroner.» */
       _setning() {
-        const pl = (v, k, e) => this._pl(v, k, e);
         const deler = [];
         const vinter = this.on("vintermodus");
         if (vinter) {
           const hus = this.attr("frostVarme", "bassenghus", this.attr("frostVarme", "temperatur"));
-          deler.push(hus != null
-            ? (this.on("frostVarme")
-              ? html`Vintermodus: bassenghuset er ${pl(`${nf(hus, 1)}°`, "frostVarme")} og varmeelementene varmer.`
-              : html`Vintermodus: bassenghuset er ${pl(`${nf(hus, 1)}°`, "frostVarme", ".")}`)
-            : html`Vintermodus holder bassenghuset frostfritt.`);
+          if (hus != null) {
+            deler.push({ t: this.on("frostVarme") ? "Vintermodus: bassenghuset er {pille}, og varmeelementene varmer."
+              : "Vintermodus: bassenghuset er {pille}.", v: `${nf(hus, 1)}°`, k: "frostVarme" });
+          } else deler.push({ t: "Vintermodus holder bassenghuset frostfritt." });
         } else if (this._harVarme()) {
           const vann = this._vannTemp(), mal = this._malTemp();
           const min = this.attr("maltemp", "minutter_til_mal");
           const rekker = this.attr("maltemp", "rekker_malet");
           if (vann != null && mal != null) {
-            const m = `${nf(mal, mal % 1 ? 1 : 0)}°`;
-            if (vann >= mal - 0.2) deler.push(html`Vannet er ${pl(`${nf(vann, 1)}°`, "vanntemp")} og på målet.`);
-            else if (min != null && min > 0) deler.push(html`Vannet når ${pl(m, "onsketTemp")} om ca ${pl(varighet(min), "maltemp", ".")}`);
-            else if (rekker === false) deler.push(html`Vannet er ${pl(`${nf(vann, 1)}°`, "vanntemp", ",")} og varmepumpa rekker ikke ${pl(m, "onsketTemp")} med dette været.`);
-            else deler.push(html`Vannet er ${pl(`${nf(vann, 1)}°`, "vanntemp", ",")} og målet er ${pl(m, "onsketTemp", ".")}`);
+            const v = `${nf(vann, 1)}°`, m = `${nf(mal, mal % 1 ? 1 : 0)}°`;
+            if (vann >= mal - 0.2) deler.push({ t: "Vannet er {pille} og på målet.", v, k: "vanntemp" });
+            else if (min != null && min > 0) {
+              deler.push({ t: "Vannet når {pille}", v: m, k: "onsketTemp" });
+              deler.push({ t: "om ca {pille}.", v: varighet(min), k: "maltemp" });
+            } else if (rekker === false) {
+              deler.push({ t: "Vannet er {pille},", v, k: "vanntemp" });
+              deler.push({ t: "og varmepumpa rekker ikke {pille} med dette været.", v: m, k: "onsketTemp" });
+            } else {
+              deler.push({ t: "Vannet er {pille},", v, k: "vanntemp" });
+              deler.push({ t: "og målet er {pille}.", v: m, k: "onsketTemp" });
+            }
           }
         } else {
           const t = this.val("vanntemp");
-          if (t != null) deler.push(html`Vannet er ${pl(`${nf(t, 1)}°`, "vanntemp", ".")}`);
+          if (t != null) deler.push({ t: "Vannet er {pille}.", v: `${nf(t, 1)}°`, k: "vanntemp" });
         }
         const modus = this.val("modus", "hvile");
         const neste = klokke(this.val("nesteStart"));
@@ -2378,21 +2413,22 @@
         const s = this.val("senking");
         const a = (this.st("senking") || {}).attributes || {};
         const valuta = this.enhet("kostnad") || "kr";
-        let natt = null;
+        const natt = [];
         if (!vinter && s === "planlagt") {
           const spar = Number(a.spart_kostnad);
-          natt = spar > 0.005
-            ? html` og i natt står varmen av ${pl(kortVindu(a.fra, a.til), "senking")} og sparer ca ${pl(kroner(spar, valuta), "senking", ".")}`
-            : html` og i natt står varmen av ${pl(kortVindu(a.fra, a.til), "senking", ".")}`;
+          if (spar > 0.005) {
+            natt.push({ t: "og i natt står varmen av {pille}", v: kortVindu(a.fra, a.til), k: "senking" });
+            natt.push({ t: "og sparer ca {pille}.", v: kroner(spar, valuta), k: "senking" });
+          } else natt.push({ t: "og i natt står varmen av {pille}.", v: kortVindu(a.fra, a.til), k: "senking" });
         } else if (!vinter && s === "aktiv") {
-          natt = html` og varmen står av til ${pl(a.til || "–", "senking", ".")}`;
+          natt.push({ t: "og varmen står av til {pille}.", v: a.til || "–", k: "senking" });
         }
-        const tegn = natt ? "," : ".";
-        const pumpe = gar ? html` Pumpa går nå${tegn}`
-          : neste ? html` Pumpa starter ${pl(neste, "nesteStart", tegn)}`
-          : html` Ingen pumpestart er planlagt${tegn}`;
-        deler.push(html`${pumpe}${natt || ""}`);
-        return html`<p class="setn3">${deler}</p>`;
+        const tegn = natt.length ? "," : ".";
+        deler.push(gar ? { t: `Pumpa går nå${tegn}` }
+          : neste ? { t: `Pumpa starter {pille}${tegn}`, v: neste, k: "nesteStart" }
+          : { t: `Ingen pumpestart er planlagt${tegn}` });
+        deler.push(...natt);
+        return this._prosa("oversikt", deler);
       }
 
       /* Dagens tall som en liste (som «I dag» i Strøm-kortet). */
@@ -4165,19 +4201,21 @@
           .fl3-verdi small { font-size: 13px; font-weight: 400; opacity: 0.8; margin-left: 3px; }
           .fl3-verdi.gron { color: var(--kib-green); }
           .fl3 .tog3 { position: absolute; right: 16px; top: 28px; }
-          .sv3 { display: grid; gap: 8px; min-width: 0; }
+          /* Som css-swipe-card i Strøm-kortet: 190 px med prikkene, aktiv prikk gray400,
+             de andre gray200, uten kant. */
+          .sv3 { display: grid; gap: 6px; min-width: 0; }
+          .sv3 .fl3 { height: 168px; }
           .sv3-spor { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 24px;
             scrollbar-width: none; overscroll-behavior-x: contain; }
           .sv3-spor::-webkit-scrollbar { display: none; }
           .sv3-side { flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; }
-          .prikker3 { display: flex; justify-content: center; gap: 7px; }
-          .prikker3 i { width: 8px; height: 8px; border-radius: 50%; background: rgba(250, 251, 252, 0.25); transition: background 0.2s; }
-          .prikker3 i.a { background: rgba(250, 251, 252, 0.8); }
+          .prikker3 { display: flex; justify-content: center; gap: 8px; height: 8px; }
+          .prikker3 i { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--gray200, rgba(250, 251, 252, 0.2)); transition: background 0.2s; }
+          .prikker3 i.a { background: var(--gray400, rgba(250, 251, 252, 0.55)); }
 
           /* Setningen med verdiene i piller */
           .setn3 { margin: 0; padding: 0 6px; font-size: 19px; line-height: 1.8; }
-          .pl3-hel { white-space: nowrap; }
-          .pl3-hel .pl3 { margin-right: 1px; }
+          .prosa3 { margin: 0 -2px; }
           .pl3 { display: inline-block; margin: 0 2px; padding: 0 11px; border-radius: 999px; line-height: 1.5;
             background: var(--kib-text); color: var(--kib-surface); font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer; }
 
@@ -4200,17 +4238,14 @@
           /* Profilene som scener */
           .sk3-rad { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
           .sk3-rad::-webkit-scrollbar { display: none; }
-          .sk3 { position: relative; flex: 0 0 96px; height: 96px; border-radius: 22px; background: var(--kib-surface); color: var(--kib-text);
+          .sk3 { position: relative; flex: 0 0 96px; height: 96px; border-radius: 24px; background: var(--kib-surface); color: var(--kib-text);
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 500;
             scroll-snap-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent;
             transition: background 0.25s, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1); }
-          .sk3::before { content: ""; position: absolute; top: 8px; left: 50%; width: 34px; height: 3px; margin-left: -17px;
-            border-radius: 2px; background: rgba(250, 251, 252, 0.18); }
           .sk3:active { transform: scale(0.95); }
           .sk3 ha-icon { --mdc-icon-size: 26px; }
           .sk3 span { max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .sk3.pa { background: var(--kib-accent); color: var(--kib-sort); }
-          .sk3.pa::before { background: rgba(0, 0, 0, 0.12); }
 
           /* Rader med ikon og tekst, to i bredden eller brede */
           .br3 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -4235,14 +4270,15 @@
 
           /* Varme */
           .fv3 { display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 12px; }
-          .fv3-k { position: relative; height: 88px; border-radius: 22px; background: var(--kib-surface); color: var(--kib-text);
-            display: grid; place-items: center; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer;
+          /* Som ladegrense-knappene i Tesla-kortet: kvadratiske, 24 px hjørner, et
+             trykkmerke øverst, og fylt med aktivfargen når verdien er valgt. */
+          .fv3-k { position: relative; aspect-ratio: 1 / 1; border-radius: 24px; background: var(--kib-surface); color: var(--kib-text);
+            display: grid; place-items: center; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer;
             -webkit-tap-highlight-color: transparent; transition: background 0.25s, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1); }
-          .fv3-k::before { content: ""; position: absolute; top: 10px; left: 50%; width: 30px; height: 3px; margin-left: -15px;
-            border-radius: 2px; background: rgba(250, 251, 252, 0.18); }
+          .fv3-k::before, .sk3::before { content: ""; position: absolute; top: 8px; left: calc(50% - 18px); width: 36px; height: 3px;
+            border-radius: 5px; background: var(--kib-text); opacity: 0.1; }
           .fv3-k:active { transform: scale(0.94); }
           .fv3-k.pa { background: var(--kib-accent); color: var(--kib-sort); }
-          .fv3-k.pa::before { background: rgba(0, 0, 0, 0.12); }
           .uf3 { align-self: center; display: inline-flex; gap: 4px; max-width: 100%; box-sizing: border-box; padding: 2px;
             border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
           .uf3-k { flex: none; padding: 7px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; white-space: nowrap;
