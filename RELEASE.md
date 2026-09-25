@@ -1,36 +1,38 @@
-# ki-cards 5.81.0
+# ki-cards 5.82.0
 
-## Nytt kort: `ki-sikkerhetspanel-card`
+## ki-veggpanel-card 1.8.0: nattkort over to kolonner, «God morgen», mer farge, og Plex som virker
 
-Sikkerhetspopupen (`#alarm`) etter skissen «Sikkerhet v2», i dashbordets farger: oransje for det som krever
-deg, blått for bevegelse, grønt for Hjemme.
+**Nattkortet ligger over to kolonner** — over media og varme i midten og lysene til høyre — i stedet for å
+skyve media ned i én kolonne. Venstre kolonne (prosa, familie, scener) står urørt. `natt.kort_plass: midt`
+eller `venstre` gir de gamle plassene.
 
-- **Ringen:** én strek per sensor rundt modusen. Streken lyser oransje når en dør eller et vindu står åpent
-  eller en lås er ulåst, og blått når en sensor ser bevegelse; ellers har den modusfargen (grå når alarmen er
-  av). I midten modusen og når den ble slått på; trykk åpner alarmen.
-- **Setningen under:** «1 dør står åpen, 1 vindu står åpent og 1 lås er ulåst» — eller «Alt er lukket og
-  låst» — og hvor mange sensorer som ser bevegelse og hvor mange som er i ro. Skissen la setningen oppå
-  linja under når den gikk over to linjer; her har den egen linjehøyde.
-- **Modus: hold inne.** Av, Hjemme, Borte og Natt. Hold i 0,9 s — fyllet går over knappen mens du holder,
-  og slipper du før, skjer ingenting. Krever alarmen kode (entitetens `code_format` og
-  `code_arm_required`), kommer et tastatur opp nedenfra; koden sendes når alle sifrene er tastet, og feil
-  kode rister prikkene.
-- **Krever oppmerksomhet:** én rad per åpen dør, åpent vindu, ulåst lås og lavt batteri (`batteri_grense`).
-  Ulåste låser har **Lås**, som låser; resten har **Vis**, som åpner sensoren.
-- **Rom:** sensorene gruppert per rom (`rom:` på hvert punkt), med prikk i romfargen og en brikke per sensor
-  — «Åpen», «Dørlås ulåst», «Bevegelse nå», «Boddør · 88 %». Trykk åpner sensoren.
-- **Siste hendelser:** fra loggboka, siste døgn — modusbytter med hvem som gjorde det («Deg», eller navnet
-  på personen), dører og vinduer som åpnes, låser og bevegelse. «Lukket» og «ingen bevegelse» er utelatt
-  som støy.
-- **Egen overskrift og X** som lukker popupen.
+**God morgen.** Når nattmodus slås av om morgenen, blir nattkortet til et morgenkort: soloppgang med en
+sol som stiger opp, stråler og fugler som flyr forbi, «God morgen», når nattmodus ble slått av, været, lås
+og alarm. Det står til kl. 9 (`natt.morgen_til`) eller til du krysser det ut — utkryssingen huskes resten
+av dagen. Står nattmodus fortsatt på om morgenen, sier nattkortet «God morgen» i stedet for «God natt».
 
-Leser samme `zones:` som `ki-sikkerhet-card`. `examples/sikkerhet-popup.yaml` er hele popupen med rommene
-satt opp.
+**Mer farge i varmen og lysene** (`levende: true`, standard):
+
+- **Varme:** ikonet gløder oransje med en flamme som blafrer når ovnen varmer, og blir blått når rommet er
+  under målet uten at det varmes. Under hver sone en stolpe fra blått til oransje som viser rommets
+  temperatur mot målet.
+- **Lys:** hver rad får lampas egen farge — RGB når den har det, ellers en varm tone ut fra
+  fargetemperaturen — i fyllet, en tynn ring og en glød. Pæreikonet lyser i samme farge, og ikonet i
+  overskriften gløder i fargene til lampene som er på.
+
+`levende: false` gir det rolige utseendet tilbake.
+
+**Nytt i Plex virket ikke.** Nå er det en stor plakat med bakgrunnsbildet, som i swipe-kortet ditt: tittel,
+episode eller år og spilletid, og når den ble lagt til. Den bytter hvert 10. sekund (`plex.intervall`),
+kan sveipes, og har prikker nederst. Dataene leses slik `dashboard_plex`-malen gjør (`data[1]`, `data[2]`
+…). Finner kortet ingenting, sier det hvorfor — sensoren finnes ikke, har ingen data-liste, eller er tom —
+så vi ser hva som mangler i stedet for bare «Ingenting nytt».
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt: 62 kort bygges. Kortet er kjørt med stuas sensorer: «Natt · Aktivert …», ni
-streker der fire lyser, setningen «1 dør står åpen, 1 vindu står åpent og 1 lås er ulåst», fire varsler
-(dør, vindu, lås og lavt batteri 12 %), rommene med riktige brikker, loggen med nyeste først og «Deg» på
-modusbyttet. **Lås** kaller `lock.lock`; **Av** åpner tastaturet, og seks sifre sender `alarm_disarm` med
-koden og lukker det. Ingen `NaN` eller `undefined`. Bygget oppå 5.80.0 fra GitHub.
+Begge byggesjekkene kjørt. Veggpanelet er kjørt med nattmodus på (kortet i rutenettet over midten og
+høyre), slått av om morgenen («God morgen» med vær, lås og alarm; krysset ut forsvinner det, og det holder
+seg borte ved ny visning samme dag), panelovnen som varmer (oransje) og oljefyren under målet (blå) med
+stolper, lampene i sine egne farger og glød i overskriften, og Plex med tre plakater i riktig rekkefølge som
+bytter tittel og undertekst — og en forklaring når sensoren mangler. Ingen `NaN` eller `undefined`.
+Bygget oppå 5.81.0 fra GitHub.

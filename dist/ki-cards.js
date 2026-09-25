@@ -1,4 +1,4 @@
-/* ki-cards v5.81.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.82.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.81.0";
+  KI.VERSION = "5.82.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -33614,13 +33614,15 @@ try {
  *   etter: 90                         # sekunder uten trykk
  *   vekking: sensor.soverom_vekking_neste_alarm
  *   kort: true              # animert nattkort øverst i midten mens nattmodus er på (false = av)
- *   kort_plass: midt        # midt | venstre
+ *   kort_plass: bred        # bred: over midten og høyre | midt | venstre
+ *   morgen_til: 9           # «God morgen»-kortet står fra nattmodus slås av om morgenen til kl. 9
+ * levende: true             # farger fra lysene og varmen (false = bare dashbordets aksent)
  *   skjul: [plex]           # kort som legges bort mens nattmodus er på
  *   handlinger:
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.6.0";
+  const VERSJON = "1.7.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -33843,6 +33845,79 @@ try {
     .lrad .lb { --mdc-icon-size: 20px; display: none; }
     .hint { font-size: 11px; opacity: .5; text-align: center; }
     .pil { --mdc-icon-size: 20px; opacity: .45; }
+    /* Kolonnene står på faste plasser, så nattkortet kan legge seg over to av dem. */
+    .kol3 > .kol.venstre { grid-column: 1; grid-row: 1 / span 2; }
+    .kol3 > .kol.midt { grid-column: 2; grid-row: 1 / span 2; }
+    .kol3 > .kol.hoyre { grid-column: 3; grid-row: 1 / span 2; }
+    .kol3 { grid-template-rows: minmax(0, 1fr); }
+    .kol3.med-natt { grid-template-rows: auto minmax(0, 1fr); }
+    .kol3.med-natt > .kol.midt, .kol3.med-natt > .kol.hoyre { grid-row: 2; }
+    #nattkort:empty { display: none; }
+    #nattkort.plass-bred { grid-column: 2 / 4; grid-row: 1; }
+    #nattkort.plass-midt { grid-column: 2; grid-row: 1; }
+    #nattkort.plass-venstre { grid-column: 1; grid-row: 1; }
+    .kol3.med-natt.natt-venstre > .kol.venstre { grid-row: 2; }
+    .kol3.med-natt.natt-midt > .kol.hoyre { grid-row: 1 / span 2; }
+    @media (max-width: 1000px) { .kol3 > .kol, .kol3.med-natt > .kol { grid-column: auto; grid-row: auto; }
+      #nattkort.plass-bred, #nattkort.plass-midt, #nattkort.plass-venstre { grid-column: 1 / -1; grid-row: auto; } }
+    #nattkort .nattkort { min-height: 176px; height: 100%; }
+    #nattkort.plass-bred .nk-innhold { max-width: 70%; }
+    .nk-lukk { position: absolute; top: 12px; right: 12px; z-index: 2; width: 34px; height: 34px; border-radius: 17px;
+      background: rgba(255,255,255,.16); color: inherit; display: grid; place-items: center; }
+    .nk-lukk ha-icon { --mdc-icon-size: 18px; }
+    /* morgenkortet: soloppgang */
+    .nattkort.morgen { color: #3a2412; background: linear-gradient(170deg, #ffd9a8 0%, #ffc28a 38%, #f7a582 70%, #d98c9c 100%); }
+    .nattkort.morgen .nb { background: rgba(255,255,255,.4); }
+    .nattkort.morgen .nb.ok ha-icon { color: #2f7a45; }
+    .nattkort.morgen .nb.obs ha-icon { color: #b0501e; }
+    .nattkort.morgen .nk-knapp { background: rgba(255,255,255,.45); color: #3a2412; }
+    .nattkort.morgen .nk-lukk { background: rgba(255,255,255,.4); }
+    .sol { position: absolute; right: 56px; bottom: -34px; width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(circle at 50% 45%, #fff6d6, #ffd36b 55%, #ffb347 100%);
+      box-shadow: 0 0 60px 20px rgba(255,200,90,.55); animation: nk-opp 2.4s cubic-bezier(.2,.8,.2,1) both, nk-pust 5s ease-in-out 2.4s infinite; }
+    @keyframes nk-opp { from { transform: translateY(70px); } }
+    @keyframes nk-pust { 50% { box-shadow: 0 0 80px 30px rgba(255,200,90,.6); } }
+    .straale { position: absolute; right: 108px; bottom: 20px; width: 3px; height: 150px; border-radius: 2px; transform-origin: 50% 100%;
+      background: linear-gradient(to top, rgba(255,240,200,.55), rgba(255,240,200,0)); animation: nk-straale 6s ease-in-out infinite; }
+    @keyframes nk-straale { 50% { opacity: .45; } }
+    .fugl { position: absolute; width: 16px; height: 6px; border-top: 2px solid rgba(90,50,40,.55); border-radius: 50% 50% 0 0;
+      animation: nk-fly 18s linear infinite; }
+    .fugl::after { content: ""; position: absolute; left: 8px; top: -2px; width: 8px; height: 6px; border-top: 2px solid rgba(90,50,40,.55); border-radius: 50% 50% 0 0; }
+    @keyframes nk-fly { from { transform: translateX(-40px) translateY(0); } 50% { transform: translateX(50cqw) translateY(-12px); } to { transform: translateX(calc(100cqw + 40px)) translateY(4px); } }
+
+    /* levende farger: varmen og lysene får farge fra det de faktisk gjør */
+    .levende .sone .ik.varm { background: linear-gradient(145deg, #ffb347, #ff6f3c); color: #2a1206; box-shadow: 0 0 22px rgba(255,120,60,.45); }
+    .levende .sone .ik.varm ha-icon { animation: vp-flamme 1.6s ease-in-out infinite; }
+    @keyframes vp-flamme { 50% { transform: translateY(-2px) scale(1.06); } }
+    .levende .sone .ik.kald { background: linear-gradient(145deg, #7fc4ff, #4b7bff); color: #0b1a33; }
+    .levende .sone .still b { background: var(--vp-temp, none); -webkit-background-clip: text; background-clip: text; }
+    .levende .sone .still b.farget { color: transparent; }
+    .temp-stolpe { grid-column: 2 / -1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.08); position: relative; overflow: hidden; margin-top: -4px; }
+    .temp-stolpe i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: linear-gradient(90deg, #4b9bff, #ffb347 70%, #ff6f3c); }
+    .levende .lrad.farge > .fyll { background: linear-gradient(90deg, color-mix(in srgb, var(--lysfarge) 45%, transparent), color-mix(in srgb, var(--lysfarge) 85%, transparent)); }
+    .levende .lrad.farge.pa { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lysfarge) 45%, transparent), 0 0 18px color-mix(in srgb, var(--lysfarge) 22%, transparent); }
+    .levende .lrad.farge .lb { color: var(--lysfarge); filter: drop-shadow(0 0 6px var(--lysfarge)); display: block; }
+    .levende .lrad.farge.lys { color: #1a1206; }
+    .levende .hode .ik.fylt.lysglod { background: var(--lysglod, var(--active-big)); box-shadow: 0 0 24px color-mix(in srgb, var(--lysglod-farge, #ffd27a) 55%, transparent); }
+
+    /* Plex: stor plakat med bakgrunnsbilde, byttes hvert 10. sekund og kan sveipes */
+    .vp.skjerm .vokser > .plexhero { flex: 1 1 auto; }
+    .plexhero { position: relative; overflow: hidden; border-radius: 28px; min-height: 190px; height: 100%; color: #fff;
+      background: #151515; touch-action: pan-y; cursor: pointer; }
+    .plexhero .bak { position: absolute; inset: 0; background-size: cover; background-position: center; transition: opacity .8s ease; opacity: 0; transform: scale(1.04); }
+    .plexhero .bak.vis { opacity: 1; animation: vp-ken 12s ease-out both; }
+    @keyframes vp-ken { from { transform: scale(1.12); } to { transform: scale(1.02); } }
+    .plexhero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.25) 55%, rgba(0,0,0,.05) 100%); }
+    .plexhero .ph-inn { position: absolute; left: 18px; right: 18px; bottom: 30px; z-index: 1; display: grid; gap: 3px; }
+    .plexhero .ph-merke { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #e5a00d; }
+    .plexhero .ph-merke ha-icon { --mdc-icon-size: 16px; }
+    .plexhero .ph-tittel { font-size: 22px; font-weight: 500; line-height: 1.15; text-shadow: 0 1px 8px rgba(0,0,0,.5);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .plexhero .ph-under { font-size: 13px; opacity: .85; }
+    .plexhero .prikker { position: absolute; left: 18px; bottom: 12px; z-index: 1; display: flex; gap: 4px; }
+    .plexhero .prikker i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.55); transition: width .3s; }
+    .plexhero .prikker i.aktiv { width: 14px; background: rgba(255,255,255,.95); }
+    .plexhero .tomt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; z-index: 1; font-size: 13px; opacity: .8; }
     /* nattkortet */
     .nattkort { position: relative; overflow: hidden; isolation: isolate; border-radius: 28px; min-height: 210px;
       color: #eef0ff; background: linear-gradient(160deg, #161a36 0%, #231f4a 55%, #35295a 100%);
@@ -34102,7 +34177,7 @@ try {
 
     connectedCallback() {
       clearInterval(this._ur);
-      this._ur = setInterval(() => { this._klokke(); this._tegnNatt(); }, 15000);
+      this._ur = setInterval(() => { this._klokke(); this._tegnNatt(); this._tegnNattkort(); }, 15000);
       this._sistRort = Date.now();
       this._rort = (e) => {
         // Trykk på selve nattskjermen håndteres av klikket (vekk / handling), så et trykk
@@ -34118,6 +34193,7 @@ try {
     }
 
     disconnectedCallback() {
+      clearInterval(this._plexUr);
       clearInterval(this._ur);
       window.removeEventListener("pointerdown", this._rort, true);
       window.removeEventListener("location-changed", this._hashLytter);
@@ -34177,19 +34253,20 @@ try {
       const luft = Number(this._c.luft_topp ?? 40), bunn = Number(this._c.luft_bunn ?? (meny ? 0 : 110));
       const bunnPx = bunn;
       r.innerHTML = `<style>${CSS}${TEMA_VARM}${FARGER_VARM}</style>
-        <div class="ramme ${skjerm ? "skjerm" : ""} tema-${esc(String(this._c.tema || "varm").toLowerCase())} farger-${esc(String(this._c.farger || "dashbord").toLowerCase())}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunnPx}px">
+        <div class="ramme ${skjerm ? "skjerm" : ""} ${this._c.levende !== false ? "levende" : ""} tema-${esc(String(this._c.tema || "varm").toLowerCase())} farger-${esc(String(this._c.farger || "dashbord").toLowerCase())}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunnPx}px">
         ${meny ? `<nav class="meny" id="meny" aria-label="Meny"></nav>` : ""}
         <div class="vp ${skjerm ? "skjerm" : ""}">
           <div class="topp" id="topp"></div>
           <div class="kol3">
+            ${(this._c.natt || {}).kort !== false ? `<div id="nattkort" class="plass-${esc((this._c.natt || {}).kort_plass || "bred")}"></div>` : ""}
             <div class="kol venstre">
-              ${(this._c.natt || {}).kort !== false && (this._c.natt || {}).kort_plass === "venstre" ? `<div id="nattkort"></div>` : ""}
+
               ${this._c.prosa ? `<div class="vert" id="v-prosa"></div>` : ""}
               ${this._c.familie ? `<div class="vert" id="v-familie"></div>` : ""}
               <div id="scener"></div>
             </div>
             <div class="kol midt">
-              ${(this._c.natt || {}).kort !== false && (this._c.natt || {}).kort_plass !== "venstre" ? `<div id="nattkort"></div>` : ""}
+
               ${this._c.media ? `<div class="vert" id="v-media"></div>` : ""}
               <div id="klima"></div>
               <div id="plex"></div>
@@ -34360,6 +34437,22 @@ try {
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
+      if (t === "morgenlukk") {
+        this._haptikk("light");
+        try { localStorage.setItem("ki-veggpanel-morgen-lukket", new Date().toDateString()); } catch (e) { /* privat modus */ }
+        this._nkSig = null; this._sist.nattkort = null;
+        this._tegnNattkort();
+        return;
+      }
+      if (t === "plexgaa") {
+        this._haptikk("light");
+        const k = this._c.plex || {};
+        const x = (this._plexListe || [])[this._plexI || 0];
+        if (k.trykk) this._gaTil(k.trykk);
+        else if (x && x.lenke) window.open(x.lenke);
+        else if (x) this._mer(x.id);
+        return;
+      }
       if (t === "auto") {
         this._haptikk("light");
         delete this._opt[id];
@@ -34642,37 +34735,76 @@ try {
       const vert = this.shadowRoot.getElementById("nattkort");
       const st = n.entity ? this._st(n.entity) : null;
       const pa = !!st && st.state === "on";
+      const naa = new Date(), time = naa.getHours() + naa.getMinutes() / 60;
+      const morgenTil = Number(n.morgen_til ?? 9);
+      const idag = naa.toDateString();
+      /* God morgen: nattmodus er slått av i dag etter kl. 4, klokka er før morgen_til, og
+         kortet er ikke krysset ut i dag. Utkryssingen huskes per dag i nettleseren. */
+      let krysset = null;
+      try { krysset = localStorage.getItem("ki-veggpanel-morgen-lukket"); } catch (e) { /* privat modus */ }
+      const avIdag = st && !pa && st.last_changed && new Date(st.last_changed).toDateString() === idag && new Date(st.last_changed).getHours() >= 4;
+      const morgen = !pa && avIdag && time < morgenTil && krysset !== idag && n.morgen !== false;
+      const vis = pa || morgen;
       const skjul = [].concat(n.skjul !== undefined ? n.skjul : ["plex"]);
       for (const id of skjul) {
         const el = this.shadowRoot.getElementById(id);
         if (el) el.style.display = pa ? "none" : "";
       }
-      this.shadowRoot.querySelector(".ramme") && this.shadowRoot.querySelector(".ramme").classList.toggle("nattmodus", pa);
+      const ramme = this.shadowRoot.querySelector(".ramme");
+      if (ramme) ramme.classList.toggle("nattmodus", pa);
+      const kol3 = this.shadowRoot.querySelector(".kol3");
+      const plass = n.kort_plass || "bred";
+      if (kol3) {
+        kol3.classList.toggle("med-natt", !!vert && vis);
+        kol3.classList.toggle("natt-venstre", plass === "venstre");
+        kol3.classList.toggle("natt-midt", plass === "midt");
+      }
       if (!vert) return;
       const t = this._c.topp || {};
       const lamper = this._ids((this._c.lys || {}).lamper);
-      if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, ...lamper.map((x) => x.entity)])) return;
-      if (!pa) { vert.innerHTML = ""; vert.classList.remove("vokser-natt"); return; }
+      const sig = [vis, morgen, Math.floor(time)].join("|");
+      if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, t.vaer, ...lamper.map((x) => x.entity)]) && this._nkSig === sig) return;
+      this._nkSig = sig;
+      if (!vis) { vert.innerHTML = ""; return; }
       const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
-      const siden = st.last_changed ? kl(new Date(st.last_changed)) : "";
-      const time = new Date().getHours();
-      const tittel = n.tittel || (time >= 20 || time < 5 ? "God natt" : "Nattmodus er på");
+      const siden = st && st.last_changed ? kl(new Date(st.last_changed)) : "";
+      const h = naa.getHours();
+      const tittel = morgen ? "God morgen" : n.tittel || (h >= 20 || h < 4 ? "God natt" : h < 10 ? "God morgen" : "Nattmodus er på");
       const bit = [];
       const l = this._st(t.las);
       if (l) bit.push(`<span class="nb ${l.state === "locked" ? "ok" : "obs"}"><ha-icon icon="${l.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant"}"></ha-icon>${esc(LAS[l.state] || "Lås")}</span>`);
       const a = this._st(t.alarm);
       if (a) bit.push(`<span class="nb"><ha-icon icon="${a.state === "disarmed" ? "mdi:shield-off-outline" : "mdi:shield-moon"}"></ha-icon>${esc(ALARM[a.state] || a.state)}</span>`);
+      if (morgen) {
+        const v = this._st(t.vaer);
+        if (v) { const [tekst, ik] = VAER[v.state] || [v.state, "mdi:weather-partly-cloudy"]; const g = v.attributes.temperature;
+          bit.unshift(`<span class="nb"><ha-icon icon="${ik}"></ha-icon>${g != null ? Math.round(g) + "° · " : ""}${esc(tekst)}</span>`); }
+      }
       const paLys = lamper.filter((x) => (this._st(x.entity) || {}).state === "on").length;
-      if (lamper.length) bit.push(`<span class="nb ${paLys ? "obs" : "ok"}"><ha-icon icon="${paLys ? "mdi:lightbulb-on" : "mdi:lightbulb-off-outline"}"></ha-icon>${paLys ? `${paLys} lys på` : "Alle lys av"}</span>`);
+      if (lamper.length && !morgen) bit.push(`<span class="nb ${paLys ? "obs" : "ok"}"><ha-icon icon="${paLys ? "mdi:lightbulb-on" : "mdi:lightbulb-off-outline"}"></ha-icon>${paLys ? `${paLys} lys på` : "Alle lys av"}</span>`);
       const vk = this._st(n.vekking);
       let vekk = "";
-      if (vk && !["unknown", "unavailable", ""].includes(vk.state)) {
+      if (!morgen && vk && !["unknown", "unavailable", ""].includes(vk.state)) {
         const d = new Date(vk.state);
         vekk = isNaN(d) ? vk.state : kl(d);
       }
-      const under = [siden ? `på siden ${siden}` : "", vekk ? `vekking ${vekk}` : ""].filter(Boolean).join(" · ");
-      // stjerner på faste plasser, så de ikke hopper når kortet tegnes på nytt
-      const stjerner = Array.from({ length: 22 }, (_, i) => {
+      const under = morgen ? (siden ? `nattmodus av ${siden}` : "")
+        : [siden ? `på siden ${siden}` : "", vekk ? `vekking ${vekk}` : ""].filter(Boolean).join(" · ");
+      if (morgen) {
+        const straaler = [-50, -30, -10, 10, 30, 50].map((g, i) => `<i class="straale" style="transform:rotate(${g}deg);animation-delay:-${i * 0.8}s"></i>`).join("");
+        const fugler = [[30, 0], [44, -6], [22, -12]].map(([y, d], i) => `<i class="fugl" style="top:${y}px;animation-delay:${d - i * 2}s"></i>`).join("");
+        vert.innerHTML = `<div class="nattkort morgen">
+          <div class="himmel" aria-hidden="true">${straaler}<span class="sol"></span>${fugler}</div>
+          <button class="nk-lukk" data-tap="morgenlukk" aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>
+          <div class="nk-innhold">
+            <div class="nk-etikett"><ha-icon icon="mdi:weather-sunset-up"></ha-icon>Morgen</div>
+            <div class="nk-tittel">${esc(tittel)}</div>
+            ${under ? `<div class="nk-under">${esc(under)}</div>` : ""}
+            ${bit.length ? `<div class="nk-bitar">${bit.join("")}</div>` : ""}
+          </div></div>`;
+        return;
+      }
+      const stjerner = Array.from({ length: 26 }, (_, i) => {
         const x = (i * 37 + 11) % 100, y = (i * 53 + 7) % 62, r = i % 5 === 0 ? 2.2 : i % 3 === 0 ? 1.6 : 1.1;
         return `<i class="stj" style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;animation-delay:-${((i * 0.73) % 4).toFixed(2)}s;animation-duration:${(2.6 + (i % 4) * 0.7).toFixed(1)}s"></i>`;
       }).join("");
@@ -34761,7 +34893,7 @@ try {
         const til = sone && sone.overstyrt_til ? new Date(sone.overstyrt_til) : null;
         const kl = til && !isNaN(til) ? til.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }) : "";
         return `<div class="sone">
-          <button class="ik ${erVarm ? "varm" : ""}" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
+          <button class="ik ${erVarm ? "varm" : !isNaN(rom) && !isNaN(vis) && rom < vis - 0.7 ? "kald" : ""}" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
             <ha-icon icon="${esc(x.ikon || (/panel|ovn|radiator/i.test(x.entity) ? "mdi:radiator" : "mdi:fire"))}"></ha-icon></button>
           <button style="text-align:left" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
             <div class="sn">${esc(x.navn || a.friendly_name || x.entity)}</div>
@@ -34771,6 +34903,11 @@ try {
             <b>${isNaN(vis) ? "–" : komma(vis, 1)}<sup>°</sup></b>
             <button class="rund" data-tap="temp" data-id="${esc(x.entity)}" data-steg="1" aria-label="Øk"><ha-icon icon="mdi:plus"></ha-icon></button>
           </div>
+          ${this._c.levende !== false && !isNaN(rom) && !isNaN(vis) ? (() => {
+            // Stolpen viser rommet mot målet: 4 grader under er tom, målet er 80 %.
+            const f = Math.max(0.04, Math.min(1, (rom - (vis - 4)) / 5));
+            return `<div class="temp-stolpe" title="Rommet ${komma(rom, 1)}° mot ${komma(vis, 1)}°"><i style="width:${(f * 100).toFixed(0)}%"></i></div>`;
+          })() : ""}
           ${overstyrt ? `<div class="manuell"><span class="mpille">Manuelt${kl ? ` til ${kl}` : ""}
             <button data-tap="auto" data-id="${esc(x.entity)}" data-sone="${esc(sone.key)}" aria-label="Tilbake til auto"><ha-icon icon="mdi:close"></ha-icon></button></span></div>` : ""}
         </div>`;
@@ -34860,45 +34997,84 @@ try {
 /* «Nytt i Plex»: plakatene fra Plex-sensorene (upcoming-media-formatet), nyeste
        først, i en rad som rulles sidelengs. Trykk åpner i Plex-appen når sensoren gir
        en lenke, ellers sensoren. */
+    /* Nytt i Plex: én stor plakat med bakgrunnsbildet (fanart), tittel og undertekst, som
+       byttes hvert 10. sekund og kan sveipes – som swipe-kortet i dashbordet. Leser sensorenes
+       data-liste slik malen dashboard_plex gjør (data[1], data[2] …). Finnes ingenting, sier
+       kortet hvorfor: sensor mangler, ingen data, eller tom liste. */
     _tegnPlex() {
       const k = this._c.plex;
       const vert = this.shadowRoot.getElementById("plex");
       if (!vert) return;
       if (!k) { vert.innerHTML = ""; return; }
-      const sensorer = [].concat(k.sensorer || k.sensor || []).filter(Boolean);
-      if (!this._endret("plex", sensorer)) return;
-      const alle = [];
+      const sensorer = [].concat(k.sensorer || k.sensor || k.entity || []).filter(Boolean);
+      if (!this._endret("plex", sensorer) && vert.innerHTML) return;
+      const alle = [], grunner = [];
       for (const id of sensorer) {
         const st = this._st(id);
-        /* Plex Recently Added lagrer `data` som en JSON-streng, ikke en liste – derfor
-           sto det «Ingenting nytt». Begge former leses. */
-        let data = st ? st.attributes.data : [];
-        if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { data = []; } }
-        if (!Array.isArray(data)) data = [];
+        if (!st) { grunner.push(`${id} finnes ikke`); continue; }
+        let data = st.attributes.data;
+        if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { data = null; } }
+        if (!Array.isArray(data)) { grunner.push(`${id} har ingen data-liste`); continue; }
         const film = /movie|film/.test(id);
-        for (const d of data) {
-          if (!d || !d.title || d.title_default) continue;
-          const t = new Date(d.airdate || d.aired || 0).getTime();
-          alle.push({ id, tittel: d.title, under: film ? (d.release ? String(d.release).replace(/\$day,?\s*/g, "") : "Film") : [d.number, d.episode].filter(Boolean).join(" · ") || "Serie",
-            bilde: d.poster || d.fanart || "", lenke: d.deep_link || "", t: isNaN(t) ? 0 : t, film });
-        }
+        data.forEach((d, i) => {
+          if (!d || typeof d !== "object" || d.title_default !== undefined || !d.title) return;
+          const t = new Date(d.airdate || d.aired || d.added || 0).getTime();
+          const aar = d.release ? String(d.release).replace(/\$\w+,?\s*/g, "").trim() : "";
+          alle.push({ id, tittel: d.title,
+            under: film ? [aar, d.runtime ? `${d.runtime} min` : ""].filter(Boolean).join(" · ") || "Film"
+              : [d.number, d.episode].filter(Boolean).join(" · ") || "Serie",
+            bilde: d.fanart || d.poster || "", lenke: d.deep_link || "", t: isNaN(t) ? 0 : t, nr: i, film });
+        });
+        if (!data.some((d) => d && d.title && d.title_default === undefined)) grunner.push(`${id} er tom`);
       }
-      alle.sort((a, b) => b.t - a.t);
-      const vis = alle.slice(0, Number(k.antall) || 12);
-      const dager = (t) => { if (!t) return ""; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "i dag" : d === 1 ? "i går" : `${d} d siden`; };
-      vert.innerHTML = `<div class="kort">
-        <button class="hode" data-tap="gaa" data-sti="${esc(k.trykk || "#media")}" ${sensorer[0] ? `data-hold="${esc(sensorer[0])}"` : ""}>
-          <span class="ik"><ha-icon icon="mdi:plex"></ha-icon></span>
-          <span><div class="navn">${esc(k.navn || "Nytt i Plex")}</div><div class="status">${vis.length ? `${vis.length} lagt til` : "Ingenting nytt"}</div></span><ha-icon class="pil" icon="mdi:chevron-right"></ha-icon></button>
-        ${vis.length ? `<div class="plex">${vis.map((x) => `
-          <button class="plakat" data-tap="plex" data-id="${esc(x.id)}" data-hold="${esc(x.id)}" ${x.lenke ? `data-lenke="${esc(x.lenke)}"` : ""}>
-            <span class="bilde"><ha-icon icon="${x.film ? "mdi:movie-open-outline" : "mdi:television-classic"}"></ha-icon>
-              ${x.bilde ? `<img src="${esc(x.bilde)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
-              ${x.t ? `<span class="merke">${dager(x.t)}</span>` : ""}</span>
-            <span class="pt">${esc(x.tittel)}</span>
-            <span class="pu">${esc(x.under)}</span>
-          </button>`).join("")}</div>` : ""}
+      alle.sort((a, b) => (b.t - a.t) || (a.nr - b.nr));
+      this._plexListe = alle.slice(0, Number(k.antall) || 6);
+      if ((this._plexI || 0) >= this._plexListe.length) this._plexI = 0;
+      if (!this._plexListe.length) {
+        vert.innerHTML = `<div class="plexhero"><div class="tomt"><ha-icon icon="mdi:plex" style="--mdc-icon-size:28px;color:#e5a00d"></ha-icon>
+          <b>Ingenting nytt i Plex</b><span>${esc(grunner.join(" · ") || "ingen sensorer satt opp")}</span></div></div>`;
+        return;
+      }
+      vert.innerHTML = `<div class="plexhero" data-tap="plexgaa" ${sensorer[0] ? `data-hold="${esc(sensorer[0])}"` : ""}>
+        ${this._plexListe.map((x, i) => `<div class="bak ${i === (this._plexI || 0) ? "vis" : ""}" style="background-image:url('${esc(x.bilde)}')"></div>`).join("")}
+        <div class="ph-inn">
+          <div class="ph-merke"><ha-icon icon="mdi:plex"></ha-icon>${esc(k.navn || "Nytt i Plex")}</div>
+          <div class="ph-tittel"></div><div class="ph-under"></div>
+        </div>
+        <div class="prikker">${this._plexListe.map((_, i) => `<i class="${i === (this._plexI || 0) ? "aktiv" : ""}"></i>`).join("")}</div>
       </div>`;
+      this._plexVis(this._plexI || 0);
+      // bytte hvert 10. sekund, og sveip med fingeren
+      clearInterval(this._plexUr);
+      if (this._plexListe.length > 1) this._plexUr = setInterval(() => this._plexVis((this._plexI + 1) % this._plexListe.length), Number(k.intervall) || 10000);
+      const hero = vert.querySelector(".plexhero");
+      let x0 = null;
+      hero.addEventListener("pointerdown", (e) => { x0 = e.clientX; });
+      hero.addEventListener("pointerup", (e) => {
+        if (x0 == null) return;
+        const dx = e.clientX - x0; x0 = null;
+        if (Math.abs(dx) < 40 || this._plexListe.length < 2) return;
+        this._plexSveipet = true;
+        this._haptikk("selection");
+        const n = this._plexListe.length;
+        this._plexVis(((this._plexI || 0) + (dx < 0 ? 1 : -1) + n) % n);
+        clearInterval(this._plexUr);
+        this._plexUr = setInterval(() => this._plexVis((this._plexI + 1) % n), Number(k.intervall) || 10000);
+      });
+      hero.addEventListener("click", (e) => { if (this._plexSveipet) { this._plexSveipet = false; e.stopPropagation(); } }, true);
+    }
+
+    _plexVis(i) {
+      this._plexI = i;
+      const vert = this.shadowRoot.getElementById("plex");
+      const x = (this._plexListe || [])[i];
+      if (!vert || !x) return;
+      vert.querySelectorAll(".bak").forEach((b, j) => b.classList.toggle("vis", j === i));
+      vert.querySelectorAll(".prikker i").forEach((p, j) => p.classList.toggle("aktiv", j === i));
+      const t = vert.querySelector(".ph-tittel"), u = vert.querySelector(".ph-under");
+      if (t) t.textContent = x.tittel;
+      const dager = x.t ? Math.floor((Date.now() - x.t) / 864e5) : null;
+      if (u) u.textContent = [x.under, dager == null ? "" : dager <= 0 ? "lagt til i dag" : dager === 1 ? "i går" : `${dager} d siden`].filter(Boolean).join(" · ");
     }
 
     _tegnStrom() {
@@ -34986,11 +35162,21 @@ try {
         const faktiskPst = st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) : erPa ? 100 : 0;
         const pst = erPa ? this._optFor(x.entity, "pst", faktiskPst, (o, f) => Math.abs(o - f) <= 2) : 0;
         const navn = x.navn || st.attributes.friendly_name || x.entity;
-        return { x, st, erPa, kanDimmes, pst, navn };
+        /* Lampas egen farge: rgb når den har det, ellers en varm tone ut fra fargetemperaturen. */
+        let farge = null;
+        const at = st.attributes;
+        if (erPa && Array.isArray(at.rgb_color)) farge = `rgb(${at.rgb_color.join(",")})`;
+        else if (erPa && at.color_temp_kelvin) { const kk = Math.max(2000, Math.min(6500, at.color_temp_kelvin)); const f = (kk - 2000) / 4500;
+          farge = `rgb(255,${Math.round(170 + 70 * f)},${Math.round(90 + 150 * f)})`; }
+        else if (erPa) farge = "rgb(255,196,120)";
+        return { x, st, erPa, kanDimmes, pst, navn, farge };
       }).filter(Boolean);
+      const fargerPa = info.filter((i) => i.farge).map((i) => i.farge);
+      const glod = fargerPa.length && this._c.levende !== false
+        ? `style="--lysglod:linear-gradient(145deg, ${fargerPa[0]}, ${fargerPa[fargerPa.length - 1]});--lysglod-farge:${fargerPa[0]}"` : "";
       const hode = rader
         ? `<div class="hode" style="grid-template-columns:46px minmax(0,1fr) auto">
-            <span class="ik ${noenPa ? "fylt" : ""}"><ha-icon icon="${esc(k.ikon || "mdi:lightbulb-group")}"></ha-icon></span>
+            <span class="ik ${noenPa ? "fylt lysglod" : ""}" ${glod}><ha-icon icon="${esc(k.ikon || "mdi:lightbulb-group")}"></ha-icon></span>
             <button style="text-align:left" data-tap="mer" data-id="${esc(k.gruppe || "")}" ${k.gruppe ? `data-hold="${esc(k.gruppe)}"` : ""}>
               <div class="navn">${esc(k.navn || "Lys i stua")}</div><div class="status">${lamper.length ? `${pa} av ${lamper.length} på` : (noenPa ? "På" : "Av")}</div></button>
             <button class="knapp" data-tap="gruppe" aria-label="${noenPa ? "Slå av alle" : "Slå på alle"}">${noenPa ? "Slå av" : "Slå på"}</button>
@@ -34999,8 +35185,8 @@ try {
           <span class="ik ${pa ? "fylt" : ""}"><ha-icon icon="${esc(k.ikon || "mdi:lightbulb-group")}"></ha-icon></span>
           <span><div class="navn">${esc(k.navn || "Lys i stua")}</div><div class="status">${lamper.length ? `${pa} av ${lamper.length} på` : (g && g.state === "on" ? "På" : "Av")}</div></span><span></span></button>`;
       const liste = rader
-        ? `<div class="lysliste">${info.map(({ x, erPa, kanDimmes, pst, navn }) =>
-            `<button class="lrad ${erPa ? "pa" : ""} ${erPa && (!kanDimmes || pst >= 55) ? "lys" : ""}" data-tap="veksle"
+        ? `<div class="lysliste">${info.map(({ x, erPa, kanDimmes, pst, navn, farge }) =>
+            `<button class="lrad ${erPa ? "pa" : ""} ${erPa && (!kanDimmes || pst >= 55) ? "lys" : ""} ${farge ? "farge" : ""}" ${farge ? `style="--lysfarge:${farge}"` : ""} data-tap="veksle"
               data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}" ${kanDimmes ? `data-dimm="1"` : ""}
               aria-pressed="${erPa}" aria-label="${esc(navn)}">
               <span class="fyll ${kanDimmes && erPa && pst < 100 ? "kant" : ""}" style="width:${erPa ? (kanDimmes ? pst : 100) : 0}%"></span>
