@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 2.3.0 - del av ki-cards
+ * ki-basseng-card 2.4.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -11,6 +11,7 @@
  * 2.2: kompakt, klor-ark med navn og redigerbar kalender, vintermodus, pooltak fra
  *   sensor og varsel når den ikke varmer.
  * 2.3: høydene tilbake som før 2.2, og klor logges i kortet i stedet for i et ark.
+ * 2.4: «Spart i dag» folder ut oppdelingen, og fanerada ruller som i ki-tabs-card.
  *
  * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
  *   faner: false gir én flyt med utvidbare seksjoner i stedet.
@@ -36,7 +37,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "2.3.0";
+  const VERSJON = "2.4.0";
 
   /* Finner LitElement i frontend.
    *
@@ -274,6 +275,8 @@
       disconnectedCallback() {
         super.disconnectedCallback();
         this._sistHist = 0;
+        if (this._fanerRo) { this._fanerRo.disconnect(); this._fanerRo = null; }
+        this._fanerRad = null;
       }
 
       /* --- ytelse -------------------------------------------------- */
@@ -294,6 +297,59 @@
 
       updated() {
         if (this._config.graf !== false) this._hentHistorikk();
+        this._fanerad();
+      }
+
+      /* Fanerada oppfører seg som ki-tabs-card med style: auto. Får fanene plass, er
+       * det vanlige piller. Gjør de ikke det, blir rada rullbar med tonede kanter, og
+       * den valgte fanen rulles inn i midten.
+       *
+       * To ting gjorde at den ikke lot seg rulle før:
+       *  1. Rada kunne ikke krympe under innholdet sitt (flex-elementer har min-width
+       *     auto). Den ble bredere enn kortet og ble klippet, i stedet for å rulle.
+       *  2. Pillehjelperen setter touch-action: none på fanene, slik at pilla kan dras.
+       *     Da kunne man ikke rulle med fingeren på en fane – og fanene fyller rada.
+       * Begge er rettet i stilen; her kobles kantene og rullingen til den valgte. */
+      _fanerad() {
+        const rad = this.shadowRoot && this.shadowRoot.querySelector(".faner");
+        if (!rad) return;
+        const kanter = () => {
+          const mer = rad.scrollWidth - rad.clientWidth;
+          rad.classList.toggle("ruller", mer > 2);
+          rad.classList.toggle("mer-v", rad.scrollLeft > 4);
+          rad.classList.toggle("mer-h", rad.scrollLeft < mer - 4);
+        };
+        if (rad !== this._fanerRad) {
+          this._fanerRad = rad;
+          this._sistRullet = null;
+          rad.addEventListener("scroll", kanter, { passive: true });
+          /* Vannrett hjul på PC: loddrett skroll på rada ruller den sidelengs */
+          rad.addEventListener("wheel", (e) => {
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            if (rad.scrollWidth <= rad.clientWidth) return;
+            e.preventDefault();
+            rad.scrollLeft += e.deltaY;
+          }, { passive: false });
+          if (this._fanerRo) this._fanerRo.disconnect();
+          if (window.ResizeObserver) {
+            this._fanerRo = new ResizeObserver(() => { kanter(); this._rullTilFane(true); });
+            this._fanerRo.observe(rad);
+          }
+        }
+        if (this._sistRullet !== this._fane) {
+          const forste = this._sistRullet === null;
+          this._sistRullet = this._fane;
+          requestAnimationFrame(() => this._rullTilFane(forste));
+        }
+        kanter();
+      }
+
+      _rullTilFane(uten = false) {
+        const rad = this._fanerRad;
+        const a = rad && rad.querySelector(".fane.aktiv");
+        if (!rad || !a || rad.scrollWidth <= rad.clientWidth + 2) return;
+        const mal = a.offsetLeft - (rad.clientWidth - a.offsetWidth) / 2;
+        rad.scrollTo({ left: Math.max(0, mal), behavior: uten ? "auto" : "smooth" });
       }
 
       /* --- oppslag -------------------------------------------------- */
@@ -1913,14 +1969,95 @@
               <span class="idagn">Effekt nå</span>
               <span class="idagv">${nf(effekt, 0)}<small>W</small></span>
             </button>
-            <button class="idagcelle" @click=${() => this._mer("spart")}>
+            <button class="idagcelle ${this._apne.spart ? "apen" : ""}"
+              @pointerdown=${(e) => this._holdNed(e, "spart")} @pointerup=${() => this._holdOpp()}
+              @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
+              @contextmenu=${(e) => e.preventDefault()}
+              @click=${this._holdKlikk(() => { this._haptikk("selection"); this._apneLukk("spart"); })}>
               <ha-icon icon="mdi:piggy-bank-outline"></ha-icon>
-              <span class="idagn">Spart i dag</span>
+              <span class="idagn">Spart i dag <ha-icon class="idagpil" icon="mdi:chevron-${this._apne.spart ? "up" : "down"}"></ha-icon></span>
               <span class="idagv ${spart > 0 ? "gron" : ""}">${
                 nf(spart, 0)}<small>${valuta}</small></span>
             </button>
           </div>
         `;
+      }
+
+      /* «Spart i dag», delt opp (KI Basseng 1.6).
+       *
+       * Tallet i cella er det målte: pumpa mot døgndrift. Her står hva det består av –
+       * færre pumpetimer og billigere timer, som går opp i det målte – og under det
+       * anslagene fra varmemodellen: nattsenkingen og pooltaket. Nederst i går, denne
+       * måneden og totalt. Mot eldre integrasjon står bare det målte tallet. */
+      _sparPanel() {
+        const st = this.st("spart");
+        const a = (st && st.attributes) || {};
+        const valuta = this.enhet("spart") || this.enhet("kostnad") || "kr";
+        const spart = Number(this.val("spart", 0)) || 0;
+        const tall = (v) => v !== undefined && v !== null && v !== "" && isFinite(v);
+        const kr = (v, d = 2) => (tall(v) ? `${nf(v, d)} ${valuta}` : "–");
+        const harDel = tall(a.sirkulasjon_kr);
+        /* KI Basseng før 1.6 har ikke oppdelingen i det hele tatt */
+        const nyIntegrasjon = "uten_ki_kr" in a || "i_gar" in a;
+        const hel = (v) => Number(v).toLocaleString("nb-NO", { maximumFractionDigits: 0 });
+        const uten = Number(a.uten_ki_kr), med = Number(a.med_ki_kr);
+        const harSammen = isFinite(uten) && isFinite(med) && uten > 0;
+        const topp = harSammen ? Math.max(uten, med, 0.01) : 1;
+        const rad = (ikon, navn, under, verdi, klasse = "") => html`
+          <div class="sprad ${klasse}">
+            <span class="spik"><ha-icon icon="${ikon}"></ha-icon></span>
+            <span class="spnavn"><b>${navn}</b><small>${under}</small></span>
+            <span class="spverdi">${verdi}</span>
+          </div>`;
+        const taket = Number(a.pooltak_kr_anslatt);
+        const taketKwh = Number(a.pooltak_kwh_anslatt);
+        return this._panel("mdi:piggy-bank-outline", "var(--kib-green)", "Spart i dag",
+          html`<span class="spstor ${spart > 0 ? "gron" : ""}">${kr(spart)}</span> mot pumpe i døgndrift`,
+          html`
+            ${harSammen ? html`
+              <div class="sammen">
+                <div class="srad"><span>Uten KI</span>
+                  <span class="sspor"><i style="width:${(uten / topp * 100).toFixed(1)}%"></i></span>
+                  <span class="sv">${kr(uten)}</span></div>
+                <div class="srad med gron"><span>Med KI</span>
+                  <span class="sspor"><i style="width:${(med / topp * 100).toFixed(1)}%"></i></span>
+                  <span class="sv">${kr(med)}</span></div>
+              </div>` : ""}
+            <div class="spliste">
+              ${harDel ? html`
+                ${rad("mdi:pump", "Færre pumpetimer",
+                  tall(a.timer_med_pris)
+                    ? `Pumpa gikk ${nf(a.pumpetimer, 1)} t av ${nf(a.timer_med_pris, 1)} t · ${nf(a.sirkulasjon_kwh, 1)} kWh mindre`
+                    : `${nf(a.sirkulasjon_kwh, 1)} kWh mindre`,
+                  kr(a.sirkulasjon_kr))}
+                ${rad("mdi:cash-clock", "Billigere timer",
+                  tall(a.snittpris_pumpe)
+                    ? `Pumpa betalte ${nf(a.snittpris_pumpe, 2)} mot snittet ${nf(a.snittpris_dogn_sa_langt, 2)} ${valuta}/kWh`
+                    : "Pumpa har ikke gått i timer med pris ennå",
+                  kr(a.billigere_timer_kr), Number(a.billigere_timer_kr) < 0 ? "minus" : "")}
+              ` : html`<div class="tips"><ha-icon icon="mdi:information-outline"></ha-icon>
+                  ${nyIntegrasjon
+                    ? "Oppdelingen kommer fra neste døgn – i dag startet tellerne midt i døgnet."
+                    : "Oppdater KI Basseng til 1.6 for å se hva besparelsen består av."}</div>`}
+              ${this.st("senking") ? rad("mdi:weather-night", "Nattsenking",
+                  Number(a.nattsenking_kwh_anslatt) > 0 ? `${nf(a.nattsenking_kwh_anslatt, 1)} kWh · anslått av modellen` : "Ingen senking startet i dag",
+                  Number(a.nattsenking_kr_anslatt) > 0 ? kr(a.nattsenking_kr_anslatt) : "–", "anslag") : ""}
+              ${this.st("pooltak") && isFinite(taketKwh) && Math.abs(taketKwh) > 0.005 ? rad("mdi:pool", "Pooltaket",
+                  taketKwh >= 0 ? `Hindret ${nf(taketKwh, 1)} kWh varmetap · anslått` : `Stengte ute sol for ${nf(-taketKwh, 1)} kWh · anslått`,
+                  isFinite(taket) ? kr(taket) : "–", `anslag ${taket < 0 ? "minus" : ""}`) : ""}
+            </div>
+            ${tall(a.med_nattsenking_kr) && Number(a.nattsenking_kr_anslatt) > 0 ? html`
+              <div class="sptotal"><span>Med nattsenkingen</span><b>${kr(a.med_nattsenking_kr)}</b></div>` : ""}
+            ${tall(a.totalt) ? html`
+              <div class="sphist">
+                <button @click=${() => this._mer("spart")}><small>I går</small><b>${hel(a.i_gar)}<em> ${valuta}</em></b></button>
+                <button @click=${() => this._mer("spart")}><small>Denne måneden</small><b>${hel(a.denne_maneden)}<em> ${valuta}</em></b></button>
+                <button @click=${() => this._mer("spart")}><small>Totalt</small><b>${hel(a.totalt)}<em> ${valuta}</em></b></button>
+              </div>` : ""}
+          `,
+          html`<button class="sp-lukk" aria-label="Lukk" @click=${(e) => { e.stopPropagation(); this._apneLukk("spart"); }}>
+            <ha-icon icon="mdi:chevron-up"></ha-icon></button>`,
+          () => this._mer("spart"));
       }
 
       /* Døgnet som en stripe, med de planlagte blokkene tegnet inn og et merke for nå.
@@ -2252,6 +2389,7 @@
               ${this._knapper()}
               ${this._klorApen === "oversikt" ? html`<section class="panel klorfelt">${this._klorLogger("oversikt")}</section>` : ""}
               ${this._tallrad()}
+              ${this._apne.spart ? this._sparPanel() : ""}
               ${this._config.graf !== false && !this._harVarme()
                 ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
                     this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))
@@ -3781,6 +3919,57 @@
           .spredtall em { font-style: normal; font-size: 12px; opacity: 0.6; }
           .spredtall .ispor { margin-top: 4px; }
           @media (prefers-reduced-motion: reduce) { .vg-napkt { animation: none; } }
+
+          /* --- 2.4: fanerada som ki-tabs, og «spart i dag» -------------- */
+          .fanerad { min-width: 0; max-width: 100%; }
+          .faner {
+            flex: 0 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden;
+            overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+            scroll-behavior: smooth; -webkit-overflow-scrolling: touch;
+          }
+          /* Pillehjelperen setter touch-action: none på fanene for å kunne dra pilla.
+             Her må fingeren kunne rulle rada, så vannrett panorering tillates. */
+          .faner .fane { flex: 0 0 auto; scroll-snap-align: center; touch-action: pan-x !important; }
+          .faner.ruller.mer-h { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+            mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%); }
+          .faner.ruller.mer-v { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 40px);
+            mask-image: linear-gradient(to right, transparent 0, #000 40px); }
+          .faner.ruller.mer-v.mer-h { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%); }
+
+          .idagpil { --mdc-icon-size: 14px; vertical-align: -2px; opacity: 0.7; }
+          .idagcelle.apen { background: color-mix(in srgb, var(--kib-green) 12%, transparent); }
+          .spstor { font-weight: 500; }
+          .spstor.gron { color: var(--kib-green); }
+          .sp-lukk { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+            background: var(--kib-inner); color: var(--kib-text); cursor: pointer; }
+          .sp-lukk ha-icon { --mdc-icon-size: 20px; }
+          .srad.gron .sspor i { background: var(--kib-green); }
+          .spliste { display: grid; }
+          .sprad { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+            padding: 8px 0; border-top: 1px solid var(--kib-inner); }
+          .sprad:first-child { border-top: none; }
+          .spik { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+            background: color-mix(in srgb, var(--kib-green) 18%, transparent); color: var(--kib-green); }
+          .sprad.anslag .spik { background: var(--kib-inner); color: var(--kib-text); }
+          .spik ha-icon { --mdc-icon-size: 19px; }
+          .spnavn { display: grid; gap: 1px; min-width: 0; }
+          .spnavn b { font-size: 14px; font-weight: 500; }
+          .spnavn small { font-size: 12px; opacity: 0.7; line-height: 1.35; }
+          .spverdi { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
+            color: var(--kib-green); }
+          .sprad.anslag .spverdi { color: var(--kib-text); opacity: 0.85; }
+          .sprad.minus .spverdi { color: var(--kib-orange); }
+          .sptotal { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px;
+            border-radius: 14px; background: var(--kib-inner); font-size: 13px; }
+          .sptotal b { font-size: 15px; font-weight: 500; color: var(--kib-green); font-variant-numeric: tabular-nums; }
+          .sphist { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+            background: var(--kib-inner); border-radius: 16px; overflow: hidden; }
+          .sphist button { display: grid; gap: 2px; padding: 10px 12px; background: var(--kib-surface);
+            color: var(--kib-text); text-align: left; cursor: pointer; min-width: 0; }
+          .sphist small { font-size: 11.5px; font-weight: 500; opacity: 0.65; white-space: nowrap; }
+          .sphist b { font-size: 18px; font-weight: 300; font-variant-numeric: tabular-nums; white-space: nowrap; }
+          .sphist em { font-style: normal; font-size: 12px; opacity: 0.6; }
           /* --- 2.3: nye deler, i samme størrelse som resten av kortet --- */
           .ring.mini { width: 56px; height: 56px; }
           .ring.mini circle { stroke-width: 10; }

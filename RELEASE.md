@@ -1,3 +1,39 @@
+# ki-cards 5.74.0
+
+## ki-basseng-card 2.4.0: «Spart i dag» forklart, og fanerada ruller
+
+**Spart i dag.** Trykk på cella, så folder oppdelingen seg ut under. Langt trykk åpner sensoren.
+
+- **Uten KI mot med KI:** to stolper med hva dagen ville kostet og hva den kostet.
+- **Færre pumpetimer:** «Pumpa gikk 2,4 t av 19,8 t · 13,9 kWh mindre».
+- **Billigere timer:** «Pumpa betalte 0,62 mot snittet 0,91 kr/kWh».
+- **Nattsenking** og **pooltaket:** anslag fra varmemodellen, i nøytral farge så de ikke
+  blandes med det målte. Stenger taket ute mer sol enn det sparer, står det i oransje.
+- **Nederst:** i går, denne måneden og totalt.
+
+Krever KI Basseng 1.6. Med eldre integrasjon står bare det målte tallet, og en linje om å
+oppdatere.
+
+**Fanerada ruller, som i ki-tabs-card.** Får fanene plass, er det piller som før. Gjør de
+ikke det (fire faner og tannhjulet i en smal popup), blir rada rullbar med tonede kanter,
+og den valgte fanen rulles inn i midten. To ting stoppet rullingen før:
+
+- **Rada krympet ikke.** Den kunne ikke bli smalere enn innholdet sitt, så den ble klippet
+  i stedet for å rulle.
+- **Fingeren på en fane rullet ikke.** Pillehjelperen satte `touch-action: none` på fanene
+  for å kunne dra pilla, og fanene fyller hele rada. Nå tillates vannrett panorering.
+
+På PC ruller hjulet rada sidelengs.
+
+### Kontrollert
+
+Begge byggesjekkene er kjørt. Oppdelingen er tegnet i Chromium med og uten KI Basseng 1.6.
+I 330 px bredde er fanerada rullbar: 322 px innhold i 280 px, `touch-action` er `pan-x`,
+og høyre kant er tonet. Spreder rulles inn i synet og venstre kant tones, og Oversikt ruller
+tilbake til start.
+
+---
+
 # ki-cards 5.73.0
 
 ## ki-basseng-card 2.3.0: høydene tilbake, klor i kortet
