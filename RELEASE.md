@@ -1,3 +1,21 @@
+# ki-cards 8.99.4
+
+Bygget oppå 8.99.3 fra GitHub.
+
+## ki-basseng-card 3.5.0
+
+- **Full editor i grensesnittet.** Alt kortet kan settes opp med, i fire utvidbare seksjoner:
+  *Generelt* (hele kortet eller bare scenen, scenen av/på, tittel, prefiks), *Faner* (uten
+  faner, eller hvilke og i hvilken rekkefølge), *Varmepumpe og knapper* (varmepumpe,
+  stillemodus, hurtigknapper, navn under knappene) og *Utseende* (tekststørrelse i
+  setningene, dashbordets fliser, grafen, egne temperaturknapper). Det som er lik
+  standarden, skrives ikke til YAML-en, og navn og ikon på hurtigknappene fra YAML beholdes.
+- **Større setninger** på Oversikt og Varme: 1,4em, som forsideteksten. Velg 1,2–1,8 i
+  editoren eller med `prosa_storrelse:`.
+- **«Manuell overstyring – automatikken venter»** står ikke lenger nederst på Oversikt.
+
+---
+
 # ki-cards 8.99.3
 
 Bygget oppå 8.99.2 fra GitHub.
