@@ -64,11 +64,14 @@
  *   entity: switch.nattmodus          # vises bare når denne er på (utelatt = alltid etter pause)
  *   etter: 90                         # sekunder uten trykk
  *   vekking: sensor.soverom_vekking_neste_alarm
+ *   kort: true              # animert nattkort øverst i midten mens nattmodus er på (false = av)
+ *   kort_plass: midt        # midt | venstre
+ *   skjul: [plex]           # kort som legges bort mens nattmodus er på
  *   handlinger:
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.5.1";
+  const VERSJON = "1.6.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -291,6 +294,53 @@
     .lrad .lb { --mdc-icon-size: 20px; display: none; }
     .hint { font-size: 11px; opacity: .5; text-align: center; }
     .pil { --mdc-icon-size: 20px; opacity: .45; }
+    /* nattkortet */
+    .nattkort { position: relative; overflow: hidden; isolation: isolate; border-radius: 28px; min-height: 210px;
+      color: #eef0ff; background: linear-gradient(160deg, #161a36 0%, #231f4a 55%, #35295a 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); animation: nk-inn .6s cubic-bezier(.2,.9,.3,1); }
+    @keyframes nk-inn { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+    .himmel { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+    .himmel .stj { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.8);
+      animation: nk-blink ease-in-out infinite; }
+    @keyframes nk-blink { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+    .maane { position: absolute; right: 34px; top: 26px; width: 58px; height: 58px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fffbe8, #f3e7b5 70%);
+      box-shadow: 0 0 28px 6px rgba(255,241,190,.35), 0 0 80px 20px rgba(160,150,255,.18);
+      animation: nk-sveve 7s ease-in-out infinite; }
+    .maane .skygge { position: absolute; width: 50px; height: 50px; border-radius: 50%; top: -6px; left: 16px;
+      background: #241f4b; opacity: .92; }
+    @keyframes nk-sveve { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    .sky { position: absolute; height: 26px; border-radius: 999px; background: rgba(210,210,255,.10); filter: blur(2px); }
+    .sky::before, .sky::after { content: ""; position: absolute; border-radius: 50%; background: inherit; }
+    .sky::before { width: 34px; height: 34px; left: 14px; top: -16px; }
+    .sky::after { width: 26px; height: 26px; left: 40px; top: -10px; }
+    .sky.s1 { width: 110px; top: 118px; left: -120px; animation: nk-drive 38s linear infinite; }
+    .sky.s2 { width: 80px; top: 70px; left: -90px; opacity: .7; animation: nk-drive 52s linear infinite; animation-delay: -20s; }
+    @keyframes nk-drive { to { transform: translateX(calc(100cqw + 260px)); } }
+    .nattkort { container-type: inline-size; }
+    .skudd { position: absolute; top: 18px; left: 60%; width: 90px; height: 2px; border-radius: 2px; opacity: 0;
+      background: linear-gradient(90deg, rgba(255,255,255,0), #fff); transform: rotate(-22deg);
+      animation: nk-skudd 9s ease-in infinite; animation-delay: 3s; }
+    @keyframes nk-skudd { 0%, 88% { opacity: 0; transform: translate(0, 0) rotate(-22deg); }
+      90% { opacity: 1; } 100% { opacity: 0; transform: translate(-160px, 64px) rotate(-22deg); } }
+    .nk-innhold { position: relative; padding: 18px 20px; display: grid; gap: 6px; max-width: calc(100% - 90px); }
+    .nk-etikett { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; opacity: .75; }
+    .nk-etikett ha-icon { --mdc-icon-size: 16px; }
+    .nk-tittel { font-size: 30px; font-weight: 300; letter-spacing: -.02em; line-height: 1.1; }
+    .nk-under { font-size: 14px; font-weight: 500; opacity: .75; }
+    .nk-bitar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .nb { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px 0 8px; border-radius: 14px;
+      background: rgba(255,255,255,.1); font-size: 12.5px; font-weight: 500; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .nb ha-icon { --mdc-icon-size: 15px; }
+    .nb.ok ha-icon { color: #9fe0b0; }
+    .nb.obs ha-icon { color: #ffd38a; }
+    .nk-knapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .nk-knapp { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 11px; border-radius: 19px;
+      background: rgba(255,255,255,.14); color: #fff; font-size: 13.5px; font-weight: 500; transition: transform .14s cubic-bezier(.2,1.3,.3,1), background .2s; }
+    .nk-knapp ha-icon { --mdc-icon-size: 18px; }
+    .nk-knapp:active { transform: scale(.94); }
+    .nk-knapp.av { background: #f3e7b5; color: #231f4b; }
+    @media (prefers-reduced-motion: reduce) { .nattkort *, .nattkort { animation: none !important; } }
     /* scener */
     .scener { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .scene { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 9px 12px 9px 9px; border-radius: 22px;
@@ -584,11 +634,13 @@
           <div class="topp" id="topp"></div>
           <div class="kol3">
             <div class="kol venstre">
+              ${(this._c.natt || {}).kort !== false && (this._c.natt || {}).kort_plass === "venstre" ? `<div id="nattkort"></div>` : ""}
               ${this._c.prosa ? `<div class="vert" id="v-prosa"></div>` : ""}
               ${this._c.familie ? `<div class="vert" id="v-familie"></div>` : ""}
               <div id="scener"></div>
             </div>
             <div class="kol midt">
+              ${(this._c.natt || {}).kort !== false && (this._c.natt || {}).kort_plass !== "venstre" ? `<div id="nattkort"></div>` : ""}
               ${this._c.media ? `<div class="vert" id="v-media"></div>` : ""}
               <div id="klima"></div>
               <div id="plex"></div>
@@ -894,6 +946,7 @@
       if (tving) this._sist = {};
       this._tegnMeny();
       this._tegnTopp();
+      this._tegnNattkort();
       this._tegnScener();
       this._tegnKlima();
       this._tegnPlex();
@@ -1000,7 +1053,7 @@
 
     _tegnTopp() {
       const t = this._c.topp;
-      if (!this._endret("topp", [t.vaer, t.hjemme, t.las, t.alarm, t.stovsuger])) return;
+      if (!this._endret("topp", [t.vaer, t.hjemme, t.las, t.alarm, t.stovsuger, (this._c.natt || {}).entity])) return;
       const pille = (ikon, tekst, { id, sti, fylt, farge, tap = sti ? "gaa" : "mer" } = {}) =>
         `<button class="pille ${fylt ? "fylt" : ""}" data-tap="${tap}" ${sti ? `data-sti="${esc(sti)}"` : ""}
           ${id ? `data-id="${esc(id)}" data-hold="${esc(id)}"` : ""}>
@@ -1022,9 +1075,77 @@
         { id: t.alarm, sti: t.alarm_trykk, fylt: a.state === "triggered" }));
       const s = this._st(t.stovsuger);
       if (s) deler.push(pille("mdi:robot-vacuum", STOV[s.state] || s.state, { id: t.stovsuger, sti: t.stovsuger_trykk, fylt: s.state === "cleaning" }));
+      const nm = this._c.natt && this._c.natt.entity ? this._st(this._c.natt.entity) : null;
+      if (nm && nm.state === "on") deler.unshift(pille("mdi:weather-night", "Nattmodus", { id: this._c.natt.entity, fylt: true }));
       if (t.innstillinger) deler.push(`<button class="pille rund" data-tap="gaa" data-sti="${esc(t.innstillinger)}" aria-label="Innstillinger"><ha-icon icon="mdi:cog-outline"></ha-icon></button>`);
       this.shadowRoot.getElementById("topp").innerHTML = `<div class="klokke" id="klokke"></div>${deler.join("")}`;
       this._klokke();
+    }
+
+    /* Nattkortet: mens nattmodus er på, står et animert kort øverst i midten – stjerner som
+       blinker, månen som svever, skyer som driver og et stjerneskudd av og til. Det sier
+       at nattmodus er på, siden når, når vekkingen går, om huset er låst og hvor mange lys
+       som står på, med knapper for nattens handlinger og for å slå nattmodus av.
+       Kort som ikke trengs om natta (Plex som standard), legges bort så lenge.
+       Kortet tegnes bare på nytt når noe det viser endrer seg, så animasjonen ikke hakker. */
+    _tegnNattkort() {
+      const n = this._c.natt || {};
+      const vert = this.shadowRoot.getElementById("nattkort");
+      const st = n.entity ? this._st(n.entity) : null;
+      const pa = !!st && st.state === "on";
+      const skjul = [].concat(n.skjul !== undefined ? n.skjul : ["plex"]);
+      for (const id of skjul) {
+        const el = this.shadowRoot.getElementById(id);
+        if (el) el.style.display = pa ? "none" : "";
+      }
+      this.shadowRoot.querySelector(".ramme") && this.shadowRoot.querySelector(".ramme").classList.toggle("nattmodus", pa);
+      if (!vert) return;
+      const t = this._c.topp || {};
+      const lamper = this._ids((this._c.lys || {}).lamper);
+      if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, ...lamper.map((x) => x.entity)])) return;
+      if (!pa) { vert.innerHTML = ""; vert.classList.remove("vokser-natt"); return; }
+      const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+      const siden = st.last_changed ? kl(new Date(st.last_changed)) : "";
+      const time = new Date().getHours();
+      const tittel = n.tittel || (time >= 20 || time < 5 ? "God natt" : "Nattmodus er på");
+      const bit = [];
+      const l = this._st(t.las);
+      if (l) bit.push(`<span class="nb ${l.state === "locked" ? "ok" : "obs"}"><ha-icon icon="${l.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant"}"></ha-icon>${esc(LAS[l.state] || "Lås")}</span>`);
+      const a = this._st(t.alarm);
+      if (a) bit.push(`<span class="nb"><ha-icon icon="${a.state === "disarmed" ? "mdi:shield-off-outline" : "mdi:shield-moon"}"></ha-icon>${esc(ALARM[a.state] || a.state)}</span>`);
+      const paLys = lamper.filter((x) => (this._st(x.entity) || {}).state === "on").length;
+      if (lamper.length) bit.push(`<span class="nb ${paLys ? "obs" : "ok"}"><ha-icon icon="${paLys ? "mdi:lightbulb-on" : "mdi:lightbulb-off-outline"}"></ha-icon>${paLys ? `${paLys} lys på` : "Alle lys av"}</span>`);
+      const vk = this._st(n.vekking);
+      let vekk = "";
+      if (vk && !["unknown", "unavailable", ""].includes(vk.state)) {
+        const d = new Date(vk.state);
+        vekk = isNaN(d) ? vk.state : kl(d);
+      }
+      const under = [siden ? `på siden ${siden}` : "", vekk ? `vekking ${vekk}` : ""].filter(Boolean).join(" · ");
+      // stjerner på faste plasser, så de ikke hopper når kortet tegnes på nytt
+      const stjerner = Array.from({ length: 22 }, (_, i) => {
+        const x = (i * 37 + 11) % 100, y = (i * 53 + 7) % 62, r = i % 5 === 0 ? 2.2 : i % 3 === 0 ? 1.6 : 1.1;
+        return `<i class="stj" style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;animation-delay:-${((i * 0.73) % 4).toFixed(2)}s;animation-duration:${(2.6 + (i % 4) * 0.7).toFixed(1)}s"></i>`;
+      }).join("");
+      const hl = (n.handlinger || []).map((x, i) => `<button class="nk-knapp" data-tap="natthandling" data-i="${i}">
+          <ha-icon icon="${esc(x.ikon || "mdi:gesture-tap")}"></ha-icon>${esc(x.navn || "")}</button>`).join("");
+      vert.innerHTML = `<div class="nattkort" data-hold="${esc(n.entity)}">
+        <div class="himmel" aria-hidden="true">
+          ${stjerner}
+          <span class="skudd"></span>
+          <span class="maane"><span class="skygge"></span></span>
+          <span class="sky s1"></span><span class="sky s2"></span>
+        </div>
+        <div class="nk-innhold">
+          <div class="nk-etikett"><ha-icon icon="mdi:weather-night"></ha-icon>Nattmodus</div>
+          <div class="nk-tittel">${esc(tittel)}</div>
+          ${under ? `<div class="nk-under">${esc(under)}</div>` : ""}
+          ${bit.length ? `<div class="nk-bitar">${bit.join("")}</div>` : ""}
+          <div class="nk-knapper">${hl}
+            <button class="nk-knapp av" data-tap="veksle" data-id="${esc(n.entity)}"><ha-icon icon="mdi:weather-sunny"></ha-icon>Slå av</button>
+          </div>
+        </div>
+      </div>`;
     }
 
     _tegnScener() {

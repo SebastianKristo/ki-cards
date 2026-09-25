@@ -1,31 +1,31 @@
-# ki-cards 5.79.1
+# ki-cards 5.80.0
 
-## Veggpanelet beholder dashbordets farger
+## ki-veggpanel-card 1.6.0: nattmodus synes
 
-5.79.0 ga veggpanelet både **formen** og **fargene** fra iPad-skissen, og fargene ble standard: ravgul
-aksent i stedet for rosa, nesten svarte kort, egne grånyanser. Det skal ikke skje uten at du ber om det.
+Mens `switch.nattmodus` er på, er det ikke lenger bare én scene-flis som sier det.
 
-Temaet er nå delt i to:
+**Et animert nattkort øverst i midten.** Nattehimmel med stjerner som blinker, en måne som svever, skyer som
+driver forbi og et stjerneskudd av og til. På kortet:
 
-- **Formen** — størrelser, avrundinger, avstander og oppsett fra skissen — gjelder som før (`tema: varm`).
-- **Fargene** gjelder bare med `farger: varm`. Standard er `farger: dashbord`: panelet bruker dashbordets
-  egne `--gray*` og `--active-big`, nøyaktig som før 5.79.0 — også i prosa-, familie- og mediekortet, som
-  ikke lenger får fargene overstyrt.
+- «God natt» om kvelden og natta, ellers «Nattmodus er på»
+- når nattmodus ble slått på, og når vekkingen går (`natt.vekking`)
+- om døra er låst, alarmen, og hvor mange lys som står på — grønt når alt er i orden, gult når noe står på
+- nattens handlinger fra `natt.handlinger` (som «Alt lys av») og **Slå av**
+- langt trykk åpner nattmodus-bryteren
 
-Skillelinjene mellom varmesonene, rammen rundt kortene og tonene i scener, lysrader og brytere hører til
-fargene og følger dermed dashbordet. Pæreikonet, hintet under lysene, «Aktiv: …» over scenene og pila i
-Plex-hodet er form og står der uansett.
+**Pille i toppstripa:** «Nattmodus» fylt med aktivfargen, først i rekka.
 
-Vil du ha skissens palett likevel:
+**Dashbordet ordner seg om natta:** nattkortet legger seg øverst, og kort du ikke trenger om natta, legges
+bort så lenge — **Nytt i Plex** som standard (`natt.skjul:` velger andre). Når nattmodus slås av, er alt
+tilbake som før.
 
-```yaml
-type: custom:ki-veggpanel-card
-farger: varm
-```
+Ingen nye felt trengs: kortet bruker `natt.entity`, `natt.vekking` og `natt.handlinger` du allerede har.
+`natt.kort: false` slår det av, og `natt.kort_plass: venstre` legger det øverst til venstre. Nattkortet har
+sin egen nattehimmel; resten av panelet beholder dashbordets farger.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Panelet tegnes med `tema-varm farger-dashbord` uten oppsett; formdelen av
-stilen har ingen fargeverdier (ingen hex, `oklch`, `rgba`, `--gray` eller `--active-big`), og fargereglene
-gjelder bare sammen med `farger-varm`. Med `farger: varm` får rammen `farger-varm`. Bygget oppå 5.79.0 slik
-den ligger på GitHub.
+Begge byggesjekkene kjørt. Veggpanelet er kjørt med nattmodus på: nattkortet øverst i midten med tittel,
+«på siden … · vekking …», «Låst | Natt | 1 lys på», 22 stjerner, knappene «Alt lys av» og «Slå av»,
+Nattmodus-pillen i toppen og Plex skjult. Slått av: kortet borte og Plex tilbake. Ingen `NaN` eller
+`undefined`. Bygget oppå 5.79.1 fra GitHub.
