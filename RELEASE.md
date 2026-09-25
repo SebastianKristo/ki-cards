@@ -1,3 +1,30 @@
+# ki-cards 5.73.0
+
+## ki-basseng-card 2.3.0: høydene tilbake, klor i kortet
+
+**Høydene er som før 2.2.** Krympingen i 2.2 gjorde flisene, vannbildet, ringene og
+hurtigknappene lavere. Det var ikke ønsket, så det laget med nedskalering er fjernet. Fra
+2.2 står bare nattsenkingen igjen, med detaljene bak en knapp.
+
+**Klor uten ark.** Arket som la seg over popupen, er borte. Klor logges der du er:
+
+- **Oversikt:** Klor-flisa eller «Logg» i varselet folder ut et felt rett under flisene med
+  «Hvem la i klor?». Trykk på et navn, så er det logget. Kvitteringen står et øyeblikk før
+  feltet lukker seg. Antallet endres med − og +, og «Uten navn» logger uten person.
+- **Varme:** klorlinja folder seg ut med de samme navneknappene og kalenderen under. Trykk på
+  en dag først for å logge på den dagen («Hvem la i klor søn 20. sep.?»). Innslagene for
+  dagen kan slettes med søppelbøtta.
+
+### Kontrollert
+
+Begge byggesjekkene er kjørt. Kortet er tegnet i Chromium med feltet åpent på Oversikt og
+Varme. Trykk sender riktige kall:
+
+- Ola på Oversikt gir `logg_klortablett` med `hvem: Ola`
+- dag 20 og Ida på Varme gir `hvem: Ida` og `tidspunkt: 2026-09-20 12:00:00`
+
+---
+
 # ki-cards 5.72.0
 
 ## ki-basseng-card 2.2.0: mindre, klor-ark, vinter
