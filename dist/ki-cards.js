@@ -1,4 +1,4 @@
-/* ki-cards v5.69.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-24 */
+/* ki-cards v5.70.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.69.0";
+  KI.VERSION = "5.70.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -32611,6 +32611,15 @@ try {
  *       deler: [{ navn: Venstre, entity: cover.markise_venstre }, …], invertert: true }
  * dekker_visning: kompakt   # kompakt (rad med opp/stopp/ned per dekke) | full (segment, dra og forhåndsvalg)
  *
+ * Nytt i 1.3:
+ * klima:                    # styres gjennom KI Energi når integrasjonen finnes
+ *   - { entity: climate.stue_oljefyr, navn: Oljefyr, sone: stue_oljefyr }   # sone gjettes ellers
+ * overstyring_min: 120      # hvor lenge en manuell temperatur gjelder
+ * plex:                     # «Nytt i Plex» – plakater i en rad
+ *   sensorer: [sensor.…_recently_added_movie, sensor.…_recently_added_show]
+ *   antall: 12
+ * strom: false              # skjul strømkortet
+ *
  * Nytt i 1.2:
  * meny:                     # sidemeny til venstre – erstatter den flytende navbaren
  *   - { ikon: mdi:sofa-outline, sti: /dashboard-stue/stue, navn: Stue }        # aktiv når stien er åpen
@@ -32630,7 +32639,7 @@ try {
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -32740,6 +32749,39 @@ try {
     .scene.kjort { animation: vp-kjort .5s ease; }
     @keyframes vp-kjort { 40% { background: var(--active-big); color: var(--black); } }
 
+    /* varme (1.3): ett kort, én rad per sone, KI Energi bak */
+    .varme { display: grid; gap: 0; }
+    .sone { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; }
+    .sone + .sone { border-top: 1px solid rgba(250,251,252,.08); }
+    .sone .ik.varm { background: var(--orange); border-color: transparent; color: var(--black); }
+    .sone .sn { font-size: 15px; font-weight: 500; }
+    .sone .su { font-size: 13px; font-weight: 500; opacity: .7; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sone .su b { font-weight: 500; opacity: 1; color: var(--gray1000); }
+    .still { display: grid; grid-template-columns: 40px 92px 40px; align-items: center; gap: 2px; }
+    .still .rund { width: 40px; height: 40px; }
+    .still .rund ha-icon { --mdc-icon-size: 20px; }
+    .still b { text-align: center; font-size: 32px; font-weight: 300; letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 1; }
+    .still b sup { font-size: 16px; opacity: .7; vertical-align: top; position: relative; top: 3px; }
+    .still.venter b { opacity: .55; }
+    .manuell { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; margin-top: -2px; }
+    .mpille { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 12px; border-radius: 999px;
+      background: var(--active-big); color: var(--black); font-size: 12.5px; font-weight: 500; }
+    .mpille button { width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.12); display: grid; place-items: center; }
+    .mpille ha-icon { --mdc-icon-size: 14px; }
+    .kilder { font-size: 12px; font-weight: 500; opacity: .55; }
+    /* Plex */
+    .plex { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+      margin: 0 -16px; padding: 0 16px 2px; -webkit-mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 24px), transparent); }
+    .plex::-webkit-scrollbar { display: none; }
+    .plakat { flex: none; width: 108px; scroll-snap-align: start; display: grid; gap: 6px; text-align: left; }
+    .plakat .bilde { position: relative; width: 108px; height: 160px; border-radius: 16px; overflow: hidden; background: var(--gray100);
+      display: grid; place-items: center; }
+    .plakat .bilde img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .plakat .bilde .merke { position: absolute; left: 6px; top: 6px; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500;
+      background: rgba(20,20,22,.72); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .plakat .pt { font-size: 13px; font-weight: 500; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .plakat .pu { font-size: 12px; font-weight: 500; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .plakat:active .bilde { transform: scale(.97); }
     /* klima */
     .klima { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .termo { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
@@ -32885,7 +32927,7 @@ try {
       this._c = {
         ...STD, ...c,
         topp: { ...STD.topp, ...(c.topp || {}) },
-        strom: { effekt: "sensor.strommaler_effekt", trykk: "#strom", ...(c.strom || {}) },
+        strom: c.strom === false ? false : { effekt: "sensor.strommaler_effekt", trykk: "#strom", ...(c.strom || {}) },
       };
       // Med sidemeny ligger innstillingene der, og navbaren nederst trengs ikke.
       if (Array.isArray(c.meny) && c.meny.length && !(c.topp && "innstillinger" in c.topp)) this._c.topp.innstillinger = false;
@@ -32987,6 +33029,7 @@ try {
             <div class="kol midt">
               ${this._c.media ? `<div class="vert" id="v-media"></div>` : ""}
               <div id="klima"></div>
+              <div id="plex"></div>
               <div id="strom"></div>
             </div>
             <div class="kol hoyre">
@@ -33137,6 +33180,19 @@ try {
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
+      if (t === "auto") {
+        this._haptikk("light");
+        delete this._opt[id];
+        this._hass.callService("ki_energi", "fjern_overstyring", { sone: el.dataset.sone });
+        return;
+      }
+      if (t === "plex") {
+        this._haptikk("light");
+        const lenke = el.dataset.lenke;
+        if (lenke) window.open(lenke);
+        else this._mer(el.dataset.id);
+        return;
+      }
       if (t === "gruppe") {
         this._haptikk("light");
         const k = this._c.lys || {};
@@ -33192,15 +33248,27 @@ try {
     _justerTemp(id, steg) {
       const st = this._st(id); if (!st) return;
       this._haptikk("selection");
+      const x = this._ids(this._c.klima).find((k) => k.entity === id) || { entity: id };
+      const sone = this._st("sensor.ki_laster") ? this._kiSone(x) : null;
       const o = this._opt[id];
-      const fra = o && o.temp != null ? o.temp : Number(st.attributes.temperature) || 20;
+      const start = sone && sone.overstyrt && sone.overstyrt_temp != null ? Number(sone.overstyrt_temp) : Number(st.attributes.temperature) || 20;
+      const fra = o && o.temp != null ? o.temp : start;
       const trinn = Number(st.attributes.target_temp_step) || 0.5;
       const min = Number(st.attributes.min_temp) || 5, max = Number(st.attributes.max_temp) || 35;
       const ny = Math.min(max, Math.max(min, Math.round((fra + steg * trinn) / trinn) * trinn));
       this._opt[id] = { temp: ny, t: Date.now() };
-      clearTimeout(this._tempTimer && this._tempTimer[id]);
       this._tempTimer = this._tempTimer || {};
-      this._tempTimer[id] = setTimeout(() => this._hass.callService("climate", "set_temperature", { entity_id: id, temperature: ny }), 800);
+      clearTimeout(this._tempTimer[id]);
+      /* Trykkene samles i 0,8 s. Med KI Energi blir det én manuell overstyring for
+         sonen; uten går det rett til termostaten. */
+      this._tempTimer[id] = setTimeout(() => {
+        if (sone) {
+          this._hass.callService("ki_energi", "overstyr",
+            { sone: sone.key, temp: ny, minutter: Number(this._c.overstyring_min) || 120 });
+        } else {
+          this._hass.callService("climate", "set_temperature", { entity_id: id, temperature: ny });
+        }
+      }, 800);
       this._sist.klima = null;
       this._tegnKlima();
     }
@@ -33249,6 +33317,7 @@ try {
       this._tegnTopp();
       this._tegnScener();
       this._tegnKlima();
+      this._tegnPlex();
       this._tegnStrom();
       this._tegnLys();
       this._tegnDekker();
@@ -33394,30 +33463,74 @@ try {
         }).join("")}</div></div>`;
     }
 
+    /* KI Energi, når den finnes: sensor.ki_laster har én rad per sone med målet motoren
+       har satt, settpunktet, rommets temperatur og om sonen er manuelt overstyrt. */
+    _kiSone(x) {
+      const L = this._st("sensor.ki_laster");
+      const rader = (L && Array.isArray(L.attributes.laster)) ? L.attributes.laster : [];
+      return rader.find((r) => (x.sone && r.key === x.sone)
+        || (Array.isArray(r.entiteter) && r.entiteter.includes(x.entity))
+        || r.key === String(x.entity).replace(/^climate\./, "")) || null;
+    }
+
+    /* Varme i stua: ett kort med én rad per sone.
+     *
+     * Med KI Energi er det motoren som styrer, og − og + gir en manuell overstyring
+     * gjennom ki_energi.overstyr – den gjelder i `overstyring_min` (standard to timer),
+     * og raden sier til når. «Auto» gir styringen tilbake med en gang. Uten KI Energi
+     * går − og + rett til termostaten som før. */
     _tegnKlima() {
       const ids = this._ids(this._c.klima);
       const vert = this.shadowRoot.getElementById("klima");
       if (!ids.length) { vert.innerHTML = ""; return; }
-      if (!this._endret("klima", ids.map((x) => x.entity))) return;
-      vert.innerHTML = `<div class="klima">${ids.map((x) => {
+      if (!this._endret("klima", [...ids.map((x) => x.entity), "sensor.ki_laster", "sensor.ki_energi_status"])) return;
+      const ki = !!this._st("sensor.ki_laster");
+      let manuelle = 0, varmer = 0;
+      const rader = ids.map((x) => {
         const st = this._st(x.entity);
         if (!st) return "";
         const a = st.attributes;
-        const mal = this._optFor(x.entity, "temp", Number(a.temperature), (o, f) => Math.abs(o - f) < 0.01);
+        const sone = ki ? this._kiSone(x) : null;
+        const rom = sone && sone.naa != null ? Number(sone.naa) : Number(a.current_temperature);
+        const settpunkt = Number(a.temperature);
+        const kiMal = sone && sone.mal != null ? Number(sone.mal) : null;
+        const overstyrt = !!(sone && sone.overstyrt);
+        if (overstyrt) manuelle++;
+        const vis = this._optFor(x.entity, "temp", overstyrt && sone.overstyrt_temp != null ? Number(sone.overstyrt_temp) : settpunkt,
+          (o, f) => Math.abs(o - f) < 0.01);
         const venter = this._opt[x.entity] && this._opt[x.entity].temp != null;
-        const varmer = a.hvac_action === "heating";
-        const hva = { heating: "Varmer", idle: "Venter", off: "Av", cooling: "Kjøler", fan: "Vifte" }[a.hvac_action] || (st.state === "off" ? "Av" : "På");
-        const rom = a.current_temperature != null ? ` · ${komma(a.current_temperature, 1)}°` : "";
-        return `<div class="kort">
-          <button class="hode" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
-            <span class="ik ${varmer ? "varm" : ""}"><ha-icon icon="${esc(x.ikon || (/panel|ovn|radiator/i.test(x.entity) ? "mdi:radiator" : "mdi:fire"))}"></ha-icon></span>
-            <span><div class="navn">${esc(x.navn || a.friendly_name || x.entity)}</div><div class="liten">${hva}${rom}</div></span><span></span></button>
-          <div class="termo ${venter ? "venter" : ""}">
+        const erVarm = a.hvac_action === "heating";
+        if (erVarm) varmer++;
+        const hva = { heating: "varmer", idle: "venter", off: "av", cooling: "kjøler" }[a.hvac_action] || (st.state === "off" ? "av" : "på");
+        const deler = [];
+        if (!isNaN(rom)) deler.push(`rommet <b>${komma(rom, 1)}°</b>`);
+        if (sone && !overstyrt && kiMal != null) deler.push(`KI vil ha ${komma(kiMal, 1)}°`);
+        deler.push(hva);
+        const til = sone && sone.overstyrt_til ? new Date(sone.overstyrt_til) : null;
+        const kl = til && !isNaN(til) ? til.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }) : "";
+        return `<div class="sone">
+          <button class="ik ${erVarm ? "varm" : ""}" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
+            <ha-icon icon="${esc(x.ikon || (/panel|ovn|radiator/i.test(x.entity) ? "mdi:radiator" : "mdi:fire"))}"></ha-icon></button>
+          <button style="text-align:left" data-tap="mer" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}">
+            <div class="sn">${esc(x.navn || a.friendly_name || x.entity)}</div>
+            <div class="su">${deler.join(" · ")}</div></button>
+          <div class="still ${venter ? "venter" : ""}">
             <button class="rund" data-tap="temp" data-id="${esc(x.entity)}" data-steg="-1" aria-label="Senk"><ha-icon icon="mdi:minus"></ha-icon></button>
-            <b>${isNaN(mal) ? "–" : komma(mal, 1)}<sup>°</sup></b>
+            <b>${isNaN(vis) ? "–" : komma(vis, 1)}<sup>°</sup></b>
             <button class="rund" data-tap="temp" data-id="${esc(x.entity)}" data-steg="1" aria-label="Øk"><ha-icon icon="mdi:plus"></ha-icon></button>
-          </div></div>`;
-      }).join("")}</div>`;
+          </div>
+          ${overstyrt ? `<div class="manuell"><span class="mpille">Manuelt${kl ? ` til ${kl}` : ""}
+            <button data-tap="auto" data-id="${esc(x.entity)}" data-sone="${esc(sone.key)}" aria-label="Tilbake til auto"><ha-icon icon="mdi:close"></ha-icon></button></span></div>` : ""}
+        </div>`;
+      }).join("");
+      const under = ki
+        ? (manuelle ? `${manuelle} manuelt overstyrt` : varmer ? `KI Energi styrer · ${varmer} varmer` : "KI Energi styrer")
+        : (varmer ? `${varmer} varmer` : "Ingen varmer nå");
+      vert.innerHTML = `<div class="kort">
+        <button class="hode" data-tap="gaa" data-sti="${esc(this._c.klima_trykk || "#klima")}" ${ki ? `data-hold="sensor.ki_energi_status"` : ""}>
+          <span class="ik ${varmer ? "varm" : ""}"><ha-icon icon="mdi:home-thermometer-outline"></ha-icon></span>
+          <span><div class="navn">Varme</div><div class="status">${esc(under)}</div></span><span></span></button>
+        <div class="varme">${rader}</div></div>`;
     }
 
     /* Timeprisene for i dag, som i ki-strompris-card: raw_today (Nord Pool),
@@ -33472,7 +33585,7 @@ try {
     }
 
     _prisKilde() {
-      if (this._c.strom.pris) return this._c.strom.pris;
+      if (this._c.strom && this._c.strom.pris) return this._c.strom.pris;
       if (this._autoPris && this._st(this._autoPris)) return this._autoPris;
       const S = this._hass.states;
       this._autoPris = Object.keys(S).find((id) => id.startsWith("sensor.") && Array.isArray(S[id].attributes.raw_today));
@@ -33492,9 +33605,52 @@ try {
       this._tegnStrom();
     }
 
+/* «Nytt i Plex»: plakatene fra Plex-sensorene (upcoming-media-formatet), nyeste
+       først, i en rad som rulles sidelengs. Trykk åpner i Plex-appen når sensoren gir
+       en lenke, ellers sensoren. */
+    _tegnPlex() {
+      const k = this._c.plex;
+      const vert = this.shadowRoot.getElementById("plex");
+      if (!vert) return;
+      if (!k) { vert.innerHTML = ""; return; }
+      const sensorer = [].concat(k.sensorer || k.sensor || []).filter(Boolean);
+      if (!this._endret("plex", sensorer)) return;
+      const alle = [];
+      for (const id of sensorer) {
+        const st = this._st(id);
+        const data = st && Array.isArray(st.attributes.data) ? st.attributes.data : [];
+        const film = /movie|film/.test(id);
+        for (const d of data) {
+          if (!d || !d.title || d.title_default) continue;
+          const t = new Date(d.airdate || d.aired || 0).getTime();
+          alle.push({ id, tittel: d.title, under: film ? (d.release ? String(d.release).replace(/\$day,?\s*/g, "") : "Film") : [d.number, d.episode].filter(Boolean).join(" · ") || "Serie",
+            bilde: d.poster || d.fanart || "", lenke: d.deep_link || "", t: isNaN(t) ? 0 : t, film });
+        }
+      }
+      alle.sort((a, b) => b.t - a.t);
+      const vis = alle.slice(0, Number(k.antall) || 12);
+      const dager = (t) => { if (!t) return ""; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "i dag" : d === 1 ? "i går" : `${d} d siden`; };
+      vert.innerHTML = `<div class="kort">
+        <button class="hode" data-tap="gaa" data-sti="${esc(k.trykk || "#media")}" ${sensorer[0] ? `data-hold="${esc(sensorer[0])}"` : ""}>
+          <span class="ik"><ha-icon icon="mdi:plex"></ha-icon></span>
+          <span><div class="navn">${esc(k.navn || "Nytt i Plex")}</div><div class="status">${vis.length ? `${vis.length} lagt til` : "Ingenting nytt"}</div></span><span></span></button>
+        ${vis.length ? `<div class="plex">${vis.map((x) => `
+          <button class="plakat" data-tap="plex" data-id="${esc(x.id)}" data-hold="${esc(x.id)}" ${x.lenke ? `data-lenke="${esc(x.lenke)}"` : ""}>
+            <span class="bilde"><ha-icon icon="${x.film ? "mdi:movie-open-outline" : "mdi:television-classic"}"></ha-icon>
+              ${x.bilde ? `<img src="${esc(x.bilde)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
+              ${x.t ? `<span class="merke">${dager(x.t)}</span>` : ""}</span>
+            <span class="pt">${esc(x.tittel)}</span>
+            <span class="pu">${esc(x.under)}</span>
+          </button>`).join("")}</div>` : ""}
+      </div>`;
+    }
+
     _tegnStrom() {
       const c = this._c.strom;
-      if (c === false || c.vis === false) return;
+      if (c === false || c.vis === false || this._c.strom_av) {
+        const el = this.shadowRoot.getElementById("strom"); if (el) el.innerHTML = "";
+        return;
+      }
       const kilde = this._prisKilde();
       if (!this._endret("strom", [kilde, c.effekt, c.fast])) return;
       const vert = this.shadowRoot.getElementById("strom");
