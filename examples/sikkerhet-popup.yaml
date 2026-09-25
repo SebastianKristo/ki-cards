@@ -120,4 +120,3 @@ cards:
         name: Boddør
         rom: Bod
     ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
-    tastatur_luft: 96

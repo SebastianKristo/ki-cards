@@ -1,4 +1,4 @@
-/* ki-cards v5.83.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.84.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.83.0";
+  KI.VERSION = "5.84.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -35301,7 +35301,6 @@ try {
  * entity: alarm_control_panel.alarm
  * topp: false               # egen overskrift og X (standard av – bubble-card har sin egen topp)
  * ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av   # hvem som låste opp med ansikt
- * tastatur_luft: 96          # plass under kodetastaturet, så navbaren ikke dekker nederste rad
  * kode_lengde: 6             # tastatur når alarmen krever kode (settes ellers av entiteten)
  * batteri_grense: 20
  * hendelser: 6               # antall i «Siste hendelser» (0 = skjul)
@@ -35312,7 +35311,7 @@ try {
  *       - { entity: binary_sensor.inngangsdor, name: Dør, rom: Inngang, battery: sensor.x }
  */
 (() => {
-  const VERSJON = "1.1.0";
+  const VERSJON = "1.2.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
 
@@ -35404,25 +35403,28 @@ try {
     .htekst time { font-size: 12px; color: var(--gray800, #8e8d89); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .tomt { font-size: 13px; color: var(--gray800, #8e8d89); padding: 0 4px; }
 
-    /* kodetastatur */
-    .ark { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center;
-      background: rgba(0,0,0,.45); animation: sp-fade .2s ease; }
-    @keyframes sp-fade { from { opacity: 0; } }
-    .tast { width: min(420px, 100%); background: var(--gray000, #141416); border-radius: 28px 28px 0 0;
-      padding: 20px 22px calc(28px + var(--sp-luft, 96px) + env(safe-area-inset-bottom, 0px));
-      display: grid; gap: 16px; animation: sp-opp .28s cubic-bezier(.2,.9,.3,1); }
-    @keyframes sp-opp { from { transform: translateY(40px); opacity: 0; } }
-    .tast .tt { text-align: center; font-size: 16px; font-weight: 500; }
-    .prikker { display: flex; justify-content: center; gap: 12px; height: 14px; }
-    .prikker i { width: 12px; height: 12px; border-radius: 50%; background: var(--gray200, #2a2a2d); transition: background .15s; }
-    .prikker i.fylt { background: var(--gray1000, #f2f1ee); }
-    .prikker.feil { animation: sp-rist .35s; }
-    @keyframes sp-rist { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
-    .taster { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .taster button { height: 60px; border-radius: 30px; background: var(--gray100, #1f1f22); font-size: 24px; font-weight: 400; }
-    .taster button:active { background: var(--gray200, #2a2a2d); }
-    .taster .tom { background: none; }
-    .taster ha-icon { --mdc-icon-size: 24px; }
+    /* kodetastaturet fra ki-alarm-card */
+    .tastatur { position: relative; margin-top: 10px; background: var(--gray200, var(--card-background-color)); border-radius: 26px;
+      padding: 28px 18px 22px; display: flex; flex-direction: column; gap: 18px; max-width: 340px; margin-left: auto; margin-right: auto;
+      animation: sp-inn .25s cubic-bezier(.2,.9,.3,1); }
+    @keyframes sp-inn { from { opacity: 0; transform: translateY(-6px); } }
+    .tastatur.feil { animation: sp-rist .4s ease; }
+    @keyframes sp-rist { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-9px); } 75% { transform: translateX(9px); } }
+    .tast-hode { text-align: center; display: flex; flex-direction: column; gap: 4px; }
+    .tast-tittel { font-size: 17px; font-weight: 600; color: var(--gray1000, var(--primary-text-color)); }
+    .tastatur.feil .tast-tittel { color: var(--red, #e5484d); }
+    .tast-under { font-size: 12px; font-weight: 500; opacity: .6; }
+    .prikker { display: flex; gap: 14px; justify-content: center; margin-top: 10px; }
+    .prikk { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(128,128,128,.5); transition: background .15s, border-color .15s; }
+    .prikk.fylt { background: var(--gray1000, var(--primary-text-color)); border-color: var(--gray1000, var(--primary-text-color)); }
+    .tastatur.feil .prikk.fylt { background: var(--red, #e5484d); border-color: var(--red, #e5484d); }
+    .tastrad { display: grid; grid-template-columns: repeat(3, 68px); justify-content: center; gap: 16px; }
+    .tast { width: 68px; height: 68px; padding: 0; border-radius: 50%; background: rgba(0,0,0,.18); color: var(--gray1000, var(--primary-text-color));
+      font-size: 24px; font-weight: 500; --mdc-icon-size: 22px; display: flex; align-items: center; justify-content: center; transition: filter .12s ease; }
+    .tast:active { filter: brightness(1.35); }
+    .tast.tom { background: transparent; pointer-events: none; }
+    .tlukk { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,.18);
+      display: flex; align-items: center; justify-content: center; --mdc-icon-size: 26px; }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   `;
 
@@ -35460,9 +35462,13 @@ try {
     set hass(h) {
       this._hass = h;
       const ids = [this._c.entity, this._c.ansikt, ...this._sensorer.map((s) => s.id), ...this._sensorer.map((s) => s.batteri).filter(Boolean)].filter(Boolean);
-      const sig = ids.map((id) => { const st = h.states[id]; return st ? `${st.state}|${st.last_changed}` : "-"; }).join(",") + this._holder + this._kodeApen;
+      const sig = ids.map((id) => { const st = h.states[id]; return st ? `${st.state}|${st.last_changed}` : "-"; }).join(",");
       if (sig === this._sig) return;
       this._sig = sig;
+      /* Holder du inne en modusknapp eller taster kode, venter tegningen til du er ferdig.
+         Før ble hele kortet tegnet på nytt når en sensor meldte midt i holdet – knappen
+         under fingeren forsvant, holdet ble avbrutt, og du måtte holde på nytt. */
+      if (this._holder || this._kodeApen) { this._ventende = true; return; }
       this._tegn();
       this._hentLogg();
     }
@@ -35597,7 +35603,7 @@ try {
           </section>
           <section>
             <div class="moduser">${moduser}</div>
-            <div class="hint">${this._holder ? `Hold for å sette ${esc((MODUS.find((m) => m.k === this._holder) || {}).navn || "").toLowerCase()} …` : "Hold inne for å bytte modus"}</div>
+            ${this._kodeApen ? this._tastHtml() : `<div class="hint">${this._holder ? `Hold for å sette ${esc((MODUS.find((m) => m.k === this._holder) || {}).navn || "").toLowerCase()} …` : "Hold inne for å bytte modus"}</div>`}
           </section>
           ${varsler || lave ? `<section class="obs"><div class="etikett">Krever oppmerksomhet</div>${varsler}${lave}</section>` : ""}
           <section>
@@ -35606,7 +35612,7 @@ try {
           </section>
           ${this._c.hendelser ? `<section><div class="etikett" style="padding:0 4px 8px">Siste hendelser</div><div class="logg" id="logg">${this._loggHtml()}</div></section>` : ""}
         </div>
-        ${this._kodeApen ? this._tastHtml() : ""}`;
+`;
       this._koble();
     }
 
@@ -35630,15 +35636,23 @@ try {
       r.querySelectorAll("[data-modus]").forEach((b) => {
         const k = b.dataset.modus;
         const fyll = b.querySelector(".fyll");
-        const stopp = () => {
+        let peker = null;
+        const stopp = (e) => {
+          if (e && peker !== null && e.pointerId !== peker) return;
           cancelAnimationFrame(this._raf);
           if (fyll) { fyll.style.transition = "width .2s"; fyll.style.width = "0"; }
           if (this._holder === k) { this._holder = null; this._oppdaterHint(); }
+          peker = null;
+          this._tegnHvisVentende();
         };
         b.addEventListener("pointerdown", (e) => {
           const alarm = this._st(this._c.entity);
           if (alarm && alarm.state === k) return;
           e.preventDefault();
+          /* Pekeren fanges, så holdet ikke slippes om fingeren glir litt – bare når du
+             faktisk løfter fingeren (eller systemet avbryter). */
+          peker = e.pointerId;
+          try { b.setPointerCapture(e.pointerId); } catch (x) { /* eldre nettlesere */ }
           this._holder = k; this._oppdaterHint();
           this._haptikk("selection");
           const t0 = performance.now();
@@ -35647,20 +35661,22 @@ try {
             const p = Math.min(1, (performance.now() - t0) / 900);
             if (fyll) fyll.style.width = `${p * 100}%`;
             if (p < 1) this._raf = requestAnimationFrame(steg);
-            else { this._holder = null; this._velg(k); }
+            else { this._holder = null; peker = null; this._velg(k); this._tegnHvisVentende(); }
           };
           this._raf = requestAnimationFrame(steg);
         });
         b.addEventListener("pointerup", stopp);
-        b.addEventListener("pointerleave", stopp);
         b.addEventListener("pointercancel", stopp);
+        b.addEventListener("lostpointercapture", stopp);
         b.addEventListener("contextmenu", (e) => e.preventDefault());
       });
       if (this._kodeApen) {
         r.querySelectorAll("[data-tast]").forEach((b) => b.addEventListener("click", () => this._tast(b.dataset.tast)));
-        const ark = r.querySelector(".ark");
-        if (ark) ark.addEventListener("click", (e) => { if (e.target === ark) this._lukkKode(); });
       }
+    }
+
+    _tegnHvisVentende() {
+      if (this._ventende && !this._holder && !this._kodeApen) { this._ventende = false; this._tegn(); this._hentLogg(); }
     }
 
     _oppdaterHint() {
@@ -35678,7 +35694,12 @@ try {
 
     _velg(k) {
       this._haptikk("success");
-      if (this._trengerKode(k)) { this._kodeFor = k; this._kode = ""; this._kodeApen = true; this._sig = ""; this._tegn(); return; }
+      if (this._trengerKode(k)) {
+        this._kodeFor = k; this._kode = ""; this._kodeFeil = false; this._kodeApen = true; this._tegn();
+        const tk = this.shadowRoot.querySelector(".tastatur");
+        if (tk && tk.scrollIntoView) setTimeout(() => tk.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+        return;
+      }
       this._send(k);
     }
 
@@ -35689,9 +35710,15 @@ try {
       this._hass.callService("alarm_control_panel", m.tjeneste, data)
         .then(() => { if (this._kodeApen) this._lukkKode(); })
         .catch(() => {
-          const p = this.shadowRoot.querySelector(".prikker");
-          if (p) { p.classList.remove("feil"); void p.offsetWidth; p.classList.add("feil"); }
-          this._kode = ""; this._fyllPrikker();
+          this._kodeFeil = true;
+          this._kode = "";
+          const tk = this.shadowRoot.querySelector(".tastatur");
+          if (tk) {
+            tk.classList.remove("feil"); void tk.offsetWidth; tk.classList.add("feil");
+            tk.querySelector(".tast-tittel").textContent = "Feil kode";
+            tk.querySelector(".tast-under").textContent = "Prøv på nytt";
+          }
+          this._fyllPrikker();
           this._haptikk("failure");
         });
     }
@@ -35701,31 +35728,43 @@ try {
       return Number(this._c.kode_lengde) || (a.code_format === "number" ? 6 : 6);
     }
 
+    /* Tastaturet fra ki-alarm-card: eget kort med tittel, runde prikker, store runde
+       taster og kryss oppe til høyre – nå i kortet rett under modusvelgeren, ikke som et
+       ark nederst på skjermen, så navbaren aldri dekker det. */
     _tastHtml() {
       const m = MODUS.find((x) => x.k === this._kodeFor) || MODUS[0];
-      const knapper = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "slett"].map((t) =>
-        t === "" ? `<span class="tom"></span>` : t === "slett"
-          ? `<button data-tast="slett" aria-label="Slett"><ha-icon icon="mdi:backspace-outline"></ha-icon></button>`
-          : `<button data-tast="${t}">${t}</button>`).join("");
-      return `<div class="ark" style="--sp-luft:${Number(this._c.tastatur_luft) || 0}px"><div class="tast">
-        <div class="tt">Kode for ${esc(m.navn.toLowerCase())}</div>
-        <div class="prikker">${Array.from({ length: this._lengde() }, (_, i) => `<i class="${i < this._kode.length ? "fylt" : ""}"></i>`).join("")}</div>
-        <div class="taster">${knapper}</div></div></div>`;
+      const lengde = this._lengde();
+      let tittel = `Tast koden for ${m.navn.toLowerCase()}`, under = "Lukk med krysset for å gå tilbake";
+      if (this._kodeFeil) { tittel = "Feil kode"; under = "Prøv på nytt"; }
+      const taster = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((t) => `<button type="button" class="tast" data-tast="${t}">${t}</button>`).join("");
+      return `<div class="tastatur ${this._kodeFeil ? "feil" : ""}">
+        <button type="button" class="tlukk" data-tast="lukk" aria-label="Lukk tastatur"><ha-icon icon="mdi:close"></ha-icon></button>
+        <div class="tast-hode"><div class="tast-tittel">${esc(tittel)}</div><div class="tast-under">${esc(under)}</div>
+          <div class="prikker">${Array.from({ length: lengde }, (_, i) => `<span class="prikk ${i < this._kode.length ? "fylt" : ""}"></span>`).join("")}</div></div>
+        <div class="tastrad">${taster}
+          <button type="button" class="tast tom" disabled></button>
+          <button type="button" class="tast" data-tast="0">0</button>
+          <button type="button" class="tast ikon" data-tast="slett" aria-label="Slett"><ha-icon icon="mdi:backspace-outline"></ha-icon></button>
+        </div></div>`;
     }
 
     _fyllPrikker() {
-      this.shadowRoot.querySelectorAll(".prikker i").forEach((p, i) => p.classList.toggle("fylt", i < this._kode.length));
+      this.shadowRoot.querySelectorAll(".prikk").forEach((p, i) => p.classList.toggle("fylt", i < this._kode.length));
     }
 
     _tast(t) {
       this._haptikk("selection");
+      if (t === "lukk") { this._lukkKode(); return; }
+      if (this._kodeFeil) { this._kodeFeil = false; const tk = this.shadowRoot.querySelector(".tastatur");
+        if (tk) { tk.classList.remove("feil"); tk.querySelector(".tast-tittel").textContent = `Tast koden for ${((MODUS.find((x) => x.k === this._kodeFor) || MODUS[0]).navn).toLowerCase()}`;
+          tk.querySelector(".tast-under").textContent = "Lukk med krysset for å gå tilbake"; } }
       if (t === "slett") this._kode = this._kode.slice(0, -1);
       else if (this._kode.length < this._lengde()) this._kode += t;
       this._fyllPrikker();
       if (this._kode.length === this._lengde()) this._send(this._kodeFor, this._kode);
     }
 
-    _lukkKode() { this._kodeApen = false; this._kode = ""; this._sig = ""; this._tegn(); }
+    _lukkKode() { this._kodeApen = false; this._kodeFeil = false; this._kode = ""; this._ventende = false; this._tegn(); this._hentLogg(); }
 
     /* ---------- siste hendelser ---------- */
     async _hentLogg() {
