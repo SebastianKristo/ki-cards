@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 3.3.0 - del av ki-cards
+ * ki-basseng-card 3.4.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -24,6 +24,8 @@
  *   – Klor: trykk på den som la i, antall, kalenderen og klorloggens innstillinger.
  *   En `faner:`-liste skrevet for 2.x (uten klor) får Klor etter Varme, og Sirkulasjon
  *   faller bort – den ligger under grafen på Varme nå.
+ * 3.4: Spreder og Innstillinger i samme form: scenen som bilde, stor start/stopp, fliser,
+ *   faste valg for varighet, og innstillingene som grupper med rader.
  * 3.3: vannivået fra KI Basseng 1.8 (vannsensor i bassenget): banner når det trenger vann eller
  *   fyller, en rad blant bryterne og et panel under tannhjulet. Vises bare når sensoren finnes.
  * 3.2: flisene øverst på Oversikt er dashbordets egne kort (css-swipe-card med button-card og
@@ -56,7 +58,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.3.0";
+  const VERSJON = "3.4.0";
 
   /* Finner LitElement i frontend.
    *
@@ -1868,10 +1870,11 @@
       }
 
       /* En bred rad med ikon, tekst og bryter (som i Innstillinger-kortet). */
-      _radBryter(key, ikon, navn, tekst) {
+      _radBryter(key, ikon, navn, tekst, farget = true) {
+        if (!this.st(key)) return "";
         const pa = this.on(key);
         return html`
-          <button class="rad3 bred ${pa ? "pa" : ""}"
+          <button class="rad3 bred ${pa && farget ? "pa" : ""}"
             @pointerdown=${(e) => this._holdNed(e, key)} @pointerup=${() => this._holdOpp()}
             @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
             @contextmenu=${(e) => e.preventDefault()}
@@ -1880,6 +1883,64 @@
             <span class="rad3-tekst"><b>${navn}</b><small>${tekst}</small></span>
             <span class="tog3 ${pa ? "pa" : ""}"><i></i></span>
           </button>`;
+      }
+
+      /* Et tall som en rad: ikon, navn og forklaring, verdien til høyre. Trykk hvor som
+         helst på raden gir hjulvelgeren (en usynlig <select> over hele raden). */
+      _radValg(key, ikon, navn, under, opts = {}) {
+        const s = this.st(key);
+        if (!s) return "";
+        const v = Number(s.state);
+        const des = opts.desimaler ?? ((opts.step ?? Number(s.attributes.step ?? 1)) < 1 ? 1 : 0);
+        return html`
+          <label class="rad3 bred">
+            <span class="fik3"><ha-icon icon=${ikon}></ha-icon></span>
+            <span class="rad3-tekst"><b>${navn}</b>${under ? html`<small>${under}</small>` : ""}</span>
+            <span class="rad3-verdi">${nf(v, des)}${opts.suffiks || ""}</span>
+            <ha-icon class="rad3-pil" icon="mdi:chevron-down"></ha-icon>
+            ${this._velgerSelect(key, opts)}
+          </label>`;
+      }
+
+      _radValgEntitet(key, ikon, navn, under, tekster = {}) {
+        const s = this.st(key);
+        if (!s) return "";
+        const opts = s.attributes.options || [];
+        return html`
+          <label class="rad3 bred">
+            <span class="fik3"><ha-icon icon=${ikon}></ha-icon></span>
+            <span class="rad3-tekst"><b>${navn}</b>${under ? html`<small>${under}</small>` : ""}</span>
+            <span class="rad3-verdi">${tekster[s.state] || s.state}</span>
+            <ha-icon class="rad3-pil" icon="mdi:chevron-down"></ha-icon>
+            <select class="rad3-velg" .value=${s.state} @change=${(e) => this._velg(e.target.value, key)}>
+              ${opts.map((o) => html`<option value=${o} ?selected=${o === s.state}>${tekster[o] || o}</option>`)}
+            </select>
+          </label>`;
+      }
+
+      /* Overskrift over en gruppe rader. Tom gruppe gir ingenting. */
+      _gruppe(ikon, tittel, rader, under = "") {
+        const fylt = rader.filter((r) => r !== "" && r !== null && r !== undefined);
+        if (!fylt.length) return "";
+        return html`
+          <div class="dag3 grp3"><ha-icon icon=${ikon}></ha-icon><b>${tittel}</b>${under ? html`<span>${under}</span>` : ""}</div>
+          ${fylt}`;
+      }
+
+      /* Faste valg for et tall (som temperaturknappene), f.eks. spredertid. */
+      _forvalgTall(key, liste, suffiks = "") {
+        const s = this.st(key);
+        if (!s) return "";
+        const v = Number(s.state);
+        const min = Number(s.attributes.min ?? -Infinity), maks = Number(s.attributes.max ?? Infinity);
+        const ok = liste.filter((x) => x >= min && x <= maks);
+        if (!ok.length) return "";
+        return html`
+          <div class="fv3" style="--n:${ok.length}">
+            ${ok.map((t) => html`
+              <button class="fv3-k ${Math.abs(t - v) < 1e-6 ? "pa" : ""}"
+                @click=${() => { this._haptikk("selection"); this._sett(key, t); }}>${nf(t, 0)}${suffiks}</button>`)}
+          </div>`;
       }
 
       /* Grafen med underfaner (som i Strøm-kortet): temperatur, sirkulasjon og pris. */
@@ -2944,6 +3005,8 @@
         `;
       }
 
+      /* Spreder (3.4): scenen som et bilde, start og stopp som én stor knapp, dagens tid og
+         programmet som fliser, faste valg for hvor lenge, og programmet som rader. */
       _spreder() {
         const gar = this.on("spreder");
         const igjen = this.val("spredertid", 0) || 0;
@@ -2952,12 +3015,8 @@
         const maks = Number(this.val("spredMaks", 0)) || 0;
         const intervall = Number(this.val("spredIntervall", 0)) || 0;
         const programPa = this.on("spredprogram");
-
+        const status = this.attr("spreder", "status", "");
         return html`
-          <section class="panel spredpanel ${gar ? "gar" : ""}">
-          <!-- Sprederen som en scene: kveldshimmel, vannflaten med bølger, dysa midt i
-               bassenget, fem stråler i bue med dråper langs buen, og ringer i vannet der
-               strålene lander. Alt i én svg, gradientene i defs. -->
           <div class="spredscene ${gar ? "gar" : ""}">
             <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
               <defs>
@@ -3026,81 +3085,112 @@
               </g>
             </svg>
             <div class="spredtekst">
-              <b>${gar ? "Sprederen går" : "Sprederen står"}</b>
-              <span>${gar ? `${Math.ceil(igjen)} min igjen` : `Klar for ${Math.round(varighet)} min`}</span>
+              <span class="sc3-navn">Spreder</span>
+              <span class="sc3-verdi">${gar ? `${Math.ceil(igjen)} min igjen` : "Står"}<small>${gar ? "Vannet går i bassenget" : `Klar for ${Math.round(varighet)} min`}</small></span>
             </div>
           </div>
 
-            <button class="stor ${gar ? "stopp" : ""}"
-              @click=${() => { this._haptikk("medium"); this._trykk(gar ? "stoppSpreder" : "startSpreder"); }}>
-              <ha-icon icon="${gar ? "mdi:stop" : "mdi:play"}"></ha-icon>
-              ${gar ? "Stopp sprederen" : `Start i ${Math.round(varighet)} min`}
+          <button class="lg3 ${gar ? "stopp3" : "start3"}"
+            @click=${() => { this._haptikk("medium"); this._trykk(gar ? "stoppSpreder" : "startSpreder"); }}>
+            <span class="fik3"><ha-icon icon=${gar ? "mdi:stop" : "mdi:play"}></ha-icon></span>${gar ? "Stopp sprederen" : `Start i ${Math.round(varighet)} min`}
+          </button>
+          ${status && !gar && !["Klar", "Ferdig"].includes(status) ? html`<div class="tips"><ha-icon icon="mdi:information-outline"></ha-icon>${status}</div>` : ""}
+          <div class="g23">
+            <button class="fl3" @click=${() => this._mer("spredertid")}>
+              <span class="fik3"><ha-icon icon="mdi:timer-sand"></ha-icon></span>
+              <span class="fl3-navn">Brukt i dag</span>
+              <span class="fl3-verdi">${nf(brukt, 0)}<small>${maks ? `av ${nf(maks, 0)} min` : "min"}</small></span>
+              ${maks ? html`<span class="fl3-stolpe"><i style="width:${Math.min(100, (brukt / maks) * 100).toFixed(1)}%"></i></span>` : ""}
             </button>
-            <div class="spredtall">
-              <button @click=${() => this._mer("spredertid")}>
-                <small>Brukt i dag</small><b>${nf(brukt, 0)}<em>${maks ? ` / ${nf(maks, 0)}` : ""} min</em></b>
-                ${maks ? html`<span class="ispor"><i style="width:${Math.min(100, (brukt / maks) * 100).toFixed(1)}%"></i></span>` : ""}
-              </button>
-              <button @click=${() => this._mer("spredVarighet")}><small>Varighet</small><b>${nf(varighet, 0)}<em> min</em></b></button>
-              <button @click=${() => this._mer("spredprogram")}><small>Program</small><b>${programPa ? (intervall ? `hver ${nf(intervall, 0)} t` : "på") : "av"}</b></button>
-            </div>
-          </section>
-
-          ${this._panel("mdi:calendar-sync", "var(--kib-accent)", "Program", programPa ? "Går av seg selv" : "Bare når du starter", html`
-            <div class="pliste">
-              ${this._bryterRad("spredprogram", "Program på")}
-              ${this._velger("spredVarighet", "Varighet", { suffiks: " min" })}
-              ${this._velger("spredIntervall", "Start hver", { suffiks: " t" })}
-              ${this._velger("spredMaks", "Maks per døgn", { step: 10, suffiks: " min" })}
-              ${this._bryterRad("frostvakt", "Frostvakt")}
-            </div>`)}
+            <button class="fl3 ${programPa ? "pa3" : ""}" @click=${() => this._veksle("spredprogram")}>
+              <span class="fik3"><ha-icon icon="mdi:calendar-sync"></ha-icon></span>
+              <span class="tog3 ${programPa ? "pa" : ""}"><i></i></span>
+              <span class="fl3-navn">Program</span>
+              <span class="fl3-verdi">${programPa ? (intervall ? html`${nf(intervall, 0)}<small>t mellom starter</small>` : "På") : "Av"}</span>
+            </button>
+          </div>
+          <div class="dag3 grp3"><ha-icon icon="mdi:timer-outline"></ha-icon><b>Hvor lenge</b><span>per gang</span></div>
+          ${this._forvalgTall("spredVarighet", [5, 10, 15, 20, 30], "")}
+          ${this._gruppe("mdi:calendar-sync", "Program", [
+            this._radValg("spredIntervall", "mdi:timer-refresh-outline", "Start hver", "Mellom 10 og 20", { suffiks: " t" }),
+            this._radValg("spredMaks", "mdi:timer-lock-outline", "Maks per døgn", "Sprederen stopper når tiden er brukt", { step: 10, suffiks: " min" }),
+            this._radValg("spredVarighet", "mdi:timer-outline", "Varighet", "Hvor lenge den går hver gang", { suffiks: " min" }),
+            this._radBryter("frostvakt", "mdi:snowflake-alert", "Frostvakt", "Starter ikke når det er under 2 °C ute", false),
+          ])}
         `;
       }
 
+      /* Innstillinger (3.4): grupper med rader i samme form som resten av kortet – ikon,
+         navn, forklaring og verdien til høyre. Trykk på et tall gir hjulvelgeren. */
       _innstillinger() {
         const energi = (this.val("pumpeEnergi", 0) || 0) + (this.val("vpEnergi", 0) || 0);
         const faner = this._config.faner === false ? [] : this._faneListe().map((f) => f.id);
+        const valuta = this.enhet("kostnad") || "kr";
+        const f = (n) => this.attr("varmetap", n);
+        const laert = [
+          ["Tap uten tak", f("laert_tapsfaktor_uten_tak")],
+          ["Tap med tak", f("laert_tapsfaktor_med_tak")],
+          ["COP", f("laert_cop_faktor")],
+        ].filter(([, v]) => v !== undefined && v !== null);
+        const vann = this._vann();
         return html`
-          ${faner.length && !faner.includes("sirkulasjon") ? this._panel("mdi:tune-variant", "var(--kib-accent)", "Styring", "Profil, mål og plan", html`
-            <div class="pliste">
-              ${this._velgerEntitet("profil", "Driftsprofil", PROFIL)}
-              ${this._velger("mal", "Omsetninger per døgn", { step: 0.25, desimaler: 2, suffiks: "×" })}
-              ${this._velger("puls", "Vedlikeholdspuls", { suffiks: " min/t" })}
-              ${this._velger("dagtimer", "Dagtimer i planen", { suffiks: " t" })}
-              ${this._bryterRad("pris", "Prisstyring")}
-              ${this._bryterRad("varme", "Varmeprioritet")}
-            </div>`) : ""}
+          ${faner.length && !faner.includes("sirkulasjon") ? this._gruppe("mdi:tune-variant", "Styring", [
+            this._radValgEntitet("profil", "mdi:star-outline", "Driftsprofil", "Setter mål og puls i ett grep", PROFIL),
+            this._radValg("mal", "mdi:autorenew", "Omsetninger per døgn", "Hvor mye vann som skal gjennom filteret", { step: 0.25, desimaler: 2, suffiks: "×" }),
+            this._radValg("puls", "mdi:timer-play-outline", "Vedlikeholdspuls", "Sirkulasjon hver time når målet er nådd", { suffiks: " min/t" }),
+            this._radValg("dagtimer", "mdi:weather-sunny", "Dagtimer i planen", "Timer om dagen pumpa skal gå", { suffiks: " t" }),
+            this._radBryter("pris", "mdi:cash-clock", "Prisstyring", "Pumper i de billigste timene", false),
+            this._radBryter("varme", "mdi:heat-wave", "Varmeprioritet", "Pumper når varmepumpa trenger det", false),
+          ]) : ""}
 
-          ${this._panel("mdi:pump", "var(--kib-blue)", "Pumpe", "Hvor lenge og hvor mye", html`
-            <div class="pliste">
-              ${this._velger("minTid", "Minste kjøretid", { step: 5, suffiks: " min" })}
-              ${this._velger("basislast", "Basislast", { step: 10, suffiks: " W" })}
-              ${this._velger("overstyringTid", "Manuell overstyring varer", { step: 15, suffiks: " min" })}
-            </div>`)}
+          ${this._gruppe("mdi:pump", "Pumpe", [
+            this._radValg("minTid", "mdi:timer-outline", "Minste kjøretid", "Kortere starter slites pumpa av", { step: 5, suffiks: " min" }),
+            this._radValg("basislast", "mdi:flash-outline", "Basislast", "Pumpas effekt når den går", { step: 10, suffiks: " W" }),
+            this._radValg("overstyringTid", "mdi:hand-back-right-outline", "Manuell overstyring varer", "Så lenge automatikken venter", { step: 15, suffiks: " min" }),
+          ])}
 
-          ${this._panel("mdi:heat-wave", "var(--kib-red)", "Varme",
-            this._harVarme() ? "Natta går fra vinduets slutt til start" : "Når varmepumpa får gå", html`
-            <div class="pliste">
-              ${this._bryterRad("styrVp", "Styr varmepumpa")}
-              ${this._velger("varmeStart", "Varmevindu fra", { suffiks: ":00" })}
-              ${this._velger("varmeSlutt", "Varmevindu til", { suffiks: ":00" })}
-              ${this._bryterRad("pulsVarme", "Puls med varme")}
-            </div>`)}
+          ${this._gruppe("mdi:heat-wave", "Varme", [
+            this._radBryter("styrVp", "mdi:heat-pump-outline", "Styr varmepumpa", "Varme bare når vannet sirkulerer", false),
+            this._radBryter("styrSettpunkt", "mdi:thermometer-auto", "Styr settpunkt", "Holder varmepumpa på ønsket temperatur", false),
+            this._radValg("varmeStart", "mdi:weather-sunset-up", "Varmevindu fra", "Bassenget skal være klart", { suffiks: ":00" }),
+            this._radValg("varmeSlutt", "mdi:weather-sunset-down", "Varmevindu til", "Natta starter", { suffiks: ":00" }),
+            this._radValg("borteSenking", "mdi:home-export-outline", "Senking når ingen er hjemme", "", { step: 0.5, desimaler: 1, suffiks: "°" }),
+            this._radBryter("pulsVarme", "mdi:timer-play-outline", "Puls med varme", "Vedlikeholdspulsen varmer også", false),
+            this._radBryter("solvarme", "mdi:solar-power-variant", "Solvarme", "Pumper når sola varmer (med solfanger)", false),
+            this._radBryter("tvingHeat", "mdi:fire", "Tving varmepumpa til heat", "Setter den tilbake fra auto", false),
+          ])}
 
-          ${this._modellPanel()}
-          ${this._vannPanel()}
-          ${faner.includes("klor") ? "" : this._klorNavnPanel()}
+          ${this._harVarme() ? this._gruppe("mdi:function-variant", "Varmemodell", [
+            this._radValg("uApen", "mdi:waves-arrow-up", "Varmetap uten tak", "", { step: 0.5, desimaler: 1, suffiks: " W/m²K" }),
+            this._radValg("uTak", "mdi:pool", "Varmetap med tak", "", { step: 0.5, desimaler: 1, suffiks: " W/m²K" }),
+            this._radValg("solTak", "mdi:weather-sunny", "Sol gjennom taket", "", { step: 5, suffiks: " %" }),
+            laert.length ? html`<div class="laert3">
+              ${laert.map(([n, v]) => html`<span class="chip3"><ha-icon icon="mdi:school-outline"></ha-icon>${n} ×${nf(v, 2)}</span>`)}
+              <small>Læres fra målinger. 1,00 betyr at tabellverdiene stemmer.</small></div>` : "",
+          ]) : ""}
 
-          ${this._panel("mdi:chart-box-outline", "var(--kib-accent)", "Tellere", "", html`
+          ${this._gruppe("mdi:pill", "Klor", [
+            this._radValg("klorIntervall", "mdi:bell-ring-outline", "Klortablett hver", "Kortere i varmt vann", { step: 0.5, desimaler: 1, suffiks: " d" }),
+            faner.includes("klor") ? "" : this._klorNavnPanel(true),
+          ])}
+
+          ${vann ? this._gruppe("mdi:waves-arrow-up", "Vannivå", [
+            this._radBryter("autoFyll", "mdi:water-plus", "Automatisk påfylling", "Åpner ventilen til sensoren er våt", false),
+            this._radBryter("varsleVann", "mdi:bell-ring-outline", "Varsle om vannivå", "Til mobilene valgt i integrasjonen", false),
+            this._radValg("torrVarsel", "mdi:timer-sand", "Tørr før varsel", "Så bølger ikke gir falsk alarm", { step: 5, suffiks: " min" }),
+            this._radValg("maksFyll", "mdi:timer-lock-outline", "Maks påfylling", "Sikring hvis sensoren ikke blir våt", { step: 5, suffiks: " min" }),
+          ], vann.kort) : ""}
+
+          ${this._gruppe("mdi:chart-box-outline", "I dag", [html`
             <div class="statgrid">
               ${this._stat("mdi:water", "Pumpet i dag", nf(this.val("volum", 0), 1), " m³", () => this._mer("volum"))}
               ${this._stat("mdi:water-sync", "Pumpet totalt", nf(this.val("volumTotalt", 0), 1), " m³", () => this._mer("volumTotalt"))}
               ${this._stat("mdi:lightning-bolt", "Energi i dag", nf(energi, 1), " kWh")}
-              ${this._stat("mdi:cash", "Kostnad i dag", nf(this.val("kostnad", 0), 1), ` ${this.enhet("kostnad") || "kr"}`, () => this._mer("kostnad"))}
-            </div>
-            <button class="stor stille" @click=${() => { this._haptikk("medium"); this._trykk("nullstill"); }}>
-              <ha-icon icon="mdi:backup-restore"></ha-icon>Nullstill dagens tellere
-            </button>`)}
+              ${this._stat("mdi:cash", "Kostnad i dag", nf(this.val("kostnad", 0), 1), ` ${valuta}`, () => this._mer("kostnad"))}
+            </div>`,
+            this.st("nullstill") ? html`<button class="chip3 nullstill3" @click=${() => { this._haptikk("medium"); this._trykk("nullstill"); }}>
+              <ha-icon icon="mdi:backup-restore"></ha-icon>Nullstill dagens tellere</button>` : "",
+          ])}
 
           <div class="dempet senter versjon">ki-basseng-card ${VERSJON} · ${this._prefiks || ""}</div>
         `;
@@ -4498,6 +4588,23 @@
           .rad3.varsel { background: linear-gradient(135deg, var(--kib-orange), color-mix(in srgb, var(--kib-orange) 72%, #fff)); color: var(--kib-sort); }
           .rad3.pa .fik3, .rad3.varsel .fik3, .kb3.varsel .fik3, .lg3 .fik3, .fl3.varsel .fik3 { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.06); }
           .rad3-pil { --mdc-icon-size: 22px; flex: none; opacity: 0.7; }
+          .rad3-verdi { flex: none; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+          .grp3 { padding-top: 10px; }
+          .laert3 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+          .laert3 small { flex-basis: 100%; font-size: 12.5px; opacity: 0.6; padding: 0 6px; }
+          .nullstill3 { justify-self: start; }
+          .lg3.start3 { background: var(--kib-blue); color: #fff; }
+          .lg3.stopp3 { background: var(--kib-red); color: #fff; }
+          .lg3.start3 .fik3, .lg3.stopp3 .fik3 { background: rgba(255, 255, 255, 0.18); border-color: transparent; }
+          .fl3.pa3 { background: var(--kib-accent); color: var(--kib-sort); }
+          .fl3.pa3 .fik3 { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.06); }
+          .fl3-stolpe { width: 100%; height: 4px; margin-top: 6px; border-radius: 2px; background: rgba(250, 251, 252, 0.12); overflow: hidden; }
+          .fl3-stolpe i { display: block; height: 100%; border-radius: 2px; background: var(--kib-blue); }
+          .faneinnhold > .spredscene { height: 176px; margin: 0; border-radius: 24px; }
+          .faneinnhold > .spredscene svg { height: 100%; }
+          .faneinnhold > .spredscene .spredtekst { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column;
+            color: #fff; opacity: 1; font-weight: 400; }
+          .faneinnhold > .spredscene .spredtekst .sc3-verdi small { padding-right: 0; }
           .rad3-velg { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
 
           /* Varme */
