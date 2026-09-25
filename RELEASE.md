@@ -1,35 +1,31 @@
-# ki-cards 5.79.0
+# ki-cards 5.79.1
 
-Bygget på 5.78.0 fra GitHub — bassengarbeidet (ki-basseng-card 3.3, vannivå) er med uendret. Denne
-versjonen endrer bare veggpanelet, prosakortet og `DESIGN.md`.
+## Veggpanelet beholder dashbordets farger
 
-## ki-veggpanel-card 1.5.0: iPad-designet
+5.79.0 ga veggpanelet både **formen** og **fargene** fra iPad-skissen, og fargene ble standard: ravgul
+aksent i stedet for rosa, nesten svarte kort, egne grånyanser. Det skal ikke skje uten at du ber om det.
 
-Veggpanelet er tegnet om etter iPad-skissen — temaet heter **varm** og er nå standard.
+Temaet er nå delt i to:
 
-- **Palett:** nesten svart bunn, kort i `#1b1b1d` med en hårfin kant og radius 28, rolige grånyanser for
-  tekst, og én varm, ravgul aksent for det som er på (i stedet for rosa). Varme er oransje.
-- **Innebygde kort følger med:** fargene settes som dashbordets egne variabler på rammen, så prosa-,
-  familie- og mediekortet arver paletten. Prosakortet har fått egne farger for tekst og piller
-  (`--prosa-tekst`, `--prosa-pille`, `--prosa-pille-tekst`), så teksten står dempet med mørke piller,
-  som i skissen — uten at noe endrer seg der prosakortet brukes ellers.
-- **Toppen:** klokka 76 px, pillene 40 px høye med kant i kortfargen.
-- **Sidemenyen:** smal (64 px), avrundet 32, aktiv side i en lysere grå i stedet for rosa.
-- **Scener:** fliser i `#232326`; den du sist kjørte, står som aktiv med ravgul ramme og ikon, og
-  overskriften sier «Aktiv: Filmkveld».
-- **Varme:** radene med skillelinjer, − / + i runde knapper, temperaturen i 26 px/300; manuell-pillen
-  i ravgul tone.
-- **Lys:** hver rad har pæreikonet, som lyser ravgult når lampa er på; fyllet er en ravgul toning med en
-  tynn kant der lysstyrken slutter, og bryteren er ravgul. Under lista står «Trykk for å slå av/på · dra
-  for lysstyrke».
-- **Nytt i Plex:** pil til høyre i hodet.
-- **Gardiner og markise:** knappene 40 px i `#262629`.
+- **Formen** — størrelser, avrundinger, avstander og oppsett fra skissen — gjelder som før (`tema: varm`).
+- **Fargene** gjelder bare med `farger: varm`. Standard er `farger: dashbord`: panelet bruker dashbordets
+  egne `--gray*` og `--active-big`, nøyaktig som før 5.79.0 — også i prosa-, familie- og mediekortet, som
+  ikke lenger får fargene overstyrt.
 
-`tema: mysmarthome` gir det gamle utseendet med dashbordets rosa aksent. Reglene for temaet står i
-`DESIGN.md`.
+Skillelinjene mellom varmesonene, rammen rundt kortene og tonene i scener, lysrader og brytere hører til
+fargene og følger dermed dashbordet. Pæreikonet, hintet under lysene, «Aktiv: …» over scenene og pila i
+Plex-hodet er form og står der uansett.
+
+Vil du ha skissens palett likevel:
+
+```yaml
+type: custom:ki-veggpanel-card
+farger: varm
+```
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Veggpanelet er kjørt med temaet på rammen, scenen som blir «Aktiv: …» etter
-trykk, pæreikon og hint i lysradene og pil i Plex-hodet; KI Energi-varmen, overstyringen og Plex som før.
-Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Panelet tegnes med `tema-varm farger-dashbord` uten oppsett; formdelen av
+stilen har ingen fargeverdier (ingen hex, `oklch`, `rgba`, `--gray` eller `--active-big`), og fargereglene
+gjelder bare sammen med `farger-varm`. Med `farger: varm` får rammen `farger-varm`. Bygget oppå 5.79.0 slik
+den ligger på GitHub.
