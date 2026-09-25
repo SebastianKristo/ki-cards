@@ -1,42 +1,31 @@
-# ki-cards 5.70.0
+# ki-cards 5.71.0
 
-## ki-veggpanel-card 1.3.0: varmen styres gjennom KI Energi, og «Nytt i Plex» er tilbake
+## ki-veggpanel-card 1.4.0: ingen tomrom nederst, familiedialogen over alt, lys du kan treffe
 
-**Varmen er ett kort, koblet til KI Energi.** De to store termostatkortene er erstattet av ett kort,
-**Varme**, med én rad per sone: ikonet (oransje når ovnen faktisk varmer), navnet, rommets temperatur,
-hva KI Energi vil ha, og − / + med temperaturen i midten.
+**Tomrommet nederst.** Kolonnene sluttet der innholdet sluttet, og med sidemenyen ble det i tillegg satt
+av 16 px til en navbar som ikke finnes. Nå fyller kolonnene høyden, og ett kort i hver vokser til bunnen:
+**scenene** til venstre (flisene blir høyere), det nederste i midten (**Nytt i Plex**), og **lysene** til
+høyre (radene fordeles). Med sidemenyen er det ingen luft nederst. `vokser: { venstre, midt, hoyre }`
+velger andre kort; `luft_bunn:` overstyrer luften.
 
-- **− og + er en manuell overstyring.** Når KI Energi finnes, går trykkene til `ki_energi.overstyr`
-  for sonen i stedet for rett til termostaten — ellers ville motoren satt sin egen verdi tilbake ved
-  neste tick. Overstyringen gjelder i to timer (`overstyring_min:`). Trykkene samles i 0,8 s og sendes
-  som ett kall.
-- **Raden sier til når:** «Manuelt til 11:34» som en pille, med et kryss som gir styringen tilbake til
-  KI Energi med en gang (`ki_energi.fjern_overstyring`).
-- **Sonen finnes av seg selv** — raden i `sensor.ki_laster` som har termostaten blant entitetene. `sone:`
-  overstyrer.
-- **Overskriften** sier om KI Energi styrer, hvor mange som varmer, eller hvor mange som er manuelle.
-  Trykk åpner `#klima`, hold åpner statussensoren.
-- Uten KI Energi går − og + rett til termostaten, som før.
+**Familiedialogen havnet bak midtkolonnen.** Kortet var satt opp som container (`container-type`) for å
+tilpasse seg bredden, og kolonnene hadde en fade-maske nederst. Begge deler gjør at et element med
+`position: fixed` — dialogen i familiekortet — låses inne i kolonnen og tegnes under det som kommer etter.
+Containment er byttet med vanlige skjermbredder (`@media`), og masken er borte. Dialogen legger seg over
+hele panelet igjen.
 
-**«Nytt i Plex»** — plakatene fra Plex-sensorene i en rad som rulles sidelengs, nyeste først, med
-«i dag / i går / 3 d siden» i hjørnet og episode eller årstall under. Trykk åpner i Plex-appen.
+**Lysradene er glidere, hele raden.** Glideren var en 3 px strek under navnet — vanskelig å treffe med en
+finger. Nå er raden selve glideren: fyllet i bakgrunnen er lysstyrken, trykk slår av og på, dra sidelengs
+dimmer. Raden er 52 px høy med egen flate, og teksten blir mørk når fyllet går bak den. Lamper uten dimming
+fylles helt når de er på.
 
-```yaml
-plex:
-  sensorer:
-    - sensor.d_day_darling_plex_recently_added_movie
-    - sensor.d_day_darling_plex_recently_added_show
-strom: false        # strømkortet ut
-```
-
-**`strom: false`** tar strømkortet vekk.
-
-Krever KI Energi 2.32.0 for «til 11:34»; med eldre versjon står bare «Manuelt».
+**«Ingenting nytt» i Plex.** Plex Recently Added lagrer plakatlista som en JSON-*streng*, ikke en liste,
+og kortet leste bare lister. Begge former leses nå — også i `ki-lansering-card`, som hadde samme feil for
+Plex-haken.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Kortet er kjørt med stuas to soner og en overstyring: «1 manuelt overstyrt»,
-oljefyren med «rommet 22,6° · KI vil ha 21,5° · venter», panelovnen med «Manuelt til …», + på oljefyren
-sender `ki_energi.overstyr {sone: stue_oljefyr, temp: 22.5, minutter: 120}`, krysset sender
-`fjern_overstyring`. Plex: to plakater i riktig rekkefølge med episode og årstall, trykk åpner
-`plex://`-lenken. Strømkortet borte. Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Veggpanelet er kjørt med Plex-data som JSON-streng (to plakater, riktig
+rekkefølge), sidemeny (ingen luft nederst), og scener, Plex og lys merket som de som vokser. Containment er
+borte fra stilen. Lysradene: «Sofabord 100 %» med fullt fyll og mørk tekst, «Taklist Av» uten fyll.
+KI Energi-varmen og overstyringen virker som i 5.70.0. Ingen `NaN` eller `undefined`.

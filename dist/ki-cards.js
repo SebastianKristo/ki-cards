@@ -1,4 +1,4 @@
-/* ki-cards v5.70.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.71.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.70.0";
+  KI.VERSION = "5.71.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -19088,8 +19088,12 @@ class KiLanseringCard extends HTMLElement {
   /* Sonarr og Radarr legger et oppsettobjekt først i lista – det hopper vi over */
   _les(id, type) {
     const st = this._h && this._h.states[id];
-    if (!st || !Array.isArray(st.attributes.data)) return [];
-    return st.attributes.data
+    if (!st) return [];
+    /* Plex Recently Added lagrer data som en JSON-streng; Sonarr og Radarr som liste. */
+    let data = st.attributes.data;
+    if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { data = null; } }
+    if (!Array.isArray(data)) return [];
+    return data
       .filter((x) => x && (x.airdate || x.aired) && x.title)
       .map((x) => ({
         type, kilde: id,
@@ -32639,7 +32643,7 @@ try {
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.3.0";
+  const VERSJON = "1.4.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -32671,7 +32675,7 @@ try {
     paused: "Støvsuger på pause", error: "Støvsuger feil" };
 
   const CSS = `
-    :host { display: block; container-type: inline-size; }
+    :host { display: block; }
     * { box-sizing: border-box; min-width: 0; }
     .vp {
       color: var(--gray1000, #fafbfc); font-family: inherit;
@@ -32717,11 +32721,21 @@ try {
        havner under navbaren, og det lange (lys, gardiner) ikke skyver resten ned. */
     .vp.skjerm { height: 100%; grid-template-rows: auto minmax(0, 1fr); }
     .vp.skjerm .kol3 { min-height: 0; height: 100%; align-items: stretch; }
-    .vp.skjerm .kol { overflow-y: auto; overscroll-behavior: contain; padding-bottom: var(--vp-bunn);
-      scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
+    /* Kolonnene fyller høyden, og ett kort i hver vokser til bunnen – så det ikke står
+       tomrom under. Ruller en kolonne likevel (lite vindu), gjør den det uten maske:
+       masken og containment gjorde kolonnen til en egen stabel, og familiedialogen
+       (position: fixed) havnet bak midtkolonnen. */
+    .vp.skjerm .kol { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      padding-bottom: var(--vp-bunn); scrollbar-width: none; }
+    .vp.skjerm .kol > * { flex: none; }
+    .vp.skjerm .kol > .vokser { flex: 1 1 auto; display: flex; flex-direction: column; min-height: min-content; }
+    .vp.skjerm .vokser > .kort { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .vp.skjerm .vokser .scener { flex: 1; grid-auto-rows: 1fr; }
+    .vp.skjerm .vokser .lysliste { flex: 1; grid-auto-rows: minmax(52px, 1fr); }
+    .vp.skjerm .vokser .plex { flex: 1; align-items: center; }
     .vp.skjerm .kol::-webkit-scrollbar { display: none; }
-    @container (max-width: 1060px) { .ramme.skjerm { height: auto; } .vp.skjerm { height: auto; } .vp.skjerm .kol { overflow: visible; -webkit-mask-image: none; } .kol3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .kol.midt { grid-column: 1 / -1; order: -1; } }
-    @container (max-width: 700px) { .kol3 { grid-template-columns: minmax(0, 1fr); } .kol.midt { order: 0; }
+    @media (max-width: 1000px) { .ramme.skjerm { height: auto; } .vp.skjerm { height: auto; } .vp.skjerm .kol { overflow: visible; -webkit-mask-image: none; } .kol3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .kol.midt { grid-column: 1 / -1; order: -1; } }
+    @media (max-width: 700px) { .kol3 { grid-template-columns: minmax(0, 1fr); } .kol.midt { order: 0; }
       .ramme { flex-direction: column; } .meny { width: auto; flex-direction: row; overflow-x: auto; padding: 6px; scrollbar-width: none; } .meny .fyllrom { display: none; } .mk { flex: none; } }
 
     .kort { background: var(--gray200); border-radius: 24px; padding: 16px; display: grid; gap: 12px; }
@@ -32818,17 +32832,23 @@ try {
     .forklaring i { width: 10px; height: 10px; border-radius: 3px; }
 
     /* lys som rader: hele raden er knappen, bryteren viser tilstanden, dra sidelengs dimmer */
-    .lysliste { display: grid; }
-    .lrad { display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 10px; align-items: center; min-height: 48px;
-      padding: 6px 4px; text-align: left; touch-action: pan-y; border-top: 1px solid rgba(250,251,252,.06); }
-    .lrad .lt { display: grid; gap: 5px; min-width: 0; }
-    .lrad .ln { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .65; transition: opacity .2s; }
+    /* Lysradene: hele raden er glideren. Fyllet er lysstyrken, trykk slår av og på,
+       dra sidelengs dimmer. Før var glideren en 3 px strek under navnet – vanskelig å
+       treffe med en finger på et veggpanel. */
+    .lysliste { display: grid; gap: 6px; }
+    .lrad { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 10px;
+      align-items: center; min-height: 52px; padding: 0 8px 0 14px; border-radius: 16px; background: var(--gray100);
+      text-align: left; touch-action: pan-y; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .lrad:active { transform: scale(.985); }
+    .lrad > .fyll { position: absolute; inset: 0 auto 0 0; background: var(--active-big); transition: width .25s ease; pointer-events: none; }
+    .lrad.drar > .fyll { transition: none; }
+    .lrad > :not(.fyll) { position: relative; }
+    .lrad .ln { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .75; }
     .lrad.pa .ln { opacity: 1; }
-    .lrad .lv { font-size: 14px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; text-align: right; }
-    .lrad .spor { display: block; position: relative; width: min(150px, 100%); height: 3px; border-radius: 2px; background: rgba(250,251,252,.1); overflow: hidden; }
-    .lrad .spor .fyll { position: absolute; inset: 0 auto 0 0; background: var(--active-big); transition: width .25s ease; }
-    .lrad.drar .spor .fyll { transition: none; }
-    .lrad .bryter { grid-row: auto; justify-self: end; }
+    .lrad .lv { font-size: 14px; font-weight: 500; opacity: .75; font-variant-numeric: tabular-nums; text-align: right; }
+    .lrad.lys { color: var(--black); }
+    .lrad .bryter { justify-self: end; }
+    .lrad.pa .bryter { background: rgba(0,0,0,.18); }
     .knapp { height: 44px; padding: 0 16px; border-radius: 999px; background: var(--gray100); font-size: 14px; font-weight: 500;
       transition: transform .12s; }
     .knapp:active { transform: scale(.94); }
@@ -33014,9 +33034,11 @@ try {
       const r = this.shadowRoot;
       const skjerm = this._c.skjerm !== false;
       const meny = Array.isArray(this._c.meny) && this._c.meny.length > 0;
-      const luft = Number(this._c.luft_topp ?? 40), bunn = Number(this._c.luft_bunn ?? (meny ? 16 : 110));
+      /* Med sidemenyen finnes ingen flytende navbar å gi plass til, så ingen luft nederst. */
+      const luft = Number(this._c.luft_topp ?? 40), bunn = Number(this._c.luft_bunn ?? (meny ? 0 : 110));
+      const bunnPx = bunn;
       r.innerHTML = `<style>${CSS}</style>
-        <div class="ramme ${skjerm ? "skjerm" : ""}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunn}px">
+        <div class="ramme ${skjerm ? "skjerm" : ""}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunnPx}px">
         ${meny ? `<nav class="meny" id="meny" aria-label="Meny"></nav>` : ""}
         <div class="vp ${skjerm ? "skjerm" : ""}">
           <div class="topp" id="topp"></div>
@@ -33047,8 +33069,21 @@ try {
         if (!konf) continue;
         this._monter(navn, { type: std, ...konf });
       }
+      this._markerVokser();
       if (!this._lyttere) this._koble();
       this._bygget = true;
+    }
+
+    /* Ett kort per kolonne vokser til bunnen: scenene til venstre, det nederste i midten,
+       lysene til høyre. `vokser: { venstre, midt, hoyre }` overstyrer med id-ene. */
+    _markerVokser() {
+      const c = this._c, r = this.shadowRoot;
+      const midt = c.plex ? "plex" : (c.strom !== false ? "strom" : "klima");
+      const valg = { venstre: "scener", midt, hoyre: c.lys ? "lys" : "dekker", ...(c.vokser || {}) };
+      for (const id of Object.values(valg)) {
+        const el = r.getElementById(id);
+        if (el) el.classList.add("vokser");
+      }
     }
 
     async _monter(navn, konf) {
@@ -33618,7 +33653,11 @@ try {
       const alle = [];
       for (const id of sensorer) {
         const st = this._st(id);
-        const data = st && Array.isArray(st.attributes.data) ? st.attributes.data : [];
+        /* Plex Recently Added lagrer `data` som en JSON-streng, ikke en liste – derfor
+           sto det «Ingenting nytt». Begge former leses. */
+        let data = st ? st.attributes.data : [];
+        if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { data = []; } }
+        if (!Array.isArray(data)) data = [];
         const film = /movie|film/.test(id);
         for (const d of data) {
           if (!d || !d.title || d.title_default) continue;
@@ -33744,10 +33783,11 @@ try {
           <span><div class="navn">${esc(k.navn || "Lys i stua")}</div><div class="status">${lamper.length ? `${pa} av ${lamper.length} på` : (g && g.state === "on" ? "På" : "Av")}</div></span><span></span></button>`;
       const liste = rader
         ? `<div class="lysliste">${info.map(({ x, erPa, kanDimmes, pst, navn }) =>
-            `<button class="lrad ${erPa ? "pa" : ""}" data-tap="veksle" data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}"
-              ${kanDimmes ? `data-dimm="1"` : ""} aria-pressed="${erPa}" aria-label="${esc(navn)}">
-              <span class="lt"><span class="ln">${esc(navn)}</span>
-                ${kanDimmes ? `<span class="spor"><span class="fyll" style="width:${erPa ? pst : 0}%"></span></span>` : ""}</span>
+            `<button class="lrad ${erPa ? "pa" : ""} ${erPa && (!kanDimmes || pst >= 55) ? "lys" : ""}" data-tap="veksle"
+              data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}" ${kanDimmes ? `data-dimm="1"` : ""}
+              aria-pressed="${erPa}" aria-label="${esc(navn)}">
+              <span class="fyll" style="width:${erPa ? (kanDimmes ? pst : 100) : 0}%"></span>
+              <span class="ln">${esc(navn)}</span>
               <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span>
               <span class="bryter ${erPa ? "pa" : ""}"></span>
             </button>`).join("")}</div>`
@@ -33761,7 +33801,7 @@ try {
               <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span></span>
           </button>`;
           }).join("")}</div>`;
-      vert.innerHTML = `<div class="kort" ${rader ? `style="gap:6px;padding-bottom:6px"` : ""}>${hode}${liste}</div>`;
+      vert.innerHTML = `<div class="kort">${hode}${liste}</div>`;
     }
 
     _tegnDekker() {

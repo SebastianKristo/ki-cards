@@ -309,8 +309,12 @@ class KiLanseringCard extends HTMLElement {
   /* Sonarr og Radarr legger et oppsettobjekt først i lista – det hopper vi over */
   _les(id, type) {
     const st = this._h && this._h.states[id];
-    if (!st || !Array.isArray(st.attributes.data)) return [];
-    return st.attributes.data
+    if (!st) return [];
+    /* Plex Recently Added lagrer data som en JSON-streng; Sonarr og Radarr som liste. */
+    let data = st.attributes.data;
+    if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { data = null; } }
+    if (!Array.isArray(data)) return [];
+    return data
       .filter((x) => x && (x.airdate || x.aired) && x.title)
       .map((x) => ({
         type, kilde: id,
