@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 3.2.0 - del av ki-cards
+ * ki-basseng-card 3.2.1 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -54,7 +54,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.2.0";
+  const VERSJON = "3.2.1";
 
   /* Finner LitElement i frontend.
    *
@@ -319,11 +319,13 @@
         this._under = "temperatur";
         this._sveipIdx = {};
         /* «Spart i dag»-kortet fra dashbordet (button-card) ber om oppdelingen slik */
+        /* Noen utgaver av button-card sender bare handlingen videre uten egne nøkler, så
+           kortet kjennes også igjen på hvor hendelsen kom fra. */
         this.addEventListener("ll-custom", (e) => {
-          if (!e.detail || e.detail.kib !== "spart") return;
+          const fra = this._dash && this._dash.spart && e.composedPath().includes(this._dash.spart);
+          if (!fra && !(e.detail && e.detail.kib === "spart")) return;
           e.stopPropagation();
-          this._haptikk("selection");
-          this._apneLukk("spart");
+          this._visSpart();
         });
       }
 
@@ -2297,7 +2299,7 @@
         ].filter(Boolean);
         const hoyre = [
           { ikon: "mdi:piggy-bank-outline", navn: "Spart i dag", verdi: nf(spart, 0), enhet: valuta, kl: spart > 0 ? "gron" : "",
-            klikk: () => this._apneLukk("spart"), nokkel: "spart" },
+            klikk: () => this._visSpart(), nokkel: "spart" },
           iGar != null ? { ikon: "mdi:calendar-arrow-left", navn: "Spart i går", verdi: nf(iGar, 0), enhet: valuta, klikk: () => this._apneLukk("spart"), nokkel: "spart" } : null,
           { ikon: "mdi:cash", navn: "Kostnad i dag", verdi: nf(this.val("kostnad", 0), 0), enhet: this.enhet("kostnad") || valuta, klikk: () => this._mer("kostnad"), nokkel: "kostnad" },
         ].filter(Boolean);
@@ -2307,9 +2309,9 @@
             ${this._sveip("venstre", venstre)}
             ${this._sveip("hoyre", hoyre)}
           </div>`}
+          ${this._apne.spart ? html`<div class="spar3">${this._sparPanel()}</div>` : ""}
           ${this._setning()}
           ${this._idagListe()}
-          ${this._apne.spart ? this._sparPanel() : ""}
           ${this._profiler()}
           ${this._brytere()}
           ${this._klorApen === "oversikt" ? html`<section class="panel klorfelt">${this._klorLogger("oversikt")}</section>` : ""}
@@ -2323,23 +2325,36 @@
       }
 
       /* Flisene øverst på Oversikt er de samme kortene som i Strøm-dashbordet:
-       * css-swipe-card med button-card og malen universal_sensor_ny til venstre (vann,
-       * ute, effekt), og ett kort med trykkmerke til høyre (spart i dag – trykk folder
-       * ut oppdelingen). Kortene lages med Home Assistants egne hjelpere og får hass
-       * fra dette kortet. Mangler css-swipe-card eller button-card, eller står
-       * `dashbordfliser: false`, tegnes kortets egne fliser i stedet. */
+       * button-card med malen universal_sensor_ny, tre til venstre som du blar i (vann,
+       * ute, effekt) og «Spart i dag» med trykkmerke til høyre.
+       *
+       * Bladingen gjør kortet selv, med prikkene fra css-swipe-card (gray400 aktiv,
+       * gray200 ellers). css-swipe-card bygger kortene sine først når den har fått plass
+       * og hass, og i popupen tok det flere sekunder før vannflisen kom. Kortene lages én
+       * gang med Home Assistants egne hjelpere og beholdes. Mangler button-card, eller
+       * står `dashbordfliser: false`, tegnes kortets egne fliser. */
       _dashFliser() {
-        if (this._config.dashbordfliser === false || !window.loadCardHelpers
-          || !customElements.get("css-swipe-card") || !customElements.get("button-card")) return null;
-        const id = (k) => this.id(k);
-        const nokkel = ["vanntemp", "varmetap", "vpEffekt", "pumpeEffekt", "spart"].map(id).join("|");
+        if (this._config.dashbordfliser === false || !window.loadCardHelpers || !customElements.get("button-card")) return null;
+        const nokkel = ["vanntemp", "varmetap", "vpEffekt", "pumpeEffekt", "spart"].map((k) => this.id(k)).join("|");
         if (this._dashNokkel !== nokkel) {
           this._dashNokkel = nokkel;
-          this._dashEl = null;
+          this._dash = null;
           this._lagDash(nokkel);
         }
-        if (this._dashEl) this._dashEl.hass = this.hass;
-        return this._dashEl;
+        const d = this._dash;
+        if (!d) return null;
+        for (const el of [...d.sider, d.spart]) if (el) el.hass = this.hass;
+        const i = Math.min(this._sveipIdx.dash || 0, d.sider.length - 1);
+        return html`
+          <div class="g23 dash3">
+            <div class="sv3">
+              <div class="sv3-spor" @scroll=${(e) => this._sveipet(e, "dash")}>
+                ${d.sider.map((el) => html`<div class="sv3-side dash3-side">${el}</div>`)}
+              </div>
+              ${d.sider.length > 1 ? html`<div class="prikker3">${d.sider.map((_, j) => html`<i class=${j === i ? "a" : ""}></i>`)}</div>` : ""}
+            </div>
+            ${d.spart ? html`<div class="dash3-side">${d.spart}</div>` : ""}
+          </div>`;
       }
 
       async _lagDash(nokkel) {
@@ -2362,34 +2377,34 @@
         }
         const spart = id("spart");
         const valuta = this.enhet("spart") || this.enhet("kostnad") || "kr";
-        const kort = [{
-          type: "custom:css-swipe-card", cardId: `kib_basseng_${this._prefiks || "x"}`, height: "190px", pagination: true,
-          custom_css: {
-            "--pagination-bullet-active-background-color": "var(--gray400)",
-            "--pagination-bullet-background-color": "var(--gray200)",
-            "--pagination-bullet-border": "none",
-            "--pagination-bullet-distance": "0px",
-          },
-          cards: sider,
-        }];
-        if (spart) {
-          kort.push({
-            type: "custom:button-card", template: "universal_sensor_ny", entity: spart,
-            tap_action: { action: "fire-dom-event", kib: "spart" },
-            variables: { sub_text: "Spart i dag", show_tap_indicator: true, margin: "12px", icon: "mdi:piggy-bank-outline",
-              background_color: "var(--gray200)", text_color: "var(--gray1000)",
-              main_text: `[[[ return Math.round(${st(spart)} || 0) + '<span style="font-size:14px"> ${valuta}</span>'; ]]]` },
-          });
-        }
+        const spartKonf = spart ? {
+          type: "custom:button-card", template: "universal_sensor_ny", entity: spart,
+          tap_action: { action: "fire-dom-event", kib: "spart" },
+          variables: { sub_text: "Spart i dag", show_tap_indicator: true, margin: "12px", icon: "mdi:piggy-bank-outline",
+            background_color: "var(--gray200)", text_color: "var(--gray1000)",
+            main_text: `[[[ return Math.round(${st(spart)} || 0) + '<span style="font-size:14px"> ${valuta}</span>'; ]]]` },
+        } : null;
         try {
           const helpers = await window.loadCardHelpers();
-          const el = await helpers.createCardElement({ type: "grid", square: false, columns: kort.length, cards: kort });
+          const lag = (c) => { const el = helpers.createCardElement(c); el.hass = this.hass; return el; };
+          const d = { sider: sider.map(lag), spart: spartKonf ? lag(spartKonf) : null };
           if (this._dashNokkel !== nokkel) return;
-          el.hass = this.hass;
-          this._dashEl = el;
+          this._dash = d;
           this.requestUpdate();
         } catch (e) {
           console.warn("ki-basseng-card: fikk ikke laget flisene fra dashbordet", e);
+        }
+      }
+
+      /* Trykk på «Spart i dag»: vis oppdelingen rett under flisene og rull den fram. */
+      _visSpart() {
+        this._haptikk("selection");
+        this._apneLukk("spart");
+        if (this._apne.spart) {
+          this.updateComplete.then(() => {
+            const el = this.shadowRoot && this.shadowRoot.querySelector(".spar3");
+            if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          });
         }
       }
 
@@ -2536,7 +2551,7 @@
             ${rad("Omsetninger", nf(gjort, 2), `av ${nf(mal, 2)}`, gjort >= mal ? ["mdi:check", "gronn"] : ["mdi:arrow-right", "oransje"],
               () => this._mer("omsetninger"), "omsetninger")}
             ${rad("Spart", nf(spart, 0), valuta, [`mdi:chevron-${this._apne.spart ? "up" : "down"}`, spart > 0 ? "gronn" : ""],
-              () => this._apneLukk("spart"), "spart")}
+              () => this._visSpart(), "spart")}
           </div>`;
       }
 
@@ -4285,6 +4300,9 @@
              de andre gray200, uten kant. */
           .sv3 { display: grid; gap: 6px; min-width: 0; }
           .sv3 .fl3 { height: 168px; }
+          .dash3 { align-items: start; }
+          .dash3-side { min-width: 0; }
+          .dash3-side > * { display: block; }
           .sv3-spor { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 24px;
             scrollbar-width: none; overscroll-behavior-x: contain; }
           .sv3-spor::-webkit-scrollbar { display: none; }
