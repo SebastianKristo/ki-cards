@@ -53,3 +53,19 @@ Utilgjengelig: ingen bakgrunn, `1px dashed var(--gray400)`, ikon i `--gray600` m
 - Trykk på en verdi åpner entiteten bak den.
 - Grafer skal kunne leses med fingeren: dra over gir verdien og tidspunktet.
 - Fanerader: `ki-tabs-card`-formen — tynn ring, piller, glidende pille.
+
+## Veggpanel-temaet «varm» (iPad)
+
+Fra iPad-skissen. Brukes av `ki-veggpanel-card` som standard (`tema: varm`).
+
+| Bruk | Verdi |
+|---|---|
+| Bunn | `#0f0f10` |
+| Kort | `#1b1b1d`, `1px solid rgba(255,255,255,.05)`, radius 28 |
+| Innvendige flater | `#232326` / `#262629` / `#29292c` |
+| Tekst / dempet / svak | `#f2f1ee` / `#8e8d89` / `#6d6c69` |
+| Aksent (på) | ravgul `oklch(0.82 0.12 75)`, varme `oklch(0.8 0.12 60)` |
+
+Ikonsirkler 44 px i `#262629`; aktive fylles ravgult med en svak glød. Etiketter 13 px dempet, verdier
+16 px/500, store tall vekt 300. Fargene settes som `--gray*`/`--active-big` på rammen, så innebygde kort
+arver dem.

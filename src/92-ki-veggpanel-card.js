@@ -35,6 +35,9 @@
  *       deler: [{ navn: Venstre, entity: cover.markise_venstre }, …], invertert: true }
  * dekker_visning: kompakt   # kompakt (rad med opp/stopp/ned per dekke) | full (segment, dra og forhåndsvalg)
  *
+ * tema: varm               # varm (standard): mørkt, rolig, ravgul aksent – fra iPad-skissen
+ *                           # mysmarthome: dashbordets egne farger (rosa aksent, gray200-kort)
+ *
  * Nytt i 1.3:
  * klima:                    # styres gjennom KI Energi når integrasjonen finnes
  *   - { entity: climate.stue_oljefyr, navn: Oljefyr, sone: stue_oljefyr }   # sone gjettes ellers
@@ -63,7 +66,7 @@
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.4.0";
+  const VERSJON = "1.5.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -93,6 +96,104 @@
     armed_vacation: "Ferie", triggered: "Utløst!", arming: "Aktiverer …", pending: "Venter …" };
   const STOV = { docked: "Støvsuger ladet", cleaning: "Støvsuger går", returning: "Støvsuger på vei hjem", idle: "Støvsuger venter",
     paused: "Støvsuger på pause", error: "Støvsuger feil" };
+
+  /* Temaet «varm», fra iPad-skissen: nesten svart bunn, kort i #1b1b1d med en
+     hårfin kant, rolige grånyanser for tekst, og én varm, ravgul aksent for det som
+     er på. Fargene settes som dashbordets egne variabler på rammen, så de innebygde
+     kortene (prosa, familie, media) arver dem og ser ut som resten. */
+  const TEMA_VARM = `
+    .ramme.tema-varm {
+      --v-kort: #1b1b1d; --v-kant: rgba(255,255,255,.05); --v-inn: #232326; --v-inn2: #262629; --v-inn3: #29292c;
+      --v-tekst: #f2f1ee; --v-demp: #8e8d89; --v-demp2: #a9a7a2; --v-svak: #6d6c69;
+      --v-amber: oklch(0.82 0.12 75); --v-oransje: oklch(0.8 0.12 60);
+      --gray000: #0f0f10; --gray100: var(--v-inn); --gray200: var(--v-kort); --gray800: var(--v-demp); --gray1000: var(--v-tekst);
+      --active-big: var(--v-amber); --active-small: var(--v-amber); --black: #1a1a1a; --orange: var(--v-oransje);
+      --prosa-tekst: #c9c7c2; --prosa-pille: var(--v-inn); --prosa-pille-tekst: var(--v-tekst); --str: 21px;
+      color: var(--v-tekst); gap: 16px;
+    }
+    .tema-varm .vp { gap: 16px; }
+    .tema-varm .kol3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .tema-varm .kol { gap: 16px; }
+    .tema-varm .kort { background: var(--v-kort); border: 1px solid var(--v-kant); border-radius: 28px; padding: 18px; }
+    .tema-varm .navn { font-size: 13px; font-weight: 400; color: var(--v-demp); opacity: 1; }
+    .tema-varm .status { font-size: 16px; font-weight: 500; }
+    .tema-varm .ik { width: 44px; height: 44px; background: var(--v-inn2); border: 0; color: var(--v-demp2); }
+    .tema-varm .ik ha-icon { --mdc-icon-size: 22px; }
+    .tema-varm .ik.fylt { background: var(--v-amber); color: #1a1a1a; box-shadow: 0 0 24px oklch(0.82 0.12 75 / .35); }
+    .tema-varm .ik.varm { background: var(--v-oransje); color: #1a1a1a; }
+    .tema-varm .hode { grid-template-columns: 44px minmax(0, 1fr) auto; }
+
+    /* toppen */
+    .tema-varm .klokke b { font-size: 76px; letter-spacing: -.04em; line-height: .9; }
+    .tema-varm .klokke i { font-size: 18px; }
+    .tema-varm .klokke small { font-size: 14px; color: var(--v-demp); opacity: 1; }
+    .tema-varm .pille { height: 40px; padding: 0 14px 0 11px; border-radius: 20px; background: var(--v-kort);
+      border: 1px solid var(--v-kant); font-size: 14px; }
+    .tema-varm .pille ha-icon { --mdc-icon-size: 19px; color: var(--v-demp2); }
+    .tema-varm .pille.fylt { background: var(--v-amber); color: #1a1a1a; }
+    .tema-varm .pille.fylt ha-icon { color: #1a1a1a; }
+
+    /* sidemenyen */
+    .tema-varm .meny { width: 64px; border-radius: 32px; background: var(--v-kort); border: 1px solid var(--v-kant); padding: 12px 0; gap: 4px; }
+    .tema-varm .mk { width: 44px; height: 44px; border-radius: 22px; color: var(--v-demp); }
+    .tema-varm .mk ha-icon { --mdc-icon-size: 22px; opacity: 1; }
+    .tema-varm .mk.aktiv { background: #2c2c2f; color: var(--v-tekst); }
+    .tema-varm .mk .prikk { top: 8px; right: 8px; border-color: var(--v-kort); }
+
+    /* scener */
+    .tema-varm .scener { gap: 10px; }
+    .tema-varm .scene { min-height: 56px; padding: 0 14px 0 8px; gap: 12px; border-radius: 20px; background: var(--v-inn); }
+    .tema-varm .scene .ik { width: 40px; height: 40px; background: #2e2e31; color: #e6e4df; }
+    .tema-varm .scene .ik ha-icon { --mdc-icon-size: 20px; }
+    .tema-varm .scene.aktiv { background: oklch(0.82 0.12 75 / .14); color: var(--v-tekst); box-shadow: inset 0 0 0 1px oklch(0.82 0.12 75 / .35); }
+    .tema-varm .scene.aktiv .ik { background: var(--v-amber); color: #1a1a1a; }
+    .tema-varm .sstatus { color: var(--v-demp); opacity: 1; }
+    @keyframes vp-kjort-varm { 40% { background: oklch(0.82 0.12 75 / .3); } }
+    .tema-varm .scene.kjort { animation: vp-kjort-varm .5s ease; }
+
+    /* varme */
+    .tema-varm .sone { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px 10px; min-height: 72px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.06); }
+    .tema-varm .sone .su { font-size: 12px; color: var(--v-demp); opacity: 1; }
+    .tema-varm .sone .su b { color: var(--v-demp2); }
+    .tema-varm .still { grid-template-columns: 40px 64px 40px; gap: 4px; }
+    .tema-varm .still .rund { background: var(--v-inn2); }
+    .tema-varm .still b { font-size: 26px; letter-spacing: -.02em; }
+    .tema-varm .still b sup { font-size: 15px; color: var(--v-demp); opacity: 1; top: 1px; }
+    .tema-varm .mpille { background: oklch(0.82 0.12 75 / .16); color: oklch(0.9 0.08 80); }
+    .tema-varm .mpille button { background: oklch(0.82 0.12 75 / .25); }
+    .tema-varm .rund { background: var(--v-inn2); }
+
+    /* lys */
+    .tema-varm .lysliste { gap: 6px; }
+    .tema-varm .lrad { grid-template-columns: 22px minmax(0, 1fr) auto 48px; gap: 12px; min-height: 42px; padding: 0 10px 0 14px;
+      border-radius: 16px; background: #212124; }
+    .tema-varm .lrad.pa { background: #26241f; }
+    .tema-varm .lrad.lys { color: var(--v-tekst); }
+    .tema-varm .lrad > .fyll { background: linear-gradient(90deg, oklch(0.82 0.12 75 / .10), oklch(0.82 0.12 75 / .24)); }
+    .tema-varm .lrad > .fyll.kant { border-right: 2px solid oklch(0.82 0.12 75 / .7); }
+    .tema-varm .lrad .lb { display: block; color: #5d5c5a; }
+    .tema-varm .lrad.pa .lb { color: var(--v-amber); filter: drop-shadow(0 0 6px oklch(0.82 0.12 75 / .6)); }
+    .tema-varm .lrad .ln { font-size: 14px; opacity: .8; }
+    .tema-varm .lrad.pa .ln { opacity: 1; }
+    .tema-varm .lrad .lv { font-size: 13px; color: var(--v-svak); opacity: 1; min-width: 40px; }
+    .tema-varm .lrad.pa .lv { color: oklch(0.9 0.08 80); }
+    .tema-varm .bryter { width: 40px; height: 24px; background: #38383b; }
+    .tema-varm .bryter::after { width: 18px; height: 18px; top: 3px; left: 3px; background: #bdbbb6; }
+    .tema-varm .bryter.pa, .tema-varm .lrad.pa .bryter { background: var(--v-amber); }
+    .tema-varm .bryter.pa::after { left: 19px; background: #1a1a1a; }
+    .tema-varm .knapp { height: 36px; padding: 0 14px; border-radius: 18px; background: var(--v-inn3); color: var(--v-tekst); font-size: 13px; font-weight: 500; }
+    .tema-varm .hint { color: var(--v-svak); opacity: 1; }
+
+    /* Plex og dekker */
+    .tema-varm .plakat .bilde { background: var(--v-inn); border-radius: 18px; }
+    .tema-varm .pil { color: var(--v-svak); opacity: 1; }
+    .tema-varm .drad .hode { grid-template-columns: 44px minmax(0, 1fr); }
+    .tema-varm .drad .liten { font-size: 15px; font-weight: 500; }
+    .tema-varm .drad .tre { display: flex; gap: 8px; }
+    .tema-varm .drad .rund { width: 40px; height: 40px; }
+    .tema-varm .drad .rund ha-icon { --mdc-icon-size: 20px; }
+    .tema-varm .drad + .drad { border-top-color: rgba(255,255,255,.06); }
+  `;
 
   const CSS = `
     :host { display: block; }
@@ -171,6 +272,11 @@
     .status { font-size: 18px; font-weight: 300; line-height: 1.2; }
     .liten { font-size: 14px; font-weight: 500; }
 
+    .shode { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .sstatus { font-size: 12px; font-weight: 500; opacity: .6; }
+    .lrad .lb { --mdc-icon-size: 20px; display: none; }
+    .hint { font-size: 11px; opacity: .5; text-align: center; }
+    .pil { --mdc-icon-size: 20px; opacity: .45; }
     /* scener */
     .scener { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .scene { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 9px 12px 9px 9px; border-radius: 22px;
@@ -457,8 +563,8 @@
       /* Med sidemenyen finnes ingen flytende navbar å gi plass til, så ingen luft nederst. */
       const luft = Number(this._c.luft_topp ?? 40), bunn = Number(this._c.luft_bunn ?? (meny ? 0 : 110));
       const bunnPx = bunn;
-      r.innerHTML = `<style>${CSS}</style>
-        <div class="ramme ${skjerm ? "skjerm" : ""}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunnPx}px">
+      r.innerHTML = `<style>${CSS}${TEMA_VARM}</style>
+        <div class="ramme ${skjerm ? "skjerm" : ""} tema-${esc(String(this._c.tema || "varm").toLowerCase())}" style="--vp-h:calc(100dvh - ${luft}px);--vp-bunn:${bunnPx}px">
         ${meny ? `<nav class="meny" id="meny" aria-label="Meny"></nav>` : ""}
         <div class="vp ${skjerm ? "skjerm" : ""}">
           <div class="topp" id="topp"></div>
@@ -632,6 +738,10 @@
         this._haptikk("light");
         el.classList.remove("kjort"); void el.offsetWidth; el.classList.add("kjort");
         this._handling(s.tap_action || (s.entity ? { action: "toggle" } : null), s.entity);
+        // Scener har ingen tilstand. Den siste du kjørte, står som aktiv til du velger en annen.
+        this._sisteScene = s.navn || s.name || "";
+        this._sist.scener = null;
+        this._tegnScener();
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
@@ -908,10 +1018,13 @@
       const vert = this.shadowRoot.getElementById("scener");
       if (!sc.length) { vert.innerHTML = ""; return; }
       if (!this._endret("scener", sc.map((s) => s.aktiv || s.entity).filter(Boolean))) return;
-      vert.innerHTML = `<div class="kort"><div class="navn">${esc(this._c.scener_tittel || "Scener")}</div><div class="scener">
+      const siste = this._sisteScene;
+      vert.innerHTML = `<div class="kort"><div class="shode"><span class="navn">${esc(this._c.scener_tittel || "Scener")}</span>
+        ${siste ? `<span class="sstatus">Aktiv: ${esc(siste)}</span>` : ""}</div><div class="scener">
         ${sc.map((s, i) => {
           const aktivId = s.aktiv || null;
-          const aktiv = aktivId ? this._optFor(aktivId, "state", (this._st(aktivId) || {}).state) === "on" : false;
+          const aktiv = aktivId ? this._optFor(aktivId, "state", (this._st(aktivId) || {}).state) === "on"
+            : !!siste && (s.navn || s.name) === siste;
           const hold = s.entity || aktivId || (s.tap_action && s.tap_action.target && [].concat(s.tap_action.target.entity_id)[0]) || "";
           return `<button class="scene ${aktiv ? "aktiv" : ""}" data-tap="scene" data-i="${i}" ${hold ? `data-hold="${esc(hold)}"` : ""}>
             <span class="ik"><ha-icon icon="${esc(s.ikon || s.icon || "mdi:palette-outline")}"></ha-icon></span>${esc(s.navn || s.name || "")}</button>`;
@@ -1092,7 +1205,7 @@
       vert.innerHTML = `<div class="kort">
         <button class="hode" data-tap="gaa" data-sti="${esc(k.trykk || "#media")}" ${sensorer[0] ? `data-hold="${esc(sensorer[0])}"` : ""}>
           <span class="ik"><ha-icon icon="mdi:plex"></ha-icon></span>
-          <span><div class="navn">${esc(k.navn || "Nytt i Plex")}</div><div class="status">${vis.length ? `${vis.length} lagt til` : "Ingenting nytt"}</div></span><span></span></button>
+          <span><div class="navn">${esc(k.navn || "Nytt i Plex")}</div><div class="status">${vis.length ? `${vis.length} lagt til` : "Ingenting nytt"}</div></span><ha-icon class="pil" icon="mdi:chevron-right"></ha-icon></button>
         ${vis.length ? `<div class="plex">${vis.map((x) => `
           <button class="plakat" data-tap="plex" data-id="${esc(x.id)}" data-hold="${esc(x.id)}" ${x.lenke ? `data-lenke="${esc(x.lenke)}"` : ""}>
             <span class="bilde"><ha-icon icon="${x.film ? "mdi:movie-open-outline" : "mdi:television-classic"}"></ha-icon>
@@ -1206,7 +1319,8 @@
             `<button class="lrad ${erPa ? "pa" : ""} ${erPa && (!kanDimmes || pst >= 55) ? "lys" : ""}" data-tap="veksle"
               data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}" ${kanDimmes ? `data-dimm="1"` : ""}
               aria-pressed="${erPa}" aria-label="${esc(navn)}">
-              <span class="fyll" style="width:${erPa ? (kanDimmes ? pst : 100) : 0}%"></span>
+              <span class="fyll ${kanDimmes && erPa && pst < 100 ? "kant" : ""}" style="width:${erPa ? (kanDimmes ? pst : 100) : 0}%"></span>
+              <ha-icon class="lb" icon="${esc(x.ikon || (erPa ? "mdi:lightbulb" : "mdi:lightbulb-outline"))}"></ha-icon>
               <span class="ln">${esc(navn)}</span>
               <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span>
               <span class="bryter ${erPa ? "pa" : ""}"></span>
@@ -1221,7 +1335,9 @@
               <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span></span>
           </button>`;
           }).join("")}</div>`;
-      vert.innerHTML = `<div class="kort">${hode}${liste}</div>`;
+      const hint = rader && info.some((i) => i.kanDimmes) && this._c.lys.hint !== false
+        ? `<div class="hint">Trykk for å slå av/på · dra for lysstyrke</div>` : "";
+      vert.innerHTML = `<div class="kort">${hode}${liste}${hint}</div>`;
     }
 
     _tegnDekker() {

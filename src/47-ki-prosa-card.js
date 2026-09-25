@@ -195,12 +195,13 @@ const KI_PROSA_VAER = {
 
 const KI_PROSA_STIL = `
   :host { display:block; --myk:cubic-bezier(.2,.8,.2,1); }
-  .prosa { font-size:var(--str,1.4em); line-height:2em; padding:0 6px 4px 7px; font-weight:400; color:var(--gray1000, var(--primary-text-color)); }
+  .prosa { font-size:var(--str,1.4em); line-height:2em; padding:0 6px 4px 7px; font-weight:400; color:var(--prosa-tekst, var(--gray1000, var(--primary-text-color))); }
   .prosa p { margin:0; }
   .setning { display:inline; }
   .ny { animation:pr-inn .7s var(--myk) both; display:inline-block; }
-  .pille { display:inline-flex; align-items:center; gap:5px; padding:0 10px; border-radius:999px; background:var(--gray1000, var(--primary-text-color));
-    color:var(--gray100, var(--card-background-color)); font-weight:500; line-height:1.65; white-space:nowrap; vertical-align:baseline;
+  .pille { display:inline-flex; align-items:center; gap:5px; padding:0 10px; border-radius:999px;
+    background:var(--prosa-pille, var(--gray1000, var(--primary-text-color)));
+    color:var(--prosa-pille-tekst, var(--gray100, var(--card-background-color))); font-weight:500; line-height:1.65; white-space:nowrap; vertical-align:baseline;
     cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .3s, transform .12s; }
   .pille:active { transform:scale(.95); }
   /* Uten en tekstbit først får pillen grunnlinja si fra ikonet, og da havner
