@@ -18,7 +18,7 @@
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.1.2";
+const KI_VANN_VERSJON = "4.2.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -996,11 +996,37 @@ class KiVanningCard extends HTMLElement {
     this._haptikk("light");
     return this._h.callService("ki_vanning", navn, data || {});
   }
+  /* Nedtelling for vanning startet med en fast tid (S01 i 5 min). OpenSprinklers statussensor
+     sier ofte bare «running» eller «manual» uten tid igjen, så kortet husker selv når sonen skal
+     være ferdig – i nettleseren, så nedtellingen står også etter at popupen er lukket og åpnet. */
+  _husk(sone, min) {
+    try {
+      const alle = JSON.parse(localStorage.getItem("ki-vanning-slutt") || "{}");
+      alle[sone.bryter] = { slutt: Date.now() + min * 60000, total: min * 60 };
+      localStorage.setItem("ki-vanning-slutt", JSON.stringify(alle));
+    } catch (e) { /* privat modus */ }
+  }
+  _glem(id) {
+    try {
+      const alle = JSON.parse(localStorage.getItem("ki-vanning-slutt") || "{}");
+      if (id) delete alle[id]; else for (const k of Object.keys(alle)) delete alle[k];
+      localStorage.setItem("ki-vanning-slutt", JSON.stringify(alle));
+    } catch (e) { /* privat modus */ }
+  }
+  _husket(sone) {
+    try {
+      const x = JSON.parse(localStorage.getItem("ki-vanning-slutt") || "{}")[sone.bryter];
+      return x && x.slutt > Date.now() - 5000 ? x : null;
+    } catch (e) { return null; }
+  }
+
   _kjor(sone, min) {
+    this._husk(sone, min);
     if (this._ventilmodus()) return this._ki_tjeneste("kjor", { sone: sone.bryter, minutter: min });
     this._tjeneste("run_station", { run_seconds: min * 60 }, sone.bryter);
   }
   _stopp(id) {
+    this._glem(id && this._soner().some((x) => x.bryter === id) ? id : null);
     if (this._ventilmodus()) return this._ki_tjeneste("stopp", {});
     this._tjeneste("stop", {}, id || this._styring().aktiv);
   }
@@ -1914,10 +1940,22 @@ class KiVanningCard extends HTMLElement {
     }
     /* nedtelling fra statussensoren */
     const rest = !fraPlan && z && st ? String(st.state).match(/(\d+):(\d\d)(?::(\d\d))?/) : null;
+    const a = st ? st.attributes || {} : {};
+    const sluttAttr = !fraPlan && z ? (a.end_time || a.slutt || a.ends_at || null) : null;
+    const igjenAttr = !fraPlan && z ? Number(a.seconds_remaining ?? a.remaining ?? a.sekunder_igjen ?? NaN) : NaN;
+    const husket = !fraPlan && z ? this._husket(z) : null;
     if (rest) {
       const sek = rest[3] ? (+rest[1]) * 3600 + (+rest[2]) * 60 + (+rest[3]) : (+rest[1]) * 60 + (+rest[2]);
-      if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - sek) > 3) { this._total = sek; this._slutt = Date.now() + sek * 1000; }
+      if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - sek) > 3) { this._total = husket ? husket.total : sek; this._slutt = Date.now() + sek * 1000; }
+    } else if (!isNaN(igjenAttr) && igjenAttr > 0) {
+      if (!this._total || Math.abs((this._slutt - Date.now()) / 1000 - igjenAttr) > 3) { this._total = husket ? husket.total : igjenAttr; this._slutt = Date.now() + igjenAttr * 1000; }
+    } else if (sluttAttr && !isNaN(new Date(sluttAttr))) {
+      this._slutt = new Date(sluttAttr).getTime(); this._total = husket ? husket.total : Math.max(this._total || 0, (this._slutt - Date.now()) / 1000);
+    } else if (husket) {
+      this._slutt = husket.slutt; this._total = husket.total;
     } else if (!fraPlan) { this._slutt = null; this._total = 0; }
+    // sonen er ferdig: glem den
+    if (!z) this._soner().forEach((x) => { if (this._husket(x) && !this._on(x.gaar) && this._husket(x).slutt < Date.now()) this._glem(x.bryter); });
     const ned = scene.querySelector(".ned");
     if (!this._slutt) ned.textContent = "";
     this._tikk();
