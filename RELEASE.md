@@ -1,3 +1,20 @@
+# ki-cards 5.78.0
+
+## ki-basseng-card 3.3.0: vannivå
+
+Krever KI Basseng 1.8 med en vannsensor i bassenget. Uten sensoren vises ingenting av dette.
+
+- **Banner øverst på Oversikt** når bassenget trenger vann («Sensoren har vært tørr i 52
+  min», knappen *Fyll*), mens det fylles (blått, knappen *Stopp*) og når påfyllingen er
+  stoppet av sikringen.
+- **Vann-raden blant bryterne:** «Nok vann», «Tørr i 20 min», «Trenger vann» (oransje) eller
+  «Fyller · 12 min» (fylt). Trykk starter eller stopper påfyllingen, langt trykk åpner
+  sensoren.
+- **Under tannhjulet:** automatisk påfylling, varsel, tørr før varsel og maks påfylling, og
+  en knapp for å fylle eller stoppe.
+
+---
+
 # ki-cards 5.77.3
 
 ## ki-basseng-card 3.2.3

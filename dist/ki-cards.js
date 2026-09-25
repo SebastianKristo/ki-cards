@@ -1,4 +1,4 @@
-/* ki-cards v5.77.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.78.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.77.3";
+  KI.VERSION = "5.78.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,7 +15004,7 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 3.2.3 - del av ki-cards
+ * ki-basseng-card 3.3.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -15029,6 +15029,8 @@ try {
  *   – Klor: trykk på den som la i, antall, kalenderen og klorloggens innstillinger.
  *   En `faner:`-liste skrevet for 2.x (uten klor) får Klor etter Varme, og Sirkulasjon
  *   faller bort – den ligger under grafen på Varme nå.
+ * 3.3: vannivået fra KI Basseng 1.8 (vannsensor i bassenget): banner når det trenger vann eller
+ *   fyller, en rad blant bryterne og et panel under tannhjulet. Vises bare når sensoren finnes.
  * 3.2: flisene øverst på Oversikt er dashbordets egne kort (css-swipe-card med button-card og
  *   universal_sensor_ny); `dashbordfliser: false` gir kortets egne.
  * 3.1: setningene tegnes av ki-prosa-card (som forsideteksten), flisene du blar i er som
@@ -15059,7 +15061,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.2.3";
+  const VERSJON = "3.3.0";
 
   /* Finner LitElement i frontend.
    *
@@ -15170,6 +15172,15 @@ try {
       /* Vinter (KI Basseng 1.5) */
       vintermodus: ["switch", ["vintermodus"]],
       frostVarme: ["binary_sensor", ["frostsikring_varmer"]],
+      /* Vannivå (KI Basseng 1.8) – finnes bare når en vannsensor er satt opp */
+      vanniva: ["sensor", ["vanniva"]],
+      trengerVann: ["binary_sensor", ["bassenget_trenger_vann"]],
+      autoFyll: ["switch", ["automatisk_pafylling"]],
+      varsleVann: ["switch", ["varsle_om_vanniva"]],
+      torrVarsel: ["number", ["torr_for_varsel"]],
+      maksFyll: ["number", ["maks_pafylling"]],
+      fyll: ["button", ["fyll_bassenget"]],
+      stoppFyll: ["button", ["stopp_pafylling"]],
       frostUnder: ["number", ["frostsikring_varme_pa_under", "frost_varme_under"]],
       frostSirk: ["number", ["frostsikring_sirkulasjon_under", "frost_sirkulasjon_under"]],
       vinterOms: ["number", ["omsetninger_per_dogn_om_vinteren", "vinter_omsetninger"]],
@@ -16641,6 +16652,25 @@ try {
         if (!this._tilFane("klor")) this._apneKlor("oversikt");
       }
 
+      /* Vannivået i ord, eller null når integrasjonen ikke har vannsensor. */
+      _vann() {
+        const s = this.st("vanniva");
+        if (!s) return null;
+        const a = s.attributes || {};
+        const t = s.state;
+        const min = (v) => (v == null ? "" : `${nf(v, 0)} min`);
+        const tekster = {
+          ok: ["Nok vann", "Sensoren er våt"],
+          torr: [`Tørr i ${min(a.torr_min)}`, `Varsler etter ${min(a.varsel_etter_min)} uten vann`],
+          lav: ["Trenger vann", `Sensoren har vært tørr i ${min(a.torr_min)}`],
+          fyller: [`Fyller · ${min(a.fylt_min)}`, `${min(a.fylt_min)} · stopper når sensoren er våt (maks ${min(a.maks_pafylling_min)})`],
+          stoppet: ["Stoppet", a.status || "Sensoren ble ikke våt"],
+          ukjent: ["Ukjent", "Vannsensoren svarer ikke"],
+        };
+        const [kort, under] = tekster[t] || [t, ""];
+        return { tilstand: t, kort, under, a };
+      }
+
       _harKlor() {
         return !!(this.st("sisteKlor") || this.st("loggKlor"));
       }
@@ -17161,6 +17191,24 @@ try {
         `;
       }
 
+      /* Vannivået under tannhjulet: status, automatikken, varselet og tidene. */
+      _vannPanel() {
+        const vann = this._vann();
+        if (!vann) return "";
+        const fyller = vann.tilstand === "fyller";
+        return this._panel("mdi:waves-arrow-up", "var(--kib-blue)", "Vannivå", `${vann.kort} · ${vann.under}`, html`
+          <div class="pliste">
+            ${this._bryterRad("autoFyll", "Automatisk påfylling")}
+            ${this._bryterRad("varsleVann", "Varsle om vannivå")}
+            ${this._velger("torrVarsel", "Tørr før varsel", { step: 5, suffiks: " min" })}
+            ${this._velger("maksFyll", "Maks påfylling", { step: 5, suffiks: " min" })}
+          </div>
+          ${this.st(fyller ? "stoppFyll" : "fyll") ? html`<button class="stor ${fyller ? "stopp" : ""}"
+            @click=${() => { this._haptikk("medium"); this._trykk(fyller ? "stoppFyll" : "fyll"); }}>
+            <ha-icon icon=${fyller ? "mdi:water-off" : "mdi:water-plus"}></ha-icon>${fyller ? "Stopp påfylling" : "Fyll bassenget"}
+          </button>` : ""}`, "", () => this._mer("vanniva"));
+      }
+
       /* Varmemodellen under tannhjulet: tallene den regner med, og det den har lært. */
       _modellPanel() {
         if (!this._harVarme()) return "";
@@ -17190,6 +17238,18 @@ try {
       /* Varsler øverst i Oversikt: bare det som ber om noe. */
       _varsler() {
         const ut = [];
+        /* Vannivået: bare når KI Basseng har en vannsensor (1.8) */
+        const vann = this._vann();
+        if (vann && ["lav", "fyller", "stoppet"].includes(vann.tilstand)) {
+          const fyller = vann.tilstand === "fyller";
+          ut.push(html`<button class="banner ${fyller ? "vann-fyll" : "vann-lav"}" @click=${() => this._mer("vanniva")}>
+            <span class="bik"><ha-icon icon=${fyller ? "mdi:water-plus" : "mdi:water-alert"}></ha-icon></span>
+            <span><b>${fyller ? "Fyller bassenget" : vann.tilstand === "stoppet" ? "Påfyllingen stoppet" : "Bassenget trenger mer vann"}</b>
+              <small>${vann.under}</small></span>
+            ${this.st(fyller ? "stoppFyll" : "fyll") ? html`<span class="bknapp" @click=${(e) => {
+              e.stopPropagation(); this._haptikk("medium"); this._trykk(fyller ? "stoppFyll" : "fyll"); }}>${fyller ? "Stopp" : "Fyll"}</span>` : ""}
+          </button>`);
+        }
         /* Klor har ikke eget banner lenger (3.0): Klor-raden nederst på Oversikt blir
            oransje når det er på tide, og et trykk tar deg til Klor-fanen. */
         if (this.val("senking") === "aktiv") {
@@ -17680,6 +17740,13 @@ try {
         } else {
           rader.push(bryter("tvingVarme", "mdi:fire", "Varm nå"));
         }
+        const vann = this._vann();
+        if (vann) {
+          const t = vann.tilstand;
+          rader.push({ ikon: t === "fyller" ? "mdi:water-plus" : t === "ok" ? "mdi:water-check" : "mdi:water-alert",
+            navn: "Vann", tekst: vann.kort, pa: t === "fyller", varsel: t === "lav" || t === "stoppet", nokkel: "vanniva",
+            klikk: () => (t === "fyller" ? this._trykk("stoppFyll") : t === "ok" || t === "ukjent" ? this._mer("vanniva") : this._trykk("fyll")) });
+        }
         const liste = rader.filter(Boolean);
         if (!liste.length) return "";
         return html`
@@ -18026,6 +18093,7 @@ try {
             </div>`)}
 
           ${this._modellPanel()}
+          ${this._vannPanel()}
           ${faner.includes("klor") ? "" : this._klorNavnPanel()}
 
           ${this._panel("mdi:chart-box-outline", "var(--kib-accent)", "Tellere", "", html`
@@ -19045,6 +19113,8 @@ try {
             width: 100%; padding: 4px 14px 4px 4px; border-radius: 999px; box-sizing: border-box;
             color: var(--kib-sort); text-align: left; cursor: pointer; }
           .banner.natt-b { background: var(--kib-purple); grid-template-columns: 58px minmax(0, 1fr); }
+          .banner.vann-lav { background: var(--kib-orange); }
+          .banner.vann-fyll { background: var(--kib-blue); }
           .bik { width: 58px; height: 58px; border-radius: 50%; background: rgba(0, 0, 0, 0.1);
             display: grid; place-items: center; }
           .bik ha-icon { --mdc-icon-size: 28px; }
