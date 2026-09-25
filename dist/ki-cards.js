@@ -1,4 +1,4 @@
-/* ki-cards v5.77.2 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.77.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.77.2";
+  KI.VERSION = "5.77.3";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,7 +15004,7 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 3.2.2 - del av ki-cards
+ * ki-basseng-card 3.2.3 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -15059,7 +15059,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.2.2";
+  const VERSJON = "3.2.3";
 
   /* Finner LitElement i frontend.
    *
@@ -16708,45 +16708,71 @@ try {
             <span class="fl3-navn">Varmetap nå</span>
             <span class="fl3-verdi">${nf(this.val("varmetap"), 0)}<small>W</small></span>
           </button>`;
-        return html`<div class="g23">${venstre}${hoyre}</div>`;
+        /* Mål og effekt er dashbordets egne kort (universal_sensor_ny) når de finnes */
+        const tilstand = (e) => `Number((states['${e}'] || {}).state)`;
+        const universal = (entity, ikon, navn, main) => ({
+          type: "custom:button-card", template: "universal_sensor_ny", entity,
+          tap_action: { action: "more-info" },
+          variables: { sub_text: navn, show_tap_indicator: true, margin: "12px", icon: ikon,
+            background_color: "var(--gray200)", text_color: "var(--gray1000)", main_text: main },
+        });
+        const malId = this.id("maltemp"), effId = this.id("vpEffekt");
+        const malKort = !this._config.varmepumpe && malId ? this._hkort("mal", universal(malId, "mdi:thermometer-check", "Mål",
+          `[[[ const v = ${tilstand(malId)}; return (isNaN(v) ? '–' : (v % 1 ? v.toFixed(1) : v.toFixed(0)).replace('.', ',')) + '<span style="font-size:14px"> °C</span>'; ]]]`)) : null;
+        const effKort = effId ? this._hkort("effekt", universal(effId, "mdi:flash", "Effekt nå",
+          `[[[ const w = ${tilstand(effId)} || 0; return w >= 1000 ? (w / 1000).toFixed(1).replace('.', ',') + '<span style="font-size:14px"> kW</span>' : Math.round(w) + '<span style="font-size:14px"> W</span>'; ]]]`)) : null;
+        return html`<div class="g23 dash3">${malKort ? html`<div class="dash3-side">${malKort}</div>` : venstre}${
+          effKort ? html`<div class="dash3-side">${effKort}</div>` : hoyre}</div>`;
       }
 
-      /* Ønsket temperatur som faste valg (26–30°). Rada flytter seg bare når verdien
-         havner utenfor, så knappene ikke hopper under fingeren. `forvalg: [..]` gir
-         egne. Langt trykk åpner entiteten, for halve grader. */
+      /* Ønsket temperatur som faste valg, fem i bredden med den valgte i midten, så det
+       * alltid er et steg ned og et steg opp. `forvalg: [..]` gir faste egne.
+       *
+       * Hvem eier temperaturen? Styrer KI Basseng settpunktet, er det «Ønsket
+       * temperatur», og integrasjonen setter varmepumpa etter den. Står «Styr settpunkt»
+       * av (eller mangler), er det varmepumpas eget settpunkt som gjelder – da leser og
+       * setter knappene det direkte, så en endring på varmepumpa vises her også.
+       * Langt trykk åpner entiteten, for halve grader. */
       _forvalg() {
-        const s = this.st("onsketTemp");
-        if (!s) return "";
-        const faktisk = Number(s.state);
+        const onsket = this.st("onsketTemp");
+        const klimaId = this._config.varmepumpe;
+        const klima = klimaId && this.hass.states[klimaId];
+        const eier = onsket && (!this.st("styrSettpunkt") || this.on("styrSettpunkt")) ? "onsket"
+          : klima && klima.attributes.temperature != null ? "klima" : onsket ? "onsket" : null;
+        if (!eier) return "";
+        const faktisk = eier === "onsket" ? Number(onsket.state) : Number(klima.attributes.temperature);
+        const min = Number((eier === "onsket" ? onsket.attributes.min : klima.attributes.min_temp) ?? 10);
+        const maks = Number((eier === "onsket" ? onsket.attributes.max : klima.attributes.max_temp) ?? 40);
         this._lokal = this._lokal || {};
-        const l = this._lokal.onsketTemp;
-        if (l && (Math.abs(l.v - faktisk) < 1e-6 || Date.now() - l.t > 4000)) delete this._lokal.onsketTemp;
-        const v = this._lokal.onsketTemp ? this._lokal.onsketTemp.v : faktisk;
-        const min = Number(s.attributes.min ?? 10), maks = Number(s.attributes.max ?? 40);
+        const l = this._lokal.forvalg;
+        if (l && (Math.abs(l.v - faktisk) < 1e-6 || Date.now() - l.t > 4000)) delete this._lokal.forvalg;
+        const v = this._lokal.forvalg ? this._lokal.forvalg.v : faktisk;
         let liste;
         if (Array.isArray(this._config.forvalg) && this._config.forvalg.length) {
           liste = this._config.forvalg.map(Number).filter((x) => isFinite(x));
         } else {
-          let a = 26;
-          if (isFinite(v) && (v < a || v > a + 4)) a = Math.round(v) - 2;
+          let a = isFinite(v) ? Math.round(v) - 2 : 25;
           a = Math.max(Math.ceil(min), Math.min(a, Math.floor(maks) - 4));
           liste = [0, 1, 2, 3, 4].map((i) => a + i);
         }
         liste = liste.filter((x) => x >= min && x <= maks).slice(0, 6);
         if (!liste.length) return "";
+        const sett = (t) => {
+          this._lokal.forvalg = { v: t, t: Date.now() };
+          this._haptikk("selection");
+          if (eier === "onsket") this._sett("onsketTemp", t);
+          else this.hass.callService("climate", "set_temperature", { entity_id: klimaId, temperature: t });
+          this.requestUpdate();
+        };
+        const hold = eier === "onsket" ? "onsketTemp" : null;
         return html`
           <div class="fv3" style="--n:${liste.length}">
             ${liste.map((t) => html`
               <button class="fv3-k ${Math.abs(t - v) < 0.05 ? "pa" : ""}"
-                @pointerdown=${(e) => this._holdNed(e, "onsketTemp")} @pointerup=${() => this._holdOpp()}
+                @pointerdown=${(e) => (hold ? this._holdNed(e, hold) : null)} @pointerup=${() => this._holdOpp()}
                 @pointerleave=${() => this._holdOpp()} @pointercancel=${() => this._holdOpp()}
                 @contextmenu=${(e) => e.preventDefault()}
-                @click=${this._holdKlikk(() => {
-                  this._lokal.onsketTemp = { v: t, t: Date.now() };
-                  this._haptikk("selection");
-                  this._sett("onsketTemp", t);
-                  this.requestUpdate();
-                })}>${nf(t, t % 1 ? 1 : 0)}°</button>`)}
+                @click=${this._holdKlikk(() => sett(t))}>${nf(t, t % 1 ? 1 : 0)}°</button>`)}
           </div>`;
       }
 
@@ -17422,6 +17448,29 @@ try {
         } catch (e) {
           console.warn("ki-basseng-card: fikk ikke laget flisene fra dashbordet", e);
         }
+      }
+
+      /* Ett kort fra dashbordet (button-card), laget én gang med Home Assistants egne
+         hjelpere og beholdt. Gir null til det er klart, eller når button-card mangler
+         eller `dashbordfliser: false` – da tegnes kortets egen flis. */
+      _hkort(navn, konf) {
+        if (this._config.dashbordfliser === false || !window.loadCardHelpers || !customElements.get("button-card")) return null;
+        this._hk = this._hk || {};
+        const json = JSON.stringify(konf);
+        const h = this._hk[navn];
+        if (!h || h.json !== json) {
+          const ny = { json, el: null };
+          this._hk[navn] = ny;
+          window.loadCardHelpers().then((helpers) => {
+            if (this._hk[navn] !== ny) return;
+            ny.el = helpers.createCardElement(konf);
+            ny.el.hass = this.hass;
+            this.requestUpdate();
+          }).catch((e) => console.warn("ki-basseng-card: fikk ikke laget kortet", e));
+          return h && h.el ? (h.el.hass = this.hass, h.el) : null;
+        }
+        if (h.el) h.el.hass = this.hass;
+        return h.el;
       }
 
       /* Trykk på «Spart i dag»: vis oppdelingen rett under flisene og rull den fram. */
