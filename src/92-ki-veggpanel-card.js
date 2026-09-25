@@ -73,7 +73,7 @@
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.7.0";
+  const VERSJON = "1.8.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -213,6 +213,24 @@
     .tema-varm.farger-varm .drad + .drad { border-top-color: rgba(255,255,255,.06); }
     @keyframes vp-kjort-varm { 40% { background: oklch(0.82 0.12 75 / .3); } }
 `;
+
+  /* Farge per menypunkt: kjente sider får sin egen (strøm gul, klima oransje, Tesla rød …),
+     resten går rundt i paletten. `farge:` på punktet overstyrer. */
+  const MENYFARGER = [
+    [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
+    [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
+    [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
+    [/plante|hage|sprout|garden/i, "var(--green, #6fcf8e)"], [/søvn|sovn|sleep|natt/i, "var(--purple, #b39cf0)"],
+    [/3d|printer/i, "var(--cyan, #5fd3c4)"], [/rolf|støvsuger|vacuum|robot/i, "var(--teal, #40c8e0)"],
+    [/vann|water|basseng|pool/i, "var(--blue, #6f9fe0)"], [/alarm|sikker|shield/i, "var(--red, #e5646a)"],
+  ];
+  const PALETT = ["var(--blue, #6f9fe0)", "var(--green, #6fcf8e)", "var(--orange, #f2a33c)", "var(--purple, #b39cf0)",
+    "var(--pink, #ff8ac0)", "var(--teal, #40c8e0)", "var(--yellow, #f2c94c)", "var(--red, #e5646a)"];
+  function menyFarge(x, i) {
+    const tekst = `${x.navn || ""} ${x.sti || ""} ${x.ikon || x.icon || ""}`;
+    const treff = MENYFARGER.find(([m]) => m.test(tekst));
+    return treff ? treff[1] : PALETT[i % PALETT.length];
+  }
 
   const CSS = `
     :host { display: block; }
@@ -369,6 +387,14 @@
     .plexhero .prikker i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.55); transition: width .3s; }
     .plexhero .prikker i.aktiv { width: 14px; background: rgba(255,255,255,.95); }
     .plexhero .tomt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; z-index: 1; font-size: 13px; opacity: .8; }
+    /* Sidemenyen i farger: hvert ikon i sin farge på en svak tone av samme farge; den
+       aktive siden fylles helt og gløder. Varselprikken er fortsatt rød. */
+    .levende .meny .mk { color: var(--mf); background: color-mix(in srgb, var(--mf) 13%, transparent); }
+    .levende .meny .mk ha-icon { opacity: 1; }
+    .levende .meny .mk:hover { background: color-mix(in srgb, var(--mf) 22%, transparent); }
+    .levende .meny .mk.aktiv { background: var(--mf); color: var(--black, #161618);
+      box-shadow: 0 0 18px color-mix(in srgb, var(--mf) 55%, transparent); }
+    .levende .meny { gap: 8px; }
     /* nattkortet */
     .nattkort { position: relative; overflow: hidden; isolation: isolate; border-radius: 28px; min-height: 210px;
       color: #eef0ff; background: linear-gradient(160deg, #161a36 0%, #231f4a 55%, #35295a 100%);
@@ -1094,7 +1120,8 @@
           varsel = !!s && s.state === vil;
         }
         const skille = x.nederst && !fyllt ? (fyllt = true, `<span class="fyllrom"></span>`) : "";
-        return `${skille}<button class="mk ${aktiv ? "aktiv" : ""}" data-tap="gaa" data-sti="${esc(sti)}"
+        const farge = x.farge || menyFarge(x, i);
+        return `${skille}<button class="mk ${aktiv ? "aktiv" : ""}" style="--mf:${esc(farge)}" data-tap="gaa" data-sti="${esc(sti)}"
           ${x.entity ? `data-hold="${esc(x.entity)}"` : ""} aria-label="${esc(x.navn || sti)}${varsel ? " – varsel" : ""}"
           ${aktiv ? `aria-current="page"` : ""}>
           <ha-icon icon="${esc(x.ikon || x.icon || "mdi:circle-outline")}"></ha-icon>${varsel ? `<span class="prikk"></span>` : ""}</button>`;

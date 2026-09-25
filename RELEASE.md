@@ -1,23 +1,29 @@
-# ki-cards 5.84.0
+# ki-cards 5.85.0
 
-Bygget oppå 5.83.0 fra GitHub.
+Bygget oppå 5.84.0 fra GitHub.
 
-## ki-sikkerhetspanel-card 1.2.0
+## Sidemenyen i farger — nå faktisk med
 
-**Holdet ble kuttet.** Kortet ble tegnet helt på nytt hver gang en sensor meldte seg — og i et hus med
-bevegelsessensorer skjer det ofte. Holdt du inne **Av** eller **Borte** mens det skjedde, forsvant knappen under
-fingeren, holdet ble avbrutt, og du måtte holde på nytt. Nå venter tegningen til du slipper (eller har tastet
-koden ferdig), og gjøres da én gang. I tillegg fanges fingeren når holdet starter, så det ikke slippes om den
-glir litt på skjermen — bare når du løfter den.
+Fargene i sidemenyen på veggpanelet var beskrevet i 5.83.0, men kom aldri opp: det finnes to pakker med navnet
+`ki-cards-5.83.0.zip`, og den som ble pushet, var den første — uten menyfargene. Derfor så du dem ikke. De er
+lagt inn igjen her:
 
-**Det gamle tastaturet er tilbake** — det fra `ki-alarm-card`: eget kort med «Tast koden for av», runde
-prikker, store runde taster, sletteknapp og kryss oppe til høyre. Feil kode gjør tittelen rød og rister
-tastaturet. Det legger seg nå **i kortet rett under modusvelgeren** og rulles inn i bildet, i stedet for som et
-ark nederst på skjermen — så navbaren aldri dekker det. `tastatur_luft` trengs ikke lenger.
+- hvert ikon i sin farge på en svak tone av samme farge — strøm gul, klima oransje, Tesla rød, media rosa,
+  server blå, datamaskiner og støvsuger turkis, planter grønn, søvn lilla
+- siden du står på, fylles helt i sin farge og gløder
+- `farge:` på et menypunkt overstyrer; `levende: false` gir den rolige menyen
+
+Fargene i varmen og lysene, nattkortet, «God morgen» og Plex (5.82.0) er med som før.
+
+## ki-sikkerhetspanel-card 1.3.0: flere hendelser
+
+- Hendelsene hentes for **de siste 7 dagene** (`dager:`), ikke bare det siste døgnet.
+- **8 vises først** (`hendelser:`), og **Vis flere hendelser** henter 12 til hver gang, til alle er vist.
+- **Dagsoverskrifter** — «I dag», «I går», så ukedag og dato — når lista går over flere dager.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Kortet er kjørt med et hold på **Borte** der en bevegelsessensor melder midt i:
-knappen er den samme etterpå og tegningen venter; når fingeren slippes, tegnes kortet og ventingen nullstilles.
-**Av** åpner det gamle tastaturet i kortet (seks prikker, tolv taster); feil kode gir «Feil kode», risting og
-tomme prikker; riktig kode sender `alarm_disarm` og lukker tastaturet. Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt; menyfargene er i `dist/ki-cards.js`. Sidemenyen er kjørt med dine menypunkter
+(riktig farge per punkt, aktiv side markert). Sikkerhetspanelet er kjørt med 40 hendelser over fem dager:
+hentet for 7 dager, 8 rader med «I dag» og «I går», 20 etter første «Vis flere», alle 40 til slutt og knappen
+borte. Ansiktsgjenkjenningen og tastaturet som før. Ingen `NaN` eller `undefined`.

@@ -16,7 +16,8 @@
  * ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av   # hvem som låste opp med ansikt
  * kode_lengde: 6             # tastatur når alarmen krever kode (settes ellers av entiteten)
  * batteri_grense: 20
- * hendelser: 6               # antall i «Siste hendelser» (0 = skjul)
+ * hendelser: 8               # antall i «Siste hendelser» før «Vis flere» (0 = skjul)
+ * dager: 7                   # hvor langt tilbake hendelsene hentes
  * zones: …                   # samme soner som ki-sikkerhet-card; hvert punkt kan ha rom:
  *   - title: Dører           # tittel/ikon avgjør typen: dør, vindu, bevegelse, lås
  *     kind: opening
@@ -24,7 +25,7 @@
  *       - { entity: binary_sensor.inngangsdor, name: Dør, rom: Inngang, battery: sensor.x }
  */
 (() => {
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
 
@@ -114,6 +115,10 @@
     .htekst b { font-size: 14px; font-weight: 400; }
     .htekst span { display: block; font-size: 12px; color: var(--gray800, #8e8d89); margin-top: 2px; }
     .htekst time { font-size: 12px; color: var(--gray800, #8e8d89); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .flere { align-self: center; margin-top: 4px; height: 38px; padding: 0 16px; border-radius: 19px; background: var(--gray100, #1f1f22);
+      font-size: 13px; font-weight: 500; }
+    .dagskille { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--gray800, #8e8d89);
+      padding: 6px 0 8px 24px; }
     .tomt { font-size: 13px; color: var(--gray800, #8e8d89); padding: 0 4px; }
 
     /* kodetastaturet fra ki-alarm-card */
@@ -159,7 +164,7 @@
 
     setConfig(c) {
       if (!c || !c.entity) throw new Error("Sett entity: alarm_control_panel.…");
-      this._c = { tittel: "Sikkerhet", topp: false, lukk: true, batteri_grense: 20, hendelser: 6, tastatur_luft: 96, ...c };
+      this._c = { tittel: "Sikkerhet", topp: false, lukk: true, batteri_grense: 20, hendelser: 8, dager: 7, tastatur_luft: 96, ...c };
       this._sensorer = [];
       for (const z of c.zones || []) {
         for (const it of z.items || []) {
@@ -333,6 +338,12 @@
     _koble() {
       const r = this.shadowRoot;
       r.querySelectorAll("[data-mer]").forEach((b) => b.addEventListener("click", () => { this._haptikk(); this._mer(b.dataset.mer); }));
+      const fl = r.querySelector("[data-flere]");
+      if (fl) fl.addEventListener("click", () => {
+        this._haptikk();
+        this._visAntall = (this._visAntall || this._c.hendelser) + 12;
+        this._fyllLogg();
+      });
       r.querySelectorAll("[data-fiks]").forEach((b) => b.addEventListener("click", () => {
         const id = b.dataset.fiks;
         this._haptikk("medium");
@@ -486,19 +497,30 @@
       this._henter = true;
       try {
         const ids = [this._c.entity, ...this._sensorer.map((s) => s.id), this._c.ansikt].filter(Boolean);
-        const start = new Date(Date.now() - 24 * 3600e3).toISOString();
+        const start = new Date(Date.now() - (Number(this._c.dager) || 7) * 24 * 3600e3).toISOString();
         const svar = await this._hass.callWS({ type: "logbook/get_events", start_time: start, entity_ids: ids });
         const tid = (e) => (typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime());
         this._logg = (Array.isArray(svar) ? svar : []).filter((e) => e.state !== undefined || e.message)
-          .sort((x, y) => tid(y) - tid(x)).slice(0, 80);
+          .sort((x, y) => tid(y) - tid(x)).slice(0, 600);
         this._loggHentet = Date.now();
-        const el = this.shadowRoot.getElementById("logg");
-        if (el) el.innerHTML = this._loggHtml();
+        this._fyllLogg();
       } catch (e) {
         this._logg = [];
       } finally {
         this._henter = false;
       }
+    }
+
+    _fyllLogg() {
+      const el = this.shadowRoot.getElementById("logg");
+      if (!el) return;
+      el.innerHTML = this._loggHtml();
+      const b = el.querySelector("[data-flere]");
+      if (b) b.addEventListener("click", () => {
+        this._haptikk();
+        this._visAntall = (this._visAntall || this._c.hendelser) + 12;
+        this._fyllLogg();
+      });
     }
 
     _loggUtdatert() {
@@ -533,7 +555,10 @@
     _loggHtml() {
       if (this._logg === null) return `<div class="tomt">Henter …</div>`;
       const rader = [];
+      const grense = this._visAntall || this._c.hendelser;
       const brukteAnsikt = new Set();
+      this._sisteDag = null;
+      let antall = 0;          // hendelsesrader, uten dagsoverskriftene
       for (const e of this._logg) {
         const tMs = typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime();
         if (e.entity_id === this._c.ansikt) {
@@ -542,14 +567,15 @@
           const las = this._logg.find((x) => x.entity_id && x.entity_id.startsWith("lock.") && ["unlocked", "open"].includes(x.state)
             && (() => { const tx = typeof x.when === "number" ? x.when * 1000 : new Date(x.when).getTime(); return tx - tMs >= -30000 && tx - tMs <= 120000; })());
           if (las) continue;
-          if (rader.length >= this._c.hendelser) break;
+          if (antall >= grense + 1) break;
           const tid = new Date(tMs);
+          antall++;
           rader.push(`<div class="hend"><div class="spor"><i style="background:var(--green, #6fcf8e)"></i><u></u></div>
             <div class="htekst"><div><b>${esc(e.state)} ble gjenkjent</b><span>Ansiktsgjenkjenning</span></div>
             <time>${tid.toDateString() === new Date().toDateString() ? kl(tid) : tid.toLocaleDateString("nb-NO", { weekday: "short" }) + " " + kl(tid)}</time></div></div>`);
           continue;
         }
-        if (rader.length >= this._c.hendelser) break;
+        if (antall >= grense + 1) break;
         const s = this._sensorer.find((x) => x.id === e.entity_id);
         let tekst, hvem, farge;
         if (e.entity_id === this._c.entity) {
@@ -574,11 +600,32 @@
         } else continue;
         const tid = new Date(typeof e.when === "number" ? e.when * 1000 : e.when);
         const idag = tid.toDateString() === new Date().toDateString();
+        const dag = tid.toDateString();
+        if (this._c.dager > 1 && dag !== this._sisteDag && antall < grense) {
+          this._sisteDag = dag;
+          const igar = new Date(Date.now() - 864e5).toDateString() === dag;
+          rader.push(`<div class="dagskille">${idag ? "I dag" : igar ? "I går" : tid.toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" })}</div>`);
+        }
+        antall++;
         rader.push(`<div class="hend"><div class="spor"><i style="background:${farge}"></i><u></u></div>
           <div class="htekst"><div><b>${esc(tekst)}</b><span>${esc(hvem || "")}</span></div>
           <time>${idag ? kl(tid) : tid.toLocaleDateString("nb-NO", { weekday: "short" }) + " " + kl(tid)}</time></div></div>`);
       }
-      return rader.join("") || `<div class="tomt">Ingenting det siste døgnet.</div>`;
+      // én ekstra rad er hentet for å vite om det finnes flere
+      const flere = antall > grense;
+      let vist = 0;
+      const ut = [];
+      for (const r of rader) {
+        const erHend = r.startsWith("<div class=\"hend\"");
+        if (erHend && vist >= grense) break;
+        if (erHend) vist++;
+        ut.push(r);
+      }
+      // en dagsoverskrift helt til slutt uten hendelser under hører ikke hjemme
+      while (ut.length && ut[ut.length - 1].startsWith("<div class=\"dagskille\"")) ut.pop();
+      return ut.join("")
+        + (flere ? `<button class="flere" data-flere>Vis flere hendelser</button>` : "")
+        + (antall ? "" : `<div class="tomt">Ingenting de siste ${Number(this._c.dager) || 7} dagene.</div>`);
     }
 
     _navn(id) { const s = this._st(id); return (s && s.attributes.friendly_name) || id; }
