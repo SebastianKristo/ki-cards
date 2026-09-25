@@ -1,10 +1,10 @@
-# Kart-popupen (#kart): hvor personene og bilen er, og sonene.
+# Buss-popupen (#buss): avgangene fra Entur begge veier.
 # Legges sammen med de andre popupene i stue-visningen.
 type: custom:bubble-card
 card_type: pop-up
-name: Kart
-icon: mdi:map-marker-radius
-hash: '#kart'
+name: Buss
+icon: mdi:bus
+hash: '#buss'
 button_type: name
 is_sidebar_hidden: true
 bg_blur: '20'
@@ -39,13 +39,17 @@ styles: >
     border-radius: 50%;
   }
 cards:
-  - type: custom:ki-kart-card
-    personer:
-      - person.sebastian_kristo_jemtland
-      - person.cybele_kristo
-      - person.rune_jemtland
-    # bil: device_tracker.tesla_model_y_location   # finnes av seg selv; sett den her om feil bil velges
-    bil_tittel: Teslaen
-    visning: stor        # kartet fyller skjermen; liste = kart øverst og lister under
-    luft: 170            # øk om kartet går under navbaren, senk for enda større kart
-    zoom: 11
+  - type: custom:ki-entur-card
+    tittel: Buss 45
+    retninger:
+      - navn: Til Majorstuen
+        fra: Amagerveien
+        sensorer:
+          - sensor.transport_amagerveien_platform_11676
+        mot: Majorstuen
+        # gange: 4
+      - navn: Til Amagerveien
+        fra: Majorstuen
+        sensorer:
+          - sensor.transport_majorstuen    # etter at Majorstuen er lagt til i Entur-integrasjonen
+        mot: Voksen skog

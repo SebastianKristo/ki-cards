@@ -1,4 +1,4 @@
-/* ki-cards v5.88.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.90.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.88.0";
+  KI.VERSION = "8.90.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -33772,6 +33772,7 @@ try {
   const MENYFARGER = [
     [/innstill|settings|tune/i, "var(--blue, #6f9fe0)"],
     [/kart|map|posisjon/i, "var(--green, #6fcf8e)"],
+    [/buss|bus|entur|ruter|kollektiv/i, "var(--red, #e5646a)"],
     [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
     [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
     [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
@@ -36020,11 +36021,14 @@ try {
  * bil: device_tracker.tesla_model_y_location     # finnes av seg selv (Tesla-sporer med posisjon)
  * bil_batteri: sensor.tesla_model_y_batteri       # finnes av seg selv
  * soner: auto                                     # auto = alle zone.*, eller en liste
- * forhold: "16:10"                                # kartets sideforhold
+ * visning: stor                                  # stor (standard): kartet fyller skjermen, personer og
+ *                                                #   soner flyter oppå; liste: kartet øverst, lister under
+ * luft: 170                                      # px som trekkes fra skjermhøyden i stor visning
+ * forhold: "16:10"                               # kartets sideforhold i listevisning
  * zoom: 11
  */
 (() => {
-  const VERSJON = "1.0.0";
+  const VERSJON = "1.1.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SONEFARGER = ["var(--green, #6fcf8e)", "var(--blue, #6f9fe0)", "var(--orange, #f2a33c)", "var(--purple, #b39cf0)",
     "var(--pink, #ff8ac0)", "var(--teal, #40c8e0)", "var(--yellow, #f2c94c)"];
@@ -36056,6 +36060,24 @@ try {
     .kk { display: grid; gap: 14px; color: var(--gray1000, #f2f1ee); }
     .kart { position: relative; border-radius: 24px; overflow: hidden; background: var(--gray200, #1b1b1d); min-height: 200px;
       --ha-card-border-radius: 24px; --ha-card-border-width: 0; }
+    /* Stor visning: kartet fyller nesten hele skjermen, og personene og sonene flyter oppå
+       i glassbrikker. Brikkene tar imot trykk; resten av flaten slipper fingeren gjennom
+       til kartet, så du kan dra og zoome som vanlig. */
+    .kk.stor { gap: 0; }
+    .kk.stor .kart { height: calc(100dvh - var(--kk-luft, 170px)); min-height: 320px; }
+    .kk.stor .etikett, .kk.stor #liste-ute, .kk.stor #soner-ute { display: none; }
+    .flyt { position: absolute; left: 0; right: 0; z-index: 500; pointer-events: none; display: flex; gap: 8px;
+      overflow-x: auto; scrollbar-width: none; padding: 12px; }
+    .flyt::-webkit-scrollbar { display: none; }
+    .flyt.bunn { bottom: 0; }
+    .flyt.topp { top: 0; }
+    .flyt > * { pointer-events: auto; flex: none; }
+    .glass { background: rgba(20,20,22,.62); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+      box-shadow: 0 4px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08); color: #f2f1ee; }
+    .flyt .rad { grid-template-columns: 44px auto auto; padding: 8px 14px 8px 8px; border-radius: 26px; }
+    .flyt .rad .bilde { width: 44px; height: 44px; }
+    .flyt .rad .hoyre { padding-left: 6px; }
+    .flyt .sone { height: 32px; }
     .kart .laster { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; opacity: .6; }
     .etikett { font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--gray800, #8e8d89); padding: 0 4px; }
     .liste { display: grid; gap: 8px; }
@@ -36083,12 +36105,13 @@ try {
   `;
 
   class KiKartCard extends HTMLElement {
+    disconnectedCallback() { this._ro && this._ro.disconnect(); }
     constructor() { super(); this.attachShadow({ mode: "open" }); this._sig = ""; }
     static getStubConfig() { return { personer: [] }; }
     getCardSize() { return 10; }
 
     setConfig(c) {
-      this._c = { zoom: 11, soner: "auto", ...c };
+      this._c = { zoom: 11, soner: "auto", visning: "stor", luft: 170, ...c };
       this._kart = null;
       this._bygget = false;
       if (this._hass) this._tegn();
@@ -36152,6 +36175,8 @@ try {
       return z ? this._hass.states[z].attributes.friendly_name : tilstand;
     }
 
+    _stor() { return String(this._c.visning || "stor").toLowerCase() !== "liste"; }
+
     _mer(id) {
       const ev = new Event("hass-more-info", { bubbles: true, composed: true });
       ev.detail = { entityId: id };
@@ -36181,7 +36206,7 @@ try {
         const pos = this._pos(id);
         const avstand = hjem && pos && s.state !== "home" ? km(hjem, pos) : null;
         const bilde = s.attributes.entity_picture;
-        rader.push(`<button class="rad" data-mer="${esc(id)}">
+        rader.push(`<button class="rad ${this._stor() ? "glass" : ""}" data-mer="${esc(id)}">
           <span class="bilde" style="--rf:${rf};${bilde ? `background-image:url('${esc(bilde)}')` : ""}">
             ${bilde ? "" : `<ha-icon icon="mdi:account"></ha-icon>`}
             <span class="merke"><ha-icon icon="${s.state === "home" ? "mdi:home" : z ? "mdi:map-marker" : "mdi:walk"}"></ha-icon></span></span>
@@ -36198,7 +36223,7 @@ try {
         const avstand = hjem && pos && s.state !== "home" ? km(hjem, pos) : null;
         const bat = this._hass.states[this._bilBatteri()];
         const batPst = bat ? Math.round(Number(bat.state)) : null;
-        rader.push(`<button class="rad" data-mer="${esc(bil)}">
+        rader.push(`<button class="rad ${this._stor() ? "glass" : ""}" data-mer="${esc(bil)}">
           <span class="bilde" style="--rf:${z ? farge[z] : "var(--gray400, #48474a)"}"><ha-icon icon="mdi:car-electric"></ha-icon>
             <span class="merke"><ha-icon icon="${s.state === "home" ? "mdi:home" : "mdi:map-marker"}"></ha-icon></span></span>
           <span><div class="navn">${esc(this._c.bil_tittel || "Bilen")}</div>
@@ -36218,7 +36243,7 @@ try {
       const soneBrikker = soner.map((z) => {
         const zs = this._hass.states[z]; if (!zs) return "";
         const her = hvem[z] || [];
-        return `<button class="sone ${her.length ? "" : "tom"}" style="--sf:${farge[z]}" data-mer="${esc(z)}"><i></i>${esc(zs.attributes.friendly_name || z)}
+        return `<button class="sone ${her.length ? "" : "tom"} ${this._stor() ? "glass" : ""}" style="--sf:${farge[z]}" data-mer="${esc(z)}"><i></i>${esc(zs.attributes.friendly_name || z)}
           ${her.length ? `<small>${esc(her.join(", "))}</small>` : ""}</button>`;
       }).join("");
 
@@ -36234,12 +36259,13 @@ try {
     _bygg() {
       const r = this.shadowRoot;
       r.innerHTML = `<style>${CSS}</style>
-        <div class="kk">
-          <div class="kart"><div class="laster">Laster kartet …</div></div>
-          <div class="etikett">Hvor er alle</div>
-          <div class="liste" id="liste"></div>
-          <div class="etikett">Soner</div>
-          <div class="soner" id="soner"></div>
+        <div class="kk ${this._stor() ? "stor" : ""}">
+          <div class="kart" style="--kk-luft:${Number(this._c.luft) || 170}px">
+            <div class="laster">Laster kartet …</div>
+            ${this._stor() ? `<div class="flyt topp" id="soner"></div><div class="flyt bunn" id="liste"></div>` : ""}
+          </div>
+          ${this._stor() ? "" : `<div class="etikett">Hvor er alle</div><div class="liste" id="liste"></div>
+          <div class="etikett">Soner</div><div class="soner" id="soner"></div>`}
         </div>`;
       this._bygget = true;
       this._monterKart();
@@ -36250,15 +36276,33 @@ try {
       const entities = [...this._personer(), this._bil(), ...this._soner()].filter(Boolean);
       try {
         const hjelp = await window.loadCardHelpers();
-        const kart = hjelp.createCardElement({
+        const konf = {
           type: "map", entities, theme_mode: this._c.tema || "dark", default_zoom: Number(this._c.zoom) || 11,
           hours_to_show: Number(this._c.timer_spor) || 0, fit_zones: false, auto_fit: true,
-          aspect_ratio: this._c.forhold || "16:10",
-        });
+          aspect_ratio: this._stor() ? "1:1" : (this._c.forhold || "16:10"),
+        };
+        this._kartKonf = konf;
+        const kart = hjelp.createCardElement(konf);
         kart.hass = this._hass;
-        vert.innerHTML = "";
-        vert.appendChild(kart);
+        vert.querySelector(".laster") && vert.querySelector(".laster").remove();
+        vert.insertBefore(kart, vert.firstChild);
         this._kart = kart;
+        /* Kartkortet bestemmer høyden ut fra sideforholdet. I stor visning regnes forholdet ut
+           fra boksen (bredde:høyde), og settes på nytt når skjermen snus eller endrer størrelse. */
+        if (this._stor() && window.ResizeObserver) {
+          const konf = this._kartKonf;
+          let sist = "";
+          this._ro && this._ro.disconnect();
+          this._ro = new ResizeObserver(() => {
+            const b = vert.getBoundingClientRect();
+            if (!b.width || !b.height) return;
+            const forhold = `${Math.round(b.width)}:${Math.round(b.height)}`;
+            if (forhold === sist) return;
+            sist = forhold;
+            try { kart.setConfig({ ...konf, aspect_ratio: forhold }); kart.hass = this._hass; } catch (e) { /* eldre kartkort */ }
+          });
+          this._ro.observe(vert);
+        }
       } catch (e) {
         vert.innerHTML = `<div class="laster">Fikk ikke lastet kartet</div>`;
       }

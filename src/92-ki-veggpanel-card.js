@@ -223,6 +223,7 @@
   const MENYFARGER = [
     [/innstill|settings|tune/i, "var(--blue, #6f9fe0)"],
     [/kart|map|posisjon/i, "var(--green, #6fcf8e)"],
+    [/buss|bus|entur|ruter|kollektiv/i, "var(--red, #e5646a)"],
     [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
     [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
     [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
