@@ -18,7 +18,7 @@
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.2.1";
+const KI_VANN_VERSJON = "4.3.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -1035,7 +1035,10 @@ class KiVanningCard extends HTMLElement {
 
   _kjor(sone, min) {
     this._husk(sone, min);
-    if (this._ventilmodus()) return this._ki_tjeneste("kjor", { sone: sone.bryter, minutter: min });
+    /* Med KI Vanning startes sonen gjennom integrasjonen – også med OpenSprinkler – så
+       hovedventilen åpnes før vannet skal komme. Uten KI Vanning går det rett til OpenSprinkler. */
+    if (this._ventilmodus() || (this._ki() && this._h.services && this._h.services.ki_vanning && this._h.services.ki_vanning.kjor))
+      return this._ki_tjeneste("kjor", { sone: sone.bryter, minutter: min });
     this._tjeneste("run_station", { run_seconds: min * 60 }, sone.bryter);
   }
   _stopp(id) {
@@ -1519,22 +1522,16 @@ class KiVanningCard extends HTMLElement {
     const kode = (y) => (y && y.nr && y.nr !== "00" ? `S${y.nr}` : "");
     let html = "";
 
-    // vanner nå
-    if (z || (pl && pl.kjorer)) {
-      const navn = z ? z.navn : (pl.sone || pl.program || "Vanning");
-      const igjen = this._slutt ? Math.max(0, Math.round((this._slutt - Date.now()) / 1000)) : 0;
-      const pst = this._total ? Math.min(100, 100 - (igjen / this._total) * 100) : 0;
-      const koe = pl && pl.i_koe && pl.i_koe.length ? pl.i_koe[0] : null;
-      const kiSone = z && ki ? (ki.soner || []).find((y) => Number(y.nr) === Number(z.nr)) : null;
-      html += `<div class="v4kort v4kjor" ${z ? `data-e="${z.bryter}"` : ""}>
-        <div class="fyll" style="width:${pst.toFixed(1)}%"></div>
-        <div class="topp"><div class="hva"><div class="e">Vanner nå</div>
-          <div class="n">${kiVaEsc([kode(z), navn].filter(Boolean).join(" "))}</div>
-          <div class="u">${kiVaEsc([z && z.metode, koe ? `neste: ${koe.navn || koe}` : ""].filter(Boolean).join(" · "))}</div></div>
-          <div class="igjen">${igjen ? `${Math.floor(igjen / 60)}:${String(igjen % 60).padStart(2, "0")}` : ""}</div></div>
-        <div class="bunn"><span style="opacity:.8">${kiSone && kiSone.i_dag ? `${nf(kiSone.i_dag)} L i dag` : ""}</span>
-          <button class="v4stopp" data-h2="stopp"><ha-icon icon="mdi:stop"></ha-icon>Stopp</button></div>
-      </div>`;
+    /* Hovedventilen: står den stengt mens en sone går, sies det her – med knapp for å åpne
+       den, og hva som sist skjedde (feil fra tjenesten, utilgjengelig …). */
+    const hv = ki && ki.hovedventil;
+    if (hv && hv.stengt_mens_sone_gaar) {
+      const grunn = hv.siste === "feil" ? `Feil: ${hv.feil || "ukjent"}` : hv.siste === "utilgjengelig" ? (hv.feil || "Ventilen er utilgjengelig")
+        : hv.siste === "åpnet" ? "Den ble åpnet, men har stengt seg igjen" : "Den er ikke forsøkt åpnet ennå";
+      html += `<div class="statuskort" data-e="${kiVaEsc(hv.entity)}" style="--sk-farge:var(--orange,#f2a33c)">
+        <span class="sik"><ha-icon icon="mdi:valve-closed"></ha-icon></span>
+        <div><div class="tt">Hovedventilen er stengt</div><div class="ut">${kiVaEsc(grunn)}</div></div>
+        <button class="sknapp" data-hv="1">Åpne</button></div>`;
     }
 
     // regnpause
@@ -2046,9 +2043,12 @@ class KiVanningCard extends HTMLElement {
     // Ruller rada så den valgte fanen er synlig. Uten dette kan du trykke på en fane
     // helt til høyre og miste den ut av syne igjen ved neste omtegning.
     const valgtFane = r.querySelector(".fane.valgt");
-    if (valgtFane && valgtFane.scrollIntoView) {
-      try { valgtFane.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" }); }
-      catch (e) { /* eldre nettlesere: la den stå */ }
+    /* Bare fanerada rulles – sidelengs. scrollIntoView rullet hele popupen opp til fanerada
+       ved hver tegning, så et trykk på en sone langt nede sendte deg til toppen. */
+    const rad = valgtFane && valgtFane.parentElement;
+    if (rad && rad.scrollWidth > rad.clientWidth) {
+      const maal = valgtFane.offsetLeft - (rad.clientWidth - valgtFane.offsetWidth) / 2;
+      if (Math.abs(rad.scrollLeft - maal) > 4) rad.scrollLeft = Math.max(0, maal);
     }
     r.querySelectorAll(".panel").forEach((p) => p.classList.toggle("valgt", p.dataset.p === this._fane));
 
@@ -2095,6 +2095,7 @@ class KiVanningCard extends HTMLElement {
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); veksle(e); } });
     });
     r.querySelectorAll("[data-tilfane]").forEach((el) => el.addEventListener("click", () => { this._fane = el.dataset.tilfane; this._haptikk("selection"); this._tegn(); }));
+    r.querySelectorAll("[data-hv]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this._ki_tjeneste("apne_hovedventil", {}); }));
     r.querySelectorAll("[data-visav]").forEach((el) => el.addEventListener("click", () => { this._visAv = !this._visAv; this._haptikk("selection"); this._tegn(); }));
     r.querySelectorAll("[data-hopp]").forEach((el) => el.addEventListener("click", () => this._ki_tjeneste("hopp_over", { program: el.dataset.hopp })));
     r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
