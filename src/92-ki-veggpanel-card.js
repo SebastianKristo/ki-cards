@@ -73,7 +73,7 @@
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.8.0";
+  const VERSJON = "1.9.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -217,6 +217,7 @@
   /* Farge per menypunkt: kjente sider får sin egen (strøm gul, klima oransje, Tesla rød …),
      resten går rundt i paletten. `farge:` på punktet overstyrer. */
   const MENYFARGER = [
+    [/innstill|settings|tune/i, "var(--blue, #6f9fe0)"],
     [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
     [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
     [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
@@ -230,6 +231,19 @@
     const tekst = `${x.navn || ""} ${x.sti || ""} ${x.ikon || x.icon || ""}`;
     const treff = MENYFARGER.find(([m]) => m.test(tekst));
     return treff ? treff[1] : PALETT[i % PALETT.length];
+  }
+
+  /* Ikon per lampe ut fra navnet, når lampa ikke har et eget ikon. */
+  const LAMPEIKON = [
+    [/stålampe|stalampe|gulvlampe|floor/i, "mdi:floor-lamp"], [/taklampe|tak(?!list)|ceiling/i, "mdi:ceiling-light"],
+    [/taklist|led|list|strip/i, "mdi:led-strip-variant"], [/spisebord|pendel|dining/i, "mdi:ceiling-light-multiple"],
+    [/peis|fire/i, "mdi:fireplace"], [/sofabord|bordlampe|table|nattbord/i, "mdi:lamp"],
+    [/skjenk|kommode|hylle|shelf/i, "mdi:lamp-outline"], [/vindu|window/i, "mdi:window-shutter-open"],
+    [/spot|downlight/i, "mdi:light-recessed"], [/ute|hage|garden|terrasse|veranda/i, "mdi:outdoor-lamp"],
+  ];
+  function lampeIkon(navn, pa) {
+    const t = LAMPEIKON.find(([m]) => m.test(navn || ""));
+    return t ? t[1] : pa ? "mdi:lightbulb" : "mdi:lightbulb-outline";
   }
 
   const CSS = `
@@ -311,7 +325,8 @@
 
     .shode { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
     .sstatus { font-size: 12px; font-weight: 500; opacity: .6; }
-    .lrad .lb { --mdc-icon-size: 20px; display: none; }
+    .lrad .lb { --mdc-icon-size: 20px; display: block; opacity: .75; }
+    .lrad.pa .lb { opacity: 1; }
     .hint { font-size: 11px; opacity: .5; text-align: center; }
     .pil { --mdc-icon-size: 20px; opacity: .45; }
     /* Kolonnene står på faste plasser, så nattkortet kan legge seg over to av dem. */
@@ -365,7 +380,8 @@
     .temp-stolpe i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: linear-gradient(90deg, #4b9bff, #ffb347 70%, #ff6f3c); }
     .levende .lrad.farge > .fyll { background: linear-gradient(90deg, color-mix(in srgb, var(--lysfarge) 45%, transparent), color-mix(in srgb, var(--lysfarge) 85%, transparent)); }
     .levende .lrad.farge.pa { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lysfarge) 45%, transparent), 0 0 18px color-mix(in srgb, var(--lysfarge) 22%, transparent); }
-    .levende .lrad.farge .lb { color: var(--lysfarge); filter: drop-shadow(0 0 6px var(--lysfarge)); display: block; }
+    .levende .lrad.farge .lb { color: var(--lysfarge); filter: drop-shadow(0 0 6px var(--lysfarge)); }
+    .levende .lrad.farge.lys .lb { color: #1a1206; filter: none; }
     .levende .lrad.farge.lys { color: #1a1206; }
     .levende .hode .ik.fylt.lysglod { background: var(--lysglod, var(--active-big)); box-shadow: 0 0 24px color-mix(in srgb, var(--lysglod-farge, #ffd27a) 55%, transparent); }
 
@@ -389,9 +405,11 @@
     .plexhero .tomt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; z-index: 1; font-size: 13px; opacity: .8; }
     /* Sidemenyen i farger: hvert ikon i sin farge på en svak tone av samme farge; den
        aktive siden fylles helt og gløder. Varselprikken er fortsatt rød. */
-    .levende .meny .mk { color: var(--mf); background: color-mix(in srgb, var(--mf) 13%, transparent); }
+    /* Rolig til vanlig: bare siden som er åpen, får fargen sin – og punktene nederst
+       (innstillinger), som alltid har den. */
+    .levende .meny .mk.alltid { color: var(--mf); background: color-mix(in srgb, var(--mf) 13%, transparent); }
     .levende .meny .mk ha-icon { opacity: 1; }
-    .levende .meny .mk:hover { background: color-mix(in srgb, var(--mf) 22%, transparent); }
+    .levende .meny .mk:hover { background: color-mix(in srgb, var(--mf) 18%, transparent); color: var(--mf); }
     .levende .meny .mk.aktiv { background: var(--mf); color: var(--black, #161618);
       box-shadow: 0 0 18px color-mix(in srgb, var(--mf) 55%, transparent); }
     .levende .meny { gap: 8px; }
@@ -527,7 +545,7 @@
        dra sidelengs dimmer. Før var glideren en 3 px strek under navnet – vanskelig å
        treffe med en finger på et veggpanel. */
     .lysliste { display: grid; gap: 6px; }
-    .lrad { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 10px;
+    .lrad { position: relative; overflow: hidden; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 48px; gap: 10px;
       align-items: center; min-height: 52px; padding: 0 8px 0 14px; border-radius: 16px; background: var(--gray100);
       text-align: left; touch-action: pan-y; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
     .lrad:active { transform: scale(.985); }
@@ -1121,7 +1139,9 @@
         }
         const skille = x.nederst && !fyllt ? (fyllt = true, `<span class="fyllrom"></span>`) : "";
         const farge = x.farge || menyFarge(x, i);
-        return `${skille}<button class="mk ${aktiv ? "aktiv" : ""}" style="--mf:${esc(farge)}" data-tap="gaa" data-sti="${esc(sti)}"
+        // Punktene nederst (innstillinger) har alltid fargen sin; de andre bare når siden er åpen.
+        const alltid = x.alltid_farge !== undefined ? !!x.alltid_farge : !!x.nederst;
+        return `${skille}<button class="mk ${aktiv ? "aktiv" : ""} ${alltid ? "alltid" : ""}" style="--mf:${esc(farge)}" data-tap="gaa" data-sti="${esc(sti)}"
           ${x.entity ? `data-hold="${esc(x.entity)}"` : ""} aria-label="${esc(x.navn || sti)}${varsel ? " – varsel" : ""}"
           ${aktiv ? `aria-current="page"` : ""}>
           <ha-icon icon="${esc(x.ikon || x.icon || "mdi:circle-outline")}"></ha-icon>${varsel ? `<span class="prikk"></span>` : ""}</button>`;
@@ -1668,7 +1688,7 @@
               data-id="${esc(x.entity)}" data-hold="${esc(x.entity)}" ${kanDimmes ? `data-dimm="1"` : ""}
               aria-pressed="${erPa}" aria-label="${esc(navn)}">
               <span class="fyll ${kanDimmes && erPa && pst < 100 ? "kant" : ""}" style="width:${erPa ? (kanDimmes ? pst : 100) : 0}%"></span>
-              <ha-icon class="lb" icon="${esc(x.ikon || (erPa ? "mdi:lightbulb" : "mdi:lightbulb-outline"))}"></ha-icon>
+              <ha-icon class="lb" icon="${esc(x.ikon || lampeIkon(navn, erPa))}"></ha-icon>
               <span class="ln">${esc(navn)}</span>
               <span class="lv">${erPa ? (kanDimmes ? `${pst} %` : "På") : "Av"}</span>
               <span class="bryter ${erPa ? "pa" : ""}"></span>
