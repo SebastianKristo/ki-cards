@@ -1,3 +1,20 @@
+# ki-cards 5.77.0
+
+## ki-basseng-card 3.2.0: flisene er dashbordets egne kort
+
+Flisene øverst på Oversikt lages nå med de samme kortene som i Strøm-dashbordet, i et
+rutenett med to kolonner:
+
+- **Venstre:** `css-swipe-card` (190 px, prikker `--gray400`/`--gray200`) med tre
+  `button-card` med malen `universal_sensor_ny` og `size: big`: vann, ute og effekt nå.
+- **Høyre:** ett `universal_sensor_ny`-kort med trykkmerke, «Spart i dag». Et trykk folder
+  ut oppdelingen i bassengkortet.
+
+Mangler css-swipe-card eller button-card, eller står `dashbordfliser: false`, brukes
+kortets egne fliser som før.
+
+---
+
 # ki-cards 5.76.0
 
 ## ki-basseng-card 3.1.0: mer som resten av dashbordet
