@@ -1,4 +1,34 @@
-# ki-cards 5.82.0
+# ki-cards 5.83.0
+
+Inneholder også 5.82.0 (veggpanelet: nattkort over to kolonner, «God morgen», farger i varme og lys, Plex),
+som ikke er pushet ennå — notatet for den står under.
+
+## ki-sikkerhetspanel-card 1.1.0
+
+**Hvem låste opp med ansikt.** Med `ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av` kobles hver
+opplåsing til ansiktshendelsen rett før (innen to minutter):
+
+- i **Siste hendelser**: «Inngang låst opp — Sebastian · ansiktsgjenkjenning»; en gjenkjenning uten
+  opplåsing står som «Cybele ble gjenkjent»
+- i **Rom**: låsen sier «Låst opp av Sebastian» i stedet for «Dørlås ulåst»
+- i **Krever oppmerksomhet**: «Inngang · låst opp av Sebastian med ansikt»
+
+**Kodetastaturet** ble delvis dekket av navbaren. Det har nå 96 px ekstra luft nederst (pluss den trygge
+sonen på iPhone), så nederste rad står over navbaren. `tastatur_luft:` justerer.
+
+**Ingen egen overskrift eller X** som standard — bubble-cardens topp (navn, ikon og lukkeknapp) brukes.
+`topp: true` gir den tilbake.
+
+### Kontrollert
+
+Begge byggesjekkene kjørt. Kortet er kjørt med en opplåsing 60 s etter at Sebastian ble gjenkjent og en eldre
+gjenkjenning av Cybele: loggen viser «Inngang låst opp (Sebastian · ansiktsgjenkjenning)» og «Cybele ble
+gjenkjent», låsen i rom-lista sier «Låst opp av Sebastian», toppen er borte, og tastaturet får 96 px luft.
+Ingen `NaN` eller `undefined`. Bygget oppå 5.81.0 fra GitHub.
+
+---
+
+## (5.82.0)
 
 ## ki-veggpanel-card 1.8.0: nattkort over to kolonner, «God morgen», mer farge, og Plex som virker
 

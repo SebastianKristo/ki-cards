@@ -12,8 +12,9 @@
  *
  * type: custom:ki-sikkerhetspanel-card
  * entity: alarm_control_panel.alarm
- * tittel: Sikkerhet
- * lukk: true                 # X oppe til høyre lukker popupen
+ * topp: false               # egen overskrift og X (standard av – bubble-card har sin egen topp)
+ * ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av   # hvem som låste opp med ansikt
+ * tastatur_luft: 96          # plass under kodetastaturet, så navbaren ikke dekker nederste rad
  * kode_lengde: 6             # tastatur når alarmen krever kode (settes ellers av entiteten)
  * batteri_grense: 20
  * hendelser: 6               # antall i «Siste hendelser» (0 = skjul)
@@ -24,7 +25,7 @@
  *       - { entity: binary_sensor.inngangsdor, name: Dør, rom: Inngang, battery: sensor.x }
  */
 (() => {
-  const VERSJON = "1.0.0";
+  const VERSJON = "1.1.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
 
@@ -120,7 +121,8 @@
     .ark { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center;
       background: rgba(0,0,0,.45); animation: sp-fade .2s ease; }
     @keyframes sp-fade { from { opacity: 0; } }
-    .tast { width: min(420px, 100%); background: var(--gray000, #141416); border-radius: 28px 28px 0 0; padding: 20px 22px 28px;
+    .tast { width: min(420px, 100%); background: var(--gray000, #141416); border-radius: 28px 28px 0 0;
+      padding: 20px 22px calc(28px + var(--sp-luft, 96px) + env(safe-area-inset-bottom, 0px));
       display: grid; gap: 16px; animation: sp-opp .28s cubic-bezier(.2,.9,.3,1); }
     @keyframes sp-opp { from { transform: translateY(40px); opacity: 0; } }
     .tast .tt { text-align: center; font-size: 16px; font-weight: 500; }
@@ -155,7 +157,7 @@
 
     setConfig(c) {
       if (!c || !c.entity) throw new Error("Sett entity: alarm_control_panel.…");
-      this._c = { tittel: "Sikkerhet", lukk: true, batteri_grense: 20, hendelser: 6, ...c };
+      this._c = { tittel: "Sikkerhet", topp: false, lukk: true, batteri_grense: 20, hendelser: 6, tastatur_luft: 96, ...c };
       this._sensorer = [];
       for (const z of c.zones || []) {
         for (const it of z.items || []) {
@@ -170,7 +172,7 @@
 
     set hass(h) {
       this._hass = h;
-      const ids = [this._c.entity, ...this._sensorer.map((s) => s.id), ...this._sensorer.map((s) => s.batteri).filter(Boolean)];
+      const ids = [this._c.entity, this._c.ansikt, ...this._sensorer.map((s) => s.id), ...this._sensorer.map((s) => s.batteri).filter(Boolean)].filter(Boolean);
       const sig = ids.map((id) => { const st = h.states[id]; return st ? `${st.state}|${st.last_changed}` : "-"; }).join(",") + this._holder + this._kodeApen;
       if (sig === this._sig) return;
       this._sig = sig;
@@ -214,7 +216,8 @@
       const alarm = this._st(this._c.entity);
       const modus = MODUS.find((m) => m.k === (alarm && alarm.state)) || MODUS[0];
       const armert = modus.k !== "disarmed";
-      const liste = this._sensorer.map((s) => ({ ...s, ...this._status(s), bat: this._batteri(s) }));
+      const liste = this._sensorer.map((s) => ({ ...s, ...this._status(s), bat: this._batteri(s),
+        ansikt: s.type === "las" ? this._ansiktNaa(s.id) : null }));
       const obs = liste.filter((x) => x.obs);
       const bev = liste.filter((x) => x.bev);
       const n = liste.length || 1;
@@ -258,7 +261,7 @@
         const tekst = erLas ? `${x.navn} er ulåst` : `${x.type === "vindu" ? "Vindu" : "Dør"} er ${x.type === "vindu" ? "åpent" : "åpen"}`;
         return `<div class="varsel">
           <ha-icon icon="${erLas ? "mdi:lock-open-variant-outline" : x.type === "vindu" ? "mdi:window-open-variant" : "mdi:door-open"}"></ha-icon>
-          <div class="vt"><b>${esc(tekst)}</b><span>${esc(x.rom)}</span></div>
+          <div class="vt"><b>${esc(tekst)}</b><span>${esc(x.ansikt ? `${x.rom} · låst opp av ${x.ansikt} med ansikt` : x.rom)}</span></div>
           <button class="vk" data-fiks="${esc(x.id)}">${erLas ? "Lås" : "Vis"}</button></div>`;
       }).join("");
       // lavt batteri er også noe som krever deg
@@ -273,7 +276,7 @@
         las: x.pa ? "mdi:lock-open-variant-outline" : "mdi:lock-outline", bevegelse: x.pa ? "mdi:run" : "mdi:walk", tilstede: "mdi:account-outline" })[x.type];
       const tekst = (x) => {
         if (x.borte) return `${x.navn} · ikke tilgjengelig`;
-        if (x.type === "las") return x.pa ? `${x.navn} ulåst` : x.bat != null ? `${x.navn} · ${x.bat} %` : x.navn;
+        if (x.type === "las") return x.pa ? (x.ansikt ? `Låst opp av ${x.ansikt}` : `${x.navn} ulåst`) : x.bat != null ? `${x.navn} · ${x.bat} %` : x.navn;
         if (x.type === "dor") return x.pa ? "Åpen" : x.navn;
         if (x.type === "vindu") return x.pa ? "Åpent" : x.navn;
         if (x.type === "tilstede") return x.pa ? "Noen her" : x.navn;
@@ -293,8 +296,8 @@
 
       this.shadowRoot.innerHTML = `<style>${CSS}</style>
         <div class="sp">
-          <div class="topp"><span class="etikett">${esc(this._c.tittel)}</span>
-            ${this._c.lukk ? `<button class="lukk" data-lukk aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>` : ""}</div>
+          ${this._c.topp ? `<div class="topp"><span class="etikett">${esc(this._c.tittel)}</span>
+            ${this._c.lukk ? `<button class="lukk" data-lukk aria-label="Lukk"><ha-icon icon="mdi:close"></ha-icon></button>` : ""}</div>` : ""}
           <section class="midt">
             <div class="ring">${ring}
               <button class="kjerne" data-mer="${esc(this._c.entity)}" style="${armert ? `background:radial-gradient(circle at 50% 35%, ${tone(modus.farge, 16)}, var(--gray100, #1c1c1f) 70%)` : ""}">
@@ -417,7 +420,7 @@
         t === "" ? `<span class="tom"></span>` : t === "slett"
           ? `<button data-tast="slett" aria-label="Slett"><ha-icon icon="mdi:backspace-outline"></ha-icon></button>`
           : `<button data-tast="${t}">${t}</button>`).join("");
-      return `<div class="ark"><div class="tast">
+      return `<div class="ark" style="--sp-luft:${Number(this._c.tastatur_luft) || 0}px"><div class="tast">
         <div class="tt">Kode for ${esc(m.navn.toLowerCase())}</div>
         <div class="prikker">${Array.from({ length: this._lengde() }, (_, i) => `<i class="${i < this._kode.length ? "fylt" : ""}"></i>`).join("")}</div>
         <div class="taster">${knapper}</div></div></div>`;
@@ -443,7 +446,7 @@
       if (this._loggHentet && Date.now() - this._loggHentet < 60000 && !this._loggUtdatert()) return;
       this._henter = true;
       try {
-        const ids = [this._c.entity, ...this._sensorer.map((s) => s.id)];
+        const ids = [this._c.entity, ...this._sensorer.map((s) => s.id), this._c.ansikt].filter(Boolean);
         const start = new Date(Date.now() - 24 * 3600e3).toISOString();
         const svar = await this._hass.callWS({ type: "logbook/get_events", start_time: start, entity_ids: ids });
         const tid = (e) => (typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime());
@@ -464,10 +467,49 @@
       return a && this._sistAlarm !== a.last_changed && (this._sistAlarm = a.last_changed, true);
     }
 
+    /* Ansiktsgjenkjenning: sensoren har navnet på den som sist låste opp som tilstand.
+       Hver opplåsing kobles til ansiktshendelsen som kom rett før (innen 2 min), og får
+       navnet – «Inngang låst opp · Sebastian med ansikt». En ansiktshendelse uten
+       opplåsing i loggen står som egen rad. */
+    _ansiktHendelser() {
+      if (!this._c.ansikt || !this._logg) return [];
+      return this._logg.filter((e) => e.entity_id === this._c.ansikt && e.state && !["unknown", "unavailable", ""].includes(e.state))
+        .map((e) => ({ hvem: e.state, t: typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime() }));
+    }
+
+    _ansiktFor(t) {
+      return this._ansiktHendelser().find((a) => t - a.t >= -30000 && t - a.t <= 120000) || null;
+    }
+
+    /* Hvem låste opp nå? Brukes på låsen i rom-lista og i «krever oppmerksomhet». */
+    _ansiktNaa(lasId) {
+      const las = this._st(lasId), a = this._st(this._c.ansikt);
+      if (!las || !a || ["unknown", "unavailable", ""].includes(a.state)) return null;
+      if (!["unlocked", "open"].includes(las.state)) return null;
+      const tAns = new Date((a.attributes && a.attributes.bekreftet_tid) || a.last_changed).getTime();
+      const tLas = new Date(las.last_changed).getTime();
+      return Math.abs(tLas - tAns) <= 120000 ? a.state : null;
+    }
+
     _loggHtml() {
       if (this._logg === null) return `<div class="tomt">Henter …</div>`;
       const rader = [];
+      const brukteAnsikt = new Set();
       for (const e of this._logg) {
+        const tMs = typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime();
+        if (e.entity_id === this._c.ansikt) {
+          if (!e.state || ["unknown", "unavailable", ""].includes(e.state) || brukteAnsikt.has(tMs)) continue;
+          // står det en opplåsing rett etter, er navnet allerede på den raden
+          const las = this._logg.find((x) => x.entity_id && x.entity_id.startsWith("lock.") && ["unlocked", "open"].includes(x.state)
+            && (() => { const tx = typeof x.when === "number" ? x.when * 1000 : new Date(x.when).getTime(); return tx - tMs >= -30000 && tx - tMs <= 120000; })());
+          if (las) continue;
+          if (rader.length >= this._c.hendelser) break;
+          const tid = new Date(tMs);
+          rader.push(`<div class="hend"><div class="spor"><i style="background:var(--green, #6fcf8e)"></i><u></u></div>
+            <div class="htekst"><div><b>${esc(e.state)} ble gjenkjent</b><span>Ansiktsgjenkjenning</span></div>
+            <time>${tid.toDateString() === new Date().toDateString() ? kl(tid) : tid.toLocaleDateString("nb-NO", { weekday: "short" }) + " " + kl(tid)}</time></div></div>`);
+          continue;
+        }
         if (rader.length >= this._c.hendelser) break;
         const s = this._sensorer.find((x) => x.id === e.entity_id);
         let tekst, hvem, farge;
@@ -484,6 +526,11 @@
             : s.type === "bevegelse" || s.type === "tilstede" ? `Bevegelse i ${s.rom.toLowerCase()}`
             : `${s.rom} ${s.type === "vindu" ? "vindu åpnet" : "åpnet"}`;
           hvem = e.context_user_id ? this._bruker(e.context_user_id) : { dor: "Dørsensor", vindu: "Vindussensor", las: "Dørlås", bevegelse: "Bevegelsessensor", tilstede: "Tilstedeværelse" }[s.type];
+          if (s.type === "las" && pa) {
+            const t = typeof e.when === "number" ? e.when * 1000 : new Date(e.when).getTime();
+            const ans = this._ansiktFor(t);
+            if (ans) { hvem = `${ans.hvem} · ansiktsgjenkjenning`; brukteAnsikt.add(ans.t); }
+          }
           farge = s.type === "las" ? (pa ? OBS : "var(--green, #6fcf8e)") : s.type === "bevegelse" || s.type === "tilstede" ? BEV : OBS;
         } else continue;
         const tid = new Date(typeof e.when === "number" ? e.when * 1000 : e.when);

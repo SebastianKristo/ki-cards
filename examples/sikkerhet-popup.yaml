@@ -1,97 +1,123 @@
-# Sikkerhetspopupen (#alarm) – ki-sikkerhetspanel-card, etter skissen «Sikkerhet v2».
-# Kortet har sin egen overskrift og lukkeknapp, så bubble-headeren er slått av.
+# Sikkerhetspopupen – bubble-cardens egen topp (navn, ikon og lukkeknapp), og
+# ki-sikkerhetspanel-card under uten egen overskrift.
 type: custom:bubble-card
 card_type: pop-up
-hash: '#alarm'
 name: Sikkerhet
 icon: mdi:shield-home
-show_header: false
+hash: '#alarms'
+entity: alarm_control_panel.ajax_alarm
+button_type: name
 is_sidebar_hidden: true
 bg_blur: '20'
 shadow_opacity: '20'
 bg_opacity: '88'
 margin_top_mobile: 50px
 margin_top_desktop: 50px
-styles: |
-  .bubble-pop-up-container { --vertical-stack-card-gap: 0px !important; }
+card_layout: large
+styles: >
+  .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
+
+  #header-container > div > div { background: var(--gray000) !important; }
+
+  #header-container > button { background: none; }
+
+  .icon-container { background-color: var(--gray1000) !important; }
+
+  .icon-container > ha-icon { color: var(--black) !important; opacity: 1
+  !important; }
+
+  .bubble-icon { --mdc-icon-size: 24px !important; }
+
+  .bubble-name {
+    font-size: 30px !important;
+    font-weight: 500;
+    line-height: 1.4 !important;
+    padding: 8px 0 !important;
+  }
+
+  .bubble-close-button {
+    background-color: var(--gray200) !important;
+    border-radius: 50%;
+  }
 cards:
   - type: custom:ki-sikkerhetspanel-card
     entity: alarm_control_panel.alarm
-    tittel: Sikkerhet
     kode_lengde: 6
     batteri_grense: 20
     hendelser: 6
     zones:
-      - title: Dører
-        icon: mdi:door
-        kind: opening
-        items:
-          - entity: binary_sensor.inngangsdor
-            name: Dør
-            rom: Inngang
-            battery: sensor.inngangsdor_battery
-          - entity: binary_sensor.verandador
-            name: Dør
-            rom: Veranda
-            battery: sensor.verandador_battery
-      - title: Vinduer
-        icon: mdi:window-closed-variant
-        kind: opening
-        items:
-          - entity: binary_sensor.kjokken_vindu
-            name: Vindu
-            rom: Kjøkken
-            battery: sensor.kjokken_vindu_battery
-          - entity: binary_sensor.cybele_soverom_vindu
-            name: Vindu
-            rom: Cybele soverom
-            battery: sensor.cybele_soverom_vindu_battery
-          - entity: binary_sensor.rune_kontorvindu
-            name: Vindu
-            rom: Rune kontor
-            battery: sensor.rune_kontorvindu_battery
-          - entity: binary_sensor.rune_soveromsvindu
-            name: Vindu
-            rom: Rune soverom
-            battery: sensor.rune_soveromsvindu_battery
-          - entity: binary_sensor.soveromsvindu_venstre
-            name: Vindu
-            rom: Soverom venstre
-            battery: sensor.soveromsvindu_venstre_battery
-          - entity: binary_sensor.soveromsvindu_hoyre
-            name: Vindu
-            rom: Soverom høyre
-            battery: sensor.soveromsvindu_hoyre_battery
-      - title: Bevegelse
-        icon: mdi:motion-sensor
-        kind: motion
-        items:
-          - entity: binary_sensor.trappegang_bevegelsessensor_occupancy
-            name: Trapp
-            rom: Inngang
-            battery: sensor.trappegang_bevegelsessensor_battery
-          - entity: binary_sensor.stue_g6_turret_motion
-            name: Bevegelse
-            rom: Stue
-          - entity: binary_sensor.everything_presence_lite_occupancy
-            name: Tilstede
-            rom: Stue
-            type: tilstede
-          - entity: binary_sensor.bad_bevegelsesensor_motion
-            name: Bevegelse
-            rom: Bad
-            battery: sensor.bad_bevegelsesensor_battery
-          - entity: binary_sensor.mellomgang_g5_turret_ultra_motion
-            name: Bevegelse
-            rom: Mellomgang
-      - title: Dørlåser
-        icon: mdi:lock
-        kind: lock
-        items:
-          - entity: lock.dorlas_blatann
-            name: Dørlås
-            rom: Inngang
-            battery: sensor.dorlas_wifi_battery
-          - entity: lock.boddor
-            name: Boddør
-            rom: Bod
+    - title: Dører
+      icon: mdi:door
+      kind: opening
+      items:
+      - entity: binary_sensor.inngangsdor
+        name: Dør
+        rom: Inngang
+        battery: sensor.inngangsdor_battery
+      - entity: binary_sensor.verandador
+        name: Dør
+        rom: Veranda
+        battery: sensor.verandador_battery
+    - title: Vinduer
+      icon: mdi:window-closed-variant
+      kind: opening
+      items:
+      - entity: binary_sensor.kjokken_vindu
+        name: Vindu
+        rom: Kjøkken
+        battery: sensor.kjokken_vindu_battery
+      - entity: binary_sensor.cybele_soverom_vindu
+        name: Vindu
+        rom: Cybele soverom
+        battery: sensor.cybele_soverom_vindu_battery
+      - entity: binary_sensor.rune_kontorvindu
+        name: Vindu
+        rom: Rune kontor
+        battery: sensor.rune_kontorvindu_battery
+      - entity: binary_sensor.rune_soveromsvindu
+        name: Vindu
+        rom: Rune soverom
+        battery: sensor.rune_soveromsvindu_battery
+      - entity: binary_sensor.soveromsvindu_venstre
+        name: Vindu
+        rom: Soverom venstre
+        battery: sensor.soveromsvindu_venstre_battery
+      - entity: binary_sensor.soveromsvindu_hoyre
+        name: Vindu
+        rom: Soverom høyre
+        battery: sensor.soveromsvindu_hoyre_battery
+    - title: Bevegelse
+      icon: mdi:motion-sensor
+      kind: motion
+      items:
+      - entity: binary_sensor.trappegang_bevegelsessensor_occupancy
+        name: Trapp
+        rom: Inngang
+        battery: sensor.trappegang_bevegelsessensor_battery
+      - entity: binary_sensor.stue_g6_turret_motion
+        name: Bevegelse
+        rom: Stue
+      - entity: binary_sensor.everything_presence_lite_occupancy
+        name: Tilstede
+        rom: Stue
+        type: tilstede
+      - entity: binary_sensor.bad_bevegelsesensor_motion
+        name: Bevegelse
+        rom: Bad
+        battery: sensor.bad_bevegelsesensor_battery
+      - entity: binary_sensor.mellomgang_g5_turret_ultra_motion
+        name: Bevegelse
+        rom: Mellomgang
+    - title: Dørlåser
+      icon: mdi:lock
+      kind: lock
+      items:
+      - entity: lock.dorlas_blatann
+        name: Dørlås
+        rom: Inngang
+        battery: sensor.dorlas_wifi_battery
+      - entity: lock.boddor
+        name: Boddør
+        rom: Bod
+    ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
+    tastatur_luft: 96
