@@ -356,7 +356,20 @@ class FamilyStatusCard extends LitElement {
   _renderServerMeny() {
     const her = this._serverNavn();
     return html`
-      <div class="serververn" @click=${(e) => { e.stopPropagation(); this._serverApen = false; }}></div>
+      <div class="serververn" @click=${(e) => {
+        e.stopPropagation();
+        /* Andre trykk i et dobbelttrykk: menyen kom på det første, og bakgrunnen dens ligger nå
+           over navnet – så det andre trykket landet her og lukket bare menyen. Kom det innen
+           fristen, er det et dobbelttrykk: lukk menyen og kjør dobbelttrykket. */
+        if (this._dobbelTimer) {
+          window.clearTimeout(this._dobbelTimer);
+          this._dobbelTimer = null;
+          this._serverApen = false;
+          this._greetingGest("double_tap");
+          return;
+        }
+        this._serverApen = false;
+      }}></div>
       <div class="servermeny" role="menu" @click=${(e) => e.stopPropagation()}>
         <div class="menytopp">Bytt sted</div>
         ${this._servere().map((srv, i) => {
@@ -850,7 +863,8 @@ class FamilyStatusCard extends LitElement {
        at fristen skulle gå ut, og det kjentes tregt. */
     if (this._serverGest() === "tap") {
       this._greetingGest("tap");
-      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 250);
+      // litt lenger frist enn 250 ms: på berøringsskjerm kommer andre trykk ofte senere
+      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 320);
       return;
     }
     this._dobbelTimer = window.setTimeout(() => {

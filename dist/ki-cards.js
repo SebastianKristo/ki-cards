@@ -1,4 +1,4 @@
-/* ki-cards v8.96.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.99.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.96.0";
+  KI.VERSION = "8.99.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11713,7 +11713,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.0.0";
+const KI_VANN_VERSJON = "4.1.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -11839,8 +11839,8 @@ const KI_VANN_STIL = `
    * heller — rada lot seg ikke rulle.
    *
    * Nå fyller rada hele bredden, fanene deler den med flex:1 0 auto, og ikonet står
-   * over teksten. Under 430 px skjules teksten og ikonene deler bredden likt — da får
-   * fem faner plass på en mobil uten at noe må rulles i det hele tatt.
+   * over teksten. Under 430 px deler fanene bredden likt og teksten blir mindre, så alle
+   * får plass med navn på en mobil. vis_fanenavn: false gir bare ikoner.
    */
   .faner { display:flex; gap:4px; padding:4px; border-radius:20px; max-width:100%;
     background:var(--gray200); overflow-x:auto; scrollbar-width:none;
@@ -11853,9 +11853,11 @@ const KI_VANN_STIL = `
   .fane ha-icon { --mdc-icon-size:20px; }
   .fane.valgt { background:var(--active-small, var(--active-big, var(--primary-color)));
     color:var(--gray100, #fafbfc); opacity:1; font-weight:600; }
+  /* Smal skjerm: navnene står fortsatt under ikonene (når vis_fanenavn er på), bare mindre –
+     fanene deler bredden likt, og et langt navn kuttes med … i stedet for å skjules. */
   @media (max-width:430px) {
-    .fane span { display:none; }
-    .fane { flex:1; padding:10px 8px; }
+    .fane { flex:1 1 0; min-width:0; padding:8px 2px; font-size:10.5px; }
+    .fane span { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   }
   /* vis_fanenavn: false — bare ikoner, uansett skjermbredde */
   .faner.baretikon .fane span { display:none; }
@@ -12214,6 +12216,19 @@ const KI_VANN_STIL = `
     transform-origin:50% 100%; animation:va-svai 2.6s ease-in-out infinite alternate; }
   @keyframes va-svai { from { transform:rotate(-8deg); } to { transform:rotate(8deg); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
+  /* ---------- lapp på grafer ---------- */
+  .graf { position:relative; touch-action:pan-y; }
+  .graflapp { position:absolute; top:-6px; transform:translate(-50%,-100%); z-index:3; pointer-events:none; opacity:0;
+    padding:6px 10px; border-radius:12px; background:var(--gray1000,#f2f1ee); color:var(--gray000,#141416);
+    display:grid; text-align:center; white-space:nowrap; transition:opacity .15s; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .graflapp.vis { opacity:1; }
+  .graflapp b { font-size:14px; font-weight:600; }
+  .graflapp span { font-size:11px; opacity:.75; }
+  .graf [data-lapp] { cursor:pointer; }
+  .graf [data-lapp].valgt i { filter:brightness(1.35); outline:2px solid var(--gray1000,#f2f1ee); outline-offset:1px; }
+  .v4uke.graf { margin-top:28px; }
+  .histogram.graf { margin-top:34px; }
+
   /* ---------- Vanning v4 ---------- */
   .v4kort { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:24px; padding:18px;
     display:flex; flex-direction:column; gap:14px; margin-bottom:10px; }
@@ -12723,6 +12738,8 @@ class KiVanningCard extends HTMLElement {
     const faner = (c.faner || [])
       .filter((f) => f !== "innstillinger")
       .filter((f) => f !== "forbruk" || this._harFlyt())
+      // Forbruket ligger nå under Historikk (samle_forbruk: false gir egen fane igjen)
+      .filter((f) => !(f === "forbruk" && c.samle_forbruk !== false && (c.faner || []).includes("historikk") && this._kiEntitet()))
       // Historikken bygger på statistikken, og krever ingen vannmåler — men den er
       // meningsløs uten integrasjonen.
       .filter((f) => f !== "historikk" || !!this._kiEntitet());
@@ -13081,15 +13098,12 @@ class KiVanningCard extends HTMLElement {
           <div style="text-align:right"><div class="stor" style="font-size:1.2em">${this._litertekst(snitt)}</div>
             <div class="und">per vanningsdag</div></div>
         </div>
-        <div class="und">${dagerMedVann} av ${rader.length} døgn med vanning</div>
-      </div>
-      <div class="maal">
-        <div class="und">Døgn for døgn</div>
-        <div class="histogram">${rader.map((r) => `
-          <div class="hs" title="${kiVaEsc(iso(r.dato))}: ${Math.round(r.liter)} L">
-            <i style="height:${Math.max(2, (r.liter / maks) * 100).toFixed(1)}%"
-               class="${r.liter > 0.5 ? "" : "tom"}"></i>
-          </div>`).join("")}</div>
+        <div class="und">${dagerMedVann} av ${rader.length} døgn med vanning · trykk på en søyle</div>
+        <div class="histogram graf">${rader.map((r) => {
+          const kr = pris && r.liter > 0.5 ? ` · ${(r.liter / 1000 * pris).toFixed(2).replace(".", ",")} kr` : "";
+          return `<div class="hs" data-lapp="${kiVaEsc(r.dato.toLocaleDateString("nb-NO", { weekday: "short", day: "numeric", month: "short" }))}|${r.liter > 0.5 ? kiVaEsc(this._litertekst(r.liter)) + kr : "Ingen vanning"}">
+            <i style="height:${Math.max(2, (r.liter / maks) * 100).toFixed(1)}%" class="${r.liter > 0.5 ? "" : "tom"}"></i>
+          </div>`; }).join("")}</div>
         <div class="histakse"><span>${kiVaEsc(iso(rader[0].dato))}</span>
           <span>${kiVaEsc(iso(rader[rader.length - 1].dato))}</span></div>
       </div>`;
@@ -13099,6 +13113,58 @@ class KiVanningCard extends HTMLElement {
      første sonene og Kjør nå / Hopp over, de neste sju dagene som søyler, og strøm og sist
      vannet som to fliser. Regnpausen står øverst når den er på. Uten KI Vanning faller fanen
      tilbake til nøkkelflisene fra OpenSprinkler. */
+  /* Sist vannet: OpenSprinklers «last run» når den finnes og har en verdi. Ellers den siste
+     dagen med forbruk i statistikken fra KI Vanning («14. sep · 962 L») – den hentes i
+     bakgrunnen også når historikkfanen ikke er åpnet. Før sto flisen bare når sensoren
+     fantes, og den finnes ikke i alle oppsett. */
+  _sistVannet() {
+    const s = this._styring();
+    const S = this._states || {};
+    const p = this._prefiks();
+    const id = [s.siste, ...Object.keys(S).filter((x) => x.startsWith("sensor.") && p && x.includes(p) && /last_run|siste_kjoring|sist_vannet/.test(x))]
+      .find((x) => x && S[x] && !["unknown", "unavailable", "", "None"].includes(S[x].state));
+    if (id) return { id, tekst: this._tidFlis(S[id].state) };
+    const h = this._histData;
+    if (!h && this._kiEntitet() && !this._henterHist) {
+      this._henterHist = true;
+      this._hentHistorikk().then((r) => { this._henterHist = false; this._histData = r || { rader: [], feil: null }; this._tegn(); });
+      return null;
+    }
+    const rad = h && h.rader ? [...h.rader].reverse().find((r) => r.liter > 0.5) : null;
+    if (!rad) return null;
+    const idag = new Date().toDateString(), igar = new Date(Date.now() - 864e5).toDateString();
+    const dag = rad.dato.toDateString() === idag ? "I dag" : rad.dato.toDateString() === igar ? "I går"
+      : rad.dato.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+    return { tekst: `${dag} <small>· ${this._litertekst(rad.liter)}</small>` };
+  }
+
+  /* Verdien i en graf: trykk eller dra fingeren over en søyle, så står dato og mengde over
+     den. Lappen blir stående til du trykker et annet sted, eller i fire sekunder. */
+  _koblLapper() {
+    if (this._lapperKoblet) return;
+    this._lapperKoblet = true;
+    const r = this.shadowRoot;
+    const vis = (e) => {
+      const el = e.composedPath().find((n) => n && n.dataset && n.dataset.lapp);
+      const graf = el && el.closest(".graf");
+      r.querySelectorAll(".graf [data-lapp].valgt").forEach((x) => { if (x !== el) x.classList.remove("valgt"); });
+      if (!el || !graf) { r.querySelectorAll(".graflapp").forEach((l) => l.classList.remove("vis")); return; }
+      let lapp = graf.querySelector(".graflapp");
+      if (!lapp) { lapp = document.createElement("div"); lapp.className = "graflapp"; graf.appendChild(lapp); }
+      const [a, b] = el.dataset.lapp.split("|");
+      lapp.innerHTML = `<b>${b || ""}</b><span>${a || ""}</span>`;
+      const x = (el.offsetLeft || 0) + (el.offsetWidth || 0) / 2;
+      lapp.style.left = `${Math.max(40, Math.min((graf.clientWidth || 80) - 40, x))}px`;
+      lapp.classList.add("vis");
+      el.classList.add("valgt");
+      clearTimeout(this._lappTimer);
+      this._lappTimer = setTimeout(() => { lapp.classList.remove("vis"); el.classList.remove("valgt"); }, 4000);
+      if (e.type === "pointerdown") this._haptikk("selection");
+    };
+    r.addEventListener("pointerdown", vis);
+    r.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "mouse") { const g = e.composedPath().find((n) => n && n.classList && n.classList.contains("graf")); if (g) vis(e); } });
+  }
+
   _panelNaa() {
     const s = this._styring(), ki = this._ki(), z = this._aktivSone();
     const pl = ki && ki.planlegger;
@@ -13185,7 +13251,7 @@ class KiVanningCard extends HTMLElement {
       html += `<div class="v4kort" style="padding:16px 18px 14px;gap:12px">
         <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="v4etikett">Neste 7 dager</span>
           <span class="v4etikett">${nf(sum)} L planlagt</span></div>
-        <div class="v4uke">${dager.map((d, i) => `<div>
+        <div class="v4uke graf">${dager.map((d, i) => `<div data-lapp="${kiVaEsc(d.toLocaleDateString("nb-NO", { weekday: "short", day: "numeric", month: "short" }))}|${liter[i] ? nf(liter[i]) + " L" : "Ingen vanning"}">
           <i class="${liter[i] ? (i === forsteMed ? "forst" : "") : "tom"}" style="${liter[i] ? `height:${Math.max(8, (liter[i] / maks) * 64).toFixed(0)}px` : ""}" title="${nf(liter[i])} L"></i>
           <span class="${i ? "" : "idag"}">${i ? (() => { const w = d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", ""); return w.charAt(0).toUpperCase() + w.slice(1); })() : "I dag"}</span></div>`).join("")}</div>
       </div>`;
@@ -13194,11 +13260,12 @@ class KiVanningCard extends HTMLElement {
     // to fliser: strøm og sist vannet
     const strom = this._strom(s.strom);
     const siste = this._st(s.siste);
+    const sist = this._sistVannet();
     html += `<div class="v4to">
       ${strom ? `<div class="v4flis" data-e="${s.strom}"><div class="e"><ha-icon icon="mdi:lightning-bolt" style="color:var(--yellow,#ffd60a)"></ha-icon>Strøm</div>
         <div class="v">${Math.round(strom.mA)} mA <small>· ca. ${strom.W.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} W</small></div></div>` : ""}
-      ${siste && !["unknown", "unavailable"].includes(siste.state) ? `<div class="v4flis" data-e="${s.siste}"><div class="e"><ha-icon icon="mdi:history" style="color:var(--blue,#6ec6ff)"></ha-icon>Sist vannet</div>
-        <div class="v">${this._tidFlis(siste.state)}</div></div>` : ""}
+      ${sist ? `<div class="v4flis" ${sist.id ? `data-e="${sist.id}"` : `data-tilfane="historikk"`}><div class="e"><ha-icon icon="mdi:history" style="color:var(--blue,#6ec6ff)"></ha-icon>Sist vannet</div>
+        <div class="v">${sist.tekst}</div></div>` : ""}
     </div>`;
     return html;
   }
@@ -13603,12 +13670,15 @@ class KiVanningCard extends HTMLElement {
     }
 
     const sett = (navn, html) => { const el = r.querySelector(`.panel[data-p="${navn}"]`); if (el) el.innerHTML = html; };
+    this._koblLapper();
     if (c.faner.includes("naa")) sett("naa", this._panelNaa());
     if (c.faner.includes("soner")) sett("soner", this._panelSoner());
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
     if (c.faner.includes("forbruk") && this._harFlyt()) sett("forbruk", this._panelForbruk());
     // Historikk trenger bare statistikken, ikke en vannmåler – den vises uansett
-    if (c.faner.includes("historikk")) sett("historikk", this._panelHistorikk());
+    const samlet = c.samle_forbruk !== false && c.faner.includes("forbruk") && this._harFlyt() && !!this._kiEntitet();
+    if (c.faner.includes("historikk")) sett("historikk", this._panelHistorikk()
+      + (samlet ? `<div class="v4tittel" style="margin:16px 0 8px">Forbruk per sone</div>${this._panelForbruk()}` : ""));
     /* innstillingene ligger i overlegget – hold det oppdatert hvis det er åpent */
     const lag = r.querySelector(".innlag .innhold");
     if (lag) { lag.innerHTML = this._panelInnstillinger(); this._koblInnstillinger(lag); }
@@ -13664,6 +13734,7 @@ class KiVanningCard extends HTMLElement {
       el.addEventListener("click", veksle);
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); veksle(e); } });
     });
+    r.querySelectorAll("[data-tilfane]").forEach((el) => el.addEventListener("click", () => { this._fane = el.dataset.tilfane; this._haptikk("selection"); this._tegn(); }));
     r.querySelectorAll("[data-visav]").forEach((el) => el.addEventListener("click", () => { this._visAv = !this._visAv; this._haptikk("selection"); this._tegn(); }));
     r.querySelectorAll("[data-hopp]").forEach((el) => el.addEventListener("click", () => this._ki_tjeneste("hopp_over", { program: el.dataset.hopp })));
     r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
@@ -37451,7 +37522,20 @@ class FamilyStatusCard extends LitElement {
   _renderServerMeny() {
     const her = this._serverNavn();
     return html`
-      <div class="serververn" @click=${(e) => { e.stopPropagation(); this._serverApen = false; }}></div>
+      <div class="serververn" @click=${(e) => {
+        e.stopPropagation();
+        /* Andre trykk i et dobbelttrykk: menyen kom på det første, og bakgrunnen dens ligger nå
+           over navnet – så det andre trykket landet her og lukket bare menyen. Kom det innen
+           fristen, er det et dobbelttrykk: lukk menyen og kjør dobbelttrykket. */
+        if (this._dobbelTimer) {
+          window.clearTimeout(this._dobbelTimer);
+          this._dobbelTimer = null;
+          this._serverApen = false;
+          this._greetingGest("double_tap");
+          return;
+        }
+        this._serverApen = false;
+      }}></div>
       <div class="servermeny" role="menu" @click=${(e) => e.stopPropagation()}>
         <div class="menytopp">Bytt sted</div>
         ${this._servere().map((srv, i) => {
@@ -37945,7 +38029,8 @@ class FamilyStatusCard extends LitElement {
        at fristen skulle gå ut, og det kjentes tregt. */
     if (this._serverGest() === "tap") {
       this._greetingGest("tap");
-      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 250);
+      // litt lenger frist enn 250 ms: på berøringsskjerm kommer andre trykk ofte senere
+      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 320);
       return;
     }
     this._dobbelTimer = window.setTimeout(() => {

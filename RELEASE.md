@@ -1,34 +1,53 @@
-# ki-cards 8.96.0
+# ki-cards 8.99.0
 
-Bygget oppå 8.95.1 fra GitHub.
+Bygget oppå 8.96.0 fra GitHub. Inneholder også 8.97.0 og 8.98.0, som ikke er pushet — notatene står under.
 
-## ki-vanning-card 4.0.0: Vanning v4
+## ki-vanning-card 4.1.1: fanenavn på alle skjermer
 
-Vanningspopupen etter designet «Vanning v4». Hagescenen, hurtigknappene og fanerada er som før; fanene er tegnet
-om.
+Navnene under ikonene i fanerada ble skjult på skjermer smalere enn 430 px, uansett innstilling. Nå står de der på
+alle skjermer så lenge `vis_fanenavn` er på: på smal skjerm deler fanene bredden likt, teksten blir litt mindre, og
+et langt navn kuttes med … i stedet for å forsvinne. `vis_fanenavn: false` gir bare ikoner, som før.
 
-**Nå**
-- **Vanner nå** — eget kort med sonen («S05 Plen nord»), metoden og hva som står i kø, nedtellingen stort
-  (mm:ss, teller hvert sekund), et blått fyll som vokser mens sonen vanner, litrene i dag og **Stopp**.
-- **Regnpause** som før, øverst når den er på.
-- **Neste vanning** — dag og dato, klokkeslettet stort, de tre første sonene med ikon, varighet og liter, og
-  **Kjør nå**. **Hopp over** vises når KI Vanning har tjenesten `ki_vanning.hopp_over`.
-- **Neste 7 dager** — søyler med planlagte liter per dag; den første dagen med vanning er sterkest.
-- **Strøm** og **Sist vannet** som to fliser.
+---
 
-**Soner** — en liste per boks («Boks 1 · 3 soner»): ikon, «S05 Plen nord», metode og varighet, og spill/stopp
-til høyre. Sonen som vanner, er blå med et fyll som vokser. Spilleknappen starter med standardvarigheten
-(`standard_min:`, ellers den andre i `varigheter:`); trykk på raden legger fram alle varighetene. Deaktiverte
-soner ligger bak «N deaktiverte soner».
+## (8.98.0)
 
-**Programmer** — klokkeslettet stort til venstre med dagene under, navnet og sonene i midten, **Kjør nå** og en
-grønn bryter til høyre; avslåtte programmer er dempet. **Kommende vanninger** er en agenda per dag med antall
-soner og liter, og klokkeslett, hva og mengde per kjøring.
+## family-status-card: dobbelttrykk virker igjen
 
-Forbruk og Historikk er som før.
+Dobbelttrykk på navnet skulle gå til innstillingene, men åpnet bare servermenyen. Menyen åpnes på første trykk
+(så den kommer med en gang), og bakgrunnen dens legger seg over navnet — så det andre trykket landet på
+bakgrunnen og lukket bare menyen. Nå regnes et trykk på bakgrunnen innen fristen som det andre trykket i et
+dobbelttrykk: menyen lukkes og dobbelttrykket kjøres. Fristen er også litt lengre (320 ms), siden det andre
+trykket kommer senere på berøringsskjerm.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt (64 kort). Kortet er kjørt med demo-dataene: «Vanner nå · S05 Plen nord · 7:24»,
-Neste vanning med to soner og Kjør nå / Hopp over, sju dagsøyler, tre bokser med sju soner der S05 er blå,
-deaktiverte bak egen knapp, og programmene med klokkeslett og av/på. Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Bakgrunnen til servermenyen kjører dobbelttrykket når fristen fra første trykk ikke
+er ute; vanningskortet er kjørt på nytt med samme resultat som i 8.97.0.
+
+---
+
+## (8.97.0)
+
+Bygget oppå 8.96.0 fra GitHub.
+
+## ki-vanning-card 4.1.0
+
+**Sist vannet vises.** Flisen kom bare når OpenSprinkler hadde en «last run»-sensor med verdi, og den finnes ikke i
+alle oppsett. Nå brukes den når den finnes; ellers den siste dagen med forbruk i statistikken fra KI Vanning
+(«21. sep · 310 L»). Statistikken hentes i bakgrunnen også når historikkfanen ikke er åpnet. Trykk på flisen går
+til Historikk.
+
+**Verdien i grafene.** Trykk eller dra fingeren over en søyle, så står dato og mengde over den — i «Neste 7 dager»
+(planlagte liter) og i historikkens døgn-for-døgn (liter og kroner). Søylen du står på, markeres; lappen blir
+stående til du trykker et annet sted, eller i fire sekunder.
+
+**Historikk og forbruk i én fane.** Forbruksfanen er slått sammen med Historikk: kalenderen, så summen og
+døgn-for-døgn-grafen i ett kort, og under «Forbruk per sone» med periodene I dag / Uke / Måned / År.
+`samle_forbruk: false` gir egen forbruksfane igjen.
+
+### Kontrollert
+
+Begge byggesjekkene kjørt. Kortet er kjørt med demo-dataene og 14 døgn statistikk: fanene er Nå, Soner,
+Programmer, Historikk; Sist vannet viser siste dag med forbruk; historikken har 14 søyler med verdier og forbruket
+under; et trykk på søylen for 14. september gir «962 L · 39,55 kr». Ingen `NaN` eller `undefined`.
