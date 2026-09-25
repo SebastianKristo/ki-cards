@@ -1,4 +1,4 @@
-/* ki-cards v8.99.5 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.99.6 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.99.5";
+  KI.VERSION = "8.99.6";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -4878,6 +4878,11 @@ try {
  *                       # er den skjult, får knapperaden en av/på-knapp i stedet
  * vis_seertid: true      # seertidboksene (skjules automatisk når vis_media: stor viser dem)
  * apper: { com.netflix.Netflix: Netflix } # legges til standardlista
+ * volum:                 # overstyr volum og demping med egne handlinger (f.eks. TV-en via Google TV)
+ *   opp: switch.tcl_google_tv_series_volume_up          # entitet: knapp → press, alt annet → slå på
+ *   ned: switch.tcl_google_tv_series_volume_down
+ *   demp: button.tcl_google_tv_series_button_mute_toggle
+ *   # eller en full handling: opp: { action: perform-action, perform_action: script.volum_opp }
  */
 const KI_FJK_VERSJON = "1.4.0";
 
@@ -5071,6 +5076,36 @@ class KiFjernkontrollCard extends HTMLElement {
     const n = Number(ms) || 8;
     this._haptikk(n >= 18 ? "medium" : n >= 10 ? "light" : "selection");
   }
+  /* Egen handling for volum opp/ned og demping, når volum: er satt.
+     En entitet kjøres «på»: knapper trykkes (button.press / input_button.press), skript og
+     scener startes, og alt annet – brytere, input_boolean – slås på (homeassistant.turn_on).
+     Bare «på»: TV-ens volumbrytere er momentane, og å slå dem av gjør ingenting. En full
+     HA-handling (action: perform-action …) kjøres som den er. Gir true når den er brukt. */
+  _volumHandling(hva) {
+    const v = this._c.volum && this._c.volum[hva];
+    if (!v || !this._h) return false;
+    if (typeof v === "string") {
+      const d = v.split(".")[0];
+      if (d === "button" || d === "input_button") this._h.callService(d, "press", { entity_id: v });
+      else if (d === "script" || d === "scene") this._h.callService(d, "turn_on", { entity_id: v });
+      else this._h.callService("homeassistant", "turn_on", { entity_id: v });
+      return true;
+    }
+    if (typeof v === "object") {
+      const svc = v.perform_action || v.service;
+      if ((v.action === "perform-action" || v.action === "call-service" || !v.action) && svc) {
+        const [d, s2] = String(svc).split(".");
+        this._h.callService(d, s2, v.data || v.service_data || {}, v.target);
+        return true;
+      }
+      if (v.action === "toggle" || v.action === "turn_on") {
+        const id = v.entity || (v.target && v.target.entity_id);
+        if (id) { this._h.callService("homeassistant", v.action === "toggle" ? "toggle" : "turn_on", { entity_id: id }); return true; }
+      }
+    }
+    return false;
+  }
+
   _send(kommando) {
     const c = this._c; if (!c.fjernkontroll || !this._h) return;
     this._haptikk("light");
@@ -5088,6 +5123,7 @@ class KiFjernkontrollCard extends HTMLElement {
   _demp() {
     const c = this._c, h = this._h; if (!h) return;
     this._haptikk("light");
+    if (this._volumHandling("demp")) return;
     const st = c.media && h.states[c.media];
     const funksjoner = (st && Number(st.attributes.supported_features)) || 0;
     const kanMute = (funksjoner & 8) === 8;               /* VOLUME_MUTE */
@@ -5119,18 +5155,22 @@ class KiFjernkontrollCard extends HTMLElement {
 
   /* Trykk og hold på lydknappene gjentar kommandoen */
   _hold(el, kommando) {
+    const egen = { volume_up: "opp", volume_down: "ned" }[kommando];
+    const kjor = (forste) => {
+      if (egen && this._volumHandling(egen)) { this._haptikk(forste ? "light" : "selection"); return; }
+      if (forste) { this._send(kommando); return; }
+      if (!this._c.fjernkontroll || !this._h) return;
+      this._haptikk("selection");
+      this._h.callService("remote", "send_command",
+        { entity_id: this._c.fjernkontroll, command: kommando, hold_secs: 0 });
+    };
     const start = (e) => {
       if (e.button) return;
-      this._send(kommando);
+      kjor(true);
       clearInterval(this._gjenta);
       // Gjentakelsen bruker den letteste typen. Full styrke 3 ganger i sekundet
       // blir ubehagelig å holde inne.
-      this._gjenta = setInterval(() => {
-        if (!this._c.fjernkontroll || !this._h) return;
-        this._haptikk("selection");
-        this._h.callService("remote", "send_command",
-          { entity_id: this._c.fjernkontroll, command: kommando, hold_secs: 0 });
-      }, 320);
+      this._gjenta = setInterval(() => kjor(false), 320);
     };
     const stopp = () => clearInterval(this._gjenta);
     el.addEventListener("pointerdown", start);
@@ -5355,7 +5395,7 @@ class KiFjernkontrollCardEditor extends HTMLElement {
       this._f = document.createElement("ha-form");
       const n = { media: "Mediaspiller", fjernkontroll: "Fjernkontroll (remote)", navn: "Navn", ikon: "Ikon",
         i_dag: "Seertid i dag", maned: "Seertid denne måned", maks_i_dag: "Full stolpe i dag (timer)", maks_maned: "Full stolpe måned (timer)",
-        vis_media: "Mediakort øverst" };
+        vis_media: "Mediakort øverst", opp: "Volum opp", ned: "Volum ned", demp: "Demp" };
       this._f.computeLabel = (s) => n[s.name] || s.name;
       this._f.addEventListener("value-changed", (e) => this.dispatchEvent(new CustomEvent("config-changed",
         { detail: { config: e.detail.value }, bubbles: true, composed: true })));
@@ -5373,6 +5413,11 @@ class KiFjernkontrollCardEditor extends HTMLElement {
       { name: "vis_media", selector: { select: { mode: "dropdown", options: [
         { value: "ingen", label: "Ingen mediakort" }, { value: "stor", label: "Stort mediakort øverst" },
         { value: "naa", label: "Smal medialinje øverst" }] } } },
+      { type: "expandable", name: "volum", title: "Egne volumhandlinger", icon: "mdi:volume-high", schema: [
+        { name: "opp", selector: { entity: { domain: ["switch", "button", "input_button", "script", "scene", "input_boolean"] } } },
+        { name: "ned", selector: { entity: { domain: ["switch", "button", "input_button", "script", "scene", "input_boolean"] } } },
+        { name: "demp", selector: { entity: { domain: ["switch", "button", "input_button", "script", "scene", "input_boolean"] } } },
+      ] },
     ];
   }
 }

@@ -1,21 +1,28 @@
-# ki-cards 8.99.5
+# ki-cards 8.99.6
 
-Bygget oppå 8.99.4 fra GitHub (ki-basseng-card 3.5 er med uendret).
+Bygget oppå 8.99.5 fra GitHub.
 
-## ki-vanning-card 4.3.0
+## ki-fjernkontroll-card: egne handlinger for volum og demping
 
-- **«Vanner nå»-kortet er tatt ut av Nå-fanen.** Hagescenen øverst viser det samme.
-- **Ikke lenger til toppen.** Et trykk på en sone langt nede i Soner sendte deg opp til fanerada. Kortet rullet
-  den valgte fanen inn i bildet ved hver tegning — og `scrollIntoView` rullet hele popupen, ikke bare fanerada. Nå
-  rulles bare fanerada, sidelengs, og bare når den er bredere enn skjermen.
-- **Soner startes gjennom KI Vanning** også med OpenSprinkler, når integrasjonen finnes. Da åpner KI Vanning
-  hovedventilen *før* sonen startes, i stedet for å vente på at OpenSprinkler melder at sonen går.
-- **Hovedventilen stengt mens en sone går?** Da står et oransje kort øverst i Nå: «Hovedventilen er stengt», med
-  hvorfor (ikke forsøkt, feil fra tjenesten, utilgjengelig, eller åpnet men stengt igjen) og en **Åpne**-knapp.
-  Krever KI Vanning 3.3.2.
+Volum opp, volum ned og demping kan overstyres med egne handlinger — for eksempel når Apple TV-en styres med
+fjernkontrollen, men volumet sitter i TV-en:
+
+```yaml
+volum:
+  opp: switch.tcl_google_tv_series_volume_up
+  ned: switch.tcl_google_tv_series_volume_down
+  demp: button.tcl_google_tv_series_button_mute_toggle
+```
+
+- En **entitet** kjøres «på»: knapper trykkes (`button.press`), skript og scener startes, og alt annet — brytere,
+  `input_boolean` — slås på (`homeassistant.turn_on`). Bare «på», aldri av: volumbryterne i TV-en er momentane.
+- En **full handling** (`action: perform-action`, `perform_action: …`) kjøres som den er.
+- Holder du inne volum opp eller ned, gjentas handlingen tre ganger i sekundet, som før.
+- Uten `volum:` er alt som før: volum går til fjernkontrollen, demping til mediaspilleren.
+- I editoren ligger feltene under «Egne volumhandlinger».
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Nå-fanen uten «Vanner nå»-kortet; med hovedventilen stengt mens S01 går står varselet
-med grunnen, **Åpne** kaller `ki_vanning.apne_hovedventil`, og en sone startet fra kortet kaller `ki_vanning.kjor`.
-Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Kortet er kjørt med dine tre entiteter: volum opp slår på `switch…volume_up` (og gjentar
+mens du holder), volum ned slår på `switch…volume_down`, demp trykker `button…mute_toggle`. Uten `volum:` går volum
+til `remote.send_command` og demp til `media_player.volume_mute` som før.
