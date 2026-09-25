@@ -1,166 +1,97 @@
-# Sikkerhetspopup – ki-cards 3.21.0
-#
-# Kortet på toppen slutter etter modusknappene (soner: false). Sonelistene ligger
-# under, i hvert sitt expander-kort, som frittstående piller uten panel bak.
-#
-# Sensorlisten folder seg selv, med samme hode som alarmkortet hadde: ikonmerke,
-# tittel, teller til høyre og en pil. Expander-card trengs ikke lenger, og
-# dermed heller ingen bakgrunn å fjerne.
-#
-# Sonene defineres én gang på sikkerhetskortet med ankre, og hver sensorliste
-# plukker ut sin egen del. Ankre virker bare innenfor samme fil.
+# Sikkerhetspopupen (#alarm) – ki-sikkerhetspanel-card, etter skissen «Sikkerhet v2».
+# Kortet har sin egen overskrift og lukkeknapp, så bubble-headeren er slått av.
 type: custom:bubble-card
 card_type: pop-up
+hash: '#alarm'
 name: Sikkerhet
 icon: mdi:shield-home
-hash: '#alarm'
-entity: alarm_control_panel.ajax_alarm
-button_type: name
-show_state: false
+show_header: false
 is_sidebar_hidden: true
 bg_blur: '20'
 shadow_opacity: '20'
 bg_opacity: '88'
 margin_top_mobile: 50px
 margin_top_desktop: 50px
-card_layout: large
 styles: |
-  .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
-  #header-container > div > div { background: var(--gray000) !important; }
-  #header-container > button { background: none; }
-  .icon-container { background-color: var(--gray1000) !important; }
-  .icon-container > ha-icon { color: var(--black) !important; opacity: 1 !important; }
-  .bubble-icon { --mdc-icon-size: 24px !important; }
-  .bubble-name {
-    font-size: 30px !important;
-    font-weight: 500;
-    line-height: 1.4 !important;
-    padding: 8px 0 !important;
-  }
-  .bubble-close-button {
-    background-color: var(--gray200) !important;
-    border-radius: 50%;
-  }
+  .bubble-pop-up-container { --vertical-stack-card-gap: 0px !important; }
 cards:
-  # Huset, brikkene og Av/Hjemme/Borte/Natt. Ingenting under.
-  - type: custom:ki-sikkerhet-card
+  - type: custom:ki-sikkerhetspanel-card
     entity: alarm_control_panel.alarm
-    navn: Hjemme
+    tittel: Sikkerhet
+    kode_lengde: 6
     batteri_grense: 20
-    soner: false
-    faner: [sikkerhet, laser, logg]
-    laser:
-      entities:
-        - lock.dorlas
-        - lock.stue_dorlas
-        - lock.vaskerom_dorlas
-        - lock.garasjedor
-      navn:
-        lock.dorlas: Inngang
-        lock.stue_dorlas: Stue
-        lock.vaskerom_dorlas: Vaskerom
-        lock.garasjedor: Garasje
-      batteri:
-        lock.dorlas: sensor.dorlas_batteri
-        lock.vaskerom_dorlas: sensor.vaskerom_dorlas_batteri
-        lock.garasjedor: sensor.garasjedor_battery
-    logg:
-      ansikt: sensor.ansiktsgjenkjenning_dorlas_sist_last_opp_av
-      dager: 7
-      maks: 40
-    tastatur:
-      code_length: 6
-      arm_requires_code: true
+    hendelser: 6
     zones:
-      - &doerer
-        title: Dører
+      - title: Dører
         icon: mdi:door
-        color: var(--red)
         kind: opening
-        active_text: Åpen
-        idle_text: Lukket
         items:
           - entity: binary_sensor.inngangsdor
-            name: Inngang
+            name: Dør
+            rom: Inngang
             battery: sensor.inngangsdor_battery
           - entity: binary_sensor.verandador
-            name: Veranda
+            name: Dør
+            rom: Veranda
             battery: sensor.verandador_battery
-      - &vinduer
-        title: Vinduer
+      - title: Vinduer
         icon: mdi:window-closed-variant
-        color: var(--orange)
         kind: opening
-        active_text: Åpent
-        idle_text: Lukket
         items:
           - entity: binary_sensor.kjokken_vindu
-            name: Kjøkken
+            name: Vindu
+            rom: Kjøkken
             battery: sensor.kjokken_vindu_battery
           - entity: binary_sensor.cybele_soverom_vindu
-            name: Cybele soverom
+            name: Vindu
+            rom: Cybele soverom
             battery: sensor.cybele_soverom_vindu_battery
           - entity: binary_sensor.rune_kontorvindu
-            name: Rune kontor
+            name: Vindu
+            rom: Rune kontor
             battery: sensor.rune_kontorvindu_battery
           - entity: binary_sensor.rune_soveromsvindu
-            name: Rune soverom
+            name: Vindu
+            rom: Rune soverom
             battery: sensor.rune_soveromsvindu_battery
           - entity: binary_sensor.soveromsvindu_venstre
-            name: Soverom venstre
+            name: Vindu
+            rom: Soverom venstre
             battery: sensor.soveromsvindu_venstre_battery
           - entity: binary_sensor.soveromsvindu_hoyre
-            name: Soverom høyre
+            name: Vindu
+            rom: Soverom høyre
             battery: sensor.soveromsvindu_hoyre_battery
-      - &bevegelse
-        title: Bevegelse
+      - title: Bevegelse
         icon: mdi:motion-sensor
-        color: var(--blue)
         kind: motion
-        active_text: Bevegelse
-        idle_text: Stille
         items:
           - entity: binary_sensor.trappegang_bevegelsessensor_occupancy
-            name: Trappegang
+            name: Trapp
+            rom: Inngang
             battery: sensor.trappegang_bevegelsessensor_battery
-          - entity: binary_sensor.bad_bevegelsesensor_motion
-            name: Bad
-            battery: sensor.bad_bevegelsesensor_battery
           - entity: binary_sensor.stue_g6_turret_motion
-            name: Stue
-          - entity: binary_sensor.mellomgang_g5_turret_ultra_motion
-            name: Mellomgang
+            name: Bevegelse
+            rom: Stue
           - entity: binary_sensor.everything_presence_lite_occupancy
-            name: Tilstedeværelse
-      - &laaser
-        title: Dørlåser
+            name: Tilstede
+            rom: Stue
+            type: tilstede
+          - entity: binary_sensor.bad_bevegelsesensor_motion
+            name: Bevegelse
+            rom: Bad
+            battery: sensor.bad_bevegelsesensor_battery
+          - entity: binary_sensor.mellomgang_g5_turret_ultra_motion
+            name: Bevegelse
+            rom: Mellomgang
+      - title: Dørlåser
         icon: mdi:lock
-        color: var(--red)
         kind: lock
-        active_text: Ulåst
-        idle_text: Låst
         items:
           - entity: lock.dorlas_blatann
             name: Dørlås
+            rom: Inngang
             battery: sensor.dorlas_wifi_battery
           - entity: lock.boddor
             name: Boddør
-
-  # Sonene med eget hode og sammenfolding – ett kort, ingen expander.
-  - type: custom:ki-sensor-liste-card
-    apnet: true
-    zones:
-      - *doerer
-      - *vinduer
-      - *bevegelse
-      - *laaser
-
-# I ki-hjem-card peker dørlåsflisen hit, rett på Dørlåser-fanen:
-#
-#   hjem:
-#     las: lock.dorlas
-#     las_path: '#alarm::laser'
-#
-# «::laser» fjernes før navigeringen, så bubble-card ser bare `#alarm` og åpner
-# popupen som vanlig – deretter velger sikkerhetskortet fanen. Samme triks virker
-# på alle stier som går gjennom KI.navigate: '#alarm::logg' åpner loggen.
+            rom: Bod

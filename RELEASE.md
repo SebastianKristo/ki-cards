@@ -1,31 +1,36 @@
-# ki-cards 5.80.0
+# ki-cards 5.81.0
 
-## ki-veggpanel-card 1.6.0: nattmodus synes
+## Nytt kort: `ki-sikkerhetspanel-card`
 
-Mens `switch.nattmodus` er på, er det ikke lenger bare én scene-flis som sier det.
+Sikkerhetspopupen (`#alarm`) etter skissen «Sikkerhet v2», i dashbordets farger: oransje for det som krever
+deg, blått for bevegelse, grønt for Hjemme.
 
-**Et animert nattkort øverst i midten.** Nattehimmel med stjerner som blinker, en måne som svever, skyer som
-driver forbi og et stjerneskudd av og til. På kortet:
+- **Ringen:** én strek per sensor rundt modusen. Streken lyser oransje når en dør eller et vindu står åpent
+  eller en lås er ulåst, og blått når en sensor ser bevegelse; ellers har den modusfargen (grå når alarmen er
+  av). I midten modusen og når den ble slått på; trykk åpner alarmen.
+- **Setningen under:** «1 dør står åpen, 1 vindu står åpent og 1 lås er ulåst» — eller «Alt er lukket og
+  låst» — og hvor mange sensorer som ser bevegelse og hvor mange som er i ro. Skissen la setningen oppå
+  linja under når den gikk over to linjer; her har den egen linjehøyde.
+- **Modus: hold inne.** Av, Hjemme, Borte og Natt. Hold i 0,9 s — fyllet går over knappen mens du holder,
+  og slipper du før, skjer ingenting. Krever alarmen kode (entitetens `code_format` og
+  `code_arm_required`), kommer et tastatur opp nedenfra; koden sendes når alle sifrene er tastet, og feil
+  kode rister prikkene.
+- **Krever oppmerksomhet:** én rad per åpen dør, åpent vindu, ulåst lås og lavt batteri (`batteri_grense`).
+  Ulåste låser har **Lås**, som låser; resten har **Vis**, som åpner sensoren.
+- **Rom:** sensorene gruppert per rom (`rom:` på hvert punkt), med prikk i romfargen og en brikke per sensor
+  — «Åpen», «Dørlås ulåst», «Bevegelse nå», «Boddør · 88 %». Trykk åpner sensoren.
+- **Siste hendelser:** fra loggboka, siste døgn — modusbytter med hvem som gjorde det («Deg», eller navnet
+  på personen), dører og vinduer som åpnes, låser og bevegelse. «Lukket» og «ingen bevegelse» er utelatt
+  som støy.
+- **Egen overskrift og X** som lukker popupen.
 
-- «God natt» om kvelden og natta, ellers «Nattmodus er på»
-- når nattmodus ble slått på, og når vekkingen går (`natt.vekking`)
-- om døra er låst, alarmen, og hvor mange lys som står på — grønt når alt er i orden, gult når noe står på
-- nattens handlinger fra `natt.handlinger` (som «Alt lys av») og **Slå av**
-- langt trykk åpner nattmodus-bryteren
-
-**Pille i toppstripa:** «Nattmodus» fylt med aktivfargen, først i rekka.
-
-**Dashbordet ordner seg om natta:** nattkortet legger seg øverst, og kort du ikke trenger om natta, legges
-bort så lenge — **Nytt i Plex** som standard (`natt.skjul:` velger andre). Når nattmodus slås av, er alt
-tilbake som før.
-
-Ingen nye felt trengs: kortet bruker `natt.entity`, `natt.vekking` og `natt.handlinger` du allerede har.
-`natt.kort: false` slår det av, og `natt.kort_plass: venstre` legger det øverst til venstre. Nattkortet har
-sin egen nattehimmel; resten av panelet beholder dashbordets farger.
+Leser samme `zones:` som `ki-sikkerhet-card`. `examples/sikkerhet-popup.yaml` er hele popupen med rommene
+satt opp.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Veggpanelet er kjørt med nattmodus på: nattkortet øverst i midten med tittel,
-«på siden … · vekking …», «Låst | Natt | 1 lys på», 22 stjerner, knappene «Alt lys av» og «Slå av»,
-Nattmodus-pillen i toppen og Plex skjult. Slått av: kortet borte og Plex tilbake. Ingen `NaN` eller
-`undefined`. Bygget oppå 5.79.1 fra GitHub.
+Begge byggesjekkene kjørt: 62 kort bygges. Kortet er kjørt med stuas sensorer: «Natt · Aktivert …», ni
+streker der fire lyser, setningen «1 dør står åpen, 1 vindu står åpent og 1 lås er ulåst», fire varsler
+(dør, vindu, lås og lavt batteri 12 %), rommene med riktige brikker, loggen med nyeste først og «Deg» på
+modusbyttet. **Lås** kaller `lock.lock`; **Av** åpner tastaturet, og seks sifre sender `alarm_disarm` med
+koden og lukker det. Ingen `NaN` eller `undefined`. Bygget oppå 5.80.0 fra GitHub.
