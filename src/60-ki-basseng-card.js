@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 3.1.0 - del av ki-cards
+ * ki-basseng-card 3.2.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -24,6 +24,8 @@
  *   – Klor: trykk på den som la i, antall, kalenderen og klorloggens innstillinger.
  *   En `faner:`-liste skrevet for 2.x (uten klor) får Klor etter Varme, og Sirkulasjon
  *   faller bort – den ligger under grafen på Varme nå.
+ * 3.2: flisene øverst på Oversikt er dashbordets egne kort (css-swipe-card med button-card og
+ *   universal_sensor_ny); `dashbordfliser: false` gir kortets egne.
  * 3.1: setningene tegnes av ki-prosa-card (som forsideteksten), flisene du blar i er som
  *   css-swipe-card i Strøm-kortet, og temperaturvalgene er kvadratiske som ladegrense-
  *   knappene i Tesla-kortet.
@@ -52,7 +54,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.1.0";
+  const VERSJON = "3.2.0";
 
   /* Finner LitElement i frontend.
    *
@@ -316,6 +318,13 @@
         this._kalValgt = null;
         this._under = "temperatur";
         this._sveipIdx = {};
+        /* «Spart i dag»-kortet fra dashbordet (button-card) ber om oppdelingen slik */
+        this.addEventListener("ll-custom", (e) => {
+          if (!e.detail || e.detail.kib !== "spart") return;
+          e.stopPropagation();
+          this._haptikk("selection");
+          this._apneLukk("spart");
+        });
       }
 
       setConfig(config) {
@@ -2294,10 +2303,10 @@
         ].filter(Boolean);
         return html`
           ${this._varsler()}
-          <div class="g23">
+          ${this._dashFliser() || html`<div class="g23">
             ${this._sveip("venstre", venstre)}
             ${this._sveip("hoyre", hoyre)}
-          </div>
+          </div>`}
           ${this._setning()}
           ${this._idagListe()}
           ${this._apne.spart ? this._sparPanel() : ""}
@@ -2311,6 +2320,77 @@
           ${this.on("overstyrt") ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>` : ""}
           ${this.on("vpVenter") ? html`<div class="varsel">Varmepumpen står av til sirkulasjonen er tilbake.</div>` : ""}
         `;
+      }
+
+      /* Flisene øverst på Oversikt er de samme kortene som i Strøm-dashbordet:
+       * css-swipe-card med button-card og malen universal_sensor_ny til venstre (vann,
+       * ute, effekt), og ett kort med trykkmerke til høyre (spart i dag – trykk folder
+       * ut oppdelingen). Kortene lages med Home Assistants egne hjelpere og får hass
+       * fra dette kortet. Mangler css-swipe-card eller button-card, eller står
+       * `dashbordfliser: false`, tegnes kortets egne fliser i stedet. */
+      _dashFliser() {
+        if (this._config.dashbordfliser === false || !window.loadCardHelpers
+          || !customElements.get("css-swipe-card") || !customElements.get("button-card")) return null;
+        const id = (k) => this.id(k);
+        const nokkel = ["vanntemp", "varmetap", "vpEffekt", "pumpeEffekt", "spart"].map(id).join("|");
+        if (this._dashNokkel !== nokkel) {
+          this._dashNokkel = nokkel;
+          this._dashEl = null;
+          this._lagDash(nokkel);
+        }
+        if (this._dashEl) this._dashEl.hass = this.hass;
+        return this._dashEl;
+      }
+
+      async _lagDash(nokkel) {
+        const id = (k) => this.id(k);
+        const tall = (ekspr, d, enhet) => `[[[ const v = ${ekspr}; return (v === null || isNaN(v) ? '–' : Number(v).toFixed(${d}).replace('.', ',')) + '<span style="font-size:14px"> ${enhet}</span>'; ]]]`;
+        const st = (e) => `Number((states['${e}'] || {}).state)`;
+        const flis = (entity, ikon, navn, main) => ({
+          type: "custom:button-card", template: "universal_sensor_ny", entity,
+          variables: { size: "big", margin: "12px", background_color: "var(--gray200)", icon: ikon, sub_text: navn, main_text: main },
+        });
+        const sider = [];
+        if (id("vanntemp")) sider.push(flis(id("vanntemp"), "mdi:pool-thermometer", "Vann", tall(st(id("vanntemp")), 1, "°C")));
+        if (id("varmetap")) sider.push(flis(id("varmetap"), "mdi:thermometer", "Ute",
+          tall(`Number(((states['${id("varmetap")}'] || {}).attributes || {}).utetemperatur)`, 1, "°C")));
+        const p = id("pumpeEffekt"), v = id("vpEffekt");
+        if (p || v) {
+          sider.push(flis(v || p, "mdi:flash", "Effekt nå", `[[[ const w = ${p ? `(${st(p)} || 0)` : "0"} + ${v ? `(${st(v)} || 0)` : "0"};
+            return w >= 1000 ? (w / 1000).toFixed(1).replace('.', ',') + '<span style="font-size:14px"> kW</span>'
+              : Math.round(w) + '<span style="font-size:14px"> W</span>'; ]]]`));
+        }
+        const spart = id("spart");
+        const valuta = this.enhet("spart") || this.enhet("kostnad") || "kr";
+        const kort = [{
+          type: "custom:css-swipe-card", cardId: `kib_basseng_${this._prefiks || "x"}`, height: "190px", pagination: true,
+          custom_css: {
+            "--pagination-bullet-active-background-color": "var(--gray400)",
+            "--pagination-bullet-background-color": "var(--gray200)",
+            "--pagination-bullet-border": "none",
+            "--pagination-bullet-distance": "0px",
+          },
+          cards: sider,
+        }];
+        if (spart) {
+          kort.push({
+            type: "custom:button-card", template: "universal_sensor_ny", entity: spart,
+            tap_action: { action: "fire-dom-event", kib: "spart" },
+            variables: { sub_text: "Spart i dag", show_tap_indicator: true, margin: "12px", icon: "mdi:piggy-bank-outline",
+              background_color: "var(--gray200)", text_color: "var(--gray1000)",
+              main_text: `[[[ return Math.round(${st(spart)} || 0) + '<span style="font-size:14px"> ${valuta}</span>'; ]]]` },
+          });
+        }
+        try {
+          const helpers = await window.loadCardHelpers();
+          const el = await helpers.createCardElement({ type: "grid", square: false, columns: kort.length, cards: kort });
+          if (this._dashNokkel !== nokkel) return;
+          el.hass = this.hass;
+          this._dashEl = el;
+          this.requestUpdate();
+        } catch (e) {
+          console.warn("ki-basseng-card: fikk ikke laget flisene fra dashbordet", e);
+        }
       }
 
       /* Store fliser du blar i sidelengs (som bilflisene i Tesla-kortet), med prikker
