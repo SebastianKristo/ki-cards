@@ -1,3 +1,57 @@
+# ki-cards 5.75.0
+
+## ki-basseng-card 3.0.0: nytt oppsett for bassengpopupen
+
+Kombinasjonen av skissene A, B og C (og litt D), satt sammen av Tesla-, Strøm-, Innstillinger-
+og Pult-kortene i dashbordet.
+
+**Øverst på alle faner** står bassengscenen og hurtigknappene. Scenen viser bassenget fra
+siden: bølgene og boblene går når pumpa går, viften snurrer og damp stiger når varmepumpa
+varmer, lamellene ligger over vannet når taket er på, og det kommer måne ved nattsenking,
+snø i vintermodus og lys i vannet når bassenglyset er på. Til venstre står modus, en pille
+med varmestatus («Varmer · 26,3° → 27°»), temperaturen, målet og omsetningene. Knappene er
+kvadratiske fliser med bare ikon (`hurtig_navn: true` viser navnene).
+
+**Fanene** er Oversikt, Varme, Klor og Spreder, med Innstillinger bak tannhjulet.
+
+- **Oversikt:**
+  - To store fliser du blar i sidelengs: vann, ute og effekt, og spart i dag, spart i går og
+    kostnad.
+  - Én setning med verdiene i piller: «Vannet når 27° om ca 2 t 10 min. Pumpa går nå, og i
+    natt står varmen av 23–04 og sparer ca 2 kroner.» Trykk på en pille åpner verdien.
+  - «I dag» som liste: pumpet, omsetninger og spart. Spart folder ut oppdelingen.
+  - Profilene som scener du ruller i (boost, spreder, eco, balansert, badeklar, ferie).
+  - Automatikk, prisstyring og varmeprioritet som fargede rader. Klor blir oransje når det er
+    på tide, og tar deg til Klor-fanen.
+- **Varme:**
+  - Varmepumpa (bryteren setter den i heat eller av) og effekten nå.
+  - Forvalg for ønsket temperatur, 26–30° (`forvalg: [..]` for egne).
+  - «Vannet er 26,3° og når 27° om ca 2 t 10 min, og det koster ca 4 kroner.»
+  - Grafen med underfaner for temperatur, sirkulasjon og pris.
+  - Nattsenkingen som lilla kort med bryter; trykk viser sammenligningen og innstillingene.
+  - Pooltak og vintermodus som bilder med bryter.
+- **Klor:**
+  - Status øverst, oransje når det er på tide.
+  - Navnene som fliser: trykk på den som la i. Det første navnet får den store flisen.
+  - «Logg klortablett uten navn», og 1, 2 eller 3 stk.
+  - Kalenderen, åpen til du lukker den. Velg en dag for å logge eller slette der.
+  - Påminnelsen (intervallet), kalenderen det skrives til, og navnene.
+
+**Eldre oppsett.** En `faner:`-liste skrevet for 2.x (uten `klor`) får Klor etter Varme, og
+Sirkulasjon faller bort – den ligger under grafen på Varme nå, og styringen under
+tannhjulet. Skriver du `klor` selv, gjelder lista som den står. Uten varmemodellen (KI
+Basseng 1.2) er Sirkulasjon fortsatt en fane.
+
+Tid og kostnad til målet krever KI Basseng 1.7. Med eldre integrasjon sier setningen bare
+hva vannet er og hva målet er.
+
+### Kontrollert
+
+Begge byggesjekkene er kjørt. Alle fanene er tegnet i Chromium i telefonbredde, også i
+vintermodus, uten faner, med en 2.x-liste og mot en integrasjon uten varmemodell.
+
+---
+
 # ki-cards 5.74.0
 
 ## ki-basseng-card 2.4.0: «Spart i dag» forklart, og fanerada ruller
