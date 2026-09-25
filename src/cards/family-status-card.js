@@ -851,26 +851,16 @@ class FamilyStatusCard extends LitElement {
     if (this._dobbelTimer) {
       window.clearTimeout(this._dobbelTimer);
       this._dobbelTimer = null;
-      /* Andre trykk: var menyen alt åpnet av det første, lukkes den før dobbelttrykket. */
-      if (this._serverGest() === "tap" && this._serverApen) this._serverApen = false;
       this._greetingGest("double_tap");
       return;
     }
-    /* Servermenyen skal komme med en gang, ikke etter 250 ms.
-       Ventingen finnes for å skille et trykk fra et dobbelttrykk – men å åpne en meny
-       er ufarlig å angre, så den åpnes på første trykk, og et andre trykk innen
-       fristen lukker den igjen og kjører dobbelttrykket. Før sto menyen og ventet på
-       at fristen skulle gå ut, og det kjentes tregt. */
-    if (this._serverGest() === "tap") {
-      this._greetingGest("tap");
-      // litt lenger frist enn 250 ms: på berøringsskjerm kommer andre trykk ofte senere
-      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 320);
-      return;
-    }
+    /* Vanlig dobbelttrykk: første trykk venter et øyeblikk. Kommer et andre trykk innen
+       fristen, er det et dobbelttrykk; ellers utføres trykket (f.eks. servermenyen).
+       Finnes det ingen dobbelttrykk-handling, kjøres trykket med en gang (se over). */
     this._dobbelTimer = window.setTimeout(() => {
       this._dobbelTimer = null;
       this._greetingGest("tap");
-    }, 250);
+    }, 280);
   }
 
   _onGreetingPointerCancel() {

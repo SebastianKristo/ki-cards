@@ -1,4 +1,4 @@
-/* ki-cards v8.99.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.99.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.99.0";
+  KI.VERSION = "8.99.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11713,7 +11713,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.1.1";
+const KI_VANN_VERSJON = "4.1.2";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12738,8 +12738,8 @@ class KiVanningCard extends HTMLElement {
     const faner = (c.faner || [])
       .filter((f) => f !== "innstillinger")
       .filter((f) => f !== "forbruk" || this._harFlyt())
-      // Forbruket ligger nå under Historikk (samle_forbruk: false gir egen fane igjen)
-      .filter((f) => !(f === "forbruk" && c.samle_forbruk !== false && (c.faner || []).includes("historikk") && this._kiEntitet()))
+      // samle_forbruk: true legger forbruket under Historikk i stedet for egen fane
+      .filter((f) => !(f === "forbruk" && c.samle_forbruk === true && (c.faner || []).includes("historikk") && this._kiEntitet()))
       // Historikken bygger på statistikken, og krever ingen vannmåler — men den er
       // meningsløs uten integrasjonen.
       .filter((f) => f !== "historikk" || !!this._kiEntitet());
@@ -13676,7 +13676,7 @@ class KiVanningCard extends HTMLElement {
     if (c.faner.includes("programmer")) sett("programmer", this._panelProgrammer());
     if (c.faner.includes("forbruk") && this._harFlyt()) sett("forbruk", this._panelForbruk());
     // Historikk trenger bare statistikken, ikke en vannmåler – den vises uansett
-    const samlet = c.samle_forbruk !== false && c.faner.includes("forbruk") && this._harFlyt() && !!this._kiEntitet();
+    const samlet = c.samle_forbruk === true && c.faner.includes("forbruk") && this._harFlyt() && !!this._kiEntitet();
     if (c.faner.includes("historikk")) sett("historikk", this._panelHistorikk()
       + (samlet ? `<div class="v4tittel" style="margin:16px 0 8px">Forbruk per sone</div>${this._panelForbruk()}` : ""));
     /* innstillingene ligger i overlegget – hold det oppdatert hvis det er åpent */
@@ -38017,26 +38017,16 @@ class FamilyStatusCard extends LitElement {
     if (this._dobbelTimer) {
       window.clearTimeout(this._dobbelTimer);
       this._dobbelTimer = null;
-      /* Andre trykk: var menyen alt åpnet av det første, lukkes den før dobbelttrykket. */
-      if (this._serverGest() === "tap" && this._serverApen) this._serverApen = false;
       this._greetingGest("double_tap");
       return;
     }
-    /* Servermenyen skal komme med en gang, ikke etter 250 ms.
-       Ventingen finnes for å skille et trykk fra et dobbelttrykk – men å åpne en meny
-       er ufarlig å angre, så den åpnes på første trykk, og et andre trykk innen
-       fristen lukker den igjen og kjører dobbelttrykket. Før sto menyen og ventet på
-       at fristen skulle gå ut, og det kjentes tregt. */
-    if (this._serverGest() === "tap") {
-      this._greetingGest("tap");
-      // litt lenger frist enn 250 ms: på berøringsskjerm kommer andre trykk ofte senere
-      this._dobbelTimer = window.setTimeout(() => { this._dobbelTimer = null; }, 320);
-      return;
-    }
+    /* Vanlig dobbelttrykk: første trykk venter et øyeblikk. Kommer et andre trykk innen
+       fristen, er det et dobbelttrykk; ellers utføres trykket (f.eks. servermenyen).
+       Finnes det ingen dobbelttrykk-handling, kjøres trykket med en gang (se over). */
     this._dobbelTimer = window.setTimeout(() => {
       this._dobbelTimer = null;
       this._greetingGest("tap");
-    }, 250);
+    }, 280);
   }
 
   _onGreetingPointerCancel() {
