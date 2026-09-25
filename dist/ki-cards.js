@@ -1,4 +1,4 @@
-/* ki-cards v5.72.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.73.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.72.0";
+  KI.VERSION = "5.73.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,7 +15004,7 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 2.2.0 - del av ki-cards
+ * ki-basseng-card 2.3.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -15015,6 +15015,7 @@ try {
  *   og «hvem la i» med navn fra integrasjonen, og fanene satt sammen til færre flater.
  * 2.2: kompakt, klor-ark med navn og redigerbar kalender, vintermodus, pooltak fra
  *   sensor og varsel når den ikke varmer.
+ * 2.3: høydene tilbake som før 2.2, og klor logges i kortet i stedet for i et ark.
  *
  * - Faneskinne øverst (samme pilleform som etasjefanene i ki-hjem-card);
  *   faner: false gir én flyt med utvidbare seksjoner i stedet.
@@ -15040,7 +15041,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "2.2.0";
+  const VERSJON = "2.3.0";
 
   /* Finner LitElement i frontend.
    *
@@ -16372,8 +16373,8 @@ try {
           </button>`;
       }
 
-      /* Klortabletter (2.2): et kompakt panel. Logging og kalender ligger i et eget
-         ark som åpnes herfra, fra Klor-flisa på Oversikt og fra varselet øverst. */
+      /* Klortabletter: én linje med status. Et trykk folder ut «hvem la i» og
+         kalenderen rett i kortet. */
       _klorPanel() {
         if (!this.st("sisteKlor") && !this.st("loggKlor")) return "";
         const siste = this.val("sisteKlor");
@@ -16386,14 +16387,18 @@ try {
         const sisteRad = (this.attr("sisteKlor", "historikk", []) || [])[0];
         return html`
           <section class="panel klorkort">
-            <button class="klorlinje" @click=${() => this._apneKlor()}>
+            <button class="klorlinje" @click=${() => this._apneKlor("varme")}>
               ${this._ring(pst, farge, siste ? nf(dager, dager < 10 ? 1 : 0) : "–", "dager", null, true)}
               <span class="klortekst">
                 <b>${!siste ? "Ingen klor logget" : forfall ? "På tide med klortablett" : `Neste ${this._dato(neste)}`}</b>
                 <span>${siste ? `Sist ${this._dato(siste)}${sisteRad && sisteRad.hvem ? ` · ${sisteRad.hvem}` : ""}` : "Trykk for å logge"}</span>
               </span>
-              <span class="klorknapp ${forfall ? "varsle" : ""}"><ha-icon icon="mdi:plus"></ha-icon>Logg</span>
+              <span class="klorknapp ${forfall ? "varsle" : ""}">
+                <ha-icon icon="mdi:${this._klorApen === "varme" ? "chevron-up" : "plus"}"></ha-icon>${this._klorApen === "varme" ? "Lukk" : "Logg"}</span>
             </button>
+            ${this._klorApen === "varme" ? html`
+              ${this._klorLogger("varme")}
+              ${this._klorKalender(neste, true)}` : ""}
           </section>`;
       }
 
@@ -16405,9 +16410,12 @@ try {
           : { weekday: "short", day: "numeric", month: "short" }).replace(".", "");
       }
 
-      _apneKlor() {
+      /* Klor logges der du er, uten overlegg: fra Oversikt folder et felt seg ut
+         rett under flisene, og på Varme folder klorkortet seg ut med kalenderen.
+         (Arket fra 2.2 la seg over popupen og var tungt å bruke på telefonen.) */
+      _apneKlor(hvor = "oversikt") {
         this._haptikk("selection");
-        this._klorArk = true;
+        this._klorApen = this._klorApen === hvor ? null : hvor;
         this._kalValgt = null;
         this._kalMnd = 0;
         this._klorAntall = 1;
@@ -16416,21 +16424,19 @@ try {
       }
 
       _lukkKlor() {
-        this._klorArk = false;
+        this._klorApen = null;
         this.requestUpdate();
       }
 
-      /* Arket: trykk på et navn og det er logget. Antallet står over, og velger du
-         en dag i kalenderen, logges det på den dagen i stedet for nå. Innslag i
-         kalenderen kan slettes. */
-      _klorArkMal() {
-        if (!this._klorArk) return "";
+      /* Hvem la i: ett trykk på et navn, så er det logget. Er en dag valgt i
+         kalenderen (på Varme), logges det på den dagen. */
+      _klorLogger(hvor) {
         const navn = this._klorNavn();
         const antall = this._klorAntall || 1;
         const idag = new Date();
         const nokkel = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
         let dag = null;
-        if (this._kalValgt && this._kalValgt !== nokkel(idag)) {
+        if (hvor === "varme" && this._kalValgt && this._kalValgt !== nokkel(idag)) {
           const [a, m, d] = this._kalValgt.split("-").map(Number);
           dag = new Date(a, m, d, 12, 0, 0);
         }
@@ -16443,49 +16449,41 @@ try {
           }
           this._haptikk("success");
           this.hass.callService("ki_basseng", "logg_klortablett", data);
-          this._klorKvittering = `${antall} ${antall === 1 ? "tablett" : "tabletter"}${hvem ? ` for ${hvem}` : ""}${dag ? `, ${this._dato(dag)}` : ""}`;
+          this._klorKvittering = `${antall} ${antall === 1 ? "tablett" : "tabletter"}${hvem ? ` · ${hvem}` : ""}${dag ? ` · ${this._dato(dag)}` : ""}`;
           this.requestUpdate();
           clearTimeout(this._kvitteringTimer);
-          this._kvitteringTimer = setTimeout(() => { this._klorKvittering = null; this.requestUpdate(); }, 2600);
+          this._kvitteringTimer = setTimeout(() => {
+            this._klorKvittering = null;
+            // Fra Oversikt lukkes feltet når det er gjort; på Varme blir kalenderen stående
+            if (hvor === "oversikt") this._klorApen = null;
+            this.requestUpdate();
+          }, 1800);
         };
+        if (this._klorKvittering) {
+          return html`<div class="kvittering"><ha-icon icon="mdi:check-circle"></ha-icon>Logget ${this._klorKvittering}</div>`;
+        }
         return html`
-          <div class="ark-bak" @click=${() => this._lukkKlor()}></div>
-          <div class="ark" role="dialog" aria-label="Klortabletter">
-            <div class="ark-hode">
-              <span class="ark-ik"><ha-icon icon="mdi:pill"></ha-icon></span>
-              <div>
-                <b>Logg klortablett</b>
-                <span>${dag ? `På ${this._dato(dag, true)}` : "Nå"}</span>
-              </div>
-              <button class="ark-lukk" aria-label="Lukk" @click=${() => this._lukkKlor()}><ha-icon icon="mdi:close"></ha-icon></button>
-            </div>
-
-            <div class="ark-antall">
-              <span>Antall</span>
-              <div class="steg-styr">
+          <div class="klorlogger">
+            <div class="kl-hode">
+              <span>Hvem la i klor${dag ? html` <em>${this._dato(dag)}</em>` : ""}?</span>
+              <span class="kl-antall">
                 <button aria-label="Færre" ?disabled=${antall <= 1}
-                  @click=${() => { this._klorAntall = Math.max(1, antall - 1); this._haptikk("selection"); this.requestUpdate(); }}>
-                  <ha-icon icon="mdi:minus"></ha-icon></button>
-                <span class="steg-verdi">${antall}</span>
+                  @click=${() => { this._klorAntall = Math.max(1, antall - 1); this._haptikk("selection"); this.requestUpdate(); }}>−</button>
+                <b>${antall} stk</b>
                 <button aria-label="Flere" ?disabled=${antall >= 10}
-                  @click=${() => { this._klorAntall = Math.min(10, antall + 1); this._haptikk("selection"); this.requestUpdate(); }}>
-                  <ha-icon icon="mdi:plus"></ha-icon></button>
-              </div>
+                  @click=${() => { this._klorAntall = Math.min(10, antall + 1); this._haptikk("selection"); this.requestUpdate(); }}>+</button>
+              </span>
             </div>
-
-            <div class="ark-navn">
+            <div class="kl-navn">
               ${navn.map((n) => html`
                 <button class="navneknapp" @click=${() => logg(n)}>
                   <span class="initial">${n.slice(0, 1).toUpperCase()}</span>${n}
                 </button>`)}
               <button class="navneknapp uten" @click=${() => logg("")}>
-                <span class="initial"><ha-icon icon="mdi:account-question-outline"></ha-icon></span>Uten navn
+                <span class="initial"><ha-icon icon="mdi:check"></ha-icon></span>${navn.length ? "Uten navn" : "Logg"}
               </button>
             </div>
-            ${!navn.length ? html`<div class="dempet">Legg til navn under tannhjulet → Klorlogg, så står de her.</div>` : ""}
-            ${this._klorKvittering ? html`<div class="kvittering"><ha-icon icon="mdi:check-circle"></ha-icon>Logget ${this._klorKvittering}</div>` : ""}
-
-            ${this._klorKalender(this.val("nesteKlor"), true)}
+            ${!navn.length ? html`<div class="dempet">Legg til navn under tannhjulet → Klorlogg, så kan du trykke på den som la i.</div>` : ""}
           </div>`;
       }
 
@@ -17257,6 +17255,7 @@ try {
                 <span>${planlagt} t i planen</span>
               </div>
               ${this._knapper()}
+              ${this._klorApen === "oversikt" ? html`<section class="panel klorfelt">${this._klorLogger("oversikt")}</section>` : ""}
               ${this._tallrad()}
               ${this._config.graf !== false && !this._harVarme()
                 ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
@@ -17309,7 +17308,6 @@ try {
               )}
             `}
             </div>
-            ${this._klorArkMal()}
           </ha-card>
         `;
       }
@@ -18788,86 +18786,20 @@ try {
           .spredtall em { font-style: normal; font-size: 12px; opacity: 0.6; }
           .spredtall .ispor { margin-top: 4px; }
           @media (prefers-reduced-motion: reduce) { .vg-napkt { animation: none; } }
-          /* --- 2.2: kompakt ---------------------------------------------
-             Kortet var for stort: ringer på 116 px, ikonfliser på 46, paneler med
-             14 px luft og store knapper. Alt krymper her i ett lag, så det er lett å
-             se hva som er endret og lett å justere. */
-          .innhold, .faneinnhold { gap: 8px; }
-          .panel { padding: 12px; gap: 10px; margin-top: 8px; border-radius: 22px; }
-          .skille { margin: 0 -12px; }
-          .phode { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; }
-          .pik { width: 36px; height: 36px; }
-          .pik ha-icon { --mdc-icon-size: 19px; }
-          .ptittel { font-size: 12.5px; }
-          .punder { font-size: 15px; }
-          .ringrad { grid-template-columns: 86px minmax(0, 1fr); gap: 12px; }
-          .ring { width: 86px; height: 86px; }
-          .ring circle { stroke-width: 8; }
-          .rtekst b { font-size: 20px; }
-          .rtekst span { font-size: 10.5px; }
-          .ring.mini { width: 52px; height: 52px; }
+          /* --- 2.3: nye deler, i samme størrelse som resten av kortet --- */
+          .ring.mini { width: 56px; height: 56px; }
           .ring.mini circle { stroke-width: 10; }
-          .ring.mini .rtekst b { font-size: 15px; }
-          .ring.mini .rtekst span { font-size: 9px; margin-top: -2px; }
-          .statliste { gap: 4px; }
-          .stat { padding: 5px 10px; border-radius: 12px; column-gap: 8px; grid-template-columns: 18px minmax(0, 1fr); }
-          .stat ha-icon { --mdc-icon-size: 17px; }
-          .stat .sv { font-size: 14.5px; }
-          .stat .sn { font-size: 11px; }
-          .statgrid .stat { padding: 9px 10px; }
-          .tips { padding: 7px 10px; font-size: 12px; border-radius: 12px; }
-          .pliste > * { min-height: 42px; }
-          .hero, .hero-innhold { min-height: 128px; }
-          .hero-innhold { padding: 14px 16px 12px; }
-          .temp { font-size: 38px; }
-          .temp span { font-size: 15px; }
-          .omsetning-tall { font-size: 20px; }
-          .fliser { gap: 6px; }
-          .flis { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 7px 10px 7px 7px; min-height: 52px; border-radius: 20px; }
-          .flis-ikon { width: 36px; height: 36px; }
-          .flis-ikon ha-icon { --mdc-icon-size: 19px; }
-          .flis-navn { font-size: 14px; }
-          .flis-tekst { font-size: 12px; }
-          .stor { padding: 11px; border-radius: 14px; font-size: 14px; }
-          .vpstatus { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 9px 12px; margin-bottom: 8px; }
-          .vpik { width: 40px; height: 40px; }
-          .vpik ha-icon { --mdc-icon-size: 22px; }
-          .vpstatus.av .vpik { width: 32px; height: 32px; }
-          .hurtig { gap: 6px; margin-bottom: 10px; }
-          .hk { aspect-ratio: auto; height: 56px; border-radius: 18px; gap: 3px; }
-          .hk ha-icon { --mdc-icon-size: 21px; }
-          .hk span { font-size: 10.5px; }
-          .idagcelle { padding: 9px 8px; }
-          .idagv { font-size: 20px; }
-          .steg-styr button { width: 34px; height: 34px; }
-          .steg-verdi { font-size: 19px; min-width: 56px; }
-          .takflis { grid-template-columns: 72px minmax(0, 1fr) auto; padding: 8px 12px 8px 10px; margin-top: 8px; border-radius: 20px; }
-          .takbilde { width: 72px; height: 40px; }
-          .taktekst b { font-size: 14px; }
-          .taktekst span { font-size: 12px; }
-          .vg-flate { height: 110px; }
-          .vg-stor b { font-size: 22px; }
-          .spar b { font-size: 18px; }
-          .spar > div { padding: 8px 10px; border-radius: 14px; }
-          .natt { height: 20px; }
-          .prisrad b { font-size: 17px; }
-          .spredscene svg { height: 120px; }
-          .spredtall b { font-size: 16px; }
-          .banner { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; }
-          .banner.natt-b, .banner.info { grid-template-columns: 44px minmax(0, 1fr); }
-          .bik { width: 44px; height: 44px; }
-          .bik ha-icon { --mdc-icon-size: 22px; }
-          .banner b { font-size: 13.5px; }
-          .banner small { font-size: 12px; }
-          .banner.info { background: var(--kib-surface); color: var(--kib-text); }
+          .ring.mini .rtekst b { font-size: 16px; }
+          .ring.mini .rtekst span { font-size: 9.5px; margin-top: -2px; }
+          .banner.info { grid-template-columns: 58px minmax(0, 1fr); background: var(--kib-surface); color: var(--kib-text); }
           .banner.info .bik { background: color-mix(in srgb, var(--kib-orange) 22%, transparent); color: var(--kib-orange); }
 
           .detaljer { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px;
             margin: -4px 0 -4px; background: none; color: var(--kib-muted); font-size: 12.5px; cursor: pointer; }
           .detaljer ha-icon { --mdc-icon-size: 17px; }
 
-          .klorkort { padding: 8px; }
-          .klorlinje { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+          .klorkort { padding: 10px; }
+          .klorlinje { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center;
             width: 100%; background: none; color: var(--kib-text); text-align: left; cursor: pointer; padding: 0 4px 0 0; }
           .klortekst { display: grid; gap: 1px; min-width: 0; }
           .klortekst b { font-size: 14.5px; font-weight: 500; }
@@ -18877,26 +18809,21 @@ try {
           .klorknapp ha-icon { --mdc-icon-size: 17px; }
           .klorknapp.varsle { background: var(--kib-orange); color: var(--kib-sort); }
 
-          .ark-bak { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.55);
-            animation: ark-inn-bak 0.2s ease; }
-          .ark { position: fixed; left: 50%; bottom: 0; z-index: 21; transform: translateX(-50%);
-            width: min(460px, 100%); max-height: 88vh; overflow-y: auto; box-sizing: border-box;
-            display: grid; gap: 12px; padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
-            background: var(--gray100, var(--kib-surface)); color: var(--kib-text);
-            border-radius: 26px 26px 0 0; animation: ark-inn 0.28s cubic-bezier(0.2, 0.9, 0.2, 1); }
-          @keyframes ark-inn { from { transform: translate(-50%, 40px); opacity: 0; } }
-          @keyframes ark-inn-bak { from { opacity: 0; } }
-          .ark-hode { display: grid; grid-template-columns: 40px minmax(0, 1fr) 36px; gap: 12px; align-items: center; }
-          .ark-hode b { display: block; font-size: 17px; font-weight: 500; }
-          .ark-hode span { font-size: 12.5px; opacity: 0.7; }
-          .ark-ik { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-            background: color-mix(in srgb, var(--kib-green) 25%, transparent); color: var(--kib-green); }
-          .ark-lukk { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
-            background: var(--kib-inner); color: var(--kib-text); cursor: pointer; }
-          .ark-antall { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 500; }
-          .ark-navn { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+          .klorfelt { padding: 12px; }
+          .klorlogger { display: grid; gap: 10px; }
+          .kl-hode { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            font-size: 14px; font-weight: 500; }
+          .kl-hode em { font-style: normal; color: var(--kib-orange); }
+          .kl-antall { display: inline-flex; align-items: center; gap: 2px; background: var(--kib-inner);
+            border-radius: 999px; padding: 3px; font-size: 13px; }
+          .kl-antall b { font-weight: 500; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+          .kl-antall button { width: 30px; height: 30px; border-radius: 50%; background: var(--kib-surface);
+            color: var(--kib-text); font-size: 17px; line-height: 1; cursor: pointer; }
+          .kl-antall button[disabled] { opacity: 0.35; cursor: default; }
+          .kl-navn { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+          .klorkort .kal { margin-top: 2px; }
           .navneknapp { display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-radius: 18px;
-            background: var(--kib-surface); color: var(--kib-text); font-size: 15px; font-weight: 500; cursor: pointer;
+            background: var(--kib-inner); color: var(--kib-text); font-size: 15px; font-weight: 500; cursor: pointer; min-height: 52px;
             text-align: left; transition: transform 0.12s cubic-bezier(0.2, 1.3, 0.3, 1), background 0.2s; }
           .navneknapp:active { transform: scale(0.95); background: var(--kib-green); color: var(--kib-sort); }
           .initial { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none;
@@ -18907,11 +18834,7 @@ try {
           .kvittering { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 14px;
             background: color-mix(in srgb, var(--kib-green) 20%, transparent); font-size: 13.5px; font-weight: 500; }
           .kvittering ha-icon { --mdc-icon-size: 18px; color: var(--kib-green); }
-          .ark .kal { background: var(--kib-surface); }
-          .ark .kal-pil { background: var(--kib-inner); }
           .kal-dag.fremtid .kal-tall { opacity: 0.35; }
-          .ark .kal { gap: 4px; padding: 8px; }
-          .ark .kal-dag { aspect-ratio: auto; height: 38px; border-radius: 10px; }
           .kal-dag[disabled] { cursor: default; }
 
           .hero.vinter .vann { background: linear-gradient(180deg, rgba(160, 200, 235, 0.35), rgba(120, 160, 200, 0.55)); }
@@ -18919,7 +18842,6 @@ try {
             background: color-mix(in srgb, var(--kib-blue) 22%, transparent); color: var(--kib-blue); }
           .takflis.vinterav { grid-template-columns: 52px minmax(0, 1fr) auto; }
           .taksensor { --mdc-icon-size: 22px; opacity: 0.8; }
-          @media (prefers-reduced-motion: reduce) { .ark, .ark-bak { animation: none; } }
 
 
           @media (prefers-reduced-motion: reduce) {
