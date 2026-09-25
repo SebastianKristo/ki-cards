@@ -1,3 +1,18 @@
+# ki-cards 5.77.1
+
+## ki-basseng-card 3.2.1: vannflisen kommer med en gang, og «Spart i dag» virker
+
+- **Vannflisen lastet sakte.** Den lå i en `css-swipe-card`, som bygger kortene sine først
+  når den har fått plass og hass, og i popupen tok det flere sekunder. Nå blar
+  bassengkortet selv mellom de samme `universal_sensor_ny`-kortene, med prikkene fra
+  css-swipe-card (`--gray400` aktiv, `--gray200` ellers). Kortene lages én gang og beholdes.
+- **Trykk på «Spart i dag» viste ikke oppdelingen.** Den foldet seg ut langt nede, under
+  «I dag», og noen utgaver av button-card sender ikke med egne nøkler i handlingen. Nå
+  kjennes trykket igjen på kortet det kom fra, og oppdelingen legger seg rett under
+  flisene og rulles fram. Det samme gjelder Spart-raden i «I dag».
+
+---
+
 # ki-cards 5.77.0
 
 ## ki-basseng-card 3.2.0: flisene er dashbordets egne kort
