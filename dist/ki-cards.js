@@ -1,4 +1,4 @@
-/* ki-cards v8.95.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.96.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.95.1";
+  KI.VERSION = "8.96.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11713,7 +11713,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "3.13.0";
+const KI_VANN_VERSJON = "4.0.0";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12214,6 +12214,102 @@ const KI_VANN_STIL = `
     transform-origin:50% 100%; animation:va-svai 2.6s ease-in-out infinite alternate; }
   @keyframes va-svai { from { transform:rotate(-8deg); } to { transform:rotate(8deg); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
+  /* ---------- Vanning v4 ---------- */
+  .v4kort { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:24px; padding:18px;
+    display:flex; flex-direction:column; gap:14px; margin-bottom:10px; }
+  .v4etikett { font-size:12px; color:var(--gray800,#8e8d89); }
+  .v4tittel { font-size:12px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--gray800,#8e8d89); padding:0 4px; }
+  /* vanner nå */
+  .v4kjor { position:relative; overflow:hidden; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--blue,#6ec6ff) 45%, transparent); border:0; }
+  .v4kjor .fyll { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, color-mix(in srgb, var(--blue,#6ec6ff) 5%, transparent), color-mix(in srgb, var(--blue,#6ec6ff) 16%, transparent)); transition:width 1s linear; }
+  .v4kjor > :not(.fyll) { position:relative; }
+  .v4kjor .topp { display:flex; align-items:flex-start; gap:12px; }
+  .v4kjor .hva { flex:1; min-width:0; display:grid; gap:3px; }
+  .v4kjor .hva .e { font-size:12px; color:var(--blue,#6ec6ff); }
+  .v4kjor .hva .n { font-size:18px; font-weight:500; }
+  .v4kjor .hva .u { font-size:12px; opacity:.65; }
+  .v4kjor .igjen { font-size:40px; font-weight:300; letter-spacing:-.03em; line-height:1; font-variant-numeric:tabular-nums; }
+  .v4kjor .bunn { display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+  .v4stopp { height:36px; padding:0 14px 0 10px; border-radius:18px; border:0; background:var(--blue,#6ec6ff); color:#141416;
+    display:flex; align-items:center; gap:6px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; --mdc-icon-size:18px; }
+  /* neste vanning */
+  .v4neste .topp { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+  .v4neste .naar { font-size:15px; font-weight:500; white-space:nowrap; margin-top:4px; }
+  .v4neste .kl { font-size:52px; font-weight:300; letter-spacing:-.04em; line-height:.9; font-variant-numeric:tabular-nums; }
+  .v4rad { display:flex; align-items:center; gap:12px; padding:10px 0; }
+  .v4rad + .v4rad { border-top:1px solid rgba(255,255,255,.06); }
+  .v4ik { width:34px; height:34px; border-radius:50%; flex:none; display:grid; place-items:center; --mdc-icon-size:18px;
+    background:color-mix(in srgb, var(--blue,#6ec6ff) 22%, #262629); color:var(--blue,#6ec6ff); }
+  .v4rad .midt { flex:1; min-width:0; display:grid; gap:2px; }
+  .v4rad .midt b { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .v4rad .midt span, .v4rad .mengde { font-size:12px; opacity:.6; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .v4rad .kode { opacity:.55; font-variant-numeric:tabular-nums; }
+  .v4knapper { display:flex; gap:8px; }
+  .v4knapper button { flex:1; height:44px; border-radius:16px; border:0; background:var(--gray100,#1f1f21); color:inherit;
+    display:flex; align-items:center; justify-content:center; gap:6px; font:inherit; font-size:14px; font-weight:500; cursor:pointer; --mdc-icon-size:20px; }
+  .v4knapper button.strek { background:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.1); opacity:.85; }
+  /* neste 7 dager */
+  .v4uke { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; align-items:end; height:96px; }
+  .v4uke > div { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; height:100%; }
+  .v4uke i { width:100%; max-width:34px; border-radius:8px; background:color-mix(in srgb, var(--blue,#6ec6ff) 45%, transparent); }
+  .v4uke i.tom { height:4px; background:var(--gray100,#1f1f21); }
+  .v4uke i.forst { background:color-mix(in srgb, var(--blue,#6ec6ff) 90%, transparent); }
+  .v4uke span { font-size:11px; opacity:.6; white-space:nowrap; }
+  .v4uke span.idag { opacity:1; }
+  .v4to { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+  .v4flis { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:20px; padding:14px 16px; display:grid; gap:4px; cursor:pointer; }
+  .v4flis .e { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--gray800,#8e8d89); --mdc-icon-size:16px; }
+  .v4flis .v { font-size:16px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .v4flis .v small { font-size:12px; opacity:.6; font-weight:400; }
+  /* soner */
+  .v4gruppe { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .v4gruppe .hode { display:flex; justify-content:space-between; align-items:baseline; padding:0 4px; }
+  .v4gruppe .hode small { font-size:12px; opacity:.5; }
+  .v4liste { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:22px; padding:4px 12px 4px 14px; }
+  .v4sone { position:relative; display:flex; align-items:center; gap:12px; padding:10px 0; cursor:pointer; }
+  .v4sone + .v4sone, .v4sone + .valg + .v4sone { border-top:1px solid rgba(255,255,255,.06); }
+  .v4sone .fyll { position:absolute; left:-14px; top:0; bottom:0; background:color-mix(in srgb, var(--blue,#6ec6ff) 10%, transparent); }
+  .v4sone > :not(.fyll) { position:relative; }
+  .v4sone .v4ik { width:36px; height:36px; }
+  .v4sone.gaar .v4ik { background:var(--blue,#6ec6ff); color:#141416; }
+  .v4sone.av { opacity:.5; }
+  .v4sone .midt span.gaar { color:var(--blue,#6ec6ff); opacity:1; }
+  .v4spill { width:40px; height:40px; border-radius:50%; flex:none; border:0; display:grid; place-items:center; cursor:pointer;
+    background:var(--gray100,#1f1f21); color:inherit; --mdc-icon-size:20px; }
+  .v4sone.gaar .v4spill { background:var(--blue,#6ec6ff); color:#141416; }
+  .v4liste .valg { display:grid; grid-template-columns:repeat(auto-fit, minmax(58px,1fr)); gap:6px; padding:0 0 12px 48px; }
+  .v4liste .valg .vk { border-radius:999px; padding:9px 2px; background:var(--gray100,#1f1f21); }
+  .v4av { height:48px; border-radius:18px; border:0; background:none; color:inherit; opacity:.7; width:100%;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; gap:8px; font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
+  .v4brikker { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .v4brikker span { height:32px; padding:0 12px; border-radius:16px; display:flex; align-items:center; font-size:12px; opacity:.55;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); }
+  /* programmer */
+  .v4prog { display:flex; align-items:center; gap:12px; padding:14px 14px 14px 16px; border-radius:20px; margin-bottom:8px;
+    background:var(--gray200,#262629); box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); transition:opacity .2s; }
+  .v4prog.av { opacity:.55; }
+  .v4prog.gaar { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--blue,#6ec6ff) 45%, transparent); }
+  .v4prog .tid { width:64px; flex:none; }
+  .v4prog .tid b { display:block; font-size:24px; font-weight:300; letter-spacing:-.02em; line-height:1; font-variant-numeric:tabular-nums; }
+  .v4prog .tid span { font-size:11px; opacity:.6; white-space:nowrap; }
+  .v4prog .midt { flex:1; min-width:0; display:grid; gap:3px; }
+  .v4prog .midt b { font-size:15px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .v4prog .midt span { font-size:12px; opacity:.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .v4prog .v4spill { width:38px; height:38px; }
+  .v4bryter { position:relative; width:50px; height:30px; border-radius:15px; flex:none; background:#48474a; cursor:pointer; transition:background .2s; }
+  .v4bryter i { position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:12px; background:#f4f3ef; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:left .2s; }
+  .v4bryter.pa { background:var(--green,#5fc27e); }
+  .v4bryter.pa i { left:23px; }
+  .v4agenda { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:22px; padding:4px 16px; margin-top:8px; }
+  .v4dag { padding:12px 0; }
+  .v4dag + .v4dag { border-top:1px solid rgba(255,255,255,.06); }
+  .v4dag .dh { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding-bottom:6px; }
+  .v4dag .dh b { font-size:14px; font-weight:500; }
+  .v4dag .dh span, .v4dag .ar .m { font-size:12px; opacity:.6; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .v4dag .ar { display:flex; align-items:center; gap:12px; padding:5px 0; }
+  .v4dag .ar .t { width:40px; flex:none; font-size:13px; opacity:.8; font-variant-numeric:tabular-nums; }
+  .v4dag .ar i { width:6px; height:6px; border-radius:3px; flex:none; background:color-mix(in srgb, var(--blue,#6ec6ff) 60%, transparent); }
+  .v4dag .ar .n { flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 `;
 
 const kiVaEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -12999,66 +13095,112 @@ class KiVanningCard extends HTMLElement {
       </div>`;
   }
 
+  /* «Nå» etter Vanning v4: det som vanner (med nedtelling og fyll), neste vanning med de
+     første sonene og Kjør nå / Hopp over, de neste sju dagene som søyler, og strøm og sist
+     vannet som to fliser. Regnpausen står øverst når den er på. Uten KI Vanning faller fanen
+     tilbake til nøkkelflisene fra OpenSprinkler. */
   _panelNaa() {
-    const s = this._styring(), z = this._soner(), p = this._programmer();
-    const gaar = z.filter((x) => this._on(x.gaar));
-    const koer = p.filter((x) => this._on(x.gaar));
-    /* Én nøkkelflis: ikon, navn og verdi. Tidspunkter formateres, tall får enhet. */
-    const flis = (navn, id, ikon, farge, verdi) => {
-      const st = this._st(id); if (!st || ["unknown", "unavailable"].includes(st.state)) return "";
-      const v = verdi !== undefined ? verdi : kiVaEsc(st.state);
-      if (v === "" || v === null) return "";
-      return `<div class="nk" data-e="${id}" style="--nk-farge:${farge}">
-        <span class="ik"><ha-icon icon="${ikon}"></ha-icon></span>
-        <div><div class="n">${navn}</div><div class="v">${v}</div></div></div>`;
-    };
-    const tid = (id) => { const st = this._st(id); return st ? this._tidFlis(st.state) : ""; };
-    const strom = this._strom(s.strom);
-    const flyt = this._st(s.flyt);
-    const regn = this._on(s.regn);
-    const regnTil = this._st(s.regn_til);
-    const regnIgjen = regnTil ? this._igjen(regnTil.state) : "";
-    const regndrapper = Array.from({ length: 16 }, (_, i) =>
-      `<i style="left:${(i * 29 + 7) % 97}%;animation-duration:${(0.9 + (i % 4) * 0.2).toFixed(1)}s;animation-delay:-${((i * 0.31) % 1.4).toFixed(2)}s"></i>`).join("");
-    return `
-      ${koer.length ? `<div class="statuskort program" data-e="${koer[0].bryter}">
-        <span class="sik"><ha-icon icon="mdi:sprinkler-variant"></ha-icon></span>
-        <div><div class="tt">${kiVaEsc(koer[0].navn)}</div>
-          <div class="ut">Kjører nå${gaar.length ? ` · <b>${kiVaEsc(gaar[0].navn)}</b>` : ""}</div></div>
-        <button class="sknapp" data-h2="stopp">Stopp</button></div>` : ""}
-      ${regn ? `<div class="statuskort" data-e="${s.regn}">
-        <div class="regnbak">${regndrapper}</div>
-        <span class="sik"><ha-icon icon="mdi:weather-pouring"></ha-icon></span>
-        <div><div class="tt">Regnpause</div>
-          <div class="ut">${regnTil ? `Til <b>${kiVaEsc(this._tidTekst(regnTil.state))}</b>` : "Vanningen står over"}${
-            regnIgjen ? ` · ${regnIgjen} igjen` : ""}</div></div>
-        <button class="sknapp" data-h2="regn0">Avslutt</button></div>` : ""}
-      ${(() => { const ki = this._ki(); if (!ki || !this._harFlyt()) return "";
-        const n = ki.neste || {};
-        return `<div class="maal">
-          <div class="rad"><div><div class="stor">${this._litertekst(ki.i_dag)}</div>
-            <div class="und">brukt i dag${ki.kostnad_i_dag ? ` · ${Number(ki.kostnad_i_dag).toFixed(2)} kr` : ""}</div></div>
-            <div style="text-align:right"><div class="stor" style="font-size:1.1em">${this._litertekst(ki.estimat_i_dag)}</div>
-            <div class="und">planlagt i dag</div></div></div>
-          <div class="stolpe ${this._aktivSone() ? "lever" : ""}"><i style="width:${
-            ki.estimat_i_dag ? Math.min(100, (ki.i_dag / ki.estimat_i_dag) * 100).toFixed(1) : 0}%"></i></div>
-          ${n.navn ? `<div class="und">Neste: ${kiVaEsc(n.navn)} ${kiVaEsc(n.naar || "")} ${kiVaEsc(n.tid || "")}${
-            n.total_min ? ` · ${n.total_min} min · ca. ${Math.round(n.estimat_liter || 0)} L` : ""}</div>` : ""}
-        </div>`; })()}
-      <div class="nokkel">
-        ${flis("Neste kjøring", s.neste, "mdi:calendar-arrow-right", "var(--green,#7ee081)", tid(s.neste))}
-        ${flis("Siste kjøring", s.siste, "mdi:history", "var(--gray1000,#fafbfc)", tid(s.siste))}
-        ${strom ? flis("Strøm", s.strom, "mdi:flash", "var(--yellow,#ffd60a)",
-          `${Math.round(strom.mA)} mA <small>· ca. ${strom.W.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} W</small>`) : ""}
-        ${flyt ? flis("Flyt", s.flyt, "mdi:waves-arrow-right", "var(--blue,#6ec6ff)",
-          `${kiVaEsc(flyt.state)} <small>${kiVaEsc((flyt.attributes || {}).unit_of_measurement || "")}</small>`) : ""}
-        ${this._c.vis_vanniva ? flis("Vannivå", s.vannivaa, "mdi:water-percent", "var(--blue,#6ec6ff)",
-          this._st(s.vannivaa) ? `${kiVaEsc(this._st(s.vannivaa).state)} %` : "") : ""}
-        ${this._c.vinter ? `<div class="nk" data-e="${this._c.vinter}" style="--nk-farge:var(--blue,#6ec6ff)">
-          <span class="ik"><ha-icon icon="mdi:snowflake"></ha-icon></span>
-          <div><div class="n">Vintermodus</div>
-          <div class="v">${this._on(this._c.vinter) ? "På – alt stengt" : "Av"}</div></div></div>` : ""}
+    const s = this._styring(), ki = this._ki(), z = this._aktivSone();
+    const pl = ki && ki.planlegger;
+    const nf = (n) => Math.round(Number(n) || 0).toLocaleString("nb-NO");
+    const soner = this._soner();
+    const soneFor = (x) => soner.find((y) => (x.nr != null && Number(y.nr) === Number(x.nr)) || String(y.navn).toLowerCase() === String(x.navn || "").toLowerCase()) || null;
+    const rate = (x) => { const k = ((ki && ki.soner) || []).find((y) => Number(y.nr) === Number(x.nr) || y.navn === x.navn); return k && k.rate ? Number(k.rate) : 8; };
+    const kode = (y) => (y && y.nr && y.nr !== "00" ? `S${y.nr}` : "");
+    let html = "";
+
+    // vanner nå
+    if (z || (pl && pl.kjorer)) {
+      const navn = z ? z.navn : (pl.sone || pl.program || "Vanning");
+      const igjen = this._slutt ? Math.max(0, Math.round((this._slutt - Date.now()) / 1000)) : 0;
+      const pst = this._total ? Math.min(100, 100 - (igjen / this._total) * 100) : 0;
+      const koe = pl && pl.i_koe && pl.i_koe.length ? pl.i_koe[0] : null;
+      const kiSone = z && ki ? (ki.soner || []).find((y) => Number(y.nr) === Number(z.nr)) : null;
+      html += `<div class="v4kort v4kjor" ${z ? `data-e="${z.bryter}"` : ""}>
+        <div class="fyll" style="width:${pst.toFixed(1)}%"></div>
+        <div class="topp"><div class="hva"><div class="e">Vanner nå</div>
+          <div class="n">${kiVaEsc([kode(z), navn].filter(Boolean).join(" "))}</div>
+          <div class="u">${kiVaEsc([z && z.metode, koe ? `neste: ${koe.navn || koe}` : ""].filter(Boolean).join(" · "))}</div></div>
+          <div class="igjen">${igjen ? `${Math.floor(igjen / 60)}:${String(igjen % 60).padStart(2, "0")}` : ""}</div></div>
+        <div class="bunn"><span style="opacity:.8">${kiSone && kiSone.i_dag ? `${nf(kiSone.i_dag)} L i dag` : ""}</span>
+          <button class="v4stopp" data-h2="stopp"><ha-icon icon="mdi:stop"></ha-icon>Stopp</button></div>
       </div>`;
+    }
+
+    // regnpause
+    const regn = this._on(s.regn) || !!(ki && ki.regnpause);
+    if (regn) {
+      const regnTil = this._st(s.regn_til);
+      const regnIgjen = regnTil ? this._igjen(regnTil.state) : "";
+      const drapper = Array.from({ length: 16 }, (_, i) =>
+        `<i style="left:${(i * 29 + 7) % 97}%;animation-duration:${(0.9 + (i % 4) * 0.2).toFixed(1)}s;animation-delay:-${((i * 0.31) % 1.4).toFixed(2)}s"></i>`).join("");
+      html += `<div class="statuskort" data-e="${s.regn || ""}"><div class="regnbak">${drapper}</div>
+        <span class="sik"><ha-icon icon="mdi:weather-pouring"></ha-icon></span>
+        <div><div class="tt">Regnpause</div><div class="ut">${regnTil ? `Til <b>${kiVaEsc(this._tidTekst(regnTil.state))}</b>` : "Vanningen står over"}${regnIgjen ? ` · ${regnIgjen} igjen` : ""}</div></div>
+        <button class="sknapp" data-h2="regn0">Avslutt</button></div>`;
+    }
+
+    // neste vanning
+    const plan = ((ki && ki.programmer) || []).filter((x) => (x.minutter_til ?? 0) >= 0)
+      .map((x) => ({ ...x, d: x.start ? new Date(x.start) : null }))
+      .sort((a, b) => (a.d ? a.d.getTime() : Infinity) - (b.d ? b.d.getTime() : Infinity));
+    const neste = plan[0] || null;
+    const n = (ki && ki.neste) || {};
+    if (neste || n.navn) {
+      const d = neste && neste.d;
+      const dagNavn = (dt) => { const idag = new Date(); idag.setHours(0, 0, 0, 0); const x = new Date(dt); x.setHours(0, 0, 0, 0);
+        const diff = Math.round((x - idag) / 864e5); if (diff === 0) return "I dag"; if (diff === 1) return "I morgen";
+        const w = dt.toLocaleDateString("nb-NO", { weekday: "long" }); return w.charAt(0).toUpperCase() + w.slice(1); };
+      const naar = d ? `${dagNavn(d)} ${d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" })}` : (n.naar || "");
+      const kl = (neste && neste.tid) || n.tid || "";
+      const sonerNeste = ((neste && neste.soner) || []).slice(0, 3);
+      const kanHoppe = !!(this._h.services && this._h.services.ki_vanning && this._h.services.ki_vanning.hopp_over);
+      html += `<div class="v4kort v4neste">
+        <div class="topp"><div><div class="v4etikett">Neste vanning</div>
+          <div class="naar">${kiVaEsc(naar)}${regn ? " · utsettes" : ""}</div></div>
+          <div class="kl">${kiVaEsc(kl)}</div></div>
+        ${sonerNeste.length ? `<div>${sonerNeste.map((x) => { const y = soneFor(x) || {};
+          const L = (Number(x.min) || 0) * rate(x);
+          return `<div class="v4rad"><span class="v4ik"><ha-icon icon="${kiVaIkon(y.metode || x.navn)}"></ha-icon></span>
+            <div class="midt"><b><span class="kode">${kiVaEsc(kode(y))}</span> ${kiVaEsc(x.navn || y.navn || "")}</b>
+              <span>${kiVaEsc([neste.navn, y.metode].filter(Boolean).join(" · "))}</span></div>
+            <div class="mengde">${x.min ? `${x.min} min` : ""}${L ? ` · ${nf(L)} L` : ""}</div></div>`; }).join("")}</div>`
+          : neste || n.navn ? `<div class="v4rad"><span class="v4ik"><ha-icon icon="mdi:calendar-clock"></ha-icon></span>
+            <div class="midt"><b>${kiVaEsc((neste && neste.navn) || n.navn)}</b>
+              <span>${kiVaEsc([(neste && neste.total_min) || n.total_min ? `${(neste && neste.total_min) || n.total_min} min` : "", ((neste && neste.estimat_liter) || n.estimat_liter) ? `ca. ${nf((neste && neste.estimat_liter) || n.estimat_liter)} L` : ""].filter(Boolean).join(" · "))}</span></div></div>` : ""}
+        <div class="v4knapper">
+          <button data-kjorprog="${kiVaEsc((neste && neste.navn) || n.navn || "")}"><ha-icon icon="mdi:play"></ha-icon>Kjør nå</button>
+          ${kanHoppe ? `<button class="strek" data-hopp="${kiVaEsc((neste && neste.navn) || n.navn || "")}"><ha-icon icon="mdi:skip-next"></ha-icon>Hopp over</button>` : ""}
+        </div></div>`;
+    }
+
+    // neste 7 dager
+    if (plan.length) {
+      const dager = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d; });
+      const liter = dager.map((d) => plan.filter((x) => x.d && x.d.toDateString() === d.toDateString())
+        .reduce((t, x) => t + (Number(x.estimat_liter) || 0), 0));
+      const maks = Math.max(1, ...liter);
+      const forsteMed = liter.findIndex((v) => v > 0);
+      const sum = liter.reduce((a, b) => a + b, 0);
+      html += `<div class="v4kort" style="padding:16px 18px 14px;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="v4etikett">Neste 7 dager</span>
+          <span class="v4etikett">${nf(sum)} L planlagt</span></div>
+        <div class="v4uke">${dager.map((d, i) => `<div>
+          <i class="${liter[i] ? (i === forsteMed ? "forst" : "") : "tom"}" style="${liter[i] ? `height:${Math.max(8, (liter[i] / maks) * 64).toFixed(0)}px` : ""}" title="${nf(liter[i])} L"></i>
+          <span class="${i ? "" : "idag"}">${i ? (() => { const w = d.toLocaleDateString("nb-NO", { weekday: "short" }).replace(".", ""); return w.charAt(0).toUpperCase() + w.slice(1); })() : "I dag"}</span></div>`).join("")}</div>
+      </div>`;
+    }
+
+    // to fliser: strøm og sist vannet
+    const strom = this._strom(s.strom);
+    const siste = this._st(s.siste);
+    html += `<div class="v4to">
+      ${strom ? `<div class="v4flis" data-e="${s.strom}"><div class="e"><ha-icon icon="mdi:lightning-bolt" style="color:var(--yellow,#ffd60a)"></ha-icon>Strøm</div>
+        <div class="v">${Math.round(strom.mA)} mA <small>· ca. ${strom.W.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} W</small></div></div>` : ""}
+      ${siste && !["unknown", "unavailable"].includes(siste.state) ? `<div class="v4flis" data-e="${s.siste}"><div class="e"><ha-icon icon="mdi:history" style="color:var(--blue,#6ec6ff)"></ha-icon>Sist vannet</div>
+        <div class="v">${this._tidFlis(siste.state)}</div></div>` : ""}
+    </div>`;
+    return html;
   }
 
   /* Sonene som fliser i et rutenett, gruppert på boks.
@@ -13067,37 +13209,37 @@ class KiVanningCard extends HTMLElement {
    * soner ga 54 knapper på skjermen. Nå vises knappene bare på sonen du trykker på;
    * den brer seg da over hele bredden. Sonen som vanner, står i blått med pulserende
    * ikon, så du ser den uten å lete. */
+  /* Sonene som lister per boks, etter v4: ikon, «S05 Plen nord», metode og status, og
+     spill/stopp til høyre. Trykk på raden legger fram varighetene; spilleknappen starter med
+     standardvarigheten. Deaktiverte soner ligger bak en egen knapp nederst. */
   _panelSoner() {
     const z = this._soner(), c = this._c;
     if (!z.length) return `<div class="tom">Fant ingen soner. Sjekk at OpenSprinkler-integrasjonen er satt opp.</div>`;
     const vinter = this._c.vinter && this._on(this._c.vinter);
+    const aktive = z.filter((x) => this._on(x.bryter) || this._ventilmodus());
+    const av = z.filter((x) => !(this._on(x.bryter) || this._ventilmodus()));
     const bokser = {};
-    z.forEach((x) => { const b = x.boks || "–"; (bokser[b] = bokser[b] || []).push(x); });
-    const varigheter = c.varigheter;
-    const flereBokser = Object.keys(bokser).length > 1;
-    return Object.keys(bokser).sort().map((b) => `<div class="sonegruppe">
-      ${flereBokser ? `<div class="gruppetittel">${b === "–" ? "Soner" : /^\d+$/.test(b) ? "Boks " + b : kiVaEsc(b)}
-        · ${bokser[b].length} ${bokser[b].length === 1 ? "sone" : "soner"}</div>` : ""}
-      <div class="sonegrid">${bokser[b].map((x) => {
-        const gaar = this._on(x.gaar), av = !this._on(x.bryter);
-        const st = this._st(x.status);
-        const status = vinter ? "Vinterstengt" : gaar ? "Vanner nå" : av ? "Deaktivert"
-          : (st && !["unknown", "unavailable", "idle"].includes(st.state) ? st.state : "Klar");
-        const aapen = this._aapenSone === x.nr;
-        return `<div class="soneflis ${gaar ? "gaar" : ""} ${av ? "av" : ""} ${aapen || gaar ? "aapen" : ""}"
-          data-sone="${x.nr}" role="button" tabindex="0">
-          <div class="topp">
-            <span class="zik"><ha-icon icon="${kiVaIkon(x.metode || x.navn)}"></ha-icon></span>
-            <div><div class="zn">${kiVaEsc(x.navn)}</div>
-              <div class="zs">${kiVaEsc(status)}${x.metode ? ` · ${kiVaEsc(x.metode)}` : ""}</div></div>
-          </div>
-          ${aapen || gaar ? `<div class="valg">
-            ${gaar ? "" : varigheter.map((m) => `<button class="vk" data-z="${x.nr}" data-min="${m}">${m} min</button>`).join("")}
-            ${gaar ? `<button class="vk stopp" data-z="${x.nr}" data-min="0">Stopp</button>` : ""}
-          </div>` : ""}
-        </div>`;
-      }).join("")}</div>
-    </div>`).join("");
+    aktive.forEach((x) => { const b = x.boks || "–"; (bokser[b] = bokser[b] || []).push(x); });
+    const std = Number(c.standard_min) || (c.varigheter && c.varigheter[1]) || 10;
+    const rad = (x) => {
+      const gaar = this._on(x.gaar), st = this._st(x.status);
+      const status = vinter ? "Vinterstengt" : gaar ? `Vanner${st && /\d:\d\d/.test(st.state) ? ` · ${st.state} igjen` : ""}` : "";
+      const aapen = this._aapenSone === x.nr && !gaar;
+      return `<div class="v4sone ${gaar ? "gaar" : ""}" data-sone="${x.nr}" role="button" tabindex="0">
+          ${gaar && this._total ? `<div class="fyll" style="width:calc(${(100 - ((Math.max(0, (this._slutt - Date.now()) / 1000)) / this._total) * 100).toFixed(1)}% + 14px)"></div>` : ""}
+          <span class="v4ik"><ha-icon icon="${kiVaIkon(x.metode || x.navn)}"></ha-icon></span>
+          <div class="midt"><b><span class="kode">S${kiVaEsc(x.nr)}</span> ${kiVaEsc(x.navn)}</b>
+            <span class="${gaar ? "gaar" : ""}">${kiVaEsc(status || [x.metode, `${std} min`].filter(Boolean).join(" · "))}</span></div>
+          <button class="v4spill" data-z="${x.nr}" data-min="${gaar ? 0 : std}" aria-label="${gaar ? "Stopp" : "Start"}"><ha-icon icon="${gaar ? "mdi:stop" : "mdi:play"}"></ha-icon></button>
+        </div>
+        ${aapen ? `<div class="valg">${(c.varigheter || [5, 10, 15, 30]).map((m) => `<button class="vk" data-z="${x.nr}" data-min="${m}">${m} min</button>`).join("")}</div>` : ""}`;
+    };
+    return Object.keys(bokser).sort().map((b) => `<div class="v4gruppe">
+        <div class="hode"><span class="v4tittel" style="padding:0">${b === "–" ? "Soner" : /^\d+$/.test(b) ? "Boks " + b : kiVaEsc(b)}</span>
+          <small>${bokser[b].length} ${bokser[b].length === 1 ? "sone" : "soner"}</small></div>
+        <div class="v4liste">${bokser[b].map(rad).join("")}</div></div>`).join("")
+      + (av.length ? `<button class="v4av" data-visav="1"><ha-icon icon="mdi:chevron-down" style="${this._visAv ? "transform:rotate(180deg)" : ""}"></ha-icon>${av.length} deaktiverte soner</button>
+        ${this._visAv ? `<div class="v4brikker">${av.map((x) => `<span>S${kiVaEsc(x.nr)} ${kiVaEsc(x.navn)}</span>`).join("")}</div>` : ""}` : "");
   }
 
   /* Skjema for å lage eller endre et program. Bare i ventilmodus, der KI Vanning
@@ -13251,28 +13393,19 @@ class KiVanningCard extends HTMLElement {
         : (o.dager && o.dager.length && o.dager.length < 7 ? o.dager.map((d) => dagNavn[d] || d).join(", ") : "hver dag");
       const meta = [dagsliste, total ? `${total} min` : "", liter ? `ca. ${Math.round(liter)} L` : ""].filter(Boolean).join(" · ");
       const lengst = Math.max(1, ...soner.map((z) => Number(z.min) || 0));
-      return `<div class="pk2 ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
-        <div class="hode">
-          <span class="pik"><ha-icon icon="${gaar ? "mdi:sprinkler-variant" : "mdi:calendar-clock"}"></ha-icon></span>
-          <div><div class="pn"><span>${kiVaEsc(x.navn)}</span>
-              ${o.samtidig ? `<span class="merkelapp ${gaar ? "lys" : ""}">Samtidig</span>` : ""}
-              ${gaar ? `<span class="merkelapp lys">Kjører</span>` : ""}</div>
-            <div class="pm">${kiVaEsc(meta)}</div></div>
-          <div class="ph"><div class="pkl">${kiVaEsc(tid)}</div>
-            <div class="pnaar">${kiVaEsc(naar)}</div></div>
-        </div>
-        ${soner.length ? `<div class="psoner">${soner.map((z) => `
-          <div class="ps ${gaar && aktiv && aktiv.navn === z.navn ? "aktiv" : ""}">
-            <div class="psn"><span>${kiVaEsc(z.navn)}</span>
-              <div class="psb"><i style="width:${(((Number(z.min) || 0) / lengst) * 100).toFixed(0)}%"></i></div></div>
-            <div class="pmin">${z.min || 0} m</div>
-          </div>`).join("")}</div>` : ""}
-        <div class="pfot">
-          <button class="pk" data-kjorprog="${kiVaEsc(x.navn)}"><ha-icon icon="mdi:play"></ha-icon>Kjør nå</button>
-          ${ventil ? `<button class="pk ikon" data-rediger="${kiVaEsc(x.navn)}" aria-label="Rediger"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
-          <div class="pbryter ${pa ? "pa" : ""}" data-pa="${kiVaEsc(x.navn)}" data-bryter="${x.bryter || ""}"
-            role="switch" tabindex="0" aria-checked="${pa}" aria-label="Programmet på"><i></i></div>
-        </div>
+      /* v4: klokkeslettet stort til venstre med dagene under, navnet og sonene i midten,
+         Kjør nå og bryteren til høyre. */
+      const sub = [soner.length === 1 ? soner[0].navn : soner.length ? `${soner.length} soner` : "",
+        total ? `${total} min` : "", liter ? `ca. ${Math.round(liter).toLocaleString("nb-NO")} L` : ""].filter(Boolean).join(" · ");
+      const dagTekst = o.intervall ? `hver ${o.intervall}. dag`
+        : (o.dager && o.dager.length && o.dager.length < 7 ? o.dager.map((d) => dagNavn[d] || d).join(", ") : "Hver dag");
+      return `<div class="v4prog ${gaar ? "gaar" : ""} ${pa ? "" : "av"}">
+        <div class="tid"><b>${kiVaEsc(tid)}</b><span>${kiVaEsc(dagTekst.charAt(0).toUpperCase() + dagTekst.slice(1))}</span></div>
+        <div class="midt"><b>${kiVaEsc(x.navn)}${gaar ? " · kjører" : ""}</b><span>${kiVaEsc(sub)}</span></div>
+        ${ventil ? `<button class="v4spill" data-rediger="${kiVaEsc(x.navn)}" aria-label="Rediger" style="width:38px;height:38px"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
+        <button class="v4spill" data-kjorprog="${kiVaEsc(x.navn)}" aria-label="Kjør nå"><ha-icon icon="mdi:play"></ha-icon></button>
+        <div class="v4bryter ${pa ? "pa" : ""}" data-pa="${kiVaEsc(x.navn)}" data-bryter="${x.bryter || ""}"
+          role="switch" tabindex="0" aria-checked="${pa}" aria-label="Programmet på"><i></i></div>
       </div>`;
     }).join("");
 
@@ -13283,28 +13416,31 @@ class KiVanningCard extends HTMLElement {
   }
 
   /* Kalender: kommende kjøringer gruppert per dag */
+  /* Kommende vanninger per dag, etter v4: dag og totalt, så klokkeslett, prikk, hva og mengde. */
   _kalender(plan) {
     const kommende = (plan || []).filter((x) => (x.minutter_til ?? 0) >= 0).slice(0, 20);
     if (!kommende.length) return "";
-    const dager = {};
+    const dager = new Map();
     kommende.forEach((x) => {
       const d = x.start ? new Date(x.start) : new Date();
-      const n = d.toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "short" });
-      (dager[n] = dager[n] || []).push({ ...x, dato: d });
+      const k = d.toDateString();
+      if (!dager.has(k)) dager.set(k, { d, rader: [] });
+      dager.get(k).rader.push(x);
     });
-    const idag = new Date().toDateString();
-    return `<div class="maal"><div class="und">Kommende vanninger</div>
-      ${Object.keys(dager).map((n) => {
-        const rader = dager[n];
-        const erIdag = rader[0].dato.toDateString() === idag;
-        return `<div class="kaldag"><div class="dag ${erIdag ? "idag" : ""}">${erIdag ? "I dag" : kiVaEsc(n.split(" ")[0])}<br>
-          <span style="font-size:11px;opacity:.7">${kiVaEsc(rader[0].dato.toLocaleDateString("nb-NO", { day: "numeric", month: "short" }))}</span></div>
-          <div>${rader.map((x) => `<div class="kalrad">
-            <span class="kl">${kiVaEsc(x.tid)}</span>
-            <span class="hva">${kiVaEsc(x.navn)}${x.soner && x.soner.length ? ` · ${x.soner.length} ${x.soner.length === 1 ? "sone" : "soner"}` : ""}</span>
-            <span class="est">${x.total_min ? x.total_min + " min" : ""}${x.estimat_liter ? " · " + Math.round(x.estimat_liter) + " L" : ""}</span>
-          </div>`).join("")}</div></div>`;
-      }).join("")}</div>`;
+    const idag = new Date(); idag.setHours(0, 0, 0, 0);
+    const navn = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); const diff = Math.round((x - idag) / 864e5);
+      const w = diff === 0 ? "I dag" : diff === 1 ? "I morgen" : d.toLocaleDateString("nb-NO", { weekday: "long" });
+      return `${w.charAt(0).toUpperCase() + w.slice(1)} ${d.toLocaleDateString("nb-NO", { day: "numeric", month: "short" })}`; };
+    const nf = (n) => Math.round(Number(n) || 0).toLocaleString("nb-NO");
+    return `<div class="v4tittel" style="margin-top:14px">Kommende vanninger</div>
+      <div class="v4agenda">${[...dager.values()].map(({ d, rader }) => {
+        const L = rader.reduce((t, x) => t + (Number(x.estimat_liter) || 0), 0);
+        const antall = rader.reduce((t, x) => t + ((x.soner && x.soner.length) || 1), 0);
+        return `<div class="v4dag"><div class="dh"><b>${kiVaEsc(navn(d))}</b><span>${antall} ${antall === 1 ? "sone" : "soner"}${L ? ` · ${nf(L)} L` : ""}</span></div>
+          ${rader.map((x) => `<div class="ar"><span class="t">${kiVaEsc(x.tid || "")}</span><i></i>
+            <span class="n">${kiVaEsc(x.navn)}${x.soner && x.soner.length > 1 ? ` · ${x.soner.length} soner` : ""}</span>
+            <span class="m">${x.total_min ? x.total_min + " min" : ""}${x.estimat_liter ? " · " + nf(x.estimat_liter) + " L" : ""}</span></div>`).join("")}
+        </div>`; }).join("")}</div>`;
   }
 
   /* Historikk: hva programmene faktisk brukte sist */
@@ -13329,6 +13465,13 @@ class KiVanningCard extends HTMLElement {
     if (t) t.textContent = tekst;
     const b = this.shadowRoot.querySelector(".hero .strek i");
     if (b && this._total) b.style.width = (100 - (igjen / this._total) * 100).toFixed(1) + "%";
+    // v4: nedtellingen og fyllet i «Vanner nå»-kortet og i sonen som vanner
+    const pst = this._total ? Math.min(100, 100 - (igjen / this._total) * 100) : 0;
+    const kort = this.shadowRoot.querySelector(".v4kjor");
+    if (kort) { const f = kort.querySelector(".fyll"); if (f) f.style.width = pst.toFixed(1) + "%";
+      const ig = kort.querySelector(".igjen"); if (ig) ig.textContent = tekst; }
+    const sf = this.shadowRoot.querySelector(".v4sone.gaar .fyll");
+    if (sf) sf.style.width = `calc(${pst.toFixed(1)}% + 14px)`;
   }
 
   _tegn() {
@@ -13513,7 +13656,7 @@ class KiVanningCard extends HTMLElement {
     /* Et trykk på en sone folder ut varighetene; et nytt trykk legger dem bort igjen. */
     r.querySelectorAll("[data-sone]").forEach((el) => {
       const veksle = (e) => {
-        if (e.target.closest("[data-min]")) return;
+        if (e.target.closest("[data-min]") || e.target.closest(".v4spill")) return;
         this._haptikk("selection");
         this._aapenSone = this._aapenSone === el.dataset.sone ? null : el.dataset.sone;
         this._tegn();
@@ -13521,6 +13664,8 @@ class KiVanningCard extends HTMLElement {
       el.addEventListener("click", veksle);
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); veksle(e); } });
     });
+    r.querySelectorAll("[data-visav]").forEach((el) => el.addEventListener("click", () => { this._visAv = !this._visAv; this._haptikk("selection"); this._tegn(); }));
+    r.querySelectorAll("[data-hopp]").forEach((el) => el.addEventListener("click", () => this._ki_tjeneste("hopp_over", { program: el.dataset.hopp })));
     r.querySelectorAll("[data-nytt]").forEach((el) => el.addEventListener("click", () => {
       const forste = this._soner()[0];
       this._nyttProgram = { navn: "", tid: "06:00", dager: ["man", "tor"], intervall: 0, samtidig: false,
