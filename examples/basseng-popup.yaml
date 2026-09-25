@@ -1,17 +1,11 @@
-# Badebasseng-popupen (ki-cards 5.68 / ki-basseng-card 2.0).
+# Badebasseng-popupen (ki-cards 5.75 / ki-basseng-card 3.0).
 #
 # Endret denne runden:
-#   · Alt ligger i ett kort. Varmepumpe-bannerne og ikonrada var ~150 linjer button-card
-#     over kortet; nå tegner kortet dem selv (`varmepumpe:`, `stillemodus:`, `hurtig:`),
-#     med samme tre tilstander – av, på og uten svar.
-#   · Ny fane «Varme»: temperatur mot målet med −/+ for ønsket temperatur, pooltaket som
-#     én stor bryter, nattsenkingen (vinduet i natt, hva den sparer, og hvorfor) og
-#     klorloggen med «Logg klortablett».
-#   · Oversikt har fått fliser for pooltak, nattsenking og klor, og varsler øverst når
-#     det er på tide med klortablett eller varmepumpa står av for natta.
+#   · Nytt oppsett: bassengscenen og hurtigknappene øverst, og fanene Oversikt, Varme, Klor
+#     og Spreder med Innstillinger bak tannhjulet. Uten `faner:` får du nettopp det.
+#   · Sirkulasjon er ikke egen fane lenger – den ligger under grafen på Varme.
 #   · Pooltaket har ingen egen entitet her; det er bryteren fra integrasjonen,
-#     switch.ki_basseng_pooltak_pa, som gjelder. Den er en flis på Oversikt og den store
-#     bryteren på Varme.
+#     switch.ki_basseng_pooltak_pa (eller dør-/vindussensoren valgt i oppsettet).
 
 type: custom:bubble-card
 card_type: pop-up
@@ -62,12 +56,6 @@ cards:
       - entity: switch.baseng_stikkontakt
         navn: Stikk
         ikon: mdi:power-socket-eu
-    faner:
-      - oversikt
-      - varme
-      - sirkulasjon
-      - spreder
-      - innstillinger
 
   - type: custom:gap-card
     height: 36
