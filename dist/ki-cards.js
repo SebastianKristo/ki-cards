@@ -1,4 +1,4 @@
-/* ki-cards v8.94.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.95.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.94.1";
+  KI.VERSION = "8.95.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -33729,20 +33729,21 @@ try {
  * buss: { retninger: […] }   # ki-entur-card under varmen
  * levende: true             # farger fra lysene og varmen (false = bare dashbordets aksent)
  *   skjul: [plex]           # kort som legges bort mens nattmodus er på
+ *   sjekk:                  # det som skal være lukket om natta – vises øverst i nattkortet om det ikke er
+ *     - { entity: binary_sensor.verandador, navn: Verandadøra }
  *   handlinger:
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.10.1";
+  const VERSJON = "1.11.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
 
   const STD = {
     topp: {
-      vaer: "weather.forecast_home", hjemme: "sensor.antall_personer_hjemme", las: "lock.dorlas_blatann",
-      alarm: "alarm_control_panel.alarm", stovsuger: "vacuum.sir_sweeps_a_lot", innstillinger: "#settings",
-      vaer_trykk: "#weather", alarm_trykk: "#alarm",
+      // Ingen faste entiteter: det som ikke er satt opp, vises ikke. Været finnes av seg selv.
+      vaer: "auto", innstillinger: "#settings", vaer_trykk: "#weather", alarm_trykk: "#alarm",
     },
     klima: [],
     scener: [],
@@ -34120,6 +34121,9 @@ try {
     .nb ha-icon { --mdc-icon-size: 15px; }
     .nb.ok ha-icon { color: #9fe0b0; }
     .nb.obs ha-icon { color: #ffd38a; }
+    .nb.alarm { background: rgba(255, 90, 90, .28); box-shadow: inset 0 0 0 1px rgba(255, 120, 120, .55); animation: nk-varsel 1.6s ease-in-out infinite; }
+    .nb.alarm ha-icon { color: #ffb4b4; }
+    @keyframes nk-varsel { 50% { background: rgba(255, 90, 90, .42); } }
     .nk-knapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .nk-knapp { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 11px; border-radius: 19px;
       background: rgba(255,255,255,.14); color: #fff; font-size: 13.5px; font-weight: 500; transition: transform .14s cubic-bezier(.2,1.3,.3,1), background .2s; }
@@ -34316,14 +34320,15 @@ try {
       this._barn = {};      // monterte kort (prosa, familie, media)
     }
 
-    static getStubConfig() { return {}; }
+    static getStubConfig() { return { topp: { vaer: "auto" } }; }
+    static getConfigElement() { return document.createElement("ki-veggpanel-card-editor"); }
     getCardSize() { return 14; }
 
     setConfig(c) {
       this._c = {
         ...STD, ...c,
         topp: { ...STD.topp, ...(c.topp || {}) },
-        strom: c.strom === false ? false : { effekt: "sensor.strommaler_effekt", trykk: "#strom", ...(c.strom || {}) },
+        strom: c.strom === false ? false : { trykk: "#strom", ...(c.strom || {}) },
       };
       // Med sidemeny ligger innstillingene der, og navbaren nederst trengs ikke.
       if (Array.isArray(c.meny) && c.meny.length && !(c.topp && "innstillinger" in c.topp)) this._c.topp.innstillinger = false;
@@ -34363,7 +34368,14 @@ try {
     }
 
     /* ---------- hjelpere ---------- */
-    _st(id) { return id && this._hass ? this._hass.states[id] : undefined; }
+    _st(id) {
+      if (!id || !this._hass) return undefined;
+      if (id === "auto") {             // første værmelding i installasjonen
+        const w = Object.keys(this._hass.states).find((k) => k.startsWith("weather."));
+        return w ? this._hass.states[w] : undefined;
+      }
+      return this._hass.states[id];
+    }
     _ids(liste) { return (liste || []).map((x) => (typeof x === "string" ? { entity: x } : x)).filter((x) => x && x.entity); }
 
     _haptikk(t = "light") {
@@ -34589,6 +34601,7 @@ try {
         const st = this._st(id);
         this._opt[id] = { state: st && st.state === "on" ? "off" : "on", t: Date.now() };
         this._hass.callService("homeassistant", "toggle", { entity_id: id });
+        this._nkSig = null;
         this._tegnAlt(true);
         return;
       }
@@ -34597,7 +34610,22 @@ try {
         if (!s) return;
         this._haptikk("light");
         el.classList.remove("kjort"); void el.offsetWidth; el.classList.add("kjort");
-        this._handling(s.tap_action || (s.entity ? { action: "toggle" } : null), s.entity);
+        /* En flis som veksler en bryter (nattmodus): vis det nye med en gang – flisen, nattkortet
+           og pillen i toppen – i stedet for å vente på at bryteren (ofte en logikk i Homey eller et
+           skript) har svart. Slippes når bryteren er enig, eller etter 6 s. */
+        const handling = s.tap_action || (s.entity ? { action: "toggle" } : null);
+        const veksler = s.aktiv && handling && (handling.action === "toggle"
+          || /\.(toggle|turn_on|turn_off)$/.test(handling.perform_action || handling.service || ""));
+        if (veksler) {
+          const st = this._st(s.aktiv);
+          const naa = this._optFor(s.aktiv, "state", st && st.state);
+          const svc = handling.perform_action || handling.service || "";
+          const ny = /turn_on$/.test(svc) ? "on" : /turn_off$/.test(svc) ? "off" : naa === "on" ? "off" : "on";
+          this._opt[s.aktiv] = { state: ny, t: Date.now() };
+          this._sist.topp = null; this._sist.nattkort = null; this._nkSig = null;
+          this._tegnNattkort(); this._tegnTopp();
+        }
+        this._handling(handling, s.entity);
         // Scener har ingen tilstand. Den siste du kjørte, står som aktiv til du velger en annen.
         this._sisteScene = s.navn || s.name || "";
         this._sist.scener = null;
@@ -34783,6 +34811,7 @@ try {
       const std = hva === "hold"
         ? { action: "perform-action", perform_action: "input_boolean.toggle", target: { entity_id: "input_boolean.kiosk_mode" } }
         : { action: "navigate", navigation_path: "/config" };
+      if (!k[`${hva}_action`] && hva === "hold" && !this._st("input_boolean.kiosk_mode")) return;   // ingen kioskbryter her
       const h = k[`${hva}_action`] || std;
       if (h.action === "none") return;
       this._handling(h, h.entity || (h.target && h.target.entity_id));
@@ -34902,7 +34931,7 @@ try {
       const s = this._st(t.stovsuger);
       if (s) deler.push(pille("mdi:robot-vacuum", STOV[s.state] || s.state, { id: t.stovsuger, sti: t.stovsuger_trykk, fylt: s.state === "cleaning" }));
       const nm = this._c.natt && this._c.natt.entity ? this._st(this._c.natt.entity) : null;
-      if (nm && nm.state === "on") deler.unshift(pille("mdi:weather-night", "Nattmodus", { id: this._c.natt.entity, fylt: true }));
+      if (nm && this._optFor(this._c.natt.entity, "state", nm.state) === "on") deler.unshift(pille("mdi:weather-night", "Nattmodus", { id: this._c.natt.entity, fylt: true }));
       if (t.innstillinger) deler.push(`<button class="pille rund" data-tap="gaa" data-sti="${esc(t.innstillinger)}" aria-label="Innstillinger"><ha-icon icon="mdi:cog-outline"></ha-icon></button>`);
       this.shadowRoot.getElementById("topp").innerHTML = `<button class="klokke" id="klokke" data-tap="klokke" data-holdhandling="klokke"
         aria-label="Klokke – trykk for innstillinger, hold for kioskmodus"></button>${deler.join("")}`;
@@ -34919,7 +34948,7 @@ try {
       const n = this._c.natt || {};
       const vert = this.shadowRoot.getElementById("nattkort");
       const st = n.entity ? this._st(n.entity) : null;
-      const pa = !!st && st.state === "on";
+      const pa = !!st && this._optFor(n.entity, "state", st.state) === "on";
       const naa = new Date(), time = naa.getHours() + naa.getMinutes() / 60;
       const morgenTil = Number(n.morgen_til ?? 9);
       const idag = naa.toDateString();
@@ -34948,7 +34977,8 @@ try {
       const t = this._c.topp || {};
       const lamper = this._ids((this._c.lys || {}).lamper);
       const sig = [vis, morgen, Math.floor(time)].join("|");
-      if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, t.vaer, ...lamper.map((x) => x.entity)]) && this._nkSig === sig) return;
+      const sjekkIds = [].concat(n.sjekk || []).map((x) => (typeof x === "string" ? x : x && x.entity)).filter(Boolean);
+      if (!this._endret("nattkort", [n.entity, n.vekking, t.las, t.alarm, t.vaer, ...sjekkIds, ...lamper.map((x) => x.entity)]) && this._nkSig === sig) return;
       this._nkSig = sig;
       if (!vis) { vert.innerHTML = ""; return; }
       const kl = (d) => d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
@@ -34965,6 +34995,20 @@ try {
         if (v) { const [tekst, ik] = VAER[v.state] || [v.state, "mdi:weather-partly-cloudy"]; const g = v.attributes.temperature;
           bit.unshift(`<span class="nb"><ha-icon icon="${ik}"></ha-icon>${g != null ? Math.round(g) + "° · " : ""}${esc(tekst)}</span>`); }
       }
+      /* Det som skal være lukket om natta: dører, vinduer og låser fra natt.sjekk. Står noe åpent,
+         kommer det først – i rødt – så du ser det i det nattmodus slås på. */
+      const aapne = [];
+      for (const x of [].concat(n.sjekk || [])) {
+        const id = typeof x === "string" ? x : x && x.entity;
+        const s = this._st(id);
+        if (!s) continue;
+        const d = id.split(".")[0];
+        const apen = d === "lock" ? ["unlocked", "open", "jammed"].includes(s.state) : d === "cover" ? s.state !== "closed" : s.state === "on" || s.state === "open";
+        if (!apen) continue;
+        const navn = (typeof x === "object" && x.navn) || s.attributes.friendly_name || id;
+        aapne.push(`<span class="nb alarm"><ha-icon icon="${d === "lock" ? "mdi:lock-open-variant" : /vindu|window/i.test(id + navn) ? "mdi:window-open-variant" : "mdi:door-open"}"></ha-icon>${esc(navn)} ${d === "lock" ? "er ulåst" : "står åpen"}</span>`);
+      }
+      if (!morgen) bit.unshift(...aapne);
       const paLys = lamper.filter((x) => (this._st(x.entity) || {}).state === "on").length;
       if (lamper.length && !morgen) bit.push(`<span class="nb ${paLys ? "obs" : "ok"}"><ha-icon icon="${paLys ? "mdi:lightbulb-on" : "mdi:lightbulb-off-outline"}"></ha-icon>${paLys ? `${paLys} lys på` : "Alle lys av"}</span>`);
       const vk = this._st(n.vekking);
@@ -35459,11 +35503,195 @@ try {
     }
   }
 
+
+  /* ─────────────────────────────── GUI-editor ───────────────────────────────
+     Hele veggpanelet kan settes opp i Home Assistants egen skjemaredigerer (ha-form), del for
+     del i sammenleggbare seksjoner. Lister – menypunkter, scener, soner, lamper, dekker,
+     nattens sjekk og handlinger – redigeres med objektvelgeren (legg til / flytt / fjern).
+     De innebygde kortene (prosa, familie, media, buss) har mange egne felt og redigeres som
+     YAML i sin seksjon. Tomme felt fjernes, så oppsettet holder seg ryddig. */
+  const ENTITET = (domene, flere) => ({ entity: { ...(domene ? { domain: [].concat(domene) } : {}), ...(flere ? { multiple: true } : {}) } });
+  const TEKST = { text: {} };
+  const TALL = (min, max, steg = 1, enhet) => ({ number: { min, max, step: steg, mode: "box", ...(enhet ? { unit_of_measurement: enhet } : {}) } });
+  const PAAV = { boolean: {} };
+  const IKON = { icon: {} };
+  const HANDLING = { ui_action: {} };
+  const VALG = (opts) => ({ select: { mode: "dropdown", options: opts.map(([value, label]) => ({ value, label })) } });
+  const LISTE = (fields) => ({ object: { multiple: true, fields } });
+  const YAML = { object: {} };
+
+  const SKJEMA = [
+    { type: "expandable", name: "", flatten: true, title: "Generelt", icon: "mdi:cog-outline", schema: [
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "tema", selector: VALG([["varm", "Varm (iPad-skissen)"], ["mysmarthome", "mysmarthome"]]) },
+        { name: "farger", selector: VALG([["dashbord", "Dashbordets egne"], ["varm", "Varm palett"]]) },
+        { name: "levende", selector: PAAV },
+        { name: "skjerm", selector: PAAV },
+        { name: "luft_topp", selector: TALL(0, 300, 1, "px") },
+        { name: "luft_bunn", selector: TALL(0, 300, 1, "px") },
+      ] },
+    ] },
+    { type: "expandable", name: "topp", title: "Toppstripe", icon: "mdi:dock-top", schema: [
+      { name: "vaer", selector: ENTITET("weather") },
+      { name: "hjemme", selector: ENTITET(["sensor", "zone"]) },
+      { name: "las", selector: ENTITET("lock") },
+      { name: "alarm", selector: ENTITET("alarm_control_panel") },
+      { name: "stovsuger", selector: ENTITET("vacuum") },
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "vaer_trykk", selector: TEKST }, { name: "alarm_trykk", selector: TEKST },
+        { name: "stovsuger_trykk", selector: TEKST }, { name: "las_trykk", selector: TEKST },
+        { name: "hjemme_trykk", selector: TEKST }, { name: "innstillinger", selector: TEKST },
+      ] },
+    ] },
+    { type: "expandable", name: "klokke", title: "Klokke", icon: "mdi:clock-outline", schema: [
+      { name: "tap_action", selector: HANDLING }, { name: "hold_action", selector: HANDLING },
+    ] },
+    { type: "expandable", name: "", flatten: true, title: "Sidemeny", icon: "mdi:dock-left", schema: [
+      { name: "meny", selector: LISTE({
+        ikon: { label: "Ikon", selector: IKON, required: true }, navn: { label: "Navn", selector: TEKST },
+        sti: { label: "Sti eller #popup", selector: TEKST }, farge: { label: "Farge (valgfri)", selector: TEKST },
+        nederst: { label: "Nederst i menyen", selector: PAAV }, varsel: { label: "Varselprikk når på", selector: ENTITET() } }) },
+    ] },
+    { type: "expandable", name: "", flatten: true, title: "Scener", icon: "mdi:palette-outline", schema: [
+      { name: "scener_tittel", selector: TEKST },
+      { name: "scener", selector: LISTE({
+        navn: { label: "Navn", selector: TEKST, required: true }, ikon: { label: "Ikon", selector: IKON },
+        tap_action: { label: "Handling", selector: HANDLING }, entity: { label: "Entitet (hold = mer info)", selector: ENTITET() },
+        aktiv: { label: "Aktiv når denne er på", selector: ENTITET(["switch", "input_boolean", "light", "scene", "script"]) } }) },
+    ] },
+    { type: "expandable", name: "", flatten: true, title: "Varme", icon: "mdi:home-thermometer-outline", schema: [
+      { name: "klima", selector: LISTE({
+        entity: { label: "Termostat", selector: ENTITET("climate"), required: true }, navn: { label: "Navn", selector: TEKST },
+        ikon: { label: "Ikon", selector: IKON }, sone: { label: "KI Energi-sone (valgfri)", selector: TEKST } }) },
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "overstyring_min", selector: TALL(15, 720, 15, "min") }, { name: "klima_trykk", selector: TEKST },
+      ] },
+    ] },
+    { type: "expandable", name: "lys", title: "Lys", icon: "mdi:lightbulb-group-outline", schema: [
+      { name: "gruppe", selector: ENTITET("light") },
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "navn", selector: TEKST }, { name: "ikon", selector: IKON },
+        { name: "visning", selector: VALG([["rader", "Rader (dra for lysstyrke)"], ["fliser", "Fliser"]]) }, { name: "hint", selector: PAAV },
+      ] },
+      { name: "lamper", selector: LISTE({
+        entity: { label: "Lampe", selector: ENTITET("light"), required: true }, navn: { label: "Navn", selector: TEKST },
+        ikon: { label: "Ikon (ellers ut fra navnet)", selector: IKON } }) },
+    ] },
+    { type: "expandable", name: "", flatten: true, title: "Gardiner og markise", icon: "mdi:curtains", schema: [
+      { name: "dekker", selector: LISTE({
+        navn: { label: "Navn", selector: TEKST, required: true }, ikon: { label: "Ikon", selector: IKON },
+        hoved: { label: "Gruppe/hoved", selector: ENTITET("cover") }, invertert: { label: "Prosent = nede", selector: PAAV },
+        deler: { label: "Deler (navn + entity, YAML)", selector: YAML } }) },
+    ] },
+    { type: "expandable", name: "natt", title: "Nattmodus", icon: "mdi:weather-night", schema: [
+      { name: "entity", selector: ENTITET(["switch", "input_boolean"]) },
+      { name: "vekking", selector: ENTITET(["sensor", "input_datetime"]) },
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "kort", selector: PAAV },
+        { name: "kort_plass", selector: VALG([["bred", "Over midten og høyre"], ["midt", "Midten"], ["venstre", "Venstre"]]) },
+        { name: "morgen", selector: PAAV }, { name: "morgen_til", selector: TALL(5, 14, 1, "kl.") },
+        { name: "etter", selector: TALL(15, 3600, 15, "s") },
+      ] },
+      { name: "skjul", selector: { select: { multiple: true, custom_value: true, options: [
+        { value: "plex", label: "Nytt i Plex" }, { value: "strom", label: "Strøm" }, { value: "v-buss", label: "Buss" },
+        { value: "v-media", label: "Media" }, { value: "dekker", label: "Gardiner" }] } } },
+      { name: "sjekk", selector: LISTE({
+        entity: { label: "Dør, vindu eller lås", selector: ENTITET(["binary_sensor", "lock", "cover"]), required: true },
+        navn: { label: "Navn", selector: TEKST } }) },
+      { name: "handlinger", selector: LISTE({
+        navn: { label: "Navn", selector: TEKST, required: true }, ikon: { label: "Ikon", selector: IKON },
+        tap_action: { label: "Handling", selector: HANDLING } }) },
+    ] },
+    { type: "expandable", name: "plex", title: "Nytt i Plex", icon: "mdi:plex", schema: [
+      { name: "sensorer", selector: ENTITET("sensor", true) },
+      { type: "grid", name: "", flatten: true, schema: [
+        { name: "navn", selector: TEKST }, { name: "antall", selector: TALL(1, 20) },
+        { name: "intervall", selector: TALL(3000, 60000, 1000, "ms") }, { name: "trykk", selector: TEKST },
+      ] },
+    ] },
+    { type: "expandable", name: "strom", title: "Strøm", icon: "mdi:lightning-bolt", schema: [
+      { name: "vis", selector: PAAV },
+      { name: "pris", selector: ENTITET("sensor") }, { name: "effekt", selector: ENTITET("sensor") },
+      { name: "trykk", selector: TEKST },
+    ] },
+    { type: "expandable", name: "", flatten: true, title: "Innebygde kort (YAML)", icon: "mdi:card-multiple-outline", schema: [
+      { name: "prosa", selector: YAML }, { name: "familie", selector: YAML },
+      { name: "media", selector: YAML }, { name: "buss", selector: YAML },
+    ] },
+  ];
+
+  const ETIKETTER = {
+    tema: "Form", farger: "Farger", levende: "Farger fra lys og varme", skjerm: "Fyll skjermen",
+    luft_topp: "Luft over", luft_bunn: "Luft under",
+    vaer: "Vær", hjemme: "Antall hjemme", las: "Dørlås", alarm: "Alarm", stovsuger: "Støvsuger",
+    vaer_trykk: "Vær → popup", alarm_trykk: "Alarm → popup", stovsuger_trykk: "Støvsuger → popup",
+    las_trykk: "Lås → popup", hjemme_trykk: "Hjemme → popup", innstillinger: "Tannhjul → popup",
+    tap_action: "Trykk", hold_action: "Hold", meny: "Menypunkter", scener_tittel: "Overskrift", scener: "Scener",
+    klima: "Soner", overstyring_min: "Manuell overstyring varer", klima_trykk: "Overskrift → popup",
+    gruppe: "Lysgruppe", navn: "Navn", ikon: "Ikon", visning: "Visning", hint: "Vis hint", lamper: "Lamper",
+    dekker: "Gardiner og markise", entity: "Nattmodus-bryter", vekking: "Vekking", kort: "Vis nattkort",
+    kort_plass: "Plassering", morgen: "«God morgen»-kort", morgen_til: "Morgenkortet til", etter: "Nattskjerm etter",
+    skjul: "Legg bort om natta", sjekk: "Skal være lukket om natta", handlinger: "Nattens knapper",
+    sensorer: "Plex-sensorer", antall: "Antall", intervall: "Bytt hvert", trykk: "Trykk → popup",
+    vis: "Vis strømkortet", pris: "Pris", effekt: "Effekt",
+    prosa: "Prosa (ki-prosa-card)", familie: "Familie (family-status-card)", media: "Media (ki-media-card)", buss: "Buss (ki-entur-card)",
+  };
+  const HJELP = {
+    stovsuger: "Tøm feltet for å ta støvsugeren bort fra toppen.",
+    farger: "«Dashbordets egne» bruker fargene fra temaet ditt.",
+    sjekk: "Står noe av dette åpent når nattmodus slås på, vises det øverst i nattkortet med en gang.",
+    skjul: "Kort som skjules mens nattmodus er på.",
+    aktiv: "Flisen fylles når denne er på – og byttes med en gang du trykker.",
+  };
+
+  /* Tomme verdier ut, så YAML-en holder seg ryddig og standardverdiene får gjelde. */
+  function rydd(v) {
+    if (Array.isArray(v)) return v.map(rydd);
+    if (v && typeof v === "object") {
+      const ut = {};
+      for (const [k, x] of Object.entries(v)) {
+        const r = rydd(x);
+        if (r === undefined || r === "" || r === null) continue;
+        if (r && typeof r === "object" && !Array.isArray(r) && !Object.keys(r).length) continue;
+        ut[k] = r;
+      }
+      return ut;
+    }
+    return v;
+  }
+
+  class KiVeggpanelCardEditor extends HTMLElement {
+    setConfig(c) { this._c = c; this._tegn(); }
+    set hass(h) { this._h = h; this._tegn(); }
+    _tegn() {
+      if (!this._h || !this._c) return;
+      if (!this._f) {
+        this._f = document.createElement("ha-form");
+        this._f.computeLabel = (s) => ETIKETTER[s.name] || s.label || s.name;
+        this._f.computeHelper = (s) => HJELP[s.name];
+        this._f.addEventListener("value-changed", (e) => {
+          const ny = rydd({ ...e.detail.value, type: this._c.type });
+          // strøm «av» lagres som strom: false, som kortet forstår
+          if (ny.strom && ny.strom.vis === false && Object.keys(ny.strom).length === 1) ny.strom = false;
+          this._c = ny;
+          this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: ny }, bubbles: true, composed: true }));
+        });
+        this.appendChild(this._f);
+      }
+      const data = { ...this._c };
+      if (data.strom === false) data.strom = { vis: false };
+      this._f.hass = this._h;
+      this._f.data = data;
+      this._f.schema = SKJEMA;
+    }
+  }
+  if (!customElements.get("ki-veggpanel-card-editor")) window.KI.define("ki-veggpanel-card-editor", KiVeggpanelCardEditor);
+
   if (!customElements.get("ki-veggpanel-card")) window.KI.define("ki-veggpanel-card", KiVeggpanelCard);
   window.customCards = window.customCards || [];
   if (!window.customCards.some((k) => k.type === "ki-veggpanel-card"))
     window.customCards.push({ type: "ki-veggpanel-card", name: "KI Veggpanel",
-      description: "Hele veggpanelet for et rom som ett kort: toppstripe, scener, media, klima, strøm, lys og gardiner.", preview: false });
+      description: "Hele veggpanelet for et rom som ett kort: toppstripe, scener, media, klima, strøm, lys og gardiner.", preview: false, documentationURL: "https://github.com/SebastianKristo/ki-cards" });
   console.info(`%c KI-VEGGPANEL %c ${VERSJON} `, "color:#fff;background:#463a40", "color:#463a40;background:#efc6c9");
 })();
 } catch (e) { console.error("ki-cards: 92-ki-veggpanel-card feilet", e); }
