@@ -1,4 +1,4 @@
-/* ki-cards v5.77.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.77.2 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.77.1";
+  KI.VERSION = "5.77.2";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -15004,7 +15004,7 @@ if (!window.customCards.some((k) => k.type === "ki-fremover-card")) window.custo
 /* ===== 60-ki-basseng-card ===== */
 try {
 /*!
- * ki-basseng-card 3.2.1 - del av ki-cards
+ * ki-basseng-card 3.2.2 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -15059,7 +15059,7 @@ try {
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.2.1";
+  const VERSJON = "3.2.2";
 
   /* Finner LitElement i frontend.
    *
@@ -15324,14 +15324,6 @@ try {
         this._under = "temperatur";
         this._sveipIdx = {};
         /* «Spart i dag»-kortet fra dashbordet (button-card) ber om oppdelingen slik */
-        /* Noen utgaver av button-card sender bare handlingen videre uten egne nøkler, så
-           kortet kjennes også igjen på hvor hendelsen kom fra. */
-        this.addEventListener("ll-custom", (e) => {
-          const fra = this._dash && this._dash.spart && e.composedPath().includes(this._dash.spart);
-          if (!fra && !(e.detail && e.detail.kib === "spart")) return;
-          e.stopPropagation();
-          this._visSpart();
-        });
       }
 
       setConfig(config) {
@@ -16758,6 +16750,23 @@ try {
           </div>`;
       }
 
+      /* Natta i setningen: «og i natt står varmen av 23–04 og sparer ca 2 kroner.» */
+      _nattDeler() {
+        const s = this.val("senking");
+        const a = (this.st("senking") || {}).attributes || {};
+        const valuta = this.enhet("kostnad") || "kr";
+        if (s === "planlagt") {
+          const spar = Number(a.spart_kostnad);
+          if (spar > 0.005) {
+            return [{ t: "og i natt står varmen av {pille}", v: kortVindu(a.fra, a.til), k: "senking" },
+              { t: "og sparer ca {pille}.", v: kroner(spar, valuta), k: "senking" }];
+          }
+          return [{ t: "og i natt står varmen av {pille}.", v: kortVindu(a.fra, a.til), k: "senking" }];
+        }
+        if (s === "aktiv") return [{ t: "og varmen står av til {pille}.", v: a.til || "–", k: "senking" }];
+        return [];
+      }
+
       /* «Vannet er 26,3° og når 27° om ca 2 t 10 min, og det koster ca 4 kroner.» */
       _varmeSetning() {
         const vann = this._vannTemp(), mal = this._malTemp();
@@ -16784,6 +16793,18 @@ try {
         if (this._borte()) {
           deler.push({ t: "Ingen er hjemme, så målet er senket {pille}.", v: `${nf(this.val("borteSenking", 0), 1)}°`, k: "borteSenking" });
         }
+        /* Så varmepumpa nå, og natta – samme bitene som på Oversikt */
+        const natt = this._nattDeler();
+        const tegn = natt.length ? "," : ".";
+        const vp = Number(this.val("vpEffekt", 0)) || 0;
+        const klima = this._config.varmepumpe && this.hass.states[this._config.varmepumpe];
+        if (vp > 100) deler.push({ t: `Varmepumpa trekker {pille}${tegn}`, v: vp >= 1000 ? `${nf(vp / 1000, 1)} kW` : `${nf(vp, 0)} W`, k: "vpEffekt" });
+        else if (klima && klima.state === "off") deler.push({ t: `Varmepumpa står av${tegn}` });
+        else if (this.st("vpEffekt")) deler.push({ t: `Varmepumpa hviler${tegn}` });
+        else if (natt.length) natt[0] = { ...natt[0], t: natt[0].t.replace(/^og /, "Varmepumpa ").replace(/^Varmepumpa i natt står varmen/, "I natt står varmen") };
+        deler.push(...natt);
+        const idag = Number(this.val("kostnad"));
+        if (isFinite(idag) && idag > 0) deler.push({ t: "Strømmen har kostet {pille} i dag.", v: kroner(idag, valuta), k: "kostnad" });
         return this._prosa("varme", deler);
       }
 
@@ -17358,7 +17379,7 @@ try {
               </div>
               ${d.sider.length > 1 ? html`<div class="prikker3">${d.sider.map((_, j) => html`<i class=${j === i ? "a" : ""}></i>`)}</div>` : ""}
             </div>
-            ${d.spart ? html`<div class="dash3-side">${d.spart}</div>` : ""}
+            ${d.spart ? html`<div class="dash3-side dash3-spart" @click=${() => this._visSpart()}>${d.spart}</div>` : ""}
           </div>`;
       }
 
@@ -17384,7 +17405,9 @@ try {
         const valuta = this.enhet("spart") || this.enhet("kostnad") || "kr";
         const spartKonf = spart ? {
           type: "custom:button-card", template: "universal_sensor_ny", entity: spart,
-          tap_action: { action: "fire-dom-event", kib: "spart" },
+          /* Trykket fanges av innpakningen rundt kortet. button-card skal ikke gjøre noe
+             selv – en handling fra malen kunne ellers tatt trykket. */
+          tap_action: { action: "none" },
           variables: { sub_text: "Spart i dag", show_tap_indicator: true, margin: "12px", icon: "mdi:piggy-bank-outline",
             background_color: "var(--gray200)", text_color: "var(--gray1000)",
             main_text: `[[[ return Math.round(${st(spart)} || 0) + '<span style="font-size:14px"> ${valuta}</span>'; ]]]` },
@@ -17513,16 +17536,7 @@ try {
         const s = this.val("senking");
         const a = (this.st("senking") || {}).attributes || {};
         const valuta = this.enhet("kostnad") || "kr";
-        const natt = [];
-        if (!vinter && s === "planlagt") {
-          const spar = Number(a.spart_kostnad);
-          if (spar > 0.005) {
-            natt.push({ t: "og i natt står varmen av {pille}", v: kortVindu(a.fra, a.til), k: "senking" });
-            natt.push({ t: "og sparer ca {pille}.", v: kroner(spar, valuta), k: "senking" });
-          } else natt.push({ t: "og i natt står varmen av {pille}.", v: kortVindu(a.fra, a.til), k: "senking" });
-        } else if (!vinter && s === "aktiv") {
-          natt.push({ t: "og varmen står av til {pille}.", v: a.til || "–", k: "senking" });
-        }
+        const natt = vinter ? [] : this._nattDeler();
         const tegn = natt.length ? "," : ".";
         deler.push(gar ? { t: `Pumpa går nå${tegn}` }
           : neste ? { t: `Pumpa starter {pille}${tegn}`, v: neste, k: "nesteStart" }
@@ -19308,6 +19322,7 @@ try {
           .dash3 { align-items: start; }
           .dash3-side { min-width: 0; }
           .dash3-side > * { display: block; }
+          .dash3-spart { cursor: pointer; }
           .sv3-spor { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 24px;
             scrollbar-width: none; overscroll-behavior-x: contain; }
           .sv3-spor::-webkit-scrollbar { display: none; }
