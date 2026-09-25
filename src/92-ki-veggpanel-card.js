@@ -67,13 +67,17 @@
  *   kort: true              # animert nattkort øverst i midten mens nattmodus er på (false = av)
  *   kort_plass: bred        # bred: over midten og høyre | midt | venstre
  *   morgen_til: 9           # «God morgen»-kortet står fra nattmodus slås av om morgenen til kl. 9
+ * klokke:                   # handlinger på klokka øverst til venstre
+ *   tap_action: { action: navigate, navigation_path: /config }
+ *   hold_action: { action: perform-action, perform_action: input_boolean.toggle, target: { entity_id: input_boolean.kiosk_mode } }
+ * buss: { retninger: […] }   # ki-entur-card under varmen
  * levende: true             # farger fra lysene og varmen (false = bare dashbordets aksent)
  *   skjul: [plex]           # kort som legges bort mens nattmodus er på
  *   handlinger:
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.9.0";
+  const VERSJON = "1.10.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -218,6 +222,7 @@
      resten går rundt i paletten. `farge:` på punktet overstyrer. */
   const MENYFARGER = [
     [/innstill|settings|tune/i, "var(--blue, #6f9fe0)"],
+    [/kart|map|posisjon/i, "var(--green, #6fcf8e)"],
     [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
     [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
     [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
@@ -258,6 +263,8 @@
 
     /* toppstripe */
     .topp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 72px; }
+    button.klokke { text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    button.klokke:active { opacity: .75; }
     .klokke { display: flex; align-items: flex-end; gap: 16px; margin-right: auto; }
     .klokke b { font-size: 68px; font-weight: 300; letter-spacing: -3px; line-height: .85; font-variant-numeric: tabular-nums; }
     .klokke span { display: grid; gap: 2px; padding-bottom: 2px; }
@@ -764,6 +771,7 @@
 
               ${this._c.media ? `<div class="vert" id="v-media"></div>` : ""}
               <div id="klima"></div>
+              ${this._c.buss ? `<div class="vert" id="v-buss"></div>` : ""}
               <div id="plex"></div>
               <div id="strom"></div>
             </div>
@@ -777,7 +785,7 @@
         ${this._c.natt ? `<div class="natt" id="natt" data-tap="vekk"></div>` : ""}`;
       this._sist = {};
       this._barn = {};
-      for (const [navn, std] of [["prosa", "custom:ki-prosa-card"], ["familie", "custom:family-status-card"], ["media", "custom:ki-media-card"]]) {
+      for (const [navn, std] of [["prosa", "custom:ki-prosa-card"], ["familie", "custom:family-status-card"], ["media", "custom:ki-media-card"], ["buss", "custom:ki-entur-card"]]) {
         const konf = this._c[navn];
         if (!konf) continue;
         this._monter(navn, { type: std, ...konf });
@@ -820,16 +828,21 @@
       const r = this.shadowRoot;
       let timer = null, holdt = false;
       r.addEventListener("pointerdown", (e) => {
-        const el = e.composedPath().find((n) => n && n.dataset && (n.dataset.hold || n.dataset.tap));
+        const el = e.composedPath().find((n) => n && n.dataset && (n.dataset.hold || n.dataset.tap || n.dataset.holdhandling));
         holdt = false;
         clearTimeout(timer);
-        if (!el || !el.dataset.hold) return;
-        timer = setTimeout(() => { holdt = true; this._haptikk("medium"); this._mer(el.dataset.hold); }, 500);
+        if (!el || !(el.dataset.hold || el.dataset.holdhandling)) return;
+        timer = setTimeout(() => {
+          holdt = true;
+          this._haptikk("medium");
+          if (el.dataset.holdhandling === "klokke") this._klokkeHandling("hold");
+          else this._mer(el.dataset.hold);
+        }, 500);
       });
       const avbryt = () => clearTimeout(timer);
       r.addEventListener("pointerup", avbryt);
       r.addEventListener("pointercancel", avbryt);
-      r.addEventListener("contextmenu", (e) => { if (e.composedPath().some((n) => n && n.dataset && n.dataset.hold)) e.preventDefault(); });
+      r.addEventListener("contextmenu", (e) => { if (e.composedPath().some((n) => n && n.dataset && (n.dataset.hold || n.dataset.holdhandling))) e.preventDefault(); });
       r.addEventListener("click", (e) => {
         if (holdt) { holdt = false; e.stopPropagation(); return; }
         const el = e.composedPath().find((n) => n && n.dataset && n.dataset.tap);
@@ -932,6 +945,7 @@
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
+      if (t === "klokke") { this._haptikk("light"); this._klokkeHandling("tap"); return; }
       if (t === "morgenlukk") {
         this._haptikk("light");
         try { localStorage.setItem("ki-veggpanel-morgen-lukket", new Date().toDateString()); } catch (e) { /* privat modus */ }
@@ -1102,6 +1116,18 @@
       return true;
     }
 
+    /* Klokka: trykk går til innstillingene (/config), hold slår kioskmodus av og på.
+       Begge kan byttes med klokke.tap_action / klokke.hold_action i vanlig HA-form. */
+    _klokkeHandling(hva) {
+      const k = this._c.klokke || {};
+      const std = hva === "hold"
+        ? { action: "perform-action", perform_action: "input_boolean.toggle", target: { entity_id: "input_boolean.kiosk_mode" } }
+        : { action: "navigate", navigation_path: "/config" };
+      const h = k[`${hva}_action`] || std;
+      if (h.action === "none") return;
+      this._handling(h, h.entity || (h.target && h.target.entity_id));
+    }
+
     _klokke() {
       const r = this.shadowRoot;
       if (!r) return;
@@ -1218,7 +1244,8 @@
       const nm = this._c.natt && this._c.natt.entity ? this._st(this._c.natt.entity) : null;
       if (nm && nm.state === "on") deler.unshift(pille("mdi:weather-night", "Nattmodus", { id: this._c.natt.entity, fylt: true }));
       if (t.innstillinger) deler.push(`<button class="pille rund" data-tap="gaa" data-sti="${esc(t.innstillinger)}" aria-label="Innstillinger"><ha-icon icon="mdi:cog-outline"></ha-icon></button>`);
-      this.shadowRoot.getElementById("topp").innerHTML = `<div class="klokke" id="klokke"></div>${deler.join("")}`;
+      this.shadowRoot.getElementById("topp").innerHTML = `<button class="klokke" id="klokke" data-tap="klokke" data-holdhandling="klokke"
+        aria-label="Klokke – trykk for innstillinger, hold for kioskmodus"></button>${deler.join("")}`;
       this._klokke();
     }
 

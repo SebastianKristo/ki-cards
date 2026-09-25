@@ -1,0 +1,50 @@
+# Kart-popupen (#kart): hvor personene og bilen er, og sonene.
+# Legges sammen med de andre popupene i stue-visningen.
+type: custom:bubble-card
+card_type: pop-up
+name: Kart
+icon: mdi:map-marker-radius
+hash: '#kart'
+button_type: name
+is_sidebar_hidden: true
+bg_blur: '20'
+shadow_opacity: '20'
+bg_opacity: '88'
+margin_top_mobile: 50px
+margin_top_desktop: 50px
+card_layout: large
+styles: >
+  .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
+
+  #header-container > div > div { background: var(--gray000) !important; }
+
+  #header-container > button { background: none; }
+
+  .icon-container { background-color: var(--gray1000) !important; }
+
+  .icon-container > ha-icon { color: var(--black) !important; opacity: 1
+  !important; }
+
+  .bubble-icon { --mdc-icon-size: 24px !important; }
+
+  .bubble-name {
+    font-size: 30px !important;
+    font-weight: 500;
+    line-height: 1.4 !important;
+    padding: 8px 0 !important;
+  }
+
+  .bubble-close-button {
+    background-color: var(--gray200) !important;
+    border-radius: 50%;
+  }
+cards:
+  - type: custom:ki-kart-card
+    personer:
+      - person.sebastian_kristo_jemtland
+      - person.cybele_kristo
+      - person.rune_jemtland
+    # bil: device_tracker.tesla_model_y_location   # finnes av seg selv; sett den her om feil bil velges
+    bil_tittel: Teslaen
+    forhold: '16:10'
+    zoom: 11

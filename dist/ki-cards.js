@@ -1,4 +1,4 @@
-/* ki-cards v5.86.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v5.88.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "5.86.0";
+  KI.VERSION = "5.88.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -33616,13 +33616,17 @@ try {
  *   kort: true              # animert nattkort øverst i midten mens nattmodus er på (false = av)
  *   kort_plass: bred        # bred: over midten og høyre | midt | venstre
  *   morgen_til: 9           # «God morgen»-kortet står fra nattmodus slås av om morgenen til kl. 9
+ * klokke:                   # handlinger på klokka øverst til venstre
+ *   tap_action: { action: navigate, navigation_path: /config }
+ *   hold_action: { action: perform-action, perform_action: input_boolean.toggle, target: { entity_id: input_boolean.kiosk_mode } }
+ * buss: { retninger: […] }   # ki-entur-card under varmen
  * levende: true             # farger fra lysene og varmen (false = bare dashbordets aksent)
  *   skjul: [plex]           # kort som legges bort mens nattmodus er på
  *   handlinger:
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.9.0";
+  const VERSJON = "1.10.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -33767,6 +33771,7 @@ try {
      resten går rundt i paletten. `farge:` på punktet overstyrer. */
   const MENYFARGER = [
     [/innstill|settings|tune/i, "var(--blue, #6f9fe0)"],
+    [/kart|map|posisjon/i, "var(--green, #6fcf8e)"],
     [/strom|strøm|energi|power/i, "var(--yellow, #f2c94c)"], [/klima|varme|thermo/i, "var(--orange, #f2a33c)"],
     [/tesla|bil|car/i, "var(--red, #e5646a)"], [/media|musikk|music|tv/i, "var(--pink, #ff8ac0)"],
     [/server|nett|network/i, "var(--blue, #6f9fe0)"], [/data|pc|desktop|comput/i, "var(--teal, #40c8e0)"],
@@ -33807,6 +33812,8 @@ try {
 
     /* toppstripe */
     .topp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 72px; }
+    button.klokke { text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    button.klokke:active { opacity: .75; }
     .klokke { display: flex; align-items: flex-end; gap: 16px; margin-right: auto; }
     .klokke b { font-size: 68px; font-weight: 300; letter-spacing: -3px; line-height: .85; font-variant-numeric: tabular-nums; }
     .klokke span { display: grid; gap: 2px; padding-bottom: 2px; }
@@ -34313,6 +34320,7 @@ try {
 
               ${this._c.media ? `<div class="vert" id="v-media"></div>` : ""}
               <div id="klima"></div>
+              ${this._c.buss ? `<div class="vert" id="v-buss"></div>` : ""}
               <div id="plex"></div>
               <div id="strom"></div>
             </div>
@@ -34326,7 +34334,7 @@ try {
         ${this._c.natt ? `<div class="natt" id="natt" data-tap="vekk"></div>` : ""}`;
       this._sist = {};
       this._barn = {};
-      for (const [navn, std] of [["prosa", "custom:ki-prosa-card"], ["familie", "custom:family-status-card"], ["media", "custom:ki-media-card"]]) {
+      for (const [navn, std] of [["prosa", "custom:ki-prosa-card"], ["familie", "custom:family-status-card"], ["media", "custom:ki-media-card"], ["buss", "custom:ki-entur-card"]]) {
         const konf = this._c[navn];
         if (!konf) continue;
         this._monter(navn, { type: std, ...konf });
@@ -34369,16 +34377,21 @@ try {
       const r = this.shadowRoot;
       let timer = null, holdt = false;
       r.addEventListener("pointerdown", (e) => {
-        const el = e.composedPath().find((n) => n && n.dataset && (n.dataset.hold || n.dataset.tap));
+        const el = e.composedPath().find((n) => n && n.dataset && (n.dataset.hold || n.dataset.tap || n.dataset.holdhandling));
         holdt = false;
         clearTimeout(timer);
-        if (!el || !el.dataset.hold) return;
-        timer = setTimeout(() => { holdt = true; this._haptikk("medium"); this._mer(el.dataset.hold); }, 500);
+        if (!el || !(el.dataset.hold || el.dataset.holdhandling)) return;
+        timer = setTimeout(() => {
+          holdt = true;
+          this._haptikk("medium");
+          if (el.dataset.holdhandling === "klokke") this._klokkeHandling("hold");
+          else this._mer(el.dataset.hold);
+        }, 500);
       });
       const avbryt = () => clearTimeout(timer);
       r.addEventListener("pointerup", avbryt);
       r.addEventListener("pointercancel", avbryt);
-      r.addEventListener("contextmenu", (e) => { if (e.composedPath().some((n) => n && n.dataset && n.dataset.hold)) e.preventDefault(); });
+      r.addEventListener("contextmenu", (e) => { if (e.composedPath().some((n) => n && n.dataset && (n.dataset.hold || n.dataset.holdhandling))) e.preventDefault(); });
       r.addEventListener("click", (e) => {
         if (holdt) { holdt = false; e.stopPropagation(); return; }
         const el = e.composedPath().find((n) => n && n.dataset && n.dataset.tap);
@@ -34481,6 +34494,7 @@ try {
         return;
       }
       if (t === "temp") { this._justerTemp(id, Number(el.dataset.steg)); return; }
+      if (t === "klokke") { this._haptikk("light"); this._klokkeHandling("tap"); return; }
       if (t === "morgenlukk") {
         this._haptikk("light");
         try { localStorage.setItem("ki-veggpanel-morgen-lukket", new Date().toDateString()); } catch (e) { /* privat modus */ }
@@ -34651,6 +34665,18 @@ try {
       return true;
     }
 
+    /* Klokka: trykk går til innstillingene (/config), hold slår kioskmodus av og på.
+       Begge kan byttes med klokke.tap_action / klokke.hold_action i vanlig HA-form. */
+    _klokkeHandling(hva) {
+      const k = this._c.klokke || {};
+      const std = hva === "hold"
+        ? { action: "perform-action", perform_action: "input_boolean.toggle", target: { entity_id: "input_boolean.kiosk_mode" } }
+        : { action: "navigate", navigation_path: "/config" };
+      const h = k[`${hva}_action`] || std;
+      if (h.action === "none") return;
+      this._handling(h, h.entity || (h.target && h.target.entity_id));
+    }
+
     _klokke() {
       const r = this.shadowRoot;
       if (!r) return;
@@ -34767,7 +34793,8 @@ try {
       const nm = this._c.natt && this._c.natt.entity ? this._st(this._c.natt.entity) : null;
       if (nm && nm.state === "on") deler.unshift(pille("mdi:weather-night", "Nattmodus", { id: this._c.natt.entity, fylt: true }));
       if (t.innstillinger) deler.push(`<button class="pille rund" data-tap="gaa" data-sti="${esc(t.innstillinger)}" aria-label="Innstillinger"><ha-icon icon="mdi:cog-outline"></ha-icon></button>`);
-      this.shadowRoot.getElementById("topp").innerHTML = `<div class="klokke" id="klokke"></div>${deler.join("")}`;
+      this.shadowRoot.getElementById("topp").innerHTML = `<button class="klokke" id="klokke" data-tap="klokke" data-holdhandling="klokke"
+        aria-label="Klokke – trykk for innstillinger, hold for kioskmodus"></button>${deler.join("")}`;
       this._klokke();
     }
 
@@ -35978,6 +36005,464 @@ try {
   console.info(`%c KI-SIKKERHETSPANEL %c ${VERSJON} `, "color:#fff;background:#463a40", "color:#463a40;background:#efc6c9");
 })();
 } catch (e) { console.error("ki-cards: 93-ki-sikkerhetspanel-card feilet", e); }
+
+/* ===== 94-ki-kart-card ===== */
+try {
+/*
+ * ki-kart-card — hvor er alle? Kartet med sonene, personene og bilen, og under det en
+ * liste med hvor hver enkelt er, siden når og hvor langt unna hjemme.
+ *
+ * Kartet er Home Assistants eget kartkort (Leaflet), montert inne i kortet. Sonene
+ * tegnes som sirkler, personene med bildet sitt, og bilen med sitt ikon.
+ *
+ * type: custom:ki-kart-card
+ * personer: [person.sebastian_kristo_jemtland, person.cybele_kristo, person.rune_jemtland]
+ * bil: device_tracker.tesla_model_y_location     # finnes av seg selv (Tesla-sporer med posisjon)
+ * bil_batteri: sensor.tesla_model_y_batteri       # finnes av seg selv
+ * soner: auto                                     # auto = alle zone.*, eller en liste
+ * forhold: "16:10"                                # kartets sideforhold
+ * zoom: 11
+ */
+(() => {
+  const VERSJON = "1.0.0";
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SONEFARGER = ["var(--green, #6fcf8e)", "var(--blue, #6f9fe0)", "var(--orange, #f2a33c)", "var(--purple, #b39cf0)",
+    "var(--pink, #ff8ac0)", "var(--teal, #40c8e0)", "var(--yellow, #f2c94c)"];
+
+  /* Avstand i km mellom to punkt (haversine). */
+  function km(a, b) {
+    const R = 6371, rad = (x) => (x * Math.PI) / 180;
+    const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function siden(iso) {
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const min = Math.round((Date.now() - t) / 60000);
+    if (min < 1) return "akkurat nå";
+    if (min < 60) return `i ${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `i ${h} t`;
+    const d = Math.round(h / 24);
+    return `i ${d} ${d === 1 ? "dag" : "dager"}`;
+  }
+
+  const CSS = `
+    :host { display: block; }
+    * { box-sizing: border-box; }
+    button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .kk { display: grid; gap: 14px; color: var(--gray1000, #f2f1ee); }
+    .kart { position: relative; border-radius: 24px; overflow: hidden; background: var(--gray200, #1b1b1d); min-height: 200px;
+      --ha-card-border-radius: 24px; --ha-card-border-width: 0; }
+    .kart .laster { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; opacity: .6; }
+    .etikett { font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--gray800, #8e8d89); padding: 0 4px; }
+    .liste { display: grid; gap: 8px; }
+    .rad { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px 10px 10px;
+      border-radius: 20px; background: var(--gray200, #1b1b1d); text-align: left; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .rad:active { transform: scale(.98); }
+    .bilde { position: relative; width: 48px; height: 48px; border-radius: 50%; background: var(--gray100, #26262a) center/cover no-repeat;
+      display: grid; place-items: center; box-shadow: 0 0 0 2px var(--rf, transparent); }
+    .bilde ha-icon { --mdc-icon-size: 24px; }
+    .bilde .merke { position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--rf, var(--gray400, #48474a)); color: var(--black, #161618); border: 2px solid var(--gray200, #1b1b1d); }
+    .bilde .merke ha-icon { --mdc-icon-size: 12px; }
+    .navn { font-size: 15px; font-weight: 500; }
+    .hvor { font-size: 13px; font-weight: 500; opacity: .7; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hoyre { text-align: right; display: grid; gap: 2px; }
+    .hoyre b { font-size: 16px; font-weight: 300; font-variant-numeric: tabular-nums; }
+    .hoyre small { font-size: 12px; opacity: .6; }
+    .soner { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sone { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 10px; border-radius: 17px; font-size: 13px; font-weight: 500;
+      background: color-mix(in srgb, var(--sf) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf) 35%, transparent); }
+    .sone i { width: 8px; height: 8px; border-radius: 50%; background: var(--sf); }
+    .sone.tom { background: var(--gray100, #1f1f22); box-shadow: none; opacity: .7; }
+    .sone.tom i { background: var(--gray400, #48474a); }
+    .sone small { opacity: .7; font-weight: 400; }
+  `;
+
+  class KiKartCard extends HTMLElement {
+    constructor() { super(); this.attachShadow({ mode: "open" }); this._sig = ""; }
+    static getStubConfig() { return { personer: [] }; }
+    getCardSize() { return 10; }
+
+    setConfig(c) {
+      this._c = { zoom: 11, soner: "auto", ...c };
+      this._kart = null;
+      this._bygget = false;
+      if (this._hass) this._tegn();
+    }
+
+    set hass(h) {
+      this._hass = h;
+      if (this._kart) this._kart.hass = h;
+      const ids = [...this._personer(), this._bil(), this._bilBatteri(), ...this._soner()].filter(Boolean);
+      const sig = ids.map((id) => { const s = h.states[id]; return s ? `${s.state}|${s.last_changed}|${s.attributes.latitude}` : "-"; }).join(",");
+      if (sig === this._sig && this._bygget) return;
+      this._sig = sig;
+      this._tegn();
+    }
+
+    /* ---------- hvem og hva ---------- */
+    _personer() {
+      if (this._c.personer && this._c.personer.length) return [].concat(this._c.personer).map((p) => (typeof p === "string" ? p : p.entity));
+      return Object.keys((this._hass || {}).states || {}).filter((id) => id.startsWith("person."));
+    }
+
+    /* Bilen: en sporer med «tesla» (eller bil_navn) i id-en og en posisjon. Ruter og mål
+       (route/destination) hoppes over – det er posisjonen vi vil ha. */
+    _bil() {
+      if (this._c.bil !== undefined) return this._c.bil || null;
+      if (this._bilAuto !== undefined) return this._bilAuto;
+      const S = (this._hass || {}).states || {};
+      const navn = new RegExp(this._c.bil_navn || "tesla|model_y|bil", "i");
+      const kandidater = Object.keys(S).filter((id) => id.startsWith("device_tracker.") && navn.test(id)
+        && !/route|rute|destin|mal$/i.test(id) && S[id].attributes.latitude != null);
+      kandidater.sort((a, b) => (/location|plassering|posisjon/.test(b) ? 1 : 0) - (/location|plassering|posisjon/.test(a) ? 1 : 0));
+      this._bilAuto = kandidater[0] || null;
+      return this._bilAuto;
+    }
+
+    _bilBatteri() {
+      if (this._c.bil_batteri !== undefined) return this._c.bil_batteri || null;
+      const S = (this._hass || {}).states || {};
+      const navn = new RegExp(this._c.bil_navn || "tesla|model_y", "i");
+      return Object.keys(S).find((id) => id.startsWith("sensor.") && navn.test(id) && /batter/i.test(id) && !/rekkevidde|range|temp/i.test(id)
+        && S[id].attributes.unit_of_measurement === "%") || null;
+    }
+
+    _soner() {
+      if (Array.isArray(this._c.soner)) return this._c.soner;
+      return Object.keys((this._hass || {}).states || {}).filter((id) => id.startsWith("zone."));
+    }
+
+    _pos(id) {
+      const s = this._hass.states[id];
+      if (!s || s.attributes.latitude == null) return null;
+      return { lat: Number(s.attributes.latitude), lon: Number(s.attributes.longitude) };
+    }
+
+    _soneNavn(tilstand) {
+      if (tilstand === "home") return "Hjemme";
+      if (tilstand === "not_home") return "Borte";
+      if (["unknown", "unavailable"].includes(tilstand)) return "Ukjent";
+      const z = Object.keys(this._hass.states).find((id) => id.startsWith("zone.") && (id.slice(5) === tilstand
+        || (this._hass.states[id].attributes.friendly_name || "").toLowerCase() === String(tilstand).toLowerCase()));
+      return z ? this._hass.states[z].attributes.friendly_name : tilstand;
+    }
+
+    _mer(id) {
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId: id };
+      this.dispatchEvent(ev);
+    }
+
+    /* ---------- tegning ---------- */
+    _tegn() {
+      if (!this._hass || !this._c) return;
+      if (!this._bygget) this._bygg();
+      const hjem = this._pos("zone.home");
+      const soner = this._soner();
+      const farge = {};
+      soner.forEach((z, i) => { farge[z] = z === "zone.home" ? "var(--green, #6fcf8e)" : SONEFARGER[(i + 1) % SONEFARGER.length]; });
+      const soneFor = (tilstand) => {
+        if (tilstand === "home") return "zone.home";
+        return soner.find((z) => z.slice(5) === tilstand
+          || ((this._hass.states[z] || {}).attributes || {}).friendly_name === tilstand) || null;
+      };
+
+      const rader = [];
+      for (const id of this._personer()) {
+        const s = this._hass.states[id];
+        if (!s) continue;
+        const z = soneFor(s.state);
+        const rf = z ? farge[z] : s.state === "not_home" ? "var(--gray600, #6d6c69)" : "var(--gray400, #48474a)";
+        const pos = this._pos(id);
+        const avstand = hjem && pos && s.state !== "home" ? km(hjem, pos) : null;
+        const bilde = s.attributes.entity_picture;
+        rader.push(`<button class="rad" data-mer="${esc(id)}">
+          <span class="bilde" style="--rf:${rf};${bilde ? `background-image:url('${esc(bilde)}')` : ""}">
+            ${bilde ? "" : `<ha-icon icon="mdi:account"></ha-icon>`}
+            <span class="merke"><ha-icon icon="${s.state === "home" ? "mdi:home" : z ? "mdi:map-marker" : "mdi:walk"}"></ha-icon></span></span>
+          <span><div class="navn">${esc((s.attributes.friendly_name || id).split(" ")[0])}</div>
+            <div class="hvor">${esc(this._soneNavn(s.state))} · ${esc(siden(s.last_changed))}</div></span>
+          <span class="hoyre">${avstand != null ? `<b>${avstand < 10 ? avstand.toFixed(1).replace(".", ",") : Math.round(avstand)} km</b><small>fra hjemme</small>` : ""}</span>
+        </button>`);
+      }
+      const bil = this._bil();
+      if (bil && this._hass.states[bil]) {
+        const s = this._hass.states[bil];
+        const z = soneFor(s.state);
+        const pos = this._pos(bil);
+        const avstand = hjem && pos && s.state !== "home" ? km(hjem, pos) : null;
+        const bat = this._hass.states[this._bilBatteri()];
+        const batPst = bat ? Math.round(Number(bat.state)) : null;
+        rader.push(`<button class="rad" data-mer="${esc(bil)}">
+          <span class="bilde" style="--rf:${z ? farge[z] : "var(--gray400, #48474a)"}"><ha-icon icon="mdi:car-electric"></ha-icon>
+            <span class="merke"><ha-icon icon="${s.state === "home" ? "mdi:home" : "mdi:map-marker"}"></ha-icon></span></span>
+          <span><div class="navn">${esc(this._c.bil_tittel || "Bilen")}</div>
+            <div class="hvor">${esc(this._soneNavn(s.state))} · ${esc(siden(s.last_changed))}</div></span>
+          <span class="hoyre">${batPst != null && !isNaN(batPst) ? `<b>${batPst} %</b><small>${avstand != null ? `${avstand < 10 ? avstand.toFixed(1).replace(".", ",") : Math.round(avstand)} km unna` : "batteri"}</small>`
+            : avstand != null ? `<b>${Math.round(avstand)} km</b><small>fra hjemme</small>` : ""}</span>
+        </button>`);
+      }
+
+      // sonene, med hvem som er der
+      const hvem = {};
+      for (const id of [...this._personer(), bil].filter(Boolean)) {
+        const s = this._hass.states[id]; if (!s) continue;
+        const z = soneFor(s.state); if (!z) continue;
+        (hvem[z] = hvem[z] || []).push(id === bil ? (this._c.bil_tittel || "Bilen") : (s.attributes.friendly_name || id).split(" ")[0]);
+      }
+      const soneBrikker = soner.map((z) => {
+        const zs = this._hass.states[z]; if (!zs) return "";
+        const her = hvem[z] || [];
+        return `<button class="sone ${her.length ? "" : "tom"}" style="--sf:${farge[z]}" data-mer="${esc(z)}"><i></i>${esc(zs.attributes.friendly_name || z)}
+          ${her.length ? `<small>${esc(her.join(", "))}</small>` : ""}</button>`;
+      }).join("");
+
+      const r = this.shadowRoot;
+      r.getElementById("liste").innerHTML = rader.join("") || `<div class="hvor">Ingen personer funnet.</div>`;
+      r.getElementById("soner").innerHTML = soneBrikker;
+      r.querySelectorAll("[data-mer]").forEach((b) => { b.onclick = () => {
+        try { window.dispatchEvent(new CustomEvent("haptic", { detail: "light", bubbles: true, composed: true })); } catch (e) { /* eldre */ }
+        this._mer(b.dataset.mer);
+      }; });
+    }
+
+    _bygg() {
+      const r = this.shadowRoot;
+      r.innerHTML = `<style>${CSS}</style>
+        <div class="kk">
+          <div class="kart"><div class="laster">Laster kartet …</div></div>
+          <div class="etikett">Hvor er alle</div>
+          <div class="liste" id="liste"></div>
+          <div class="etikett">Soner</div>
+          <div class="soner" id="soner"></div>
+        </div>`;
+      this._bygget = true;
+      this._monterKart();
+    }
+
+    async _monterKart() {
+      const vert = this.shadowRoot.querySelector(".kart");
+      const entities = [...this._personer(), this._bil(), ...this._soner()].filter(Boolean);
+      try {
+        const hjelp = await window.loadCardHelpers();
+        const kart = hjelp.createCardElement({
+          type: "map", entities, theme_mode: this._c.tema || "dark", default_zoom: Number(this._c.zoom) || 11,
+          hours_to_show: Number(this._c.timer_spor) || 0, fit_zones: false, auto_fit: true,
+          aspect_ratio: this._c.forhold || "16:10",
+        });
+        kart.hass = this._hass;
+        vert.innerHTML = "";
+        vert.appendChild(kart);
+        this._kart = kart;
+      } catch (e) {
+        vert.innerHTML = `<div class="laster">Fikk ikke lastet kartet</div>`;
+      }
+    }
+  }
+
+  if (!customElements.get("ki-kart-card")) window.KI.define("ki-kart-card", KiKartCard);
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((k) => k.type === "ki-kart-card"))
+    window.customCards.push({ type: "ki-kart-card", name: "KI Kart",
+      description: "Kartet med sonene, personene og bilen, med hvor hver enkelt er, siden når og hvor langt unna.", preview: false });
+  console.info(`%c KI-KART %c ${VERSJON} `, "color:#fff;background:#463a40", "color:#463a40;background:#efc6c9");
+})();
+} catch (e) { console.error("ki-cards: 94-ki-kart-card feilet", e); }
+
+/* ===== 95-ki-entur-card ===== */
+try {
+/*
+ * ki-entur-card — bussen, begge veier. Avgangene fra Entur-sensorene (entur_public_transport),
+ * delt i retninger: «Til Majorstuen» fra Amagerveien, «Til Amagerveien» fra Majorstuen.
+ *
+ * Hver retning viser neste avgang stort – minutter igjen, klokkeslett, om den er i rute eller
+ * forsinket – og de neste etter. Med gangtid sier kortet når du må gå: «Gå om 3 min»,
+ * «Gå nå!» eller «Rekker ikke». Minuttene telles ned i kortet selv, mellom sensoroppdateringene.
+ *
+ * type: custom:ki-entur-card
+ * tittel: Buss
+ * retninger:
+ *   - navn: Til Majorstuen
+ *     fra: Amagerveien
+ *     sensorer: [sensor.transport_amagerveien_platform_11676]
+ *     mot: Majorstuen            # bare avganger med dette i ruta (tekst eller regex)
+ *     gange: 4                   # minutter å gå til holdeplassen
+ *   - navn: Til Amagerveien
+ *     fra: Majorstuen
+ *     sensorer: [sensor.transport_majorstuen_platform_xxxx]
+ *     mot: Voksen skog
+ */
+(() => {
+  const VERSJON = "1.0.0";
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const RUTER = "#e60000";
+
+  /* «14:27» → tidspunkt i dag (eller i morgen, om klokka er passert med mer enn to timer). */
+  function tidFra(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+    if (!m) return null;
+    const d = new Date(); d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    if (d.getTime() < Date.now() - 2 * 3600e3) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  const CSS = `
+    :host { display: block; }
+    * { box-sizing: border-box; }
+    button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .ek { background: var(--gray200, #1b1b1d); border-radius: 24px; padding: 16px; display: grid; gap: 12px; color: var(--gray1000, #f2f1ee); }
+    .hode { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; align-items: center; }
+    .ik { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: ${RUTER}; color: #fff; }
+    .ik ha-icon { --mdc-icon-size: 24px; }
+    .navn { font-size: 14px; font-weight: 500; opacity: .7; }
+    .status { font-size: 16px; font-weight: 300; }
+    .retninger { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .ret { background: var(--gray100, #232326); border-radius: 20px; padding: 14px; display: grid; gap: 8px; text-align: left; min-width: 0;
+      transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .ret:active { transform: scale(.98); }
+    .rhode { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .linje { flex: none; min-width: 30px; height: 24px; padding: 0 7px; border-radius: 7px; background: ${RUTER}; color: #fff;
+      font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+    .rnavn { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rfra { font-size: 12px; opacity: .6; margin-top: -4px; }
+    .neste { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .neste b { font-size: 34px; font-weight: 300; letter-spacing: -1px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .neste b small { font-size: 15px; font-weight: 500; opacity: .7; margin-left: 2px; letter-spacing: 0; }
+    .neste span { font-size: 13px; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; }
+    .brikker { display: flex; flex-wrap: wrap; gap: 6px; }
+    .bk { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; font-weight: 500;
+      background: rgba(255,255,255,.06); }
+    .bk i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .bk.ok { color: var(--green, #6fcf8e); }
+    .bk.sen { color: var(--orange, #f2a33c); }
+    .bk.plan { color: var(--gray800, #8e8d89); }
+    .bk.ga { color: var(--gray1000, #f2f1ee); background: color-mix(in srgb, var(--blue, #6f9fe0) 22%, transparent); }
+    .bk.naa { color: #161618; background: var(--orange, #f2a33c); animation: ek-puls 1.2s ease-in-out infinite; }
+    .bk.rekker { opacity: .6; }
+    @keyframes ek-puls { 50% { filter: brightness(1.2); transform: scale(1.04); } }
+    .deretter { font-size: 12.5px; opacity: .65; font-variant-numeric: tabular-nums; }
+    .tom { font-size: 13px; opacity: .6; }
+    @media (prefers-reduced-motion: reduce) { .bk.naa { animation: none; } }
+  `;
+
+  class KiEnturCard extends HTMLElement {
+    constructor() { super(); this.attachShadow({ mode: "open" }); this._sig = ""; }
+    static getStubConfig() { return { retninger: [] }; }
+    getCardSize() { return 4; }
+
+    setConfig(c) {
+      this._c = { tittel: "Buss", ...c };
+      this._sig = "";
+      if (this._hass) this._tegn();
+    }
+
+    set hass(h) {
+      this._hass = h;
+      const ids = (this._c.retninger || []).flatMap((r) => [].concat(r.sensorer || r.sensor || []));
+      const sig = ids.map((id) => { const s = h.states[id]; return s ? `${s.state}|${s.attributes.due_at}|${s.attributes.next_due_at}|${s.attributes.delay}` : "-"; }).join(",");
+      if (sig === this._sig) return;
+      this._sig = sig;
+      this._tegn();
+    }
+
+    connectedCallback() {
+      clearInterval(this._ur);
+      // minuttene telles ned mellom oppdateringene fra sensoren
+      this._ur = setInterval(() => this._tegn(), 20000);
+    }
+    disconnectedCallback() { clearInterval(this._ur); }
+
+    /* Alle avgangene for en retning: to per sensor (route/due_at og next_route/next_due_at),
+       filtrert på retningen, uten dubletter, sortert. */
+    _avganger(r) {
+      const mot = r.mot ? new RegExp(r.mot, "i") : null;
+      const ut = [], sett = new Set();
+      for (const id of [].concat(r.sensorer || r.sensor || [])) {
+        const s = this._hass.states[id];
+        if (!s) continue;
+        const a = s.attributes;
+        for (const [rute, kl, sanntid, forsinkelse] of [[a.route, a.due_at, a.real_time, a.delay], [a.next_route, a.next_due_at, a.next_real_time, a.next_delay]]) {
+          if (!rute || !kl) continue;
+          if (mot && !mot.test(rute)) continue;
+          const t = tidFra(kl);
+          if (!t) continue;
+          const nokkel = `${rute}|${kl}`;
+          if (sett.has(nokkel)) continue;
+          sett.add(nokkel);
+          const linje = (String(rute).match(/^\S+/) || [""])[0];
+          ut.push({ id, rute, linje, mal: String(rute).replace(/^\S+\s*/, ""), kl, t, sanntid: !!sanntid, forsinkelse: Number(forsinkelse) || 0 });
+        }
+      }
+      return ut.filter((x) => x.t.getTime() > Date.now() - 60000).sort((x, y) => x.t - y.t);
+    }
+
+    _tegn() {
+      if (!this._hass || !this._c) return;
+      const retninger = this._c.retninger || [];
+      const blokker = retninger.map((r, i) => {
+        const liste = this._avganger(r);
+        const forste = liste[0];
+        const forsteId = [].concat(r.sensorer || r.sensor || [])[0] || "";
+        if (!forste) {
+          const mangler = [].concat(r.sensorer || r.sensor || []).filter((id) => !this._hass.states[id]);
+          return `<button class="ret" data-mer="${esc(forsteId)}"><div class="rhode"><span class="rnavn">${esc(r.navn || `Retning ${i + 1}`)}</span></div>
+            ${r.fra ? `<div class="rfra">fra ${esc(r.fra)}</div>` : ""}
+            <div class="tom">${mangler.length ? `Fant ikke ${esc(mangler.join(", "))}` : "Ingen avganger nå"}</div></button>`;
+        }
+        const min = Math.max(0, Math.ceil((forste.t.getTime() - Date.now()) / 60000 - 0.05));
+        const status = !forste.sanntid ? `<span class="bk plan"><i></i>rutetid</span>`
+          : forste.forsinkelse >= 2 ? `<span class="bk sen"><i></i>${forste.forsinkelse} min forsinket</span>`
+          : `<span class="bk ok"><i></i>i rute</span>`;
+        let ga = "";
+        const gange = Number(r.gange);
+        if (gange > 0) {
+          const igjen = min - gange;
+          ga = igjen < 0 ? `<span class="bk rekker">Rekker ikke</span>`
+            : igjen <= 1 ? `<span class="bk naa">Gå nå!</span>`
+            : `<span class="bk ga">Gå om ${igjen} min</span>`;
+        }
+        const deretter = liste.slice(1, 3).map((x) => {
+          const m = Math.max(0, Math.ceil((x.t.getTime() - Date.now()) / 60000 - 0.05));
+          return `${x.kl} (${m} min)`;
+        });
+        return `<button class="ret" data-mer="${esc(forste.id)}">
+          <div class="rhode"><span class="linje">${esc(forste.linje)}</span><span class="rnavn">${esc(r.navn || forste.mal)}</span></div>
+          ${r.fra ? `<div class="rfra">fra ${esc(r.fra)}</div>` : ""}
+          <div class="neste"><b>${min === 0 ? "nå" : `${min}<small>min</small>`}</b><span>${esc(forste.kl)}</span></div>
+          <div class="brikker">${status}${ga}</div>
+          ${deretter.length ? `<div class="deretter">Så ${esc(deretter.join(" · "))}</div>` : ""}
+        </button>`;
+      }).join("");
+      const linjer = [...new Set(retninger.flatMap((r) => this._avganger(r).map((x) => x.linje)))];
+      this.shadowRoot.innerHTML = `<style>${CSS}</style>
+        <div class="ek">
+          <div class="hode"><span class="ik"><ha-icon icon="mdi:bus"></ha-icon></span>
+            <div><div class="navn">${esc(this._c.tittel)}</div><div class="status">${linjer.length ? `Linje ${esc(linjer.join(", "))} · sanntid fra Entur` : "Entur"}</div></div></div>
+          <div class="retninger">${blokker || `<div class="tom">Legg til retninger: under retninger:</div>`}</div>
+        </div>`;
+      this.shadowRoot.querySelectorAll("[data-mer]").forEach((b) => { b.onclick = () => {
+        if (!b.dataset.mer) return;
+        try { window.dispatchEvent(new CustomEvent("haptic", { detail: "light", bubbles: true, composed: true })); } catch (e) { /* eldre */ }
+        const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+        ev.detail = { entityId: b.dataset.mer };
+        this.dispatchEvent(ev);
+      }; });
+    }
+  }
+
+  if (!customElements.get("ki-entur-card")) window.KI.define("ki-entur-card", KiEnturCard);
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((k) => k.type === "ki-entur-card"))
+    window.customCards.push({ type: "ki-entur-card", name: "KI Entur",
+      description: "Bussen begge veier fra Entur: neste avgang, forsinkelse, og når du må gå.", preview: false });
+  console.info(`%c KI-ENTUR %c ${VERSJON} `, "color:#fff;background:#e60000", "color:#e60000;background:#fff");
+})();
+} catch (e) { console.error("ki-cards: 95-ki-entur-card feilet", e); }
 
 /* ===== family-status-card ===== */
 window.KI.lit((LitElement, html, css) => {

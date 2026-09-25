@@ -1,0 +1,33 @@
+# ── 1) I veggpanelet (ki-veggpanel-card), f.eks. rett under klima: ──────────────
+        buss:
+          tittel: Buss
+          retninger:
+            - navn: Til Majorstuen
+              fra: Amagerveien
+              sensorer:
+                - sensor.transport_amagerveien_platform_11676
+              mot: Majorstuen
+              # gange: 4          # minutter å gå til holdeplassen → «Gå om … / Gå nå! / Rekker ikke»
+            - navn: Til Amagerveien
+              fra: Majorstuen
+              sensorer:
+                - sensor.transport_majorstuen   # finnes etter steg 2 (navnet kan få _platform_… bak)
+              mot: Voksen skog
+
+# ── 2) Majorstuen i Entur-integrasjonen (configuration.yaml) ────────────────────
+# Amagerveien har bare avganger derfra. For bussen hjem trengs holdeplassen på Majorstuen der
+# 45 mot Voksen skog går. Finn ID-en på entur.no: søk «Majorstuen», åpne bussholdeplassen og kopier
+# det som står etter id= i adressen (NSR:StopPlace:…). Legg den til ved siden av Amagerveien:
+#
+# sensor:
+#   - platform: entur_public_transport
+#     name: Transport
+#     expand_platforms: true
+#     show_on_map: true
+#     stop_ids:
+#       - 'NSR:StopPlace:6354'    # Amagerveien
+#       - 'NSR:StopPlace:XXXXX'   # Majorstuen – ID-en fra entur.no
+#     line_whitelist:
+#       - 'RUT:Line:45'           # bare 45; gjelder alle holdeplassene i lista
+#
+# Start Home Assistant på nytt. Sensoren heter da sensor.transport_majorstuen (og en per plattform).
