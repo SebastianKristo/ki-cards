@@ -11,6 +11,12 @@
  * De eksisterende kortene dine brukes videre — dette kortet monterer
  * custom:advanced-camera-card og custom:mysmart-frigate-gallery inni seg.
  *
+ * Ruteoppsett per bruker og enhet: hver bruker kan velge oppsett, rekkefølge og hvilke
+ * kameraer som vises i Alle-visningen – det lagres i nettleseren for den brukeren på den
+ * enheten. Standard for en bruker kan settes i konfigurasjonen:
+ *   per_bruker:
+ *     Sebastian: { grid_layout: hoved, rekkefolge: [Inngang, Garasje], skjul: [Bod] }
+ *
  * Legges i /config/www/ki-kamera-card.js og registreres som
  * JavaScript Module: /local/ki-kamera-card.js
  */
@@ -374,6 +380,8 @@ class KiKameraCard extends HTMLElement {
       luft === undefined || luft === null || luft === "" ? "0px"
         : (rentTall ? `${parseFloat(luft)}px` : String(luft)));
     this._oppsett = OPPSETT[config.grid_layout] ? config.grid_layout : "mosaikk";
+    this._personlig = null;
+    this._tilpassApen = false;
     this._menyApen = false;
     this._kilde = config.default_source === "vanlig" ? "vanlig" : "frigate";
     // Startfanen må følge kilden — Direkte har ingen hendelsesfane
@@ -395,6 +403,7 @@ class KiKameraCard extends HTMLElement {
     // ellers ville livestrømmen startet om ved hver tilstandsendring.
     if (this._montert) this._montert.hass = hass;
     if (this._loggKort) this._loggKort.hass = hass;
+    if (!this._personlig && hass.user) this._lastPersonlig();
     if (forste) this._oppdater();
     else this._tegnDetaljer();
   }
@@ -417,6 +426,7 @@ class KiKameraCard extends HTMLElement {
     rot.className = "rot";
     rot.innerHTML = `
       <div class="tittelrad" id="tittelrad"></div>
+      <div class="tilpass" id="tilpass" style="display:none"></div>
       <div class="kilde" id="kilde"></div>
       <div class="piller" id="piller"></div>
       <div class="innhold" id="innhold"></div>
@@ -486,7 +496,32 @@ class KiKameraCard extends HTMLElement {
           return;
         }
         this._oppsett = el.dataset.verdi;
+        this._lagrePersonlig({ oppsett: this._oppsett });
         this._oppdater();
+      } else if (el.dataset.handling === "tilpass") {
+        this._menyApen = false;
+        this._tilpassApen = true;
+        this._tegnPiller();
+        this._tegnTilpass();
+      } else if (el.dataset.handling && el.dataset.handling.startsWith("tilpass-")) {
+        this._haptikk("selection");
+        const h = el.dataset.handling;
+        if (h === "tilpass-ferdig") { this._tilpassApen = false; this._tegnTilpass(); return; }
+        if (h === "tilpass-nullstill") { this._nullstillPersonlig(); this._montertNoekkel = null; this._oppdater(); this._tegnTilpass(); return; }
+        if (h === "tilpass-oppsett") { this._oppsett = el.dataset.verdi; this._lagrePersonlig({ oppsett: this._oppsett }); }
+        if (h === "tilpass-vis") {
+          const skjul = new Set((this._personlig || {}).skjul || []);
+          if (skjul.has(el.dataset.navn)) skjul.delete(el.dataset.navn); else skjul.add(el.dataset.navn);
+          this._lagrePersonlig({ skjul: [...skjul] });
+        }
+        if (h === "tilpass-flytt") {
+          const navn = this._iRekkefolge(this._kameraer().filter((k) => k.harVanlig), false).map((k) => k.name);
+          const i = navn.indexOf(el.dataset.navn), j = i + Number(el.dataset.retning);
+          if (i >= 0 && j >= 0 && j < navn.length) { [navn[i], navn[j]] = [navn[j], navn[i]]; this._lagrePersonlig({ rekkefolge: navn }); }
+        }
+        this._montertNoekkel = null;
+        this._oppdater();
+        this._tegnTilpass();
       } else if (el.dataset.handling === "personvern") {
         if (this._holdt) { this._holdt = false; return; }
         this._haptikk("light");
@@ -536,6 +571,75 @@ class KiKameraCard extends HTMLElement {
   }
 
   /* ------------------------------------------------------------ utvalg -- */
+
+  /* ───────────────────────── ruteoppsett per bruker og enhet ─────────────────────────
+     Lagres i nettleseren (localStorage) under kortet og brukeren – nettleseren er enheten,
+     så iPaden på veggen, telefonen og PC-en har hvert sitt, og to brukere på samme iPad har
+     hvert sitt. Kameraene huskes på navnet, så rekkefølgen tåler at nye legges til. */
+  _personligNokkel() {
+    const bruker = (this._hass && this._hass.user && this._hass.user.id) || "ukjent";
+    const kort = this._config.oppsett_id || this._config.title || (this._config.cameras || []).map((c) => c.name).join(",");
+    return `ki-kamera-oppsett:${kort}:${bruker}`;
+  }
+  _brukerStandard() {
+    const pb = this._config.per_bruker || {};
+    const u = this._hass && this._hass.user;
+    if (!u) return null;
+    return pb[u.name] || pb[u.id] || pb[(u.name || "").split(" ")[0]] || null;
+  }
+  _lastPersonlig() {
+    let lagret = null;
+    try { lagret = JSON.parse(localStorage.getItem(this._personligNokkel()) || "null"); } catch (e) { /* privat modus */ }
+    const std = this._brukerStandard();
+    const p = lagret || (std ? { oppsett: std.grid_layout, rekkefolge: std.rekkefolge, skjul: std.skjul } : null);
+    this._personlig = p || {};
+    this._harEgetOppsett = !!lagret;
+    if (p && p.oppsett && OPPSETT[p.oppsett]) this._oppsett = p.oppsett;
+  }
+  _lagrePersonlig(endring) {
+    this._personlig = { ...(this._personlig || {}), ...endring };
+    this._harEgetOppsett = true;
+    try { localStorage.setItem(this._personligNokkel(), JSON.stringify(this._personlig)); } catch (e) { /* privat modus */ }
+  }
+  _nullstillPersonlig() {
+    try { localStorage.removeItem(this._personligNokkel()); } catch (e) { /* privat modus */ }
+    this._oppsett = OPPSETT[this._config.grid_layout] ? this._config.grid_layout : "mosaikk";
+    this._lastPersonlig();
+  }
+  /* Kameraene i brukerens rekkefølge; skjulte tas bare ut der det bes om (Alle-visningen). */
+  _iRekkefolge(liste, utenSkjulte) {
+    const p = this._personlig || {};
+    const rek = p.rekkefolge || [];
+    const skjul = new Set(p.skjul || []);
+    const plass = (k) => { const i = rek.indexOf(k.name); return i < 0 ? 1000 + Number(k.id) : i; };
+    return liste.filter((k) => !utenSkjulte || !skjul.has(k.name)).sort((a, b) => plass(a) - plass(b));
+  }
+
+  _tegnTilpass() {
+    const vert = this._rot && this._rot.querySelector("#tilpass");
+    if (!vert) return;
+    if (!this._tilpassApen) { vert.innerHTML = ""; vert.style.display = "none"; return; }
+    const alle = this._iRekkefolge(this._kameraer().filter((k) => k.harVanlig), false);
+    const skjul = new Set((this._personlig || {}).skjul || []);
+    const bruker = (this._hass && this._hass.user && this._hass.user.name) || "deg";
+    vert.style.display = "";
+    vert.innerHTML = `
+      <div class="tp-hode"><div><b>Tilpass rutene</b><span>For ${esc(bruker)} på denne enheten</span></div>
+        <button type="button" class="tp-ferdig" data-handling="tilpass-ferdig">Ferdig</button></div>
+      <div class="tp-oppsett">${Object.entries(OPPSETT).map(([id, o]) => `
+        <button type="button" class="${this._oppsett === id ? "aktiv" : ""}" data-handling="tilpass-oppsett" data-verdi="${id}">
+          <ha-icon icon="${esc(o.ikon)}"></ha-icon><span>${esc(o.navn)}</span></button>`).join("")}</div>
+      <div class="tp-liste">${alle.map((k, i) => `
+        <div class="tp-rad ${skjul.has(k.name) ? "skjult" : ""}">
+          <button type="button" class="tp-vis" data-handling="tilpass-vis" data-navn="${esc(k.name)}" aria-label="${skjul.has(k.name) ? "Vis" : "Skjul"}">
+            <ha-icon icon="${skjul.has(k.name) ? "mdi:eye-off-outline" : "mdi:eye-outline"}"></ha-icon></button>
+          <ha-icon class="tp-ik" icon="${esc(k.icon || "mdi:cctv")}"></ha-icon>
+          <span class="tp-navn">${esc(k.name)}</span>
+          <button type="button" data-handling="tilpass-flytt" data-navn="${esc(k.name)}" data-retning="-1" ${i === 0 ? "disabled" : ""} aria-label="Flytt opp"><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+          <button type="button" data-handling="tilpass-flytt" data-navn="${esc(k.name)}" data-retning="1" ${i === alle.length - 1 ? "disabled" : ""} aria-label="Flytt ned"><ha-icon icon="mdi:chevron-down"></ha-icon></button>
+        </div>`).join("")}</div>
+      ${this._harEgetOppsett ? `<button type="button" class="tp-nullstill" data-handling="tilpass-nullstill">Tilbake til standard</button>` : ""}`;
+  }
 
   _kameraer() {
     return (this._config.cameras || []).map((c, i) => ({
@@ -746,6 +850,8 @@ class KiKameraCard extends HTMLElement {
               </button>`
               )
               .join("")}
+            <button type="button" class="menyvalg" data-handling="tilpass">
+              <ha-icon icon="mdi:tune-variant"></ha-icon><span>Tilpass rutene …</span></button>
           </div>`
         : "";
 
@@ -782,7 +888,7 @@ class KiKameraCard extends HTMLElement {
     if (this._kilde === "vanlig") {
       faner.push({ id: "alle", navn: "Alle", ikon: "mdi:view-grid-outline" });
     }
-    this._kameraer().forEach((k) => {
+    this._iRekkefolge(this._kameraer(), false).forEach((k) => {
       if (this._erTilgjengelig(k.id)) {
         faner.push({ id: k.id, navn: k.name, ikon: k.icon || "mdi:cctv" });
       }
@@ -854,7 +960,7 @@ class KiKameraCard extends HTMLElement {
 
     // Direkte strøm
     if (this._valgt === "alle") {
-      const med = this._kameraer().filter((k) => k.harVanlig);
+      const med = this._iRekkefolge(this._kameraer().filter((k) => k.harVanlig), true);
       if (!med.length) return null;
       return this._byggRutenett(med);
     }
@@ -1233,6 +1339,29 @@ KiKameraCard.styles = `
   .menyvalg:hover { background: rgba(128, 128, 128, .18); }
   .menyvalg.aktiv { color: var(--active-big, var(--primary-color)); }
   .menyvalg .hake { --mdc-icon-size: 16px; }
+
+  /* Tilpass rutene */
+  .tilpass { background: var(--gray200, var(--card-background-color)); border-radius: 22px; padding: 14px; margin: 4px 0 10px;
+    display: flex; flex-direction: column; gap: 12px; }
+  .tp-hode { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .tp-hode b { display: block; font-size: 15px; font-weight: 600; }
+  .tp-hode span { font-size: 12px; opacity: .6; }
+  .tp-ferdig { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--active-big, var(--primary-color)); color: var(--black, #000); font-weight: 600; font-size: 13px; }
+  .tp-oppsett { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .tp-oppsett button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 14px;
+    background: var(--gray100, rgba(128,128,128,.12)); color: var(--gray1000, var(--primary-text-color)); font-size: 11.5px; font-weight: 600; --mdc-icon-size: 20px; }
+  .tp-oppsett button.aktiv { background: var(--active-big, var(--primary-color)); color: var(--black, #000); }
+  .tp-liste { display: flex; flex-direction: column; }
+  .tp-rad { display: grid; grid-template-columns: 36px 22px minmax(0, 1fr) 36px 36px; align-items: center; gap: 8px; padding: 6px 0; }
+  .tp-rad + .tp-rad { border-top: 1px solid rgba(255,255,255,.06); }
+  .tp-rad button { width: 36px; height: 36px; border-radius: 18px; background: var(--gray100, rgba(128,128,128,.12)); color: inherit;
+    display: grid; place-items: center; --mdc-icon-size: 20px; }
+  .tp-rad button[disabled] { opacity: .25; pointer-events: none; }
+  .tp-rad .tp-ik { --mdc-icon-size: 20px; opacity: .8; }
+  .tp-navn { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tp-rad.skjult .tp-navn, .tp-rad.skjult .tp-ik { opacity: .4; text-decoration: line-through; }
+  .tp-nullstill { align-self: center; height: 34px; padding: 0 14px; border-radius: 17px; background: none; color: inherit; opacity: .7;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); font-size: 13px; }
 
   /* ---------- mosaikk ---------- */
   .rutenett { display: grid; gap: 8px; width: 100%; }
