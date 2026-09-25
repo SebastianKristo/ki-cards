@@ -106,6 +106,9 @@
     .mane { opacity:0; transition:opacity 1s; } .bk.natt .mane { opacity:1; }
     .bk.natt { background:linear-gradient(165deg,#0d1020 0%,#121a2e 55%,#15203a 100%); }
     .bk.natt .pille { background:rgba(167,139,250,.32); }
+    .bk.vinter { background:linear-gradient(165deg,#15202a 0%,#1b2a36 55%,#22333f 100%); }
+    .bk.vinter .pille { background:rgba(150,200,240,.28); }
+    .bk.vinter .v1, .bk.vinter .v2 { stop-color:#6f8fa6 !important; }
     .av .vp, .av .rist { opacity:.45; }
     @media (prefers-reduced-motion: reduce) { .bk * { animation:none !important; } }
     @media (max-width:380px) { .scene { width:56%; } .tekst { max-width:46%; } }
@@ -217,13 +220,15 @@
       const tak = S[`switch.${p}_pooltak_pa`];
       const klor = S[`binary_sensor.${p}_klortablett_bor_legges_i`];
       const maltemp = S[`sensor.${p}_maltemperatur`];
+      const vinter = S[`switch.${p}_vintermodus`];
       return { modus: S[id].state, gjort: oms ? parseFloat(oms.state) : NaN,
         mal: oms ? parseFloat(oms.attributes.mal) : NaN, id, omsId: oms ? `sensor.${p}_omsetninger_i_dag` : null,
         natt: senking && senking.state === "aktiv" ? (senking.attributes.til || "") : null,
         tak: tak ? tak.state === "on" : null,
         klor: !!(klor && klor.state === "on"),
+        vinter: !!(vinter && vinter.state === "on"),
         maltemp: maltemp && ok(maltemp) ? parseFloat(maltemp.state) : NaN,
-        ider: [senking, tak, klor, maltemp].filter(Boolean).map((x) => x.entity_id) };
+        ider: [senking, tak, klor, maltemp, vinter].filter(Boolean).map((x) => x.entity_id) };
     }
 
     _oppdater() {
@@ -257,6 +262,8 @@
       kort.classList.toggle("av", av);
       kort.classList.toggle("tak", tak);
       kort.classList.toggle("natt", natt !== null);
+      const vinter = !!(ki && ki.vinter);
+      kort.classList.toggle("vinter", vinter);
       $(".enhet").classList.toggle("av", av);
       kort.style.setProperty("--vifte", (stille ? 2.6 : 1.2) + "s");
 
@@ -267,7 +274,8 @@
 
       $(".n").textContent = c.navn;
       let pt, ik;
-      if (natt !== null) { pt = natt ? `Nattsenking til ${natt}` : "Nattsenking"; ik = "mdi:weather-night"; }
+      if (vinter) { pt = ki.modus === "frostsikring" ? "Frostsikring" : "Vintermodus"; ik = "mdi:snowflake"; }
+      else if (natt !== null) { pt = natt ? `Nattsenking til ${natt}` : "Nattsenking"; ik = "mdi:weather-night"; }
       else if (modus === "unavailable") { pt = "Varmepumpa er borte"; ik = "mdi:wifi-off"; }
       else if (auto) { pt = "Står i auto"; ik = "mdi:alert-outline"; }
       else if (varmer) { pt = stille ? "Varmer · stillemodus" : "Varmer"; ik = "mdi:heat-wave"; }
@@ -281,7 +289,7 @@
       $(".stor").innerHTML = isNaN(vann) ? "--" : `${komma(vann, 1)}<small>°C</small>`;
       const deler = [];
       if (ki && !isNaN(ki.gjort)) deler.push(isNaN(ki.mal) ? `${komma(ki.gjort, 2)} omsetninger` : `${komma(ki.gjort, 2)} av ${komma(ki.mal, 2)} omsetninger`);
-      if (!isNaN(mal)) deler.push(`mål ${komma(mal, mal % 1 ? 1 : 0)}°`);
+      if (!isNaN(mal) && !vinter) deler.push(`mål ${komma(mal, mal % 1 ? 1 : 0)}°`);
       if (tak) deler.push("tak på");
       if (ki && ki.klor) deler.push("klortablett!");
       if (!ki) deler.push(pumpe ? "pumpe på" : "pumpe av");
