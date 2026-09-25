@@ -1,4 +1,4 @@
-/* ki-cards v8.99.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
+/* ki-cards v8.99.4 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-25 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.99.3";
+  KI.VERSION = "8.99.4";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11713,7 +11713,7 @@ try {
  * spenning: 24                      # volt på ventilene – regner strømtrekket om til watt
  * vis_vanniva: false                # vannivået fra OpenSprinkler (skjult som standard)
  */
-const KI_VANN_VERSJON = "4.2.0";
+const KI_VANN_VERSJON = "4.2.1";
 
 const KI_VANN_STIL = `
   :host { display:block; max-width:100%; overflow:hidden; --fjaer:cubic-bezier(.3,1.35,.5,1); --myk:cubic-bezier(.2,.8,.2,1); }
@@ -12283,7 +12283,19 @@ const KI_VANN_STIL = `
   .v4liste { background:var(--gray200,#262629); border:1px solid rgba(255,255,255,.05); border-radius:22px; padding:4px 12px 4px 14px; }
   .v4sone { position:relative; display:flex; align-items:center; gap:12px; padding:10px 0; cursor:pointer; }
   .v4sone + .v4sone, .v4sone + .valg + .v4sone { border-top:1px solid rgba(255,255,255,.06); }
-  .v4sone .fyll { position:absolute; left:-14px; top:0; bottom:0; background:color-mix(in srgb, var(--blue,#6ec6ff) 10%, transparent); }
+  /* Fyllet bak sonen som vanner: hele raden, avrundet, i blått som vokser jevnt mot høyre.
+     Før manglet midten sin rutenett-stil i sonelista, så navn og status havnet på én linje,
+     og fyllet var en grå firkant bak ikonet uten overgang. */
+  .v4sone .fyll { position:absolute; left:-10px; top:3px; bottom:3px; border-radius:16px; max-width:calc(100% + 16px);
+    background:linear-gradient(90deg, color-mix(in srgb, var(--blue,#6ec6ff) 8%, transparent), color-mix(in srgb, var(--blue,#6ec6ff) 22%, transparent));
+    transition:width 1s linear; }
+  .v4sone .midt { flex:1; min-width:0; display:grid; gap:2px; }
+  .v4sone .midt b { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .v4sone .midt > span { font-size:12px; opacity:.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+  .v4sone .kode { opacity:.55; font-variant-numeric:tabular-nums; }
+  .v4sone.gaar .v4ik { animation:v4-puls 1.8s ease-in-out infinite; }
+  @keyframes v4-puls { 50% { box-shadow:0 0 0 6px color-mix(in srgb, var(--blue,#6ec6ff) 25%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .v4sone.gaar .v4ik { animation:none; } .v4sone .fyll { transition:none; } }
   .v4sone > :not(.fyll) { position:relative; }
   .v4sone .v4ik { width:36px; height:36px; }
   .v4sone.gaar .v4ik { background:var(--blue,#6ec6ff); color:#141416; }
@@ -12627,7 +12639,8 @@ class KiVanningCard extends HTMLElement {
       const nr = m[1], hale = m[2] || "";
       const fn = (S[id].attributes || {}).friendly_name || "";
       /* «S05 Plen nord · Spreder B2 Station Enabled» → navn og metode */
-      let tekst = fn.replace(/^S\d\d\s*/i, "").replace(/\s*Station Enabled$/i, "").trim();
+      // Nyere OpenSprinkler setter enhetsnavnet foran: «OpenSprinkler S01 Garasje/Roser …»
+      let tekst = fn.replace(/^.*?\bS\d\d\b\s*/i, "").replace(/\s*Station Enabled$/i, "").trim();
       const ubrukt = !tekst || /^S?\d+$/.test(tekst);
       const deler = tekst.split("·").map((x) => x.trim());
       const navn = deler[0] || "Sone " + nr;
@@ -13316,10 +13329,12 @@ class KiVanningCard extends HTMLElement {
     const std = Number(c.standard_min) || (c.varigheter && c.varigheter[1]) || 10;
     const rad = (x) => {
       const gaar = this._on(x.gaar), st = this._st(x.status);
-      const status = vinter ? "Vinterstengt" : gaar ? `Vanner${st && /\d:\d\d/.test(st.state) ? ` · ${st.state} igjen` : ""}` : "";
+      const igjen = gaar && this._slutt ? Math.max(0, Math.round((this._slutt - Date.now()) / 1000)) : 0;
+      const status = vinter ? "Vinterstengt" : gaar ? `Vanner${igjen ? ` · ${Math.floor(igjen / 60)}:${String(igjen % 60).padStart(2, "0")} igjen`
+        : st && /\d:\d\d/.test(st.state) ? ` · ${st.state} igjen` : ""}` : "";
       const aapen = this._aapenSone === x.nr && !gaar;
       return `<div class="v4sone ${gaar ? "gaar" : ""}" data-sone="${x.nr}" role="button" tabindex="0">
-          ${gaar && this._total ? `<div class="fyll" style="width:calc(${(100 - ((Math.max(0, (this._slutt - Date.now()) / 1000)) / this._total) * 100).toFixed(1)}% + 14px)"></div>` : ""}
+          ${gaar ? `<div class="fyll" style="width:${this._total ? Math.max(4, 100 - ((Math.max(0, (this._slutt - Date.now()) / 1000)) / this._total) * 100).toFixed(1) : 100}%"></div>` : ""}
           <span class="v4ik"><ha-icon icon="${kiVaIkon(x.metode || x.navn)}"></ha-icon></span>
           <div class="midt"><b><span class="kode">S${kiVaEsc(x.nr)}</span> ${kiVaEsc(x.navn)}</b>
             <span class="${gaar ? "gaar" : ""}">${kiVaEsc(status || [x.metode, `${std} min`].filter(Boolean).join(" · "))}</span></div>
@@ -13564,7 +13579,9 @@ class KiVanningCard extends HTMLElement {
     if (kort) { const f = kort.querySelector(".fyll"); if (f) f.style.width = pst.toFixed(1) + "%";
       const ig = kort.querySelector(".igjen"); if (ig) ig.textContent = tekst; }
     const sf = this.shadowRoot.querySelector(".v4sone.gaar .fyll");
-    if (sf) sf.style.width = `calc(${pst.toFixed(1)}% + 14px)`;
+    if (sf && this._total) sf.style.width = `${Math.max(4, pst).toFixed(1)}%`;
+    const ss = this.shadowRoot.querySelector(".v4sone.gaar .midt > span");
+    if (ss && tekst) ss.textContent = `Vanner · ${tekst} igjen`;
   }
 
   _tegn() {
