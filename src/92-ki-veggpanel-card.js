@@ -77,7 +77,7 @@
  *     - { navn: Nattlys, ikon: mdi:lightbulb-night-outline, tap_action: {…} }
  */
 (() => {
-  const VERSJON = "1.10.0";
+  const VERSJON = "1.10.1";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 0) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const TIME = 3600000;
@@ -308,6 +308,9 @@
     .vp.skjerm .kol { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
       padding-bottom: var(--vp-bunn); scrollbar-width: none; }
     .vp.skjerm .kol > * { flex: none; }
+    /* Tomme plasser (strøm av, ingen buss …) skal ikke ta en avstand: i midten lå den tomme
+       strøm-plassen under Plex og løftet bunnen 16 px over kortene i de andre kolonnene. */
+    .kol > div:empty { display: none; }
     .vp.skjerm .kol > .vokser { flex: 1 1 auto; display: flex; flex-direction: column; min-height: min-content; }
     .vp.skjerm .vokser > .kort { flex: 1 1 auto; display: flex; flex-direction: column; }
     .vp.skjerm .vokser .scener { flex: 1; grid-auto-rows: 1fr; }
