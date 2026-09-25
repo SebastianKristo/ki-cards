@@ -12,12 +12,14 @@
  * soner: auto                                     # auto = alle zone.*, eller en liste
  * visning: stor                                  # stor (standard): kartet fyller skjermen, personer og
  *                                                #   soner flyter oppå; liste: kartet øverst, lister under
- * luft: 170                                      # px som trekkes fra skjermhøyden i stor visning
+ * bunn: 20                                       # luft under kartet i stor visning (høyden regnes ut
+ *                                                #   fra der kartet starter til bunnen av skjermen)
+ * samle: false                                   # true = samle personer som står nær hverandre i ett tall
  * forhold: "16:10"                               # kartets sideforhold i listevisning
  * zoom: 11
  */
 (() => {
-  const VERSJON = "1.1.0";
+  const VERSJON = "1.2.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SONEFARGER = ["var(--green, #6fcf8e)", "var(--blue, #6f9fe0)", "var(--orange, #f2a33c)", "var(--purple, #b39cf0)",
     "var(--pink, #ff8ac0)", "var(--teal, #40c8e0)", "var(--yellow, #f2c94c)"];
@@ -53,13 +55,13 @@
        i glassbrikker. Brikkene tar imot trykk; resten av flaten slipper fingeren gjennom
        til kartet, så du kan dra og zoome som vanlig. */
     .kk.stor { gap: 0; }
-    .kk.stor .kart { height: calc(100dvh - var(--kk-luft, 170px)); min-height: 320px; }
+    .kk.stor .kart { height: var(--kk-hoyde, calc(100dvh - var(--kk-luft, 170px))); min-height: 320px; }
     .kk.stor .etikett, .kk.stor #liste-ute, .kk.stor #soner-ute { display: none; }
     .flyt { position: absolute; left: 0; right: 0; z-index: 500; pointer-events: none; display: flex; gap: 8px;
       overflow-x: auto; scrollbar-width: none; padding: 12px; }
     .flyt::-webkit-scrollbar { display: none; }
     .flyt.bunn { bottom: 0; }
-    .flyt.topp { top: 0; }
+    .flyt.topp { top: 0; padding-left: 64px; }
     .flyt > * { pointer-events: auto; flex: none; }
     .glass { background: rgba(20,20,22,.62); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
       box-shadow: 0 4px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08); color: #f2f1ee; }
@@ -94,7 +96,8 @@
   `;
 
   class KiKartCard extends HTMLElement {
-    disconnectedCallback() { this._ro && this._ro.disconnect(); }
+    disconnectedCallback() { this._ro && this._ro.disconnect(); if (this._resizeLytter) { window.removeEventListener("resize", this._resizeLytter); this._resizeLytter = null; } }
+    connectedCallback() { if (this._tilpass) [0, 350, 700].forEach((ms) => setTimeout(this._tilpass, ms)); }
     constructor() { super(); this.attachShadow({ mode: "open" }); this._sig = ""; }
     static getStubConfig() { return { personer: [] }; }
     getCardSize() { return 10; }
@@ -268,6 +271,8 @@
         const konf = {
           type: "map", entities, theme_mode: this._c.tema || "dark", default_zoom: Number(this._c.zoom) || 11,
           hours_to_show: Number(this._c.timer_spor) || 0, fit_zones: false, auto_fit: true,
+          // Hver person og bilen med eget merke, ikke samlet i ett tall når de står nær hverandre.
+          cluster: this._c.samle === true,
           aspect_ratio: this._stor() ? "1:1" : (this._c.forhold || "16:10"),
         };
         this._kartKonf = konf;
@@ -278,6 +283,20 @@
         this._kart = kart;
         /* Kartkortet bestemmer høyden ut fra sideforholdet. I stor visning regnes forholdet ut
            fra boksen (bredde:høyde), og settes på nytt når skjermen snus eller endrer størrelse. */
+        /* Høyden: fra der kartet starter til bunnen av skjermen, minus litt luft. Måles på nytt
+           etter at popupen har glidd inn, og når vinduet endrer størrelse. */
+        if (this._stor()) {
+          const tilpass = () => {
+            const b = vert.getBoundingClientRect();
+            if (!b.top || !window.innerHeight) return;
+            const h = Math.max(320, Math.round(window.innerHeight - b.top - (Number(this._c.bunn) || 20)));
+            vert.style.setProperty("--kk-hoyde", `${h}px`);
+          };
+          tilpass();
+          [350, 700, 1200].forEach((ms) => setTimeout(tilpass, ms));
+          this._tilpass = tilpass;
+          if (!this._resizeLytter) { this._resizeLytter = () => this._tilpass && this._tilpass(); window.addEventListener("resize", this._resizeLytter); }
+        }
         if (this._stor() && window.ResizeObserver) {
           const konf = this._kartKonf;
           let sist = "";

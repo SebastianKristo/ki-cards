@@ -1,6 +1,6 @@
-# ki-cards 8.91.0
+# ki-cards 8.92.0
 
-Bygget oppå 8.90.0 fra GitHub.
+Bygget oppå 8.91.0 fra GitHub.
 
 ## ki-basseng-card 3.4.0: Spreder og Innstillinger i nytt design
 
@@ -17,30 +17,25 @@ Klorstatus og valg av mobiler for varsel ligger i KI Basseng 1.9.
 
 ---
 
-# ki-cards 8.90.0
+# ki-cards 8.91.0
 
-Bygget oppå 5.88.0 fra GitHub.
+Bygget oppå 8.90.0 fra GitHub.
 
-## ki-kart-card 1.1.0: kartet fyller skjermen
+## ki-kart-card 1.2.0: kartet fyller skjermen — også i høyden
 
-Kartet tar nå nesten hele skjermen i popupen (`visning: stor`, standard). Personene og bilen flyter nederst
-over kartet i glassbrikker — bilde med ring i sonefargen, sone og hvor lenge, avstand eller batteri — og
-sonene flyter øverst med hvem som er der. Brikkene kan rulles sidelengs; resten av flaten slipper fingeren
-gjennom til kartet, så du drar og zoomer som vanlig.
+Etter første titt på iPaden:
 
-Høyden er skjermhøyden minus `luft:` (170 px som standard, for popup-toppen og navbaren). Kartkortet får
-sideforholdet regnet ut fra boksen, og det settes på nytt når iPaden snus.
+- **Høyden** regnes nå ut fra der kartet faktisk starter til bunnen av skjermen (minus `bunn:`, 20 px), i
+  stedet for en fast luft på 170 px. Popupens topp er høyere enn det, så brikkene med personene ble kuttet
+  nederst. Høyden måles på nytt etter at popupen har glidd inn, og når vinduet endrer størrelse.
+- **Ingen samling i tall.** Kartkortet samlet personer som står nær hverandre til en boble med «3». Nå får
+  hver person og bilen sitt eget merke (`samle: true` gir samlingen tilbake).
+- **Sonebrikkene** øverst starter til høyre for zoomknappene, som de dekket.
 
-`visning: liste` gir det gamle oppsettet: kartet øverst og listene under.
-
-## Buss som popup
-
-`examples/buss-popup.yaml` legger bussen (`ki-entur-card`) i en egen popup (`#buss`) i samme stil som de andre,
-så den kan åpnes fra sidemenyen. **Buss** i sidemenyen får rød farge når den er åpen. Bussen kan fortsatt ligge
-i veggpanelet med `buss:`.
+**Bredden** styres av popupen: `examples/kart-popup.yaml` har nå `width_desktop: 94%`, så popupen går nesten
+kant til kant på iPaden.
 
 ### Kontrollert
 
-Begge byggesjekkene kjørt. Kartkortet i stor visning: tre soner øverst og fire brikker (tre personer og bilen)
-nederst, alle i glass, kartet først i boksen og høyden regnet fra skjermen minus 170 px. Listevisning: lister
-under kartet og ingen flytende brikker. Ingen `NaN` eller `undefined`.
+Begge byggesjekkene kjørt. Kartkortet i stor visning: kartkortet får `cluster: false`, tre soner øverst og fire
+brikker nederst; popupen er gyldig YAML med `width_desktop: 94%`.

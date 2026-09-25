@@ -11,7 +11,9 @@ bg_blur: '20'
 shadow_opacity: '20'
 bg_opacity: '88'
 margin_top_mobile: 50px
-margin_top_desktop: 50px
+margin_top_desktop: 30px
+# Bred popup, så kartet får nesten hele skjermen
+width_desktop: 94%
 card_layout: large
 styles: >
   .bubble-pop-up-container { --vertical-stack-card-gap: 16px !important; }
@@ -47,5 +49,5 @@ cards:
     # bil: device_tracker.tesla_model_y_location   # finnes av seg selv; sett den her om feil bil velges
     bil_tittel: Teslaen
     visning: stor        # kartet fyller skjermen; liste = kart øverst og lister under
-    luft: 170            # øk om kartet går under navbaren, senk for enda større kart
+    bunn: 20             # luft under kartet; høyden regnes ut fra skjermen
     zoom: 11
