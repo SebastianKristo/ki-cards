@@ -1,5 +1,5 @@
 /*!
- * ki-basseng-card 3.4.0 - del av ki-cards
+ * ki-basseng-card 3.5.0 - del av ki-cards
  * Kort for integrasjonen ki_basseng: sirkulasjon, varme og spreder.
  *
  * 2.0: fanen Varme for KI Basseng 1.3 – temperatur mot målet med −/+ for ønsket
@@ -24,6 +24,8 @@
  *   – Klor: trykk på den som la i, antall, kalenderen og klorloggens innstillinger.
  *   En `faner:`-liste skrevet for 2.x (uten klor) får Klor etter Varme, og Sirkulasjon
  *   faller bort – den ligger under grafen på Varme nå.
+ * 3.5: full editor i grensesnittet, større setninger (prosa 1,4em som på forsiden), og
+ *   teksten om manuell overstyring er borte fra bunnen av Oversikt.
  * 3.4: Spreder og Innstillinger i samme form: scenen som bilde, stor start/stopp, fliser,
  *   faste valg for varighet, og innstillingene som grupper med rader.
  * 3.3: vannivået fra KI Basseng 1.8 (vannsensor i bassenget): banner når det trenger vann eller
@@ -58,7 +60,7 @@
 
   if (customElements.get("ki-basseng-card")) return;
 
-  const VERSJON = "3.4.0";
+  const VERSJON = "3.5.0";
 
   /* Finner LitElement i frontend.
    *
@@ -2487,7 +2489,6 @@
             ? this._panel("mdi:chart-bell-curve-cumulative", "var(--kib-orange)", "Vanntemperatur", "",
                 this._graf(), this._vinduvelger(), () => this._mer("vanntemp"))
             : ""}
-          ${this.on("overstyrt") ? html`<div class="varsel">Manuell overstyring – automatikken venter.</div>` : ""}
           ${this.on("vpVenter") ? html`<div class="varsel">Varmepumpen står av til sirkulasjonen er tilbake.</div>` : ""}
         `;
       }
@@ -2645,7 +2646,7 @@
           if (!el) { el = document.createElement("ki-prosa-card"); el.classList.add("prosa3"); this._prosaEl[navn] = el; }
           const konf = {
             ...std,
-            storrelse: this._config.prosa_storrelse || "1.2em",
+            storrelse: this._config.prosa_storrelse || "1.4em",
             setninger: deler.map((d) => (d.v === undefined ? { tekst: d.t }
               : { tekst: d.t, pille: { mal: d.v, mer: d.k ? this.id(d.k) || undefined : undefined, id: `${navn}-${d.t}` } })),
           };
@@ -4713,67 +4714,138 @@
     /* Editor                                                            */
     /* ---------------------------------------------------------------- */
 
+    /* Editoren (3.5): alt som kan settes i YAML, gruppert i utvidbare seksjoner.
+     * Verdier som er lik standarden skrives ikke til konfigurasjonen, så YAML-en holder
+     * seg kort. Navn og ikon på hurtigknappene fra YAML beholdes. */
+    const FANE_VALG = [
+      { value: "oversikt", label: "Oversikt" },
+      { value: "varme", label: "Varme" },
+      { value: "klor", label: "Klor" },
+      { value: "sirkulasjon", label: "Sirkulasjon" },
+      { value: "spreder", label: "Spreder" },
+      { value: "innstillinger", label: "Innstillinger (tannhjulet)" },
+    ];
+
     class KiBassengCardEditor extends LitElement {
       static get properties() {
         return { hass: {}, _config: {} };
       }
 
       setConfig(config) {
-        this._config = config;
+        this._config = config || {};
+      }
+
+      _data() {
+        const c = this._config;
+        return {
+          tittel: c.tittel || "",
+          prefix: c.prefix || "",
+          visning: String(c.visning || "").toLowerCase() === "hero" ? "hero" : "full",
+          hero: c.hero !== false,
+          uten_faner: c.faner === false,
+          faner: Array.isArray(c.faner) ? c.faner.map((v) => (typeof v === "object" && v ? v.id : v)).filter(Boolean) : [],
+          varmepumpe: c.varmepumpe || "",
+          stillemodus: c.stillemodus || "",
+          hurtig: (c.hurtig || []).map((x) => (typeof x === "string" ? x : x && x.entity)).filter(Boolean),
+          hurtig_navn: !!c.hurtig_navn,
+          prosa_storrelse: c.prosa_storrelse || "1.4em",
+          dashbordfliser: c.dashbordfliser !== false,
+          graf: c.graf !== false,
+          forvalg: Array.isArray(c.forvalg) ? c.forvalg.join(", ") : "",
+        };
       }
 
       _endret(ev) {
         ev.stopPropagation();
-        const config = { ...this._config, ...ev.detail.value };
-        if (config.faner === true) delete config.faner;
-        /* En faneliste fra YAML (oversikt, sirkulasjon …) skal ikke bli til true bare
-           fordi editoren viser feltet som en bryter. */
-        if (Array.isArray(this._config.faner) && ev.detail.value.faner === true) config.faner = this._config.faner;
-        /* Hurtigknappene vises som en entitetsliste. Navn og ikon satt i YAML tas vare
-           på for de entitetene som fortsatt står i lista. */
-        if (Array.isArray(ev.detail.value.hurtig)) {
+        const v = ev.detail.value;
+        const c = { ...this._config };
+        const sett = (k, verdi, std) => {
+          if (verdi === undefined || verdi === "" || verdi === null || verdi === std
+            || (Array.isArray(verdi) && !verdi.length)) delete c[k];
+          else c[k] = verdi;
+        };
+        sett("tittel", v.tittel);
+        sett("prefix", v.prefix);
+        sett("visning", v.visning === "hero" ? "hero" : "", "");
+        sett("hero", v.hero === false ? false : undefined);
+        if (v.uten_faner) c.faner = false;
+        else sett("faner", v.faner && v.faner.length ? v.faner : undefined);
+        sett("varmepumpe", v.varmepumpe);
+        sett("stillemodus", v.stillemodus);
+        if (Array.isArray(v.hurtig)) {
           const forrige = {};
           (this._config.hurtig || []).forEach((x) => {
             const o = typeof x === "string" ? { entity: x } : x;
             if (o && o.entity) forrige[o.entity] = o;
           });
-          config.hurtig = ev.detail.value.hurtig.map((id) =>
-            forrige[id] && Object.keys(forrige[id]).length > 1 ? forrige[id] : id);
-          if (!config.hurtig.length) delete config.hurtig;
+          sett("hurtig", v.hurtig.map((id) => (forrige[id] && Object.keys(forrige[id]).length > 1 ? forrige[id] : id)));
         }
-        for (const k of ["varmepumpe", "stillemodus"]) if (!config[k]) delete config[k];
-        this.dispatchEvent(
-          new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true })
-        );
+        sett("hurtig_navn", v.hurtig_navn ? true : undefined);
+        sett("prosa_storrelse", v.prosa_storrelse, "1.4em");
+        sett("dashbordfliser", v.dashbordfliser === false ? false : undefined);
+        sett("graf", v.graf === false ? false : undefined);
+        /* «26, 27,5 28» eller «26,27,28»: komma med ett siffer bak er desimalkomma */
+        const forvalg = String(v.forvalg || "").split(/[;\s]+/)
+          .flatMap((t) => ((t.match(/,/g) || []).length > 1 || /,\d{2,}/.test(t) ? t.split(",") : [t]))
+          .map((x) => Number(x.replace(/,$/, "").replace(",", "."))).filter((x) => isFinite(x) && x > 0);
+        sett("forvalg", forvalg.length ? forvalg : undefined);
+        this._config = c;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: c }, bubbles: true, composed: true }));
       }
 
       render() {
         if (!this.hass || !this._config) return html``;
+        const d = this._data();
         const schema = [
-          { name: "tittel", selector: { text: {} } },
-          { name: "prefix", selector: { text: {} } },
-          { name: "graf", selector: { boolean: {} } },
-          { name: "faner", selector: { boolean: {} } },
-          { name: "varmepumpe", selector: { entity: { domain: "climate" } } },
-          { name: "stillemodus", selector: { entity: { domain: ["switch", "input_boolean"] } } },
-          { name: "hurtig", selector: { entity: { multiple: true } } },
+          { type: "expandable", name: "", flatten: true, title: "Generelt", icon: "mdi:pool", expanded: true, schema: [
+            { name: "visning", selector: { select: { mode: "dropdown", options: [
+              { value: "full", label: "Hele kortet (faner og alt)" },
+              { value: "hero", label: "Bare bassengscenen (eget kort i dashbordet)" }] } } },
+            { name: "hero", selector: { boolean: {} } },
+            { name: "tittel", selector: { text: {} } },
+            { name: "prefix", selector: { text: {} } },
+          ] },
+          { type: "expandable", name: "", flatten: true, title: "Faner", icon: "mdi:tab", schema: [
+            { name: "uten_faner", selector: { boolean: {} } },
+            ...(d.uten_faner ? [] : [{ name: "faner", selector: { select: { multiple: true, mode: "list", options: FANE_VALG } } }]),
+          ] },
+          { type: "expandable", name: "", flatten: true, title: "Varmepumpe og knapper", icon: "mdi:heat-pump-outline", schema: [
+            { name: "varmepumpe", selector: { entity: { domain: "climate" } } },
+            { name: "stillemodus", selector: { entity: { domain: ["switch", "input_boolean"] } } },
+            { name: "hurtig", selector: { entity: { multiple: true } } },
+            { name: "hurtig_navn", selector: { boolean: {} } },
+          ] },
+          { type: "expandable", name: "", flatten: true, title: "Utseende", icon: "mdi:palette-outline", schema: [
+            { name: "prosa_storrelse", selector: { select: { mode: "dropdown", custom_value: true, options: [
+              { value: "1.2em", label: "Liten (1,2)" }, { value: "1.4em", label: "Standard (1,4)" },
+              { value: "1.6em", label: "Stor (1,6)" }, { value: "1.8em", label: "Størst (1,8)" }] } } },
+            { name: "dashbordfliser", selector: { boolean: {} } },
+            { name: "graf", selector: { boolean: {} } },
+            { name: "forvalg", selector: { text: {} } },
+          ] },
         ];
+        const etiketter = {
+          visning: "Visning",
+          hero: "Vis bassengscenen øverst",
+          tittel: "Tittel over kortet (tom = ingen)",
+          prefix: "Entitetsprefiks (tom = finn selv)",
+          uten_faner: "Uten faner (én flyt med utvidbare seksjoner)",
+          faner: "Faner (tom = Oversikt, Varme, Klor, Spreder og tannhjulet)",
+          varmepumpe: "Varmepumpe (flis med av/på på Varme)",
+          stillemodus: "Stillemodus-bryter",
+          hurtig: "Hurtigknapper under scenen",
+          hurtig_navn: "Vis navn under hurtigknappene",
+          prosa_storrelse: "Tekststørrelse i setningene",
+          dashbordfliser: "Bruk dashbordets kort (universal_sensor_ny) for flisene",
+          graf: "Vis grafen på Varme",
+          forvalg: "Temperaturknapper (f.eks. 26, 27, 28 – tom = rundt valgt temperatur)",
+        };
         return html`
           <ha-form
             .hass=${this.hass}
-            .data=${{ graf: true, ...this._config, faner: this._config.faner !== false,
-              hurtig: (this._config.hurtig || []).map((x) => (typeof x === "string" ? x : x.entity)).filter(Boolean) }}
+            .data=${d}
             .schema=${schema}
-            .computeLabel=${(s) =>
-              ({
-                tittel: "Tittel",
-                prefix: "Entitetsprefiks (valgfritt)",
-                graf: "Vis graf",
-                faner: "Faner (av = én flyt med utvidbare seksjoner)",
-                varmepumpe: "Varmepumpe (statuskort øverst)",
-                stillemodus: "Stillemodus-bryter (vises i statuskortet)",
-                hurtig: "Hurtigknapper øverst",
-              })[s.name] || s.name}
+            .computeLabel=${(x) => etiketter[x.name] || x.title || x.name}
             @value-changed=${this._endret}
           ></ha-form>
         `;
