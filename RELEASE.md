@@ -1,3 +1,15 @@
+# ki-cards 5.77.2
+
+## ki-basseng-card 3.2.2
+
+- **Setningen på Varme sier mer.** Den stoppet ved «Vannet er 27,1° og holder målet på 27°».
+  Nå kommer varmepumpa («trekker 2,3 kW», «hviler» eller «står av»), natta («og i natt står
+  varmen av 23–04 og sparer ca 2 kroner») og hva strømmen har kostet i dag.
+- **«Spart i dag» åpner oppdelingen.** Trykket fanges nå rundt kortet i stedet for å gå
+  gjennom button-card sin handling, som malen kunne overstyre. Kortet har `tap_action: none`.
+
+---
+
 # ki-cards 5.77.1
 
 ## ki-basseng-card 3.2.1: vannflisen kommer med en gang, og «Spart i dag» virker
