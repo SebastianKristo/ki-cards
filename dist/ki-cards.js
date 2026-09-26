@@ -1,4 +1,4 @@
-/* ki-cards v9.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.6.1 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.6.0";
+  KI.VERSION = "9.6.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -827,7 +827,10 @@ window.KI = window.KI || {};
       };
       r.addEventListener("pointerup", slipp);
       r.addEventListener("pointercancel", slipp);
-      r.addEventListener("lostpointercapture", slipp);
+      /* Bare når rada selv mister fingeren. På mobil eier knappen fingeren fra start (implisitt
+         capture); når rada tar den over i setPointerCapture, får knappen lostpointercapture, som
+         bobler hit – den må ikke avslutte draget, ellers virker dra bare med mus. */
+      r.addEventListener("lostpointercapture", (e) => { if (e.target === r) slipp(e); });
       /* Klikket nettleseren sender etter et drag skal ikke velge noe; bare vårt eget. */
       r.addEventListener("click", (e) => {
         if (r._kiSlipper) return;
@@ -1911,7 +1914,8 @@ try {
       };
       rad.addEventListener("pointerup", slipp);
       rad.addEventListener("pointercancel", slipp);
-      rad.addEventListener("lostpointercapture", slipp);
+      /* Bare når rada selv mister fingeren – knappens implisitte capture på mobil bobler hit. */
+      rad.addEventListener("lostpointercapture", (e) => { if (e.target === rad) slipp(e); });
       /* Klikket nettleseren sender etter et drag skal ikke også velge en fane. */
       rad.addEventListener("click", (e) => {
         if (na() - (this._draSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
@@ -9543,7 +9547,8 @@ try {
  *    klima: true
  *    media: true
  *    sensorer: true
- *  bunn_gap: 200          # mellomrom nederst; settes selv når noen seksjoner mangler
+ *  topp_gap: 0            # gap-card øverst i popupen (px)
+ *  bunn_gap: 50           # gap-card nederst i popupen (px) – begge kan også velges i «Tilpass rommet»
  *  temperatur: sensor.x           # overstyr (ellers første temp-sensor i rommet, ellers sensor.hus_temperature)
  *  reserve_temperatur / reserve_fuktighet: sensor.x   # annen reserve enn hus-sensorene
  *  fuktighet: sensor.x
@@ -10512,11 +10517,14 @@ try {
        flyter midt på skjermen. Et høyt mellomrom nederst skyver innholdet opp til
        toppen, der det hører hjemme.
        `bunn_gap` overstyrer høyden, `bunn_gap: 0` slår det av. */
-    const alle = Object.keys(DEFAULT_SECTIONS).length;
-    const bunn = cfg.bunn_gap !== undefined ? Number(cfg.bunn_gap)
-      : (bygd < alle ? 200 : 0);
-    cards.push(bunn > 0 ? { type: 'custom:gap-card', height: bunn }
-                        : { type: 'custom:gap-card' });
+    /* Avstand øverst og nederst i popupen: gap-card i begge ender. Brukerens valg
+       (Tilpass rommet → Avstand) går foran `topp_gap`/`bunn_gap` i config. */
+    const tall = (...v) => { for (const x of v) { if (x !== undefined && x !== null && x !== '' && !isNaN(Number(x))) return Number(x); } return 0; };
+    const topp = tall(U.topp_gap, cfg.topp_gap, 0);
+    const bunn = tall(U.bunn_gap, cfg.bunn_gap, 50);
+    cards.unshift({ type: 'custom:gap-card', height: topp });
+    cards.push({ type: 'custom:gap-card', height: bunn });
+    void bygd;
     return cards;
   }
 
@@ -11284,7 +11292,16 @@ try {
         + '<div class="sens"><div class="sh"><ha-icon icon="mdi:card-outline"></ha-icon><span class="t">Toppkort</span></div><div class="chips">'
         + [['levende', 'Levende', 'mdi:creation'], ['enkel', 'Enkel', 'mdi:chart-areaspline-variant']].map(([v, t, ic]) => '<button type="button" class="chip press' + ((U.stil || cfg.topp_stil || 'levende') === v ? ' sel' : '') + '" data-act="stil" data-id="' + v + '"><ha-icon icon="' + ic + '"></ha-icon><span class="l">' + t + '</span></button>').join('')
         + '<button type="button" class="chip press' + (U.animasjon === false || (U.animasjon === undefined && cfg.topp_animasjon === false) ? '' : ' sel') + '" data-act="anim"><ha-icon icon="mdi:motion-play-outline"></ha-icon><span class="l">Animasjon</span></button>'
-        + '</div></div></section>';
+        + '</div></div>'
+        + ['topp_gap', 'bunn_gap'].map((k) => {
+          const cur = U[k] !== undefined ? Number(U[k]) : Number(cfg[k] !== undefined ? cfg[k] : (k === 'topp_gap' ? 0 : 50));
+          const valg = k === 'topp_gap' ? [0, 8, 16, 24, 40] : [0, 25, 50, 100, 150, 200];
+          return '<div class="sens"><div class="sh"><ha-icon icon="' + (k === 'topp_gap' ? 'mdi:arrow-collapse-up' : 'mdi:arrow-collapse-down') + '"></ha-icon><span class="t">Avstand ' + (k === 'topp_gap' ? 'øverst' : 'nederst') + '</span><span class="alt">' + cur + ' px</span></div><div class="chips">'
+            + valg.map((v) => '<button type="button" class="chip press' + (cur === v ? ' sel' : '') + '" data-act="gap" data-k="' + k + '" data-id="' + v + '"><span class="l">' + v + '</span></button>').join('')
+            + '<button type="button" class="chip press" data-act="gapfin" data-k="' + k + '" data-id="-5"><span class="l">−5</span></button>'
+            + '<button type="button" class="chip press" data-act="gapfin" data-k="' + k + '" data-id="5"><span class="l">+5</span></button></div></div>';
+        }).join('')
+        + '</section>';
 
       // --- seksjoner (de store flisene/kategoriene i popupen)
       const sek = seksjonModell(cfg, U);
@@ -11346,6 +11363,8 @@ try {
           switch (d.act) {
             case 'sens': this._sensPick(d.k, d.id); break;
             case 'farge': this._lagre((r) => { if (d.id) r.farge = d.id; else delete r.farge; }); break;
+            case 'gap': this._lagre((r) => { r[d.k] = Number(d.id); }); break;
+            case 'gapfin': this._lagre((r) => { const c = this._config; const cur = r[d.k] !== undefined ? Number(r[d.k]) : Number(c[d.k] !== undefined ? c[d.k] : (d.k === 'topp_gap' ? 0 : 50)); r[d.k] = Math.max(0, Math.min(400, cur + Number(d.id))); }); break;
             case 'stil': this._lagre((r) => { if (d.id === (cfg0Stil(this._config))) delete r.stil; else r.stil = d.id; }); break;
             case 'anim': this._lagre((r) => { const av = r.animasjon === false || (r.animasjon === undefined && this._config.topp_animasjon === false); if (av) { if (this._config.topp_animasjon === false) r.animasjon = true; else delete r.animasjon; } else r.animasjon = false; }); break;
             case 'sensall': this._st.sensAll = this._st.sensAll === d.k ? null : d.k; this._st.sensQ = ''; haptic(); this._renderEdit(); break;
