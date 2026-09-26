@@ -108,6 +108,8 @@ function toCssSize(value, fallbackPx) {
  *     dobbeltrykk: "/config" }              // "" = ingenting
  */
 const UD_KEY = "ki_familie";
+/* Fristen for andre trykk i et dobbelttrykk på hilsenen/servernavnet. */
+const DOBBEL_MS = 320;
 
 /* Oppsettene. `plass` er servernavnets plass (samme som server_plass). */
 const OPPSETT = [
@@ -540,9 +542,13 @@ class FamilyStatusCard extends LitElement {
           this._greetingGest("double_tap");
           return;
         }
+        if (this._erAndreTrykk()) { this._dobbeltrykkFraMeny(); return; }
         this._serverApen = false;
       }}></div>
-      <div class="servermeny" role="menu" @click=${(e) => e.stopPropagation()}>
+      <div class="servermeny" role="menu" @click=${(e) => {
+        e.stopPropagation();
+        if (this._erAndreTrykk()) this._dobbeltrykkFraMeny();
+      }}>
         <div class="menytopp">Bytt sted</div>
         ${this._servere().map((srv, i) => {
           const na = srv.navn === her;
@@ -590,6 +596,7 @@ class FamilyStatusCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._kiPopupSignal(false);
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("ki-ud", this._onUd);
@@ -599,7 +606,23 @@ class FamilyStatusCard extends LitElement {
      enn hintet om servermenyen (trykk på navnet åpner den fortsatt). */
   updated(endret) {
     if (this._popupEl && endret && endret.has && endret.has("hass")) this._popupEl.hass = this.hass;
+    this._kiPopupSignal((!!this._hurtig && (!this._hurtigUt || this._hurtigNeste)) || (this._dialogIndex !== null && !this._lukker));
     this._sjekkPil();
+  }
+
+  /* Navigasjonslinja (ki-floating-navbar) ligger fast nederst, og kan ligge i en annen
+     stablingskontekst enn kortet – da hjelper ingen z-index. Mens hurtigpopupen eller
+     personarket er oppe sier vi derfor fra, så linja kan skjule seg:
+       document.documentElement får klassen «ki-popup-apen», og
+       window får hendelsen «ki-popup» med detail { apen: true | false, kilde: kortet }. */
+  _kiPopupSignal(apen) {
+    if (apen === !!this._kiPopupApen) return;
+    this._kiPopupApen = apen;
+    const rot = document.documentElement;
+    const n = Math.max(0, (Number(rot.dataset.kiPopup) || 0) + (apen ? 1 : -1));
+    if (n) rot.dataset.kiPopup = String(n); else delete rot.dataset.kiPopup;
+    rot.classList.toggle("ki-popup-apen", n > 0);
+    window.dispatchEvent(new CustomEvent("ki-popup", { detail: { apen: n > 0, kilde: this } }));
   }
   _sjekkPil() {
     const r = this.shadowRoot; if (!r) return;
@@ -1065,9 +1088,11 @@ class FamilyStatusCard extends LitElement {
     if (!this._hurtig || this._hurtigUt) return;
     window.removeEventListener("keydown", this._onKeyDown);
     this._hurtigUt = true;
+    this._hurtigNeste = !!neste; // noe åpnes etterpå (personarket): la navigasjonslinja forbli skjult
     window.setTimeout(() => {
       this._hurtig = null;
       this._hurtigUt = false;
+      this._hurtigNeste = false;
       this._opt = {};
       if (neste) neste();
     }, 160);
@@ -1101,32 +1126,31 @@ class FamilyStatusCard extends LitElement {
     const hjemme = pc.presence_switch ? this._aktiv("qpres", hjemmeNa ? 0 : 1) === 0 : hjemmeNa;
     const sover = pc.sleep_switch ? this._aktiv("qsovn", soverNa ? 1 : 0) === 1 : false;
     const bilde = this._hurtigBilde(pc);
-    const GREEN = "oklch(0.8 0.12 150)", BLUE = "oklch(0.75 0.12 245)", AMBER = "oklch(0.8 0.12 70)",
-      PURP = "oklch(0.68 0.2 285)", SOV = "oklch(0.72 0.1 275)";
+    const GREEN = "var(--green, #34c759)", PURP = "var(--purple, #bf5af2)";
     const velg = (nokkel, idx, sett) => { this._haptic("selection"); this._velg(nokkel, idx, sett); };
-    const opt = (pa, ikon, tekst, farge, klikk) => html`<button type="button" class="kq-opt"
-        style=${pa ? `background:${farge};color:#141416` : ""} @click=${klikk}>
-        <span class="ms" style="font-size:20px;font-variation-settings:'FILL' ${pa ? 1 : 0}">${ikon}</span>${tekst}</button>`;
+    /* ki-stil: aktivt valg fylles med --active-big og får --black som tekst og ikon. */
+    const opt = (pa, ikon, tekst, klikk) => html`<button type="button" class="kq-opt ${pa ? "pa" : ""}"
+        @click=${klikk}><ha-icon icon=${ikon}></ha-icon>${tekst}</button>`;
     const ut = this._hurtigUt ? "ut" : "";
     return html`
       <div class="kq-bak ${ut}" @click=${() => { if (Date.now() - this._openedAt > 600) this._lukkHurtig(); }}></div>
       <div class="kq ${ut}" role="dialog" aria-modal="true" aria-label=${navn}>
-        <div class="kq-av" style=${`background-color:${pc.farge || "oklch(0.5 0.05 250)"};box-shadow:0 0 0 4px #141416, 0 0 0 6px ${hjemme ? GREEN : PURP};`
+        <div class="kq-av" style=${`background-color:${pc.farge || "var(--gray200, #262629)"};--kq-ring:${hjemme ? GREEN : PURP};`
           + (bilde ? `background-image:url('${String(bilde).replace(/'/g, "%27")}');color:transparent;` : "")}>${String(navn).trim().charAt(0)}</div>
         <div class="kq-hode">
           <div class="kq-navn">${navn}</div>
           <div class="kq-sub">${hjemme ? "Hjemme" : "Borte"}${pc.sleep_switch ? ` · ${sover ? "Sover" : "Våken"}` : ""}</div>
         </div>
         ${pc.presence_switch ? html`<div class="kq-seg">
-          ${opt(hjemme, "home", "Hjemme", GREEN, () => velg("qpres", 0, () => this._setEntity(pc.presence_switch, true)))}
-          ${opt(!hjemme, "logout", "Borte", BLUE, () => velg("qpres", 1, () => this._setEntity(pc.presence_switch, false)))}
+          ${opt(hjemme, "mdi:home", "Hjemme", () => velg("qpres", 0, () => this._setEntity(pc.presence_switch, true)))}
+          ${opt(!hjemme, "mdi:logout", "Borte", () => velg("qpres", 1, () => this._setEntity(pc.presence_switch, false)))}
         </div>` : ""}
         ${pc.sleep_switch ? html`<div class="kq-seg">
-          ${opt(!sover, "light_mode", "Våken", AMBER, () => velg("qsovn", 0, () => this._setEntity(pc.sleep_switch, false)))}
-          ${opt(sover, "bedtime", "Sover", SOV, () => velg("qsovn", 1, () => this._setEntity(pc.sleep_switch, true)))}
+          ${opt(!sover, "mdi:weather-sunny", "Våken", () => velg("qsovn", 0, () => this._setEntity(pc.sleep_switch, false)))}
+          ${opt(sover, "mdi:weather-night", "Sover", () => velg("qsovn", 1, () => this._setEntity(pc.sleep_switch, true)))}
         </div>` : ""}
         <button type="button" class="kq-ferdig" @click=${() => { this._haptic(this.cfg.haptic_tap); this._lukkHurtig(); }}>${this.cfg.done_label || "Ferdig"}</button>
-        <button type="button" class="kq-mer" @click=${() => this._hurtigDetaljer()}>Mobil, soner og søvn<span class="ms" style="font-size:18px">chevron_right</span></button>
+        <button type="button" class="kq-mer" @click=${() => this._hurtigDetaljer()}>Mobil, soner og søvn<ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>`;
   }
 
@@ -1253,6 +1277,16 @@ class FamilyStatusCard extends LitElement {
       this._greetingGest("double_tap");
       return;
     }
+    if (this._erAndreTrykk()) { this._dobbeltrykkFraMeny(); return; }
+    /* Trykk åpner servermenyen: åpne den MED EN GANG (ingen ventetid). Kommer et andre trykk
+       innen fristen (det lander på menyens bakgrunn, se _renderServerMeny), lukkes menyen
+       og dobbelttrykket kjøres – også det med en gang. */
+    if (this._serverGest() === "tap") {
+      const apner = !this._serverApen;
+      this._greetingGest("tap");
+      this._forsteTrykk = apner ? Date.now() : 0;
+      return;
+    }
     /* Vanlig dobbelttrykk: første trykk venter et øyeblikk. Kommer et andre trykk innen
        fristen, er det et dobbelttrykk; ellers utføres trykket (f.eks. servermenyen).
        Finnes det ingen dobbelttrykk-handling, kjøres trykket med en gang (se over). */
@@ -1260,6 +1294,21 @@ class FamilyStatusCard extends LitElement {
       this._dobbelTimer = null;
       this._greetingGest("tap");
     }, 280);
+  }
+
+  /* Kom dette trykket innen dobbelttrykk-fristen etter trykket som åpnet menyen? */
+  _erAndreTrykk() {
+    const t = this._forsteTrykk;
+    return !!t && Date.now() - t < DOBBEL_MS;
+  }
+
+  /* Andre trykk i et dobbelttrykk der det første åpnet servermenyen: menyen fjernes
+     straks (uten utgangsanimasjon) og dobbelttrykket kjøres med en gang. */
+  _dobbeltrykkFraMeny() {
+    this._forsteTrykk = 0;
+    this._serverApen = false;
+    if (this._serverGest() === "double_tap") return;
+    this._greetingGest("double_tap");
   }
 
   _onGreetingPointerCancel() {
@@ -2657,24 +2706,31 @@ class FamilyStatusCard extends LitElement {
       .person-ark > ki-person-card {
         display: block;
       }
-      /* KD-personarket: samme flate som arkene på KD Hjem (#141416, 38 px hjørner); kortets
-         egen topp-pille har grepet og lukkeknappen. */
+      /* KD-personarket i ki-stil: flat --gray000, 28 px topp, helt ned til bunnen av skjermen
+         (over navigasjonslinja – den skjules mens arket er oppe, se _kiPopupSignal).
+         Kortets egen topp-pille har grepet og lukkeknappen. */
+      .backdrop.ark-bak {
+        padding: calc(24px + env(safe-area-inset-top, 0px)) 0 0;
+        z-index: 2147483000;
+      }
       .person-ark.kd {
         max-width: 620px;
-        height: calc(100vh - 52px - var(--kd-dokk-h, 0px));
-        height: calc(100dvh - 52px - var(--kd-dokk-h, 0px));
-        padding: 0 0 env(safe-area-inset-bottom, 0px);
-        border-radius: 38px 38px 0 0;
-        background: #141416;
-        color: #f2f1ee;
-        box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        margin-bottom: 0;
+        height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
+        max-height: none;
+        padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+        border-radius: 28px 28px 0 0;
+        background: var(--gray000, #141416);
+        color: var(--gray1000, #f2f1ee);
+        box-shadow: none;
       }
 
-      /* ------------------- HURTIGPOPUPEN (KD Hjem) ------------------- */
+      /* ------------------- HURTIGPOPUPEN (ki-stil) ------------------- */
       .kq-bak {
         position: fixed;
         inset: 0;
-        z-index: 9998;
+        z-index: 2147483000;
         background: rgba(0, 0, 0, 0.55);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
@@ -2684,21 +2740,21 @@ class FamilyStatusCard extends LitElement {
         position: fixed;
         left: 50%;
         top: 50%;
-        z-index: 9999;
-        width: 300px;
-        max-width: calc(100vw - 40px);
+        z-index: 2147483001;
+        width: 320px;
+        max-width: calc(100vw - 32px);
         box-sizing: border-box;
-        padding: 62px 14px 14px;
-        border-radius: 30px;
-        background: #232326;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 30px 60px rgba(0, 0, 0, 0.5);
+        padding: 62px 12px 12px;
+        border-radius: 28px;
+        background: var(--gray100, #1c1c1f);
+        box-shadow: none;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         transform: translate(-50%, -50%);
         animation: kq-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-        color: #f2f1ee;
-        font-family: "Space Grotesk", system-ui, sans-serif;
+        color: var(--gray1000, #f2f1ee);
+        font-family: inherit;
         -webkit-font-smoothing: antialiased;
         -webkit-tap-highlight-color: transparent;
       }
@@ -2719,20 +2775,6 @@ class FamilyStatusCard extends LitElement {
         -webkit-tap-highlight-color: transparent;
         text-align: center;
       }
-      .kq .ms {
-        font-family: "Material Symbols Rounded";
-        font-weight: 400;
-        font-style: normal;
-        line-height: 1;
-        white-space: nowrap;
-        -webkit-font-feature-settings: "liga";
-        font-feature-settings: "liga";
-        user-select: none;
-        display: inline-block;
-        letter-spacing: normal;
-        text-transform: none;
-        direction: ltr;
-      }
       .kq-av {
         position: absolute;
         left: 50%;
@@ -2740,29 +2782,32 @@ class FamilyStatusCard extends LitElement {
         transform: translateX(-50%);
         width: 96px;
         height: 96px;
-        border-radius: 48px;
+        border-radius: 50%;
         display: grid;
         place-items: center;
         font-size: 36px;
-        font-weight: 600;
+        font-weight: 500;
         background-size: cover;
         background-position: center;
+        /* ring i sonefargen: grønn hjemme, lilla borte */
+        box-shadow: 0 0 0 4px var(--gray100, #1c1c1f), 0 0 0 6px var(--kq-ring, var(--green, #34c759));
       }
       .kq-hode {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 3px;
-        padding-bottom: 4px;
+        gap: 2px;
+        padding-bottom: 6px;
       }
       .kq-navn {
-        font-size: 22px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
+        font-size: 24px;
+        font-weight: 500;
+        line-height: 1.2;
       }
       .kq-sub {
-        font-size: 13px;
-        color: #8e8d89;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0.7;
       }
       .kq-seg {
         display: grid;
@@ -2770,7 +2815,7 @@ class FamilyStatusCard extends LitElement {
         gap: 4px;
         padding: 4px;
         border-radius: 26px;
-        background: #1a1a1c;
+        background: var(--gray200, #262629);
       }
       .kq .kq-opt {
         height: 48px;
@@ -2780,27 +2825,36 @@ class FamilyStatusCard extends LitElement {
         justify-content: center;
         gap: 8px;
         font-size: 14px;
-        font-weight: 600;
+        font-weight: 500;
         background: transparent;
-        color: #c9c7c2;
+        color: var(--gray800, #c9c7c2);
         transition: background 0.25s, color 0.25s;
+        --mdc-icon-size: 20px;
+      }
+      .kq .kq-opt.pa {
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #000);
       }
       .kq .kq-ferdig {
         height: 52px;
-        border-radius: 26px;
-        background: linear-gradient(135deg, oklch(0.78 0.13 350), oklch(0.9 0.05 20));
-        color: #2a1720;
-        font-size: 15px;
-        font-weight: 600;
+        margin-top: 4px;
+        border-radius: 999px;
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #000);
+        font-size: 16px;
+        font-weight: 500;
       }
       .kq .kq-mer {
-        height: 36px;
+        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
-        font-size: 13px;
-        color: #a9a7a2;
+        gap: 2px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--gray1000, #f2f1ee);
+        opacity: 0.7;
+        --mdc-icon-size: 18px;
       }
       @keyframes kq-pop {
         from {
