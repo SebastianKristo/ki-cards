@@ -239,15 +239,7 @@
     return flyttet ? String(flyttet) : egen;
   }
 
-  // ---- auto: én fane per etasje
-  function autoFloorTabs(hass, cfg) {
-    const fc = cfg.etasje_innstillinger || {};
-    const skj = skjulte(cfg);
-    return floorList(hass, cfg)
-      .filter((f) => f.rom.length && !skj.has('etg:' + f.key))
-      .map((f) => ({ title: (fc[f.key] || {}).navn || f.navn, kolonner: columnsFor(f.rom, cfg) }));
-  }
-
+  // ---- auto: én fane per etasje (se alleFaner)
   /* Alle etasjene, også skjulte og tomme, i rekkefølge. Rommene brukeren har valgt for en
      etasje i «Tilpass Hjem» vinner over etasjen i Home Assistant (og står i valgt rekkefølge). */
   function floorList(hass, cfg) {
@@ -1198,10 +1190,10 @@
     .knapp { border:0; font:inherit; font-size:14px; font-weight:500; cursor:pointer; height:36px;
       padding:0 16px; border-radius:999px; background:var(--gray100, #151517); color:inherit; }
     .knapp.ferdig { background:var(--active-big, #ee95ff); color:var(--black, #000); }
-    .innhold { overflow-y:auto; overscroll-behavior:contain; padding:0 10px 14px; scrollbar-width:none; }
+    .innhold { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 10px 14px; scrollbar-width:none; }
     .innhold::-webkit-scrollbar { display:none; }
     .hd { padding:14px 8px 6px; opacity:.7; }
-    .liste { display:grid; gap:4px; }
+    .liste { display:grid; grid-template-columns:minmax(0, 1fr); gap:4px; }
     .rad-wrap { border-radius:18px; background:var(--gray100, #151517); }
     .rad { min-height:52px; display:flex; align-items:center; gap:4px; padding:0 4px 0 14px; }
     .rad.av .ri, .rad.av .rt { opacity:.45; }

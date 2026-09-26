@@ -1,4 +1,4 @@
-/* ki-cards v8.99.8 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.0.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "8.99.8";
+  KI.VERSION = "9.0.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11779,7 +11779,7 @@ try {
   function flisStr(size, cfg, egen) {
     const u = bruker(cfg), p = prefs(cfg);
     let s = size;
-    if (u.romkort && ROMKORT[u.romkort]) s = ROMKORT[u.romkort];
+    if (u.romkort) { if (ROMKORT[u.romkort]) s = ROMKORT[u.romkort]; }   // «monster» = som mønsteret
     else if (!egen && cfg.romkort && ROMKORT[cfg.romkort]) s = ROMKORT[cfg.romkort];
     s = { medium: 'small', stor: 'big', stor_uten: 'big_plain', liten: 'row' }[s] || s || 'big';
     if (!p.klima && s === 'big') s = 'big_plain';
@@ -11792,6 +11792,8 @@ try {
     let css = '';
     if (h) css += '.tab-button { height:' + h + 'px !important; min-height:' + h + 'px !important; padding-top:0 !important; padding-bottom:0 !important; line-height:1 !important; }\n';
     if (p.bredde === 'kompakt') css += '.tab-button { padding-left:12px !important; padding-right:12px !important; }\n';
+    /* Plass til Tilpass-knappen til høyre på rada. */
+    if (cfg.tilpass_knapp && cfg.tilpass !== false) css += '.tabs-container { padding-right:48px !important; }\n';
     if (p.bredde === 'full') css += '.tabs { width:100% !important; display:flex !important; } .tab-button { flex:1 1 0 !important; min-width:0 !important; justify-content:center; text-align:center; }\n';
     return css;
   }
@@ -11919,15 +11921,7 @@ try {
     return flyttet ? String(flyttet) : egen;
   }
 
-  // ---- auto: én fane per etasje
-  function autoFloorTabs(hass, cfg) {
-    const fc = cfg.etasje_innstillinger || {};
-    const skj = skjulte(cfg);
-    return floorList(hass, cfg)
-      .filter((f) => f.rom.length && !skj.has('etg:' + f.key))
-      .map((f) => ({ title: (fc[f.key] || {}).navn || f.navn, kolonner: columnsFor(f.rom, cfg) }));
-  }
-
+  // ---- auto: én fane per etasje (se alleFaner)
   /* Alle etasjene, også skjulte og tomme, i rekkefølge. Rommene brukeren har valgt for en
      etasje i «Tilpass Hjem» vinner over etasjen i Home Assistant (og står i valgt rekkefølge). */
   function floorList(hass, cfg) {
@@ -12370,6 +12364,25 @@ try {
 
       g.push({ id: 'etasjer', tittel: 'Etasjer', niva: 0, felt: [
         F.bryter('etasjer', 'Vis etasje-faner'),
+      ] });
+
+      /* Standardene i «Tilpass Hjem». Hver bruker kan endre dem selv i panelet (langt
+         trykk på fanerada); det lagres per bruker og vinner over disse. */
+      g.push({ id: 'tilpass', tittel: 'Tilpass Hjem', niva: 0, felt: [
+        F.bryter('tilpass', 'Langt trykk på fanene åpner «Tilpass Hjem»'),
+        { vei: 'tilpass_knapp', etikett: 'Egen knapp til høyre på fanerada', selector: { boolean: {} },
+          les: (c) => !!c.tilpass_knapp, skriv: (c, v) => skriv(c, 'tilpass_knapp', v ? true : undefined) },
+        F.valg('romkort', 'Romfliser i etasjene', [
+          { value: 'monster', label: 'Etter flismønsteret' }, { value: 'stor', label: 'Stor' },
+          { value: 'middels', label: 'Middels' }, { value: 'liten', label: 'Liten' }], 'monster'),
+        F.bryter('klimaknapp', 'Klimaknapp på de store romflisene'),
+        F.valg('fane_bredde', 'Fanebredde', [
+          { value: 'standard', label: 'Standard' }, { value: 'kompakt', label: 'Kompakt' },
+          { value: 'full', label: 'Full bredde' }], 'standard'),
+        F.valg('fane_hoyde', 'Fanehøyde', [
+          { value: 'standard', label: 'Standard' }, { value: 'lav', label: 'Lav' },
+          { value: 'middels', label: 'Middels' }, { value: 'hoy', label: 'Høy' },
+          { value: 'ekstra', label: 'Ekstra høy' }], 'standard'),
       ] });
 
       for (const f of this._floors()) {
@@ -12859,10 +12872,10 @@ try {
     .knapp { border:0; font:inherit; font-size:14px; font-weight:500; cursor:pointer; height:36px;
       padding:0 16px; border-radius:999px; background:var(--gray100, #151517); color:inherit; }
     .knapp.ferdig { background:var(--active-big, #ee95ff); color:var(--black, #000); }
-    .innhold { overflow-y:auto; overscroll-behavior:contain; padding:0 10px 14px; scrollbar-width:none; }
+    .innhold { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 10px 14px; scrollbar-width:none; }
     .innhold::-webkit-scrollbar { display:none; }
     .hd { padding:14px 8px 6px; opacity:.7; }
-    .liste { display:grid; gap:4px; }
+    .liste { display:grid; grid-template-columns:minmax(0, 1fr); gap:4px; }
     .rad-wrap { border-radius:18px; background:var(--gray100, #151517); }
     .rad { min-height:52px; display:flex; align-items:center; gap:4px; padding:0 4px 0 14px; }
     .rad.av .ri, .rad.av .rt { opacity:.45; }
@@ -13053,7 +13066,7 @@ try {
 
     _apneTilpass() {
       if (!this._config || this._config.tilpass === false) return;
-      KI.fire && KI.fire(this, 'haptic', 'medium');
+      window.KI && window.KI.fire && window.KI.fire(this, 'haptic', 'medium');
       if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) { /* ok */ }
       if (!this._tp) {
         const tp = document.createElement('div');
@@ -13131,13 +13144,13 @@ try {
         sek = `<div class="hd">Seksjoner i ${esc(hj.navn)}</div><div class="liste">${rader}</div>`;
       }
 
-      const romkort = u.romkort || cfg.romkort || 'stor';
+      const romkort = u.romkort || cfg.romkort || 'monster';
       boks.innerHTML = `
         <div class="hd">Faner</div><div class="liste">${fRader}</div>
         ${sek}
         <div class="hd">Romfliser</div>
         <div class="gruppe"><div class="chips">
-          ${[['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
+          ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
           ${chip(p.klima, 'klima', '', '', 'Klimaknapp', 'mdi:thermostat')}
         </div></div>
         <div class="hd">Fanerada</div>
@@ -46778,13 +46791,17 @@ try {
         const c = this.renderRoot.querySelector(".navbar-container");
         if (!c) return null;
         const cr = c.getBoundingClientRect();
+        // Linjen kan være skalert (krymp ved scrolling): mål i skjermpiksler, tegn i linjens egne.
+        const k = c.offsetWidth ? cr.width / c.offsetWidth : 1;
         const els = [...c.querySelectorAll(":scope > .nav-item-wrapper > .nav-item")];
         return {
-          c, cr,
+          c, cr, k,
           r: els.map((el) => {
             const r = el.getBoundingClientRect();
-            const w = r.width + 16, h = r.height + 4;
-            return { cx: r.left - cr.left + r.width / 2, x: r.left - cr.left + r.width / 2 - w / 2, y: r.top - cr.top + r.height / 2 - h / 2, w, h };
+            const bw = el.offsetWidth || r.width / k, bh = el.offsetHeight || r.height / k;
+            const cx = (r.left - cr.left + r.width / 2) / k, cy = (r.top - cr.top + r.height / 2) / k;
+            const w = bw + 16, h = bh + 4;
+            return { cx, x: cx - w / 2, y: cy - h / 2, w, h };
           }),
         };
       }
@@ -46923,7 +46940,7 @@ try {
         if (lens) lens.classList.add("on", "drag");
         const m = this._rects();
         if (m && !this._lensShown) {
-          const i = this._nearest(m, clientX - m.cr.left);
+          const i = this._nearest(m, (clientX - m.cr.left) / m.k);
           this._spring(m.r[i].x, m.r[i].w, m.r[i].y, m.r[i].h, true);
         }
         this._lensShown = true;
@@ -46934,7 +46951,7 @@ try {
       _dragMove(clientX) {
         const m = this._rects();
         if (!m || !m.r.length) return;
-        const x = clientX - m.cr.left;
+        const x = (clientX - m.cr.left) / m.k;
         const i = this._nearest(m, x);
         if (i !== this._dragIdx) { this._dragIdx = i; haptic("selection"); }
         const t = m.r[i];
@@ -47533,6 +47550,7 @@ try {
           else if (type === "toggle-menu") it.tap_action = { action: "toggle-menu" };
           else if (type === "edit") it.tap_action = { action: "ki-navbar-edit" };
           else it.tap_action = { action: "none" };
+          Object.keys(it.tap_action).forEach((k) => { if (it.tap_action[k] === "") delete it.tap_action[k]; });
         });
       }
       _moveItem(path, dir) {
