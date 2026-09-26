@@ -1,3 +1,7 @@
+# ki-cards 9.6.3
+
+- **ki-rom-hero-card**: litt mindre tekst – temperaturen 48 px (var 60), fukt 20 px, romnavn 14 px, pille 12 px og undertekst 13 px.
+
 # ki-cards 9.6.2
 
 - **ki-rom-hero-card 1.4**: nytt utseende (standard «Levende») etter designet – romnavn og statuspille på én linje, stort tall med fukten ved siden av («22,8°  50%»), «Nå · 20,8–23,2° siste døgn», tilstandsikonet og tannhjulet oppe til høyre, og temperaturgrafen langs bunnen i rav med en prikk for «nå» på høyre kant. Pilla/ikonet følger tilstanden (varmer/lys/holder), grafen er rav (eller fargen du velger). Fuktsøylen og partiklene er borte fra «Levende»; «Enkel» er uendret.

@@ -1,4 +1,4 @@
-/* ki-cards v9.6.2 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.6.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.6.2";
+  KI.VERSION = "9.6.3";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -59997,27 +59997,27 @@ try {
       box-shadow: 0 0 0 3px var(--f); pointer-events: none; transform: translateY(-50%); display: none; }
     .stovlag { display: none; }
     .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--m); pointer-events: none; }
-    .glyf { position: absolute; right: 88px; top: 24px; color: var(--m); pointer-events: none;
+    .glyf { position: absolute; right: 84px; top: 26px; color: var(--m); pointer-events: none;
       filter: drop-shadow(0 0 14px color-mix(in srgb, var(--m) 60%, transparent)); animation: puste 3s ease-in-out infinite; }
-    .glyf ha-icon { --mdc-icon-size: 36px; display: block; }
+    .glyf ha-icon { --mdc-icon-size: 32px; display: block; }
     @keyframes puste { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-    .ikon { position: absolute; right: 16px; top: 16px; width: 56px; height: 56px; border-radius: 50%; background: rgba(250,251,252,.08);
+    .ikon { position: absolute; right: 16px; top: 16px; width: 52px; height: 52px; border-radius: 50%; background: rgba(250,251,252,.08);
       display: grid; place-items: center; border: 0; padding: 0; color: var(--gray1000, #f2f1ee); cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
     .ikon:active { transform: scale(.92); }
-    .ikon ha-icon { --mdc-icon-size: 26px; }
+    .ikon ha-icon { --mdc-icon-size: 24px; }
     .topp { position: absolute; left: 20px; top: 18px; right: 128px; display: flex; flex-direction: row; gap: 12px; align-items: center; min-width: 0; }
-    .navn { font-size: 16px; font-weight: 500; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 2.5em; }
-    .pille { height: 32px; padding: 0 14px 0 12px; border-radius: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+    .navn { font-size: 14px; font-weight: 500; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 2.5em; }
+    .pille { height: 28px; padding: 0 12px 0 10px; border-radius: 14px; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
       white-space: nowrap; background: color-mix(in srgb, var(--m) 22%, transparent); color: var(--m); flex: 0 1 auto; min-width: 0; overflow: hidden; }
     .pille .pt { overflow: hidden; text-overflow: ellipsis; }
-    .pille ha-icon { --mdc-icon-size: 16px; }
-    .bunn { position: absolute; left: 20px; right: 18px; top: 54px; display: flex; flex-direction: column; gap: 8px; }
+    .pille ha-icon { --mdc-icon-size: 14px; }
+    .bunn { position: absolute; left: 20px; right: 18px; top: 52px; display: flex; flex-direction: column; gap: 8px; }
     .temp { display: flex; align-items: baseline; gap: 2px; white-space: nowrap; }
-    .temp b { font-size: 60px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .temp b { font-size: 48px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
     .temp .grad { display: none; }
-    .fuktv { margin-left: 20px; font-size: 26px; font-weight: 400; color: var(--gray600, #8e8d89); font-variant-numeric: tabular-nums; cursor: pointer; }
-    .fuktv small { font-size: 18px; margin-left: 1px; }
-    .sub { font-size: 15px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .fuktv { margin-left: 16px; font-size: 20px; font-weight: 400; color: var(--gray600, #8e8d89); font-variant-numeric: tabular-nums; cursor: pointer; }
+    .fuktv small { font-size: 14px; margin-left: 1px; }
+    .sub { font-size: 13px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .fukt { display: none; position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
       background: var(--gray100, rgba(255,255,255,.08)); overflow: hidden; flex-direction: column; justify-content: flex-end;
       border: 0; padding: 0; cursor: pointer; }
