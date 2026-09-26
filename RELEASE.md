@@ -1,3 +1,7 @@
+# ki-cards 9.7.1
+
+- **ki-floating-navbar**: «Tekst under «…»» i Tilpass navbar (vises når «Vis navn» er på) – skru av teksten under de tre prikkene mens de andre knappene beholder navnet. Config: `dots_name: false`.
+
 # ki-cards 9.7.0
 
 - **ki-strompris-card 5.0** – etter «Strømpriser»-designet: tittel og «I dag | I morgen», «Spot nå» og Norgespris i rosa side om side, forklaring (Nord Pool spot / Norgespris · øre/kWh), trappekurve med stiplet rosa Norgespris-linje, prikk for «nå» og dra over grafen for hver time. Prisfanene, statistikk, billigste timer og spart-flisene er skjult som standard – `vis_modus`, `vis_stat`, `vis_vindu`, `vis_spart` slår dem på. Standard pris er spot (`modus: total` for totalpris).

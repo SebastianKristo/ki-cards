@@ -29,6 +29,7 @@
  *                              # har en meny; true = alltid, lager «Mer» om nødvendig; false = aldri)
  *   hjem_meny: true            # «Tilpass Hjem» nederst i menyen når et ki-hjem-card er på siden
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
+ *   dots_name: false           # ingen tekst under «…»-knappen (brukeren kan overstyre i Tilpass navbar)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
  * «Menyen» (de tre prikkene): den første config-knappen med sub_items (helst en med
@@ -516,11 +517,14 @@
       _namesMode() { const n = this._prefs().names; return n === "show" || n === "hide" ? n : null; }
       _showName(item) {
         if (!item.name) return false;
+        /* «…»-knappen (menyen) kan vises uten tekst selv når navnene ellers står under ikonene. */
+        if (item.sub_items && this._dotsNameOff()) return false;
         const m = this._namesMode();
         if (m === "hide") return false;
         if (m === "show") return true;
         return !item.hide_name;
       }
+      _dotsNameOff() { const p = this._prefs(); return p.dots_name === undefined ? this._config.dots_name === false : p.dots_name === false; }
       _shrinkOn() { const p = this._prefs(); return p.shrink === undefined ? !!this._config.shrink_on_scroll : !!p.shrink; }
 
       /* ---------------------------------------------------------- tegning */
@@ -973,6 +977,7 @@
 
             <div class="p-sec">Visning</div>
             <div class="p-row set"><span>Vis navn</span>${sw(namesOn, (v) => this._setPref("names", v ? "show" : "hide"), "Vis navn")}</div>
+            ${namesOn ? html`<div class="p-row set"><span>Tekst under «…»</span>${sw(!this._dotsNameOff(), (v) => this._setPref("dots_name", v), "Tekst under de tre prikkene")}</div>` : ""}
             <div class="p-row set"><span>Krymp ved scrolling</span>${sw(this._shrinkOn(), (v) => { this._setPref("shrink", v); if (!v) this._shrunk = false; }, "Krymp ved scrolling")}</div>
             <div class="p-lbl">Bredde</div>
             <div class="pills">
