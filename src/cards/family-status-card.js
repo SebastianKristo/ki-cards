@@ -904,6 +904,7 @@ class FamilyStatusCard extends LitElement {
       <div class="backdrop ark-bak ${ut}" @click=${(e) => this._onBackdropClick(e)}>
         <div class="person-ark kd ${ut}" role="dialog" aria-modal="true" aria-label=${navn}
           @click=${(e) => e.stopPropagation()}>
+          <button class="ark-hank" aria-label="Lukk" @click=${() => this._closeDialog()}><span></span></button>
           ${this._popupEl}
         </div>
       </div>`;
@@ -2706,9 +2707,9 @@ class FamilyStatusCard extends LitElement {
       .person-ark > ki-person-card {
         display: block;
       }
-      /* KD-personarket i ki-stil: flat --gray000, 28 px topp, helt ned til bunnen av skjermen
+      /* Personarket (ki-person-card): flat --gray000, 28 px topp, helt ned til bunnen av skjermen
          (over navigasjonslinja – den skjules mens arket er oppe, se _kiPopupSignal).
-         Kortets egen topp-pille har grepet og lukkeknappen. */
+         Grepet øverst (ark-hank) lukker; kortet har ingen egen topp. */
       .backdrop.ark-bak {
         padding: calc(24px + env(safe-area-inset-top, 0px)) 0 0;
         z-index: 2147483000;
@@ -2719,11 +2720,19 @@ class FamilyStatusCard extends LitElement {
         height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
         height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
         max-height: none;
-        padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 0 12px calc(16px + env(safe-area-inset-bottom, 0px));
         border-radius: 28px 28px 0 0;
         background: var(--gray000, #141416);
         color: var(--gray1000, #f2f1ee);
         box-shadow: none;
+      }
+      /* ki-person-card har ingen egen topp i arket: grepet over kortet lukker. */
+      .person-ark.kd > .ark-hank {
+        background: var(--gray000, #141416);
+        padding: 10px 0 12px;
+      }
+      .person-ark.kd > ki-person-card {
+        width: 100%;
       }
 
       /* ------------------- HURTIGPOPUPEN (ki-stil) ------------------- */
