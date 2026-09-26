@@ -511,13 +511,17 @@
         const c = this.renderRoot.querySelector(".navbar-container");
         if (!c) return null;
         const cr = c.getBoundingClientRect();
+        // Linjen kan være skalert (krymp ved scrolling): mål i skjermpiksler, tegn i linjens egne.
+        const k = c.offsetWidth ? cr.width / c.offsetWidth : 1;
         const els = [...c.querySelectorAll(":scope > .nav-item-wrapper > .nav-item")];
         return {
-          c, cr,
+          c, cr, k,
           r: els.map((el) => {
             const r = el.getBoundingClientRect();
-            const w = r.width + 16, h = r.height + 4;
-            return { cx: r.left - cr.left + r.width / 2, x: r.left - cr.left + r.width / 2 - w / 2, y: r.top - cr.top + r.height / 2 - h / 2, w, h };
+            const bw = el.offsetWidth || r.width / k, bh = el.offsetHeight || r.height / k;
+            const cx = (r.left - cr.left + r.width / 2) / k, cy = (r.top - cr.top + r.height / 2) / k;
+            const w = bw + 16, h = bh + 4;
+            return { cx, x: cx - w / 2, y: cy - h / 2, w, h };
           }),
         };
       }
@@ -656,7 +660,7 @@
         if (lens) lens.classList.add("on", "drag");
         const m = this._rects();
         if (m && !this._lensShown) {
-          const i = this._nearest(m, clientX - m.cr.left);
+          const i = this._nearest(m, (clientX - m.cr.left) / m.k);
           this._spring(m.r[i].x, m.r[i].w, m.r[i].y, m.r[i].h, true);
         }
         this._lensShown = true;
@@ -667,7 +671,7 @@
       _dragMove(clientX) {
         const m = this._rects();
         if (!m || !m.r.length) return;
-        const x = clientX - m.cr.left;
+        const x = (clientX - m.cr.left) / m.k;
         const i = this._nearest(m, x);
         if (i !== this._dragIdx) { this._dragIdx = i; haptic("selection"); }
         const t = m.r[i];
@@ -1266,6 +1270,7 @@
           else if (type === "toggle-menu") it.tap_action = { action: "toggle-menu" };
           else if (type === "edit") it.tap_action = { action: "ki-navbar-edit" };
           else it.tap_action = { action: "none" };
+          Object.keys(it.tap_action).forEach((k) => { if (it.tap_action[k] === "") delete it.tap_action[k]; });
         });
       }
       _moveItem(path, dir) {
