@@ -1,3 +1,9 @@
+# ki-cards 9.1.0
+
+- **Ny: ki-rom-hero-card** – toppkortet for et rom: romnavn, statuspille (varmer / lys på / holder / rolig), stor temperatur, fukt, spennet siste døgn, fuktsøyle og levende bakgrunn. Finner sensorer, termostat og lys selv ut fra området (`omrade: stue`).
+- **ki-rom-card**: hero-kortet er nå toppen i hvert rom. Tannhjulet oppe til høyre åpner «Tilpass rommet». Brukerens valgte temperatur-/fuktsensor brukes. `topp: klassisk` gir den gamle toppen, `topp_hoyde` endrer høyden, `tilpass: false` gir romikonet tilbake i stedet for tannhjulet.
+- Står hero-kortet alene, åpner tannhjulet termostaten (eller `ikon_tap_action`). `tannhjul: false` viser romikonet.
+
 # ki-cards 9.0.2
 
 - **ki-floating-navbar**: glasslinsen skjules når en popup (hash) er åpen – popupen ligger uansett over. `lens_popup: true` gir den gamle oppførselen.
