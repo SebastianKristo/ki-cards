@@ -1,4 +1,4 @@
-/* ki-cards v9.3.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.4.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.3.0";
+  KI.VERSION = "9.4.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -11779,7 +11779,11 @@ try {
  *    fane_rekkefolge: [hjem, 'etg:forste', aktuelt]   # nøkler: hjem, etg:<etasje_id>, aktuelt, batterier, fane:<tittel>
  *    skjul: ['etg:kjeller', 'sek:alarm']  # skjulte faner og seksjoner (sek:topp|rom|alarm|hoyre|stov)
  *    seksjoner: [rom, topp, alarm]        # rekkefølgen i venstre kolonne på Hjem-fanen
+ *    alle_rom: false                      # fanen «Alle rom» (alle rommene samlet) – av som standard
  *    tilpass: false                       # slår av panelet
+ *  Panelet åpnes også fra ki-floating-navbar: «…» → «Tilpass Hjem» sender window-hendelsen
+ *  `ki-hjem-tilpass` ({detail:{apen:true|false}}). Kortet teller seg i window.__kiHjem og sender
+ *  `ki-hjem-registrert` når det kobles til/fra, så navbaren vet om valget skal vises.
  *  Elementer i lister: {rom: x} / {kind: ...} = ki-rom-tile-card, {swipe: {...}} = css-swipe-card
  *  (type: plain = custom:swipe-card), {card: {...}} eller alt med `type:` = kortet som det er.
  * ========================================================================== */
@@ -11794,7 +11798,8 @@ try {
   /* ---- «Tilpass Hjem»: brukerens valg. Konfigurasjonen er standarden; det brukeren velger
      i panelet ligger i `cfg.__u` (fra KI.ud(hass, 'ki_hjem')) og vinner.
      Formen på det som lagres:
-       { rekkefolge: [nøkkel …], skjul: [nøkkel | 'sek:<del>' …], etasjer: { <etasje_id|hjem>: [area_id …] },
+       { rekkefolge: [nøkkel …], skjul: [nøkkel | 'sek:<del>' | 'flis:<id>' …], etasjer: { <etasje_id|hjem>: [area_id …] },
+         hjem_hoyre: [area_id …] (rommene i Hjem-fanens høyre swipe), alle_rom: bool,
          seksjoner: ['topp','rom','alarm'], romkort: 'stor'|'middels'|'liten', klimaknapp: bool,
          fane: { bredde: 'standard'|'kompakt'|'full', hoyde: 'standard'|'lav'|'middels'|'hoy'|'ekstra' } } */
   const FANE_H = { lav: 30, middels: 38, hoy: 46, 'høy': 46, ekstra: 56 };
@@ -11815,11 +11820,15 @@ try {
      (den ble fylt med konfigurasjonens skjulte da panelet ble brukt første gang). */
   function skjulte(cfg) {
     const u = bruker(cfg);
-    if (Array.isArray(u.skjul)) return new Set(u.skjul);
+    if (Array.isArray(u.skjul)) return medAlle(new Set(u.skjul), cfg);
     const s = new Set(cfg.skjul || []);
     Object.entries(cfg.etasje_innstillinger || {}).forEach(([k, v]) => { if (v && v.vis === false) s.add('etg:' + k); });
-    return s;
+    return medAlle(s, cfg);
   }
+  /* «Alle rom»-fanen er av til brukeren (eller alle_rom: true) slår den på – også for brukere som
+     alt har en skjul-liste fra før fanen fantes. */
+  function visAlle(cfg) { const u = bruker(cfg); return u.alle_rom != null ? !!u.alle_rom : !!cfg.alle_rom; }
+  function medAlle(s, cfg) { if (visAlle(cfg)) s.delete('alle'); else s.add('alle'); return s; }
   /* Flisstørrelsen etter valgene: brukerens romkort gjelder alle rom, konfigurasjonens bare
      rom uten egen størrelse. Klimaknappen av gjør «stor» til «stor uten». */
   function flisStr(size, cfg, egen) {
@@ -12005,6 +12014,26 @@ try {
     return r;
   }
 
+  /* Flisene i Hjem-fanens «stov»-kolonne, hver med en fast nøkkel (flis:<…>) som brukeren kan
+     skjule i «Tilpass Hjem». Nøkkelen bygges av innholdet, ikke plassen, så den tåler omsortering. */
+  const KIND_NAVN = { navigate: 'Flis', gjoremal: 'Gjøremål', kalender: 'Kalender', las: 'Dørlås', garasje: 'Garasjeport', alarm: 'Alarm', rom: 'Rom' };
+  const KIND_IKON = { gjoremal: 'mdi:checkbox-marked-circle-outline', kalender: 'mdi:calendar-month-outline', las: 'mdi:lock-outline', garasje: 'mdi:garage', alarm: 'mdi:shield-home-outline', rom: 'mdi:sofa-outline' };
+  function stovFliser(h) {
+    const brukt = new Set();
+    return ((h && Array.isArray(h.stov)) ? h.stov : []).map((t, i) => {
+      t = t || {};
+      const sw = t.swipe ? (t.swipe.cards || []) : null;
+      const x = sw ? (sw[0] || {}) : t;
+      let key = 'flis:' + String(t.id || x.main_text || x.navn || x.rom || x.entity || x.path || x.kind || x.type || i).toLowerCase();
+      while (brukt.has(key)) key += '+';
+      brukt.add(key);
+      const st = x.entity && curHass && curHass.states[x.entity];
+      let navn = String(x.main_text || x.navn || x.rom || (x.kind && x.kind !== 'navigate' && KIND_NAVN[x.kind]) || (st && st.attributes.friendly_name) || x.entity || 'Flis').replace(/<br>|\\n|\n/g, ' ');
+      if (sw && sw.length > 1) navn += ' + ' + (sw.length - 1) + ' til';
+      return { key, navn, ikon: x.ikon || x.icon || KIND_IKON[x.kind] || 'mdi:card-outline', sveip: !!sw, t };
+    });
+  }
+
   // ---- auto: Hjem-fanen med samme layout som før ("stue kjokken" / "stue stov")
   //  hjem: { las: lock.x, garasje: cover.x, alarm: { entity, script }, kalender: sensor.x,
   //          rom: [stue, inngang, ute] (venstre swipe), rom_hoyre: [pult, kjokken], stov: [ ...fliser ] }
@@ -12016,11 +12045,13 @@ try {
     let venstreRom = (h.rom || alle.slice(0, Math.max(2, Math.ceil(alle.length * 0.6)))).filter(finnes);
     let hoyreRom = (h.rom_hoyre || alle.filter((r) => !venstreRom.includes(r))).filter(finnes);
     /* Rommene brukeren har valgt for Hjem-fanen: fordelt som standarden, ~60 % til venstre. */
-    const valgtHjem = (bruker(cfg).etasjer || {}).hjem;
+    const valgtHjem = (bruker(cfg).etasjer || {}).hjem, valgtH = bruker(cfg).hjem_hoyre;
     if (Array.isArray(valgtHjem)) {
       const l = valgtHjem.filter(finnes);
-      const n = Math.max(2, Math.ceil(l.length * 0.6));
-      venstreRom = l.slice(0, n); hoyreRom = l.slice(n);
+      /* Har brukeren valgt side for rommene (Tilpass Hjem → Hjem → Venstre/Høyre), gjelder det;
+         ellers som standarden, ~60 % til venstre. */
+      if (Array.isArray(valgtH)) { venstreRom = l.filter((r) => !valgtH.includes(r)); hoyreRom = l.filter((r) => valgtH.includes(r)); }
+      else { const n = Math.max(2, Math.ceil(l.length * 0.6)); venstreRom = l.slice(0, n); hoyreRom = l.slice(n); }
     }
     const skj = skjulte(cfg);
     const tile = (r, i) => ({ rom: r, size: flisStr('big', { ...cfg, romkort: null, __u: { ...bruker(cfg), romkort: null } }, true), farge: (romCfg[r] || {}).farge || FARGER[i % FARGER.length] });
@@ -12043,12 +12074,15 @@ try {
 
     const omrader = { stue };
     if (hoyreRom.length && !skj.has('sek:hoyre')) omrader.kjokken = [{ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
-    if (h.stov && h.stov.length && !skj.has('sek:stov')) omrader.stov = h.stov;
+    const fliser = stovFliser(h), synlige = fliser.filter((f) => !skj.has(f.key)).map((f) => f.t);
+    if (synlige.length && !skj.has('sek:stov')) omrader.stov = synlige;
 
     const areas = omrader.stov ? '"stue kjokken"\n"stue stov"\n"stue stov"\n' : (omrader.kjokken ? '"stue kjokken"\n' : '"stue"\n');
     return {
       title: h.title || 'Hjem',
       _rom: [...venstreRom, ...hoyreRom],
+      _hoyre: hoyreRom.slice(),
+      _fliser: fliser,
       _deler: [...SEK_V.filter((k) => k !== 'topp' || topp.length).filter((k) => k !== 'alarm' || h.alarm), 'hoyre', ...(h.stov && h.stov.length ? ['stov'] : [])],
       layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(160px, 1fr))', 'grid-template-rows': 'auto', 'grid-template-areas': areas, ...(h.layout || {}) },
       omrader,
@@ -12157,8 +12191,9 @@ try {
     // Hjem-fanen er standard på (hjem: false skrur av); egen «Hjem» i tabs vinner
     if (cfg.hjem !== false && !hasHjem) {
       const h = autoHjemTab(hass, cfg);
-      tabs = [{ key: 'hjem', navn: h.title, auto: true, rom: h._rom, deler: h._deler, tab: buildTab(h, romCfg) }, ...explicit];
+      tabs = [{ key: 'hjem', navn: h.title, auto: true, rom: h._rom, hoyre: h._hoyre, fliser: h._fliser, deler: h._deler, tab: buildTab(h, romCfg) }, ...explicit];
     }
+    let etter = tabs.findIndex((t) => t.key === 'hjem') + 1;
     if (cfg.etasjer !== false && cfg.etasjer !== 'manuell') {
       const fc = cfg.etasje_innstillinger || {};
       const auto = floorList(hass, cfg).map((f) => {
@@ -12169,6 +12204,15 @@ try {
       const idx = tabs.findIndex((t) => t.key === 'hjem');
       const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : idx + 1);
       tabs = [...tabs.slice(0, pos), ...auto, ...tabs.slice(pos)];
+      etter = pos + auto.length;
+    }
+    /* «Alle rom»: alle rommene samlet i én fane (som kd-dokkens «Alle»). Av til brukeren slår den på;
+       en skjult fane bygges ikke (generate filtrerer den bort før kortene lages). */
+    const alleR = rooms(hass, cfg);
+    if (alleR.length && !tabs.some((t) => t.key === 'alle')) {
+      const title = cfg.alle_rom_navn || 'Alle rom';
+      tabs.splice(Math.max(0, Math.min(etter, tabs.length)), 0, { key: 'alle', navn: title, rom: alleR.map((a) => a.area_id), alle: true,
+        tab: visAlle(cfg) ? buildTab({ title, kolonner: columnsFor(alleR, cfg) }, romCfg) : null });
     }
     const keys = tabs.map((t) => t.key);
     if (cfg.aktuelt && !keys.includes('aktuelt')) { const t = aktueltTab(cfg); if (t) tabs.push({ key: 'aktuelt', navn: t.title, tab: t }); }
@@ -12422,6 +12466,8 @@ try {
           { value: 'monster', label: 'Etter flismønsteret' }, { value: 'stor', label: 'Stor' },
           { value: 'middels', label: 'Middels' }, { value: 'liten', label: 'Liten' }], 'monster'),
         F.bryter('klimaknapp', 'Klimaknapp på de store romflisene'),
+        { vei: 'alle_rom', etikett: 'Fanen «Alle rom» (alle rommene samlet)', selector: { boolean: {} },
+          les: (c) => !!c.alle_rom, skriv: (c, v) => skriv(c, 'alle_rom', v ? true : undefined) },
         F.valg('fane_bredde', 'Fanebredde', [
           { value: 'standard', label: 'Standard' }, { value: 'kompakt', label: 'Kompakt' },
           { value: 'full', label: 'Full bredde' }], 'standard'),
@@ -12902,10 +12948,13 @@ try {
     *, *::before, *::after { box-sizing:border-box; }
     .bak { position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.35);
       animation:tp-inn .18s ease-out; }
+    /* Rett over navigasjonslinja (--kd-dokk-h settes av ki-floating-navbar / kd-dokka og måles fra
+       bunnen av vinduet, altså medregnet safe-area nederst). Toppen holder seg under statuslinja. */
     .panel { position:fixed; z-index:9999; left:50%; transform:translateX(-50%);
-      bottom:calc(var(--kd-dokk-h, 90px) + 6px + env(safe-area-inset-bottom));
+      bottom:calc(var(--kd-dokk-h, 90px) + 6px);
       width:min(440px, calc(100vw - 24px));
-      max-height:calc(100vh - var(--kd-dokk-h, 90px) - 40px - env(safe-area-inset-bottom) - env(safe-area-inset-top));
+      max-height:calc(100vh - var(--kd-dokk-h, 90px) - 24px - env(safe-area-inset-top, 0px));
+      max-height:calc(100dvh - var(--kd-dokk-h, 90px) - 24px - env(safe-area-inset-top, 0px));
       display:flex; flex-direction:column; border-radius:24px; overflow:hidden;
       background:var(--gray200, #1f1f22); color:var(--gray1000, #f2f2f2);
       font-family:var(--ki-font, inherit); font-size:14px; font-weight:500;
@@ -12947,6 +12996,8 @@ try {
     .gruppe .chip { background:var(--gray200, #1f1f22); }
     .gruppe .chip.pa { background:var(--active-big, #ee95ff); }
     .etikett { padding:0 14px 8px; opacity:.7; }
+    .rad-wrap > .etikett { padding:2px 14px 6px; font-size:12px; }
+    .hint { padding:8px 8px 0; font-size:12px; opacity:.7; }
     @media (prefers-reduced-motion: reduce) { .bak, .panel { animation:none; } }
   `;
   const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -12963,6 +13014,27 @@ try {
       if (this._hass) this.hass = this._hass;
     }
     connectedCallback() {
+      /* Meld fra til navbaren (ki-floating-navbar) at «Tilpass Hjem» finnes på siden, og lytt på
+         «…» → «Tilpass Hjem» derfra. */
+      if (!this._reg) {
+        this._reg = true;
+        const W = window;
+        W.__kiHjem = (W.__kiHjem || 0) + 1;
+        (W.__kiHjemKort = W.__kiHjemKort || new Set()).add(this);
+        W.dispatchEvent(new CustomEvent('ki-hjem-registrert', { detail: { antall: W.__kiHjem } }));
+      }
+      if (!this._tpLytter) {
+        this._tpLytter = (e) => {
+          const apen = !e.detail || e.detail.apen !== false;
+          if (!apen) { this._lukkTilpass(); return; }
+          /* Flere Hjem-kort på siden: bare det første synlige svarer. */
+          const alle = [...(window.__kiHjemKort || [])];
+          const meg = alle.find((k) => k.isConnected && k.getClientRects().length) || alle[0];
+          if (meg !== this) return;
+          if (!this._tpApen) this._apneTilpass();
+        };
+      }
+      window.addEventListener('ki-hjem-tilpass', this._tpLytter);
       if (!this._udLytter) {
         this._udLytter = (e) => {
           if (!e.detail || e.detail.key !== 'ki_hjem') return;
@@ -12979,6 +13051,14 @@ try {
     }
     disconnectedCallback() {
       if (this._udLytter) window.removeEventListener('ki-ud', this._udLytter);
+      if (this._tpLytter) window.removeEventListener('ki-hjem-tilpass', this._tpLytter);
+      if (this._reg) {
+        this._reg = false;
+        const W = window;
+        W.__kiHjem = Math.max(0, (W.__kiHjem || 1) - 1);
+        if (W.__kiHjemKort) W.__kiHjemKort.delete(this);
+        W.dispatchEvent(new CustomEvent('ki-hjem-registrert', { detail: { antall: W.__kiHjem } }));
+      }
       this._lukkTilpass();
     }
     _u() { const K = window.KI; return (K && K.ud && this._hass) ? (K.ud(this._hass, 'ki_hjem') || {}) : {}; }
@@ -13157,14 +13237,23 @@ try {
       const navn = (id) => { const a = alleRom.find((x) => x.area_id === id); return (a && a.rom) || id; };
       const ib = (op, k, ikon, tittel, av, pa) => `<button class="ib ${pa ? 'pa' : ''}" data-op="${op}" data-k="${esc(k)}" title="${tittel}" aria-label="${tittel}" ${av ? 'disabled' : ''}><ha-icon icon="${ikon}"></ha-icon></button>`;
       const chip = (on, op, k, x, tekst, ikon) => `<button class="chip ${on ? 'pa' : ''}" data-op="${op}" data-k="${esc(k)}" data-x="${esc(x)}" aria-pressed="${on}">${ikon ? `<ha-icon icon="${ikon}"></ha-icon>` : ''}${esc(tekst)}</button>`;
-      const ikonFor = (f) => (f.key === 'hjem' ? 'mdi:home-outline' : f.etg !== undefined ? 'mdi:stairs' : f.key === 'aktuelt' ? 'mdi:lightning-bolt-outline' : f.key === 'batterier' ? 'mdi:battery-low' : 'mdi:tab');
+      const ikonFor = (f) => (f.key === 'hjem' ? 'mdi:home-outline' : f.alle ? 'mdi:view-grid-outline' : f.etg !== undefined ? 'mdi:stairs' : f.key === 'aktuelt' ? 'mdi:lightning-bolt-outline' : f.key === 'batterier' ? 'mdi:battery-low' : 'mdi:tab');
+      const romChips = (on, op, k) => alleRom.map((a) => chip(on(a.area_id), op, k, a.area_id, a.rom || a.area_id)).join('');
 
+      /* Faner og etasjer (kd: «Etasjer»): rekkefølge, vis/skjul og hvilke rom som ligger i hver
+         etasje. Hjem-fanen velger i tillegg side (venstre/høyre swipe) for rommene. */
       const fRader = faner.map((f, i) => {
         const av = skj.has(f.key);
         const kanRom = f.etg !== undefined || (f.key === 'hjem' && f.auto);
         const apen = kanRom && this._tpRom === f.key;
         const under = kanRom ? (f.rom.length ? f.rom.map(navn).join(', ') : 'Ingen rom')
-          : f.key === 'aktuelt' ? 'Vises når noe er i gang' : f.key === 'batterier' ? 'Vises ved lavt batteri' : '';
+          : f.alle ? 'Alle rommene samlet' : f.key === 'aktuelt' ? 'Vises når noe er i gang' : f.key === 'batterier' ? 'Vises ved lavt batteri' : '';
+        let valg = '';
+        if (apen && f.key === 'hjem') {
+          const H = f.hoyre || [], V = f.rom.filter((r) => !H.includes(r));
+          valg = `<div class="etikett">Venstre swipe</div><div class="chips">${romChips((id) => V.includes(id), 'hjemrom', 'venstre')}</div>
+            <div class="etikett">Høyre swipe</div><div class="chips">${romChips((id) => H.includes(id), 'hjemrom', 'hoyre')}</div>`;
+        } else if (apen) valg = `<div class="chips">${romChips((id) => f.rom.includes(id), 'rom', f.key)}</div>`;
         return `<div class="rad-wrap"><div class="rad ${av ? 'av' : ''}">
             <ha-icon class="ri" icon="${ikonFor(f)}"></ha-icon>
             <span class="rt"><span class="rn">${esc(f.navn)}</span>${under ? `<span class="ru">${esc(under)}</span>` : ''}</span>
@@ -13172,40 +13261,62 @@ try {
             ${ib('opp', f.key, 'mdi:arrow-up', 'Flytt opp', i === 0)}
             ${ib('ned', f.key, 'mdi:arrow-down', 'Flytt ned', i === faner.length - 1)}
             ${ib('skjul', f.key, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
-          </div>${apen ? `<div class="chips">${alleRom.map((a) => chip(f.rom.includes(a.area_id), 'rom', f.key, a.area_id, a.rom || a.area_id)).join('')}</div>` : ''}</div>`;
+          </div>${valg}</div>`;
       }).join('');
+      /* Rom som ikke ligger i noen etasjefane (fjernet fra alle) – så de ikke blir borte ubemerket. */
+      const iEtg = new Set();
+      faner.forEach((f) => { if (f.etg !== undefined) f.rom.forEach((r) => iEtg.add(r)); });
+      const uten = faner.some((f) => f.etg !== undefined) ? alleRom.filter((a) => !iEtg.has(a.area_id)) : [];
+      const utenHint = uten.length ? `<div class="hint">Ikke i noen etasje: ${esc(uten.map((a) => a.rom || a.area_id).join(', '))}. Trykk blyanten på en etasje for å legge dem til.</div>` : '';
 
+      /* Hjem-fanen (kd: «Seksjoner» og «Fliser – venstre/høyre kolonne»). */
       let sek = '';
       const hj = faner.find((f) => f.key === 'hjem' && f.auto);
       if (hj && hj.deler && hj.deler.length > 1) {
+        const SEK_IKON = { topp: 'mdi:lock-outline', rom: 'mdi:sofa-outline', alarm: 'mdi:shield-home-outline', hoyre: 'mdi:view-column-outline', stov: 'mdi:view-grid-outline' };
         const rek = seksjonsRekke(cfg).filter((k) => hj.deler.includes(k));
         const rader = [...rek, ...hj.deler.filter((k) => !SEK_V.includes(k))].map((k) => {
           const av = skj.has('sek:' + k), i = rek.indexOf(k), flytt = i >= 0 && rek.length > 1;
           return `<div class="rad-wrap"><div class="rad ${av ? 'av' : ''}">
-            <span class="rt"><span class="rn">${esc(SEK_NAVN[k] || k)}</span>${SEK_V.includes(k) ? '' : '<span class="ru">Egen kolonne</span>'}</span>
+            <ha-icon class="ri" icon="${SEK_IKON[k] || 'mdi:card-outline'}"></ha-icon>
+            <span class="rt"><span class="rn">${esc(SEK_NAVN[k] || k)}</span><span class="ru">${SEK_V.includes(k) ? 'Venstre kolonne' : 'Høyre kolonne'}</span></span>
             ${flytt ? ib('sek-opp', k, 'mdi:arrow-up', 'Flytt opp', i === 0) + ib('sek-ned', k, 'mdi:arrow-down', 'Flytt ned', i === rek.length - 1) : ''}
             ${ib('sek-skjul', k, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
           </div></div>`;
         }).join('');
         sek = `<div class="hd">Seksjoner i ${esc(hj.navn)}</div><div class="liste">${rader}</div>`;
       }
+      let fl = '';
+      if (hj && hj.fliser && hj.fliser.length) {
+        const stovAv = skj.has('sek:stov');
+        fl = `<div class="hd">Fliser i ${esc(hj.navn)}</div><div class="liste">${hj.fliser.map((x) => {
+          const av = skj.has(x.key);
+          return `<div class="rad-wrap"><div class="rad ${av || stovAv ? 'av' : ''}">
+            <ha-icon class="ri" icon="${esc(x.ikon)}"></ha-icon>
+            <span class="rt"><span class="rn">${esc(x.navn)}</span>${x.sveip ? '<span class="ru">Sveipbar</span>' : ''}</span>
+            ${ib('skjul', x.key, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
+          </div></div>`;
+        }).join('')}</div>`;
+      }
 
       const romkort = u.romkort || cfg.romkort || 'monster';
       boks.innerHTML = `
-        <div class="hd">Faner</div><div class="liste">${fRader}</div>
-        ${sek}
-        <div class="hd">Romfliser</div>
-        <div class="gruppe"><div class="chips">
-          ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
-          ${chip(p.klima, 'klima', '', '', 'Klimaknapp', 'mdi:thermostat')}
-        </div></div>
         <div class="hd">Fanerada</div>
         <div class="gruppe">
           <div class="etikett">Bredde</div><div class="chips">
             ${[['standard', 'Standard'], ['kompakt', 'Kompakt'], ['full', 'Full']].map(([v, t]) => chip(p.bredde === v, 'fane', 'bredde', v, t)).join('')}</div>
           <div class="etikett">Høyde</div><div class="chips">
             ${[['standard', 'Standard'], ['lav', 'Lav'], ['middels', 'Middels'], ['hoy', 'Høy'], ['ekstra', 'Ekstra']].map(([v, t]) => chip(p.hoyde === v || (v === 'hoy' && p.hoyde === 'høy'), 'fane', 'hoyde', v, t)).join('')}</div>
-        </div>`;
+        </div>
+        ${sek}
+        ${fl}
+        <div class="hd">Faner og etasjer</div><div class="liste">${fRader}</div>
+        ${utenHint}
+        <div class="hd">Romkort</div>
+        <div class="gruppe"><div class="chips">
+          ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
+          ${chip(p.klima, 'klima', '', '', 'Klimaknapp', 'mdi:thermostat')}
+        </div></div>`;
       boks.scrollTop = rull;
     }
 
@@ -13222,8 +13333,22 @@ try {
         const keys = (this._faner || []).map((f) => f.key);
         if (!bytt(keys, k, op === 'opp' ? -1 : 1)) return;
         u.rekkefolge = keys;
-      } else if (op === 'skjul') skjul(k);
-      else if (op === 'rom') {
+      } else if (op === 'skjul') {
+        if (k === 'alle') u.alle_rom = !visAlle(cfg);
+        else skjul(k);
+      } else if (op === 'hjemrom') {
+        /* Hjem-fanens rom: x legges i (eller tas ut av) venstre/høyre swipe. Dagens fordeling
+           skrives ut, så resten blir stående der de er. */
+        const f = (this._faner || []).find((y) => y.key === 'hjem');
+        if (!f) return;
+        const H = (f.hoyre || []).slice(), V = f.rom.filter((r) => !H.includes(r));
+        const [inn, ut] = k === 'hoyre' ? [H, V] : [V, H];
+        const i = inn.indexOf(x);
+        if (i >= 0) inn.splice(i, 1);
+        else { const j = ut.indexOf(x); if (j >= 0) ut.splice(j, 1); inn.push(x); }
+        u.etasjer = { ...(u.etasjer || {}), hjem: [...V, ...H] };
+        u.hjem_hoyre = H;
+      } else if (op === 'rom') {
         const f = (this._faner || []).find((y) => y.key === k);
         if (!f) return;
         const etg = k === 'hjem' ? 'hjem' : f.etg;
@@ -38992,6 +39117,8 @@ function toCssSize(value, fallbackPx) {
  *     dobbeltrykk: "/config" }              // "" = ingenting
  */
 const UD_KEY = "ki_familie";
+/* Fristen for andre trykk i et dobbelttrykk på hilsenen/servernavnet. */
+const DOBBEL_MS = 320;
 
 /* Oppsettene. `plass` er servernavnets plass (samme som server_plass). */
 const OPPSETT = [
@@ -39424,9 +39551,13 @@ class FamilyStatusCard extends LitElement {
           this._greetingGest("double_tap");
           return;
         }
+        if (this._erAndreTrykk()) { this._dobbeltrykkFraMeny(); return; }
         this._serverApen = false;
       }}></div>
-      <div class="servermeny" role="menu" @click=${(e) => e.stopPropagation()}>
+      <div class="servermeny" role="menu" @click=${(e) => {
+        e.stopPropagation();
+        if (this._erAndreTrykk()) this._dobbeltrykkFraMeny();
+      }}>
         <div class="menytopp">Bytt sted</div>
         ${this._servere().map((srv, i) => {
           const na = srv.navn === her;
@@ -39474,6 +39605,7 @@ class FamilyStatusCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._kiPopupSignal(false);
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("ki-ud", this._onUd);
@@ -39483,7 +39615,23 @@ class FamilyStatusCard extends LitElement {
      enn hintet om servermenyen (trykk på navnet åpner den fortsatt). */
   updated(endret) {
     if (this._popupEl && endret && endret.has && endret.has("hass")) this._popupEl.hass = this.hass;
+    this._kiPopupSignal((!!this._hurtig && (!this._hurtigUt || this._hurtigNeste)) || (this._dialogIndex !== null && !this._lukker));
     this._sjekkPil();
+  }
+
+  /* Navigasjonslinja (ki-floating-navbar) ligger fast nederst, og kan ligge i en annen
+     stablingskontekst enn kortet – da hjelper ingen z-index. Mens hurtigpopupen eller
+     personarket er oppe sier vi derfor fra, så linja kan skjule seg:
+       document.documentElement får klassen «ki-popup-apen», og
+       window får hendelsen «ki-popup» med detail { apen: true | false, kilde: kortet }. */
+  _kiPopupSignal(apen) {
+    if (apen === !!this._kiPopupApen) return;
+    this._kiPopupApen = apen;
+    const rot = document.documentElement;
+    const n = Math.max(0, (Number(rot.dataset.kiPopup) || 0) + (apen ? 1 : -1));
+    if (n) rot.dataset.kiPopup = String(n); else delete rot.dataset.kiPopup;
+    rot.classList.toggle("ki-popup-apen", n > 0);
+    window.dispatchEvent(new CustomEvent("ki-popup", { detail: { apen: n > 0, kilde: this } }));
   }
   _sjekkPil() {
     const r = this.shadowRoot; if (!r) return;
@@ -39949,9 +40097,11 @@ class FamilyStatusCard extends LitElement {
     if (!this._hurtig || this._hurtigUt) return;
     window.removeEventListener("keydown", this._onKeyDown);
     this._hurtigUt = true;
+    this._hurtigNeste = !!neste; // noe åpnes etterpå (personarket): la navigasjonslinja forbli skjult
     window.setTimeout(() => {
       this._hurtig = null;
       this._hurtigUt = false;
+      this._hurtigNeste = false;
       this._opt = {};
       if (neste) neste();
     }, 160);
@@ -39985,32 +40135,31 @@ class FamilyStatusCard extends LitElement {
     const hjemme = pc.presence_switch ? this._aktiv("qpres", hjemmeNa ? 0 : 1) === 0 : hjemmeNa;
     const sover = pc.sleep_switch ? this._aktiv("qsovn", soverNa ? 1 : 0) === 1 : false;
     const bilde = this._hurtigBilde(pc);
-    const GREEN = "oklch(0.8 0.12 150)", BLUE = "oklch(0.75 0.12 245)", AMBER = "oklch(0.8 0.12 70)",
-      PURP = "oklch(0.68 0.2 285)", SOV = "oklch(0.72 0.1 275)";
+    const GREEN = "var(--green, #34c759)", PURP = "var(--purple, #bf5af2)";
     const velg = (nokkel, idx, sett) => { this._haptic("selection"); this._velg(nokkel, idx, sett); };
-    const opt = (pa, ikon, tekst, farge, klikk) => html`<button type="button" class="kq-opt"
-        style=${pa ? `background:${farge};color:#141416` : ""} @click=${klikk}>
-        <span class="ms" style="font-size:20px;font-variation-settings:'FILL' ${pa ? 1 : 0}">${ikon}</span>${tekst}</button>`;
+    /* ki-stil: aktivt valg fylles med --active-big og får --black som tekst og ikon. */
+    const opt = (pa, ikon, tekst, klikk) => html`<button type="button" class="kq-opt ${pa ? "pa" : ""}"
+        @click=${klikk}><ha-icon icon=${ikon}></ha-icon>${tekst}</button>`;
     const ut = this._hurtigUt ? "ut" : "";
     return html`
       <div class="kq-bak ${ut}" @click=${() => { if (Date.now() - this._openedAt > 600) this._lukkHurtig(); }}></div>
       <div class="kq ${ut}" role="dialog" aria-modal="true" aria-label=${navn}>
-        <div class="kq-av" style=${`background-color:${pc.farge || "oklch(0.5 0.05 250)"};box-shadow:0 0 0 4px #141416, 0 0 0 6px ${hjemme ? GREEN : PURP};`
+        <div class="kq-av" style=${`background-color:${pc.farge || "var(--gray200, #262629)"};--kq-ring:${hjemme ? GREEN : PURP};`
           + (bilde ? `background-image:url('${String(bilde).replace(/'/g, "%27")}');color:transparent;` : "")}>${String(navn).trim().charAt(0)}</div>
         <div class="kq-hode">
           <div class="kq-navn">${navn}</div>
           <div class="kq-sub">${hjemme ? "Hjemme" : "Borte"}${pc.sleep_switch ? ` · ${sover ? "Sover" : "Våken"}` : ""}</div>
         </div>
         ${pc.presence_switch ? html`<div class="kq-seg">
-          ${opt(hjemme, "home", "Hjemme", GREEN, () => velg("qpres", 0, () => this._setEntity(pc.presence_switch, true)))}
-          ${opt(!hjemme, "logout", "Borte", BLUE, () => velg("qpres", 1, () => this._setEntity(pc.presence_switch, false)))}
+          ${opt(hjemme, "mdi:home", "Hjemme", () => velg("qpres", 0, () => this._setEntity(pc.presence_switch, true)))}
+          ${opt(!hjemme, "mdi:logout", "Borte", () => velg("qpres", 1, () => this._setEntity(pc.presence_switch, false)))}
         </div>` : ""}
         ${pc.sleep_switch ? html`<div class="kq-seg">
-          ${opt(!sover, "light_mode", "Våken", AMBER, () => velg("qsovn", 0, () => this._setEntity(pc.sleep_switch, false)))}
-          ${opt(sover, "bedtime", "Sover", SOV, () => velg("qsovn", 1, () => this._setEntity(pc.sleep_switch, true)))}
+          ${opt(!sover, "mdi:weather-sunny", "Våken", () => velg("qsovn", 0, () => this._setEntity(pc.sleep_switch, false)))}
+          ${opt(sover, "mdi:weather-night", "Sover", () => velg("qsovn", 1, () => this._setEntity(pc.sleep_switch, true)))}
         </div>` : ""}
         <button type="button" class="kq-ferdig" @click=${() => { this._haptic(this.cfg.haptic_tap); this._lukkHurtig(); }}>${this.cfg.done_label || "Ferdig"}</button>
-        <button type="button" class="kq-mer" @click=${() => this._hurtigDetaljer()}>Mobil, soner og søvn<span class="ms" style="font-size:18px">chevron_right</span></button>
+        <button type="button" class="kq-mer" @click=${() => this._hurtigDetaljer()}>Mobil, soner og søvn<ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>`;
   }
 
@@ -40137,6 +40286,16 @@ class FamilyStatusCard extends LitElement {
       this._greetingGest("double_tap");
       return;
     }
+    if (this._erAndreTrykk()) { this._dobbeltrykkFraMeny(); return; }
+    /* Trykk åpner servermenyen: åpne den MED EN GANG (ingen ventetid). Kommer et andre trykk
+       innen fristen (det lander på menyens bakgrunn, se _renderServerMeny), lukkes menyen
+       og dobbelttrykket kjøres – også det med en gang. */
+    if (this._serverGest() === "tap") {
+      const apner = !this._serverApen;
+      this._greetingGest("tap");
+      this._forsteTrykk = apner ? Date.now() : 0;
+      return;
+    }
     /* Vanlig dobbelttrykk: første trykk venter et øyeblikk. Kommer et andre trykk innen
        fristen, er det et dobbelttrykk; ellers utføres trykket (f.eks. servermenyen).
        Finnes det ingen dobbelttrykk-handling, kjøres trykket med en gang (se over). */
@@ -40144,6 +40303,21 @@ class FamilyStatusCard extends LitElement {
       this._dobbelTimer = null;
       this._greetingGest("tap");
     }, 280);
+  }
+
+  /* Kom dette trykket innen dobbelttrykk-fristen etter trykket som åpnet menyen? */
+  _erAndreTrykk() {
+    const t = this._forsteTrykk;
+    return !!t && Date.now() - t < DOBBEL_MS;
+  }
+
+  /* Andre trykk i et dobbelttrykk der det første åpnet servermenyen: menyen fjernes
+     straks (uten utgangsanimasjon) og dobbelttrykket kjøres med en gang. */
+  _dobbeltrykkFraMeny() {
+    this._forsteTrykk = 0;
+    this._serverApen = false;
+    if (this._serverGest() === "double_tap") return;
+    this._greetingGest("double_tap");
   }
 
   _onGreetingPointerCancel() {
@@ -41541,24 +41715,31 @@ class FamilyStatusCard extends LitElement {
       .person-ark > ki-person-card {
         display: block;
       }
-      /* KD-personarket: samme flate som arkene på KD Hjem (#141416, 38 px hjørner); kortets
-         egen topp-pille har grepet og lukkeknappen. */
+      /* KD-personarket i ki-stil: flat --gray000, 28 px topp, helt ned til bunnen av skjermen
+         (over navigasjonslinja – den skjules mens arket er oppe, se _kiPopupSignal).
+         Kortets egen topp-pille har grepet og lukkeknappen. */
+      .backdrop.ark-bak {
+        padding: calc(24px + env(safe-area-inset-top, 0px)) 0 0;
+        z-index: 2147483000;
+      }
       .person-ark.kd {
         max-width: 620px;
-        height: calc(100vh - 52px - var(--kd-dokk-h, 0px));
-        height: calc(100dvh - 52px - var(--kd-dokk-h, 0px));
-        padding: 0 0 env(safe-area-inset-bottom, 0px);
-        border-radius: 38px 38px 0 0;
-        background: #141416;
-        color: #f2f1ee;
-        box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        margin-bottom: 0;
+        height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
+        height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
+        max-height: none;
+        padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+        border-radius: 28px 28px 0 0;
+        background: var(--gray000, #141416);
+        color: var(--gray1000, #f2f1ee);
+        box-shadow: none;
       }
 
-      /* ------------------- HURTIGPOPUPEN (KD Hjem) ------------------- */
+      /* ------------------- HURTIGPOPUPEN (ki-stil) ------------------- */
       .kq-bak {
         position: fixed;
         inset: 0;
-        z-index: 9998;
+        z-index: 2147483000;
         background: rgba(0, 0, 0, 0.55);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
@@ -41568,21 +41749,21 @@ class FamilyStatusCard extends LitElement {
         position: fixed;
         left: 50%;
         top: 50%;
-        z-index: 9999;
-        width: 300px;
-        max-width: calc(100vw - 40px);
+        z-index: 2147483001;
+        width: 320px;
+        max-width: calc(100vw - 32px);
         box-sizing: border-box;
-        padding: 62px 14px 14px;
-        border-radius: 30px;
-        background: #232326;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 30px 60px rgba(0, 0, 0, 0.5);
+        padding: 62px 12px 12px;
+        border-radius: 28px;
+        background: var(--gray100, #1c1c1f);
+        box-shadow: none;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         transform: translate(-50%, -50%);
         animation: kq-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-        color: #f2f1ee;
-        font-family: "Space Grotesk", system-ui, sans-serif;
+        color: var(--gray1000, #f2f1ee);
+        font-family: inherit;
         -webkit-font-smoothing: antialiased;
         -webkit-tap-highlight-color: transparent;
       }
@@ -41603,20 +41784,6 @@ class FamilyStatusCard extends LitElement {
         -webkit-tap-highlight-color: transparent;
         text-align: center;
       }
-      .kq .ms {
-        font-family: "Material Symbols Rounded";
-        font-weight: 400;
-        font-style: normal;
-        line-height: 1;
-        white-space: nowrap;
-        -webkit-font-feature-settings: "liga";
-        font-feature-settings: "liga";
-        user-select: none;
-        display: inline-block;
-        letter-spacing: normal;
-        text-transform: none;
-        direction: ltr;
-      }
       .kq-av {
         position: absolute;
         left: 50%;
@@ -41624,29 +41791,32 @@ class FamilyStatusCard extends LitElement {
         transform: translateX(-50%);
         width: 96px;
         height: 96px;
-        border-radius: 48px;
+        border-radius: 50%;
         display: grid;
         place-items: center;
         font-size: 36px;
-        font-weight: 600;
+        font-weight: 500;
         background-size: cover;
         background-position: center;
+        /* ring i sonefargen: grønn hjemme, lilla borte */
+        box-shadow: 0 0 0 4px var(--gray100, #1c1c1f), 0 0 0 6px var(--kq-ring, var(--green, #34c759));
       }
       .kq-hode {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 3px;
-        padding-bottom: 4px;
+        gap: 2px;
+        padding-bottom: 6px;
       }
       .kq-navn {
-        font-size: 22px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
+        font-size: 24px;
+        font-weight: 500;
+        line-height: 1.2;
       }
       .kq-sub {
-        font-size: 13px;
-        color: #8e8d89;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0.7;
       }
       .kq-seg {
         display: grid;
@@ -41654,7 +41824,7 @@ class FamilyStatusCard extends LitElement {
         gap: 4px;
         padding: 4px;
         border-radius: 26px;
-        background: #1a1a1c;
+        background: var(--gray200, #262629);
       }
       .kq .kq-opt {
         height: 48px;
@@ -41664,27 +41834,36 @@ class FamilyStatusCard extends LitElement {
         justify-content: center;
         gap: 8px;
         font-size: 14px;
-        font-weight: 600;
+        font-weight: 500;
         background: transparent;
-        color: #c9c7c2;
+        color: var(--gray800, #c9c7c2);
         transition: background 0.25s, color 0.25s;
+        --mdc-icon-size: 20px;
+      }
+      .kq .kq-opt.pa {
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #000);
       }
       .kq .kq-ferdig {
         height: 52px;
-        border-radius: 26px;
-        background: linear-gradient(135deg, oklch(0.78 0.13 350), oklch(0.9 0.05 20));
-        color: #2a1720;
-        font-size: 15px;
-        font-weight: 600;
+        margin-top: 4px;
+        border-radius: 999px;
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #000);
+        font-size: 16px;
+        font-weight: 500;
       }
       .kq .kq-mer {
-        height: 36px;
+        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
-        font-size: 13px;
-        color: #a9a7a2;
+        gap: 2px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--gray1000, #f2f1ee);
+        opacity: 0.7;
+        --mdc-icon-size: 18px;
       }
       @keyframes kq-pop {
         from {
@@ -47920,13 +48099,16 @@ try {
  *   # ellers som før: badge_template, active_template, active, users: [navn], hide_name, id
  *   # tap_action: navigate | url | call-service | perform-action | fire-dom-event | toggle-menu
  *   #             | toggle (entity) | more-info (entity) | ki-navbar-edit (åpner «Tilpass navbar»)
+ *   #             | ki-hjem-tilpass (åpner «Tilpass Hjem» i ki-hjem-card på siden)
  * styles: { background, blur, color, active_color, width, icon_size, button_padding, z_index, margin_left, spacer_height }
  *
  * Nytt (alle valgfrie):
  *   indicator: both            # both (glasslinse + prikk) | lens | dot | none
  *   drag: true                 # dra fingeren langs linjen – linsen følger, slipp aktiverer
  *   customize: true            # langt trykk på linjen åpner «Tilpass navbar»
- *   edit_entry: false          # legger «Tilpass navbar» inn i «Mer»-menyen
+ *   edit_entry: auto           # «Tilpass navbar» nederst i menyen bak prikkene (standard når linjen
+ *                              # har en meny; true = alltid, lager «Mer» om nødvendig; false = aldri)
+ *   hjem_meny: true            # «Tilpass Hjem» nederst i menyen når et ki-hjem-card er på siden
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
@@ -47947,6 +48129,12 @@ try {
  * Id-er: item.id, ellers "n:"+navn, (underknapper) "p:"+navigation_path, ellers "i:"+ikon.
  * Config er standarden; det som står her overstyrer. «Nullstill» sletter <nav_id>.
  * (Den gamle nøkkelen `size` ignoreres – størrelsene var mindre enn config og krympet linjen.)
+ * Menyen får nederst, under en skillelinje, «Tilpass navbar» og «Tilpass Hjem» (som i kd-dokken).
+ * «Tilpass Hjem» sender window-hendelsen `ki-hjem-tilpass` ({ detail: { apen: true } }); ki-hjem-card
+ * lytter og åpner panelet sitt. Kortet melder seg i `window.__kiHjem` (antall på siden) og sender
+ * `ki-hjem-registrert` når det kommer og går, så menyvalget bare vises når det virker.
+ * Linjen gjemmes (opasitet 0, ikke klikkbar) mens <html> har klassen ki-popup-apen / etter
+ * window-hendelsen ki-popup {detail:{apen:true}} – f.eks. personpopupene i family-status-card.
  * Setter --kd-dokk-h på <html> (avstand fra bunnen av vinduet til toppen av linjen), så
  * andre paneler kan legge seg rett over den.
  */
@@ -48055,6 +48243,7 @@ try {
           _shrunk: { state: true },
           _dragIdx: { state: true },
           _udRev: { state: true },
+          _popupApen: { state: true },
         };
       }
 
@@ -48086,6 +48275,16 @@ try {
         this._bNav = this._handleBrowserEvents.bind(this);
         this._bOutside = this._handleClickOutside.bind(this);
         this._bUd = (e) => { if (e && e.detail && e.detail.key === UD_KEY) this._udRev++; };
+        this._bHjem = () => { this._udRev++; };
+        /* family-status-card (m.fl.) melder fra når en popup er åpen: linjen gjemmes så lenge
+           (klassen ki-popup-apen på <html> + window-hendelsen ki-popup {apen}). */
+        this._popupApen = false;
+        this._bPopup = (e) => {
+          const apen = e && e.detail && typeof e.detail.apen === "boolean" ? e.detail.apen
+            : document.documentElement.classList.contains("ki-popup-apen");
+          this._popupApen = apen;
+          if (apen) this._openMenu = null;
+        };
         this._bScroll = this._onScroll.bind(this);
         this._bResize = () => { this._syncLens(true); this._measureDock(); };
         this._tick = this._tick.bind(this);
@@ -48098,6 +48297,9 @@ try {
         W.addEventListener("location-changed", this._bNav);
         W.addEventListener("popstate", this._bNav);
         W.addEventListener("ki-ud", this._bUd);
+        W.addEventListener("ki-hjem-registrert", this._bHjem);
+        W.addEventListener("ki-popup", this._bPopup);
+        this._popupApen = document.documentElement.classList.contains("ki-popup-apen");
         W.addEventListener("scroll", this._bScroll, { passive: true, capture: true });
         W.addEventListener("resize", this._bResize);
         document.addEventListener("click", this._bOutside);
@@ -48110,6 +48312,8 @@ try {
         W.removeEventListener("location-changed", this._bNav);
         W.removeEventListener("popstate", this._bNav);
         W.removeEventListener("ki-ud", this._bUd);
+        W.removeEventListener("ki-hjem-registrert", this._bHjem);
+        W.removeEventListener("ki-popup", this._bPopup);
         W.removeEventListener("scroll", this._bScroll, { capture: true });
         W.removeEventListener("resize", this._bResize);
         document.removeEventListener("click", this._bOutside);
@@ -48293,6 +48497,10 @@ try {
           case "toggle": if (entity && this.hass) this.hass.callService("homeassistant", "toggle", { entity_id: entity }); break;
           case "more-info": if (entity) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: entity }, bubbles: true, composed: true })); break;
           case "ki-navbar-edit": this._openEditor(); break;
+          case "ki-hjem-tilpass":
+            haptic("medium");
+            W.dispatchEvent(new CustomEvent("ki-hjem-tilpass", { detail: { apen: true } }));
+            break;
           default: break;
         }
       }
@@ -48351,7 +48559,17 @@ try {
       _barItems() {
         const m = this._model();
         const subs = [...m.menu];
-        if (this._config.edit_entry) subs.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" } });
+        /* Nederst i menyen, under en skillelinje: «Tilpass navbar» og «Tilpass Hjem» (som i kd-dokken).
+           Standard bare når linjen har en meny; edit_entry: true gir dem alltid (og lager «Mer»). */
+        const c = this._config;
+        const harMeny = !!this._menuId || subs.length > 0;
+        const hale = [];
+        if (c.edit_entry === true || (c.edit_entry !== false && harMeny))
+          hale.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" }, _hale: true });
+        if (c.hjem_meny !== false && (harMeny || c.edit_entry === true) && (W.__kiHjem || 0) > 0)
+          hale.push({ id: "__hjem", name: "Tilpass Hjem", icon: "mdi:view-dashboard-edit-outline", tap_action: { action: "ki-hjem-tilpass" }, _hale: true });
+        if (hale.length && subs.length) subs.push({ id: "__skille", _skille: true });
+        subs.push(...hale);
         const bar = [];
         m.bar.forEach((it) => {
           if (it.id !== this._menuId) { bar.push(it); return; }
@@ -48407,7 +48625,7 @@ try {
         const last = items.length - 1;
 
         return html`
-          <div class="floating-layer ${isPreview ? "preview-mode" : ""} ${this._shrunk && !isPreview ? "shrunk" : ""} ${wCls}"
+          <div class="floating-layer ${isPreview ? "preview-mode" : ""} ${this._shrunk && !isPreview ? "shrunk" : ""} ${wCls} ${this._popupApen && !isPreview ? "popup-skjult" : ""}"
             @transitionend=${() => this._measureDock()}
             style="
               --navbar-bg: ${st.bg};
@@ -48433,10 +48651,11 @@ try {
                     ${item.sub_items && isMenuOpen ? html`
                       <div class="sub-menu ${idx === last && last > 0 ? "end" : ""}">
                         ${item.sub_items.map((sub) => {
+                          if (sub._skille) return html`<div class="sub-menu-sep" role="separator"></div>`;
                           if (!this._checkUserVisibility(sub)) return nothing;
                           const subActive = !sub.sub_items && this._matches(sub);
                           return html`
-                            <div class="sub-menu-item ${!sub.name ? "icon-only" : ""} ${subActive ? "active" : ""}"
+                            <div class="sub-menu-item ${!sub.name ? "icon-only" : ""} ${subActive ? "active" : ""} ${sub._hale ? "hale" : ""}"
                               @click=${(e) => { e.stopPropagation(); this._handleAction(sub); }}>
                               <ha-icon icon="${sub.icon}"></ha-icon>
                               ${sub.name ? html`<span>${sub.name}</span>` : ""}
@@ -48924,6 +49143,10 @@ try {
           .floating-layer.w-full { width: calc(100vw - 24px); max-width: none; }
           .floating-layer.w-fixed { width: var(--ki-fixed-w, 420px); max-width: calc(100vw - 24px); }
           .floating-layer.shrunk { transform: translateX(-50%) scale(0.86); }
+          /* Skjult mens en popup er åpen (ki-popup). Bare opasitet: størrelsen og --kd-dokk-h står. */
+          .floating-layer { transition: transform 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.18s ease; }
+          .floating-layer.popup-skjult { opacity: 0; pointer-events: none; }
+          .floating-layer.popup-skjult * { pointer-events: none !important; }
           .navbar-container {
             position: relative;
             display: flex;
@@ -49057,6 +49280,8 @@ try {
             color: var(--navbar-color);
           }
           .sub-menu-item.icon-only { justify-content: center; }
+          .sub-menu-item.hale { opacity: .72; }
+          .sub-menu-sep { height: 1px; margin: 0 10px; background: currentColor; color: var(--navbar-color); opacity: .14; }
           .sub-menu-item:hover { background: rgba(0,0,0,0.05); color: var(--navbar-active-color); }
           .sub-menu-item span { font-size: 14px; font-weight: 500; }
           .sub-menu-item.active {
@@ -49215,6 +49440,7 @@ try {
       { v: "service", l: "Kjør handling" },
       { v: "toggle-menu", l: "HA-sidemeny" },
       { v: "edit", l: "Tilpass navbar" },
+      { v: "hjem", l: "Tilpass Hjem" },
       { v: "submenu", l: "Undermeny" },
       { v: "none", l: "Ingen" },
     ];
@@ -49237,6 +49463,7 @@ try {
         case "call-service": case "perform-action": return "service";
         case "toggle-menu": return "toggle-menu";
         case "ki-navbar-edit": return "edit";
+        case "ki-hjem-tilpass": return "hjem";
         case "fire-dom-event": return "other";
         case undefined: case "none": return "none";
         default: return "other";
@@ -49283,6 +49510,7 @@ try {
           else if (type === "service") it.tap_action = { action: "perform-action", perform_action: old.perform_action || old.service || "" };
           else if (type === "toggle-menu") it.tap_action = { action: "toggle-menu" };
           else if (type === "edit") it.tap_action = { action: "ki-navbar-edit" };
+          else if (type === "hjem") it.tap_action = { action: "ki-hjem-tilpass" };
           else it.tap_action = { action: "none" };
           Object.keys(it.tap_action).forEach((k) => { if (it.tap_action[k] === "") delete it.tap_action[k]; });
         });
@@ -49418,7 +49646,8 @@ try {
               </select></label>
             <label class="chk"><input type="checkbox" .checked=${c.drag !== false} @change=${(e) => this._setTop("drag", e.target.checked, true)}> Dra fingeren langs linjen for å velge</label>
             <label class="chk"><input type="checkbox" .checked=${c.customize !== false} @change=${(e) => this._setTop("customize", e.target.checked, true)}> Langt trykk åpner «Tilpass navbar»</label>
-            <label class="chk"><input type="checkbox" .checked=${!!c.edit_entry} @change=${(e) => this._setTop("edit_entry", e.target.checked, false)}> «Tilpass navbar» i «Mer»-menyen</label>
+            <label class="chk"><input type="checkbox" .checked=${c.edit_entry !== false} @change=${(e) => this._setTop("edit_entry", e.target.checked ? undefined : false, undefined)}> «Tilpass navbar» nederst i menyen</label>
+            <label class="chk"><input type="checkbox" .checked=${c.hjem_meny !== false} @change=${(e) => this._setTop("hjem_meny", e.target.checked ? undefined : false, undefined)}> «Tilpass Hjem» nederst i menyen (når Hjem-kortet er på siden)</label>
             <label class="chk"><input type="checkbox" .checked=${!!c.shrink_on_scroll} @change=${(e) => this._setTop("shrink_on_scroll", e.target.checked, false)}> Krymp ved scrolling (standard)</label>
             ${this._txt("Navbar-ID (for brukervalg)", c.nav_id, (v) => this._setTop("nav_id", v, "default"), "default")}
 
@@ -57889,6 +58118,28 @@ try {
     static head = ['person', 'Tilstedeværelse', 'Mobil, sone og søvn'];
     static defaults = { person: 'sebastian', personer: null, soner: null, bilde: true, sovn_rom: 'Soverom' };
     static getStubConfig() { return { person: 'sebastian' }; }
+    /* ki-designet oppå KD-arket: temaets skrift og --gray*-flater i stedet for KD-paletten.
+       Topp-pillen (KD.sheetTopHTML) får flat --gray200 med ikonsirkel i --active-big. */
+    static get sheetCss() {
+      return `
+:host{font-family:inherit;color:var(--gray1000,#f2f1ee)}
+.kd-sheet-top{background:linear-gradient(180deg,var(--gray000,#141416) 0,var(--gray000,#141416) 72%,transparent 100%)!important}
+.kd-sheet-top .kd-grip{background:var(--gray400,rgba(250,251,252,0.3))!important}
+[data-bh="pill"]{background:var(--gray200,#262629)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:999px!important;padding:0 7px!important}
+[data-bh="sheen"],[data-bh="glow"]{display:none!important}
+[data-bh="iconwrap"],[data-bh="icon"]{width:52px!important;height:52px!important}
+[data-bh="icon"]{border-radius:50%!important;background:var(--active-big,#ee95ff)!important;color:var(--black,#000)!important}
+[data-bh="glyph"]{font-size:26px!important}
+[data-bh="title"]{font-size:16px!important;font-weight:500!important}
+[data-bh="sub"]{font-size:14px!important;font-weight:500!important;color:var(--gray1000,#f2f1ee)!important;opacity:.7}
+[data-bh="close"]{width:52px!important;height:52px!important;border-radius:50%!important;background:var(--gray100,#1c1c1f)!important}
+[data-key="kd-lay-btn"] button{background:var(--gray200,#262629)!important;box-shadow:none!important;color:var(--gray1000,#f2f1ee)!important;font-size:14px!important;height:52px!important;border-radius:999px!important}
+`;
+    }
+    render() {
+      // KD-rammen har #141416 hardkodet; bytt til temaets popup-flate
+      return super.render().replace('<div style="background:#141416;min-height:100%">', '<div style="background:var(--gray000,#141416);min-height:100%">');
+    }
     getCardSize() { return 14; }
 
     /* ---------- oppslag ---------- */
@@ -57951,7 +58202,7 @@ try {
       const useSwitch = (!pst || KD.BAD.has(pst.state)) && this.ok(p.posisjon);
       const state = useSwitch ? (this.v(p.posisjon) === 'on' ? 'home' : 'not_home') : pst ? pst.state : '';
       const zkey = this.zoneKey(state);
-      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', '#8e8d89', ''];
+      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', 'var(--gray600, #8e8d89)', ''];
       const since = useSwitch ? (this.st(p.posisjon) || {}).last_changed : pst && pst.last_changed;
       const geo = this.at(px + 'geocoded_location', 'Locality') ? this.st(px + 'geocoded_location').attributes : {};
       const place = zkey === 'home' ? (geo.Locality || this.fname('zone.home', '')) : zkey === 'not_home' ? (geo['Sub Locality'] || geo.Locality || '') : zkey ? this.zoneName(zkey) : '';
@@ -58040,104 +58291,114 @@ try {
       const vals = {
         name: p.navn, initial: String(p.navn).trim()[0] || '?',
         halo: { position: 'absolute', inset: -8, borderRadius: '50%', boxShadow: `0 0 0 2px ${a(zc, 0.55)}, 0 0 40px ${a(zc, 0.25)}` },
-        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 600, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
-        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: '#232326', color: zc, boxShadow: '0 0 0 3px #141416' },
+        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 500, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
+        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: 'var(--gray200, #262629)', color: zc, boxShadow: '0 0 0 3px var(--gray000, #141416)' },
         zone: { label: [zl, place && place !== zl ? place : ''].filter(Boolean).join(' · '), icon: zi, since: sinceTxt },
-        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: '#e6e4df' },
+        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: 'var(--gray1000, #f2f1ee)' },
         zoneDot: { width: 8, height: 8, borderRadius: 4, background: zc, boxShadow: `0 0 10px ${zc}` },
-        stats: [['directions_walk', steps != null ? Math.round(steps).toLocaleString('nb-NO') : '–', 'skritt', C.green, px + 'steps'],
-          ['route', dist != null ? `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km` : '–', 'reist i dag', C.blue, distId],
-          ['bedtime', score != null ? `${score}` : '–', 'søvnscore', 'oklch(0.72 0.1 275)', scoreId]].map(([icon, v, label, col, id]) => ({ icon, v, label, id, iconStyle: { fontSize: 20, color: col, fontVariationSettings: "'FILL' 1" } })),
+        // tomme verdier vises ikke (ingen «–»-fliser)
+        stats: [steps != null ? ['directions_walk', Math.round(steps).toLocaleString('nb-NO'), 'skritt', px + 'steps'] : null,
+          dist != null ? ['route', `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km`, 'reist i dag', distId] : null,
+          score != null && !isNaN(score) ? ['bedtime', `${score}`, 'søvnscore', scoreId] : null].filter(Boolean).map(([icon, v, label, id]) => ({ icon, v, label, id })),
         sleep: {
           h: totMin != null ? Math.floor(totMin / 60) : '–', m: totMin != null ? totMin % 60 : '–',
           window: win ? `${KD.hm(win[0])}–${win[1] ? KD.hm(win[1]) : 'nå'}` : '–',
           score: good ? 'God natt' : ok ? 'Grei natt' : 'Urolig natt', hasScore: score != null || dur != null,
-          scoreStyle: { fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 10, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
+          // ingen søvndata i det hele tatt → seksjonen skjules
+          has: totMin != null || haveStages || !!win, hasTot: totMin != null,
+          scoreStyle: { fontSize: 14, fontWeight: 500, padding: '6px 12px', borderRadius: 999, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
           blocks: seq.map((k, i) => ({ flex: 1 + (i % 3) * 0.5, background: STAGES[k][1], opacity: k === 0 ? 0.5 : 1, alignSelf: 'flex-end', height: `${[35, 60, 100, 80][k]}%`, borderRadius: 4 })),
-          legend: STAGES.map(([label, c], k) => ({ label, v: stMin[k] != null ? `${Math.round(stMin[k])} min` : '–', dot: { width: 8, height: 8, borderRadius: 4, background: c } })),
-          week: wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
+          legend: STAGES.map(([label, c], k) => stMin[k] != null ? { label, v: `${Math.round(stMin[k])} min`, dot: { width: 8, height: 8, borderRadius: 4, background: c } } : null).filter(Boolean),
+          week: !wk.some(w => w.v > 0) ? [] : wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
         },
         phone: { model: model || 'Mobil', bat: bat != null ? Math.round(bat) : '–', sub: net || '–', id: px + 'battery_level',
-          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'oklch(0.72 0.15 25)' : charging ? C.green : '#f2f1ee' }, chips },
-        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(255,255,255,0.1)' : 'transparent', marginTop: 4 } })),
+          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'var(--red, oklch(0.72 0.15 25))' : charging ? 'var(--green, ' + C.green + ')' : 'var(--gray1000, #f2f1ee)' }, chips },
+        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(250,251,252,0.1)' : 'transparent', marginTop: 4 } })),
       };
       const pic = cfg.bilde && this.at(p.entity, 'entity_picture');
       if (pic) Object.assign(vals.avatar, { backgroundImage: `url('${KD.e(String(this._hass.hassUrl ? this._hass.hassUrl(pic) : pic).replace(/'/g, '%27'))}')`, backgroundSize: 'cover', backgroundPosition: 'center', color: 'transparent' });
       const v = vals;
 
-      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;padding:20px var(--kd-kant,10px) 40px;display:flex;flex-direction:column;gap:22px">
+      // ki-designet: flater fra temaets --gray*, fliser 22 px / paneler 24 px, tekst 14 px/500, store tall vekt 300
+      const G1 = 'var(--gray100, #1c1c1f)', G2 = 'var(--gray200, #262629)';
+      const TX = 'var(--gray1000, #f2f1ee)', DIM = 'var(--gray600, #8e8d89)';
+      const HS = `font-size:16px;font-weight:500;color:${TX};padding:0 4px`;
+      const IC = n => `width:${n}px;height:${n}px;border-radius:50%;flex:none;display:grid;place-items:center;box-sizing:border-box;background:rgba(250,251,252,0.1);border:1px solid rgba(250,251,252,0.1);color:${TX}`;
+      const nStat = v.stats.length;
+
+      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;color:${TX};padding:20px var(--kd-kant,12px) 40px;display:flex;flex-direction:column;gap:12px">
   <header style="display:flex;align-items:center;justify-content:space-between">
-    <div style="font-size:13px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Tilstedeværelse</div>
-    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:#232326;display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
+    <div style="font-size:14px;font-weight:500;color:${DIM}">Tilstedeværelse</div>
+    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:${G2};display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
   </header>
 
-  <section style="display:flex;flex-direction:column;align-items:center;gap:14px">
+  <section style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:4px 0 10px">
     <div data-on-click="info" data-arg="${e(p.entity)}" style="position:relative;width:132px;height:132px;cursor:pointer">
       <div style="${S(v.halo)}"></div>
       <div style="${S(v.avatar)}">${pic ? '' : t(v.initial)}</div>
       <span style="${S(v.zoneBadge)}"><span class="ms" style="font-size:18px;font-variation-settings:'FILL' 1">${t(v.zone.icon)}</span></span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center">
-      <div style="font-size:26px;font-weight:500;letter-spacing:-0.015em">${t(v.name)}</div>
+      <div style="font-size:30px;font-weight:500;line-height:1.1">${t(v.name)}</div>
       <div style="${S(v.zoneLine)}"><span style="${S(v.zoneDot)}"></span>${t(v.zone.label)}</div>
-      <div style="font-size:13px;color:#8e8d89">${t(v.zone.since)}</div>
+      ${v.zone.since ? `<div style="font-size:14px;font-weight:500;opacity:0.7">${t(v.zone.since)}</div>` : ''}
     </div>
   </section>
 
-  <section style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:18px;background:#1c1c1f">
-        <span class="ms" style="${S(x.iconStyle)}">${t(x.icon)}</span>
-        <div style="display:flex;flex-direction:column;gap:1px">
-          <span style="font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap">${t(x.v)}</span>
-          <span style="font-size:11px;color:#8e8d89;white-space:nowrap">${t(x.label)}</span>
+  ${nStat ? `<section style="display:grid;grid-template-columns:repeat(${nStat},minmax(0,1fr));gap:8px">
+    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:22px;background:${G2};cursor:pointer;min-width:0">
+        <span style="${IC(40)}"><span class="ms" style="font-size:22px">${t(x.icon)}</span></span>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;padding-left:2px">
+          <span style="font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.v)}</span>
+          <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.label)}</span>
         </div>
       </div>`).join('')}
-  </section>
-
-  <section style="display:flex;flex-direction:column;gap:12px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
-      <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Søvn i natt</div>
-      <div style="font-size:12px;color:#6d6c69;font-variant-numeric:tabular-nums">${t(v.sleep.window)}</div>
-    </div>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:0 4px">
-      <div style="font-size:44px;font-weight:300;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:15px;color:#8e8d89"> t </span>${t(v.sleep.m)}<span style="font-size:15px;color:#8e8d89"> min</span></div>
-      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
-    </div>
-    <div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
-      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
-    </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;padding:0 4px">
-      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#a9a7a2;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="color:#6d6c69;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:6px">
-      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
-          <div style="${S(w.bar)}"></div>
-          <span style="font-size:10px;color:#6d6c69">${t(w.d)}</span>
-        </div>`).join('')}
-    </div>
-  </section>
-
-  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
-    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Mobil</div>
-    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:22px;background:#1c1c1f;cursor:pointer">
-      <span style="width:40px;height:40px;border-radius:20px;background:#232326;display:grid;place-items:center;flex:none"><span class="ms" style="font-size:22px">smartphone</span></span>
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;justify-content:space-between;gap:10px">
-          <span style="font-size:14px;font-weight:500;white-space:nowrap">${t(v.phone.model)}</span>
-          <span style="font-size:13px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
-        </div>
-        <div style="height:5px;border-radius:3px;background:#2a2a2d;overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
-        <span style="font-size:12px;color:#8e8d89">${t(v.phone.sub)}</span>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${v.phone.chips.map(c => `<span style="height:30px;padding:0 11px 0 8px;border-radius:15px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;background:#1c1c1f;color:#c9c7c2;white-space:nowrap"><span class="ms" style="font-size:16px;color:#8e8d89">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
-    </div>
   </section>` : ''}
 
-  <section style="display:flex;flex-direction:column;gap:8px">
-    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Soner i dag</div>
-    <div style="display:flex;flex-direction:column;padding-left:4px">
+  ${v.sleep.has ? `<section style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:24px;background:${G2}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+      <div style="font-size:16px;font-weight:500">Søvn i natt</div>
+      <div style="font-size:14px;font-weight:500;color:${DIM};font-variant-numeric:tabular-nums">${win ? t(v.sleep.window) : ''}</div>
+    </div>
+    ${v.sleep.hasTot ? `<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+      <div style="font-size:44px;font-weight:300;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:14px;font-weight:500;opacity:0.7"> t </span>${t(v.sleep.m)}<span style="font-size:14px;font-weight:500;opacity:0.7"> min</span></div>
+      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
+    </div>` : ''}
+    ${v.sleep.blocks.length ? `<div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
+      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
+    </div>` : ''}
+    ${v.sleep.legend.length ? `<div style="display:flex;gap:6px 14px;flex-wrap:wrap">
+      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="opacity:0.7;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
+    </div>` : ''}
+    ${v.sleep.week.length ? `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:4px">
+      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="${S(w.bar)}"></div>
+          <span style="font-size:12px;font-weight:500;color:${DIM}">${t(w.d)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+  </section>` : ''}
+
+  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
+    <div style="${HS};padding-top:6px">Mobil</div>
+    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:12px;min-height:66px;padding:7px 18px 7px 7px;box-sizing:border-box;border-radius:22px;background:${G2};cursor:pointer">
+      <span style="${IC(52)}"><span class="ms" style="font-size:26px">smartphone</span></span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.model)}</span>
+          <span style="font-size:14px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:${G1};overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
+        <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.sub)}</span>
+      </div>
+    </div>
+    ${v.phone.chips.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${v.phone.chips.map(c => `<span style="height:36px;padding:0 14px 0 10px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;background:${G2};white-space:nowrap"><span class="ms" style="font-size:18px;opacity:0.7">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
+    </div>` : ''}
+  </section>` : ''}
+
+  ${v.log.length || this._logH ? `<section style="display:flex;flex-direction:column;gap:8px">
+    <div style="${HS};padding-top:6px">Soner i dag</div>
+    <div style="display:flex;flex-direction:column;padding:16px 16px 4px;border-radius:24px;background:${G2}">
       ${v.log.map(x => `<div style="display:flex;gap:14px;align-items:stretch">
           <div style="display:flex;flex-direction:column;align-items:center;width:10px;flex:none">
             <span style="${S(x.dot)}"></span>
@@ -58145,15 +58406,15 @@ try {
           </div>
           <div style="flex:1;display:flex;justify-content:space-between;gap:12px;padding-bottom:14px">
             <div style="display:flex;flex-direction:column;gap:2px">
-              <div style="font-size:14px">${t(x.text)}</div>
-              <div style="font-size:12px;color:#8e8d89">${t(x.sub)}</div>
+              <div style="font-size:14px;font-weight:500">${t(x.text)}</div>
+              <div style="font-size:14px;font-weight:500;opacity:0.7">${t(x.sub)}</div>
             </div>
-            <div style="font-size:12px;color:#8e8d89;font-variant-numeric:tabular-nums">${t(x.time)}</div>
+            <div style="font-size:14px;font-weight:500;opacity:0.7;font-variant-numeric:tabular-nums">${t(x.time)}</div>
           </div>
         </div>`).join('')}
-      ${!v.log.length && this._logH ? `<div style="padding:4px 0 8px;font-size:13px;color:#6d6c69">Ingen soneendringer i dag</div>` : ''}
+      ${!v.log.length ? `<div style="padding:0 0 12px;font-size:14px;font-weight:500;opacity:0.7">Ingen soneendringer i dag</div>` : ''}
     </div>
-  </section>
+  </section>` : ''}
 </div>`;
     }
     info(ev, id) { if (id) this.more(id); }

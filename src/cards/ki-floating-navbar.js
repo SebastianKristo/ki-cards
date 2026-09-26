@@ -52,6 +52,8 @@
  * «Tilpass Hjem» sender window-hendelsen `ki-hjem-tilpass` ({ detail: { apen: true } }); ki-hjem-card
  * lytter og åpner panelet sitt. Kortet melder seg i `window.__kiHjem` (antall på siden) og sender
  * `ki-hjem-registrert` når det kommer og går, så menyvalget bare vises når det virker.
+ * Linjen gjemmes (opasitet 0, ikke klikkbar) mens <html> har klassen ki-popup-apen / etter
+ * window-hendelsen ki-popup {detail:{apen:true}} – f.eks. personpopupene i family-status-card.
  * Setter --kd-dokk-h på <html> (avstand fra bunnen av vinduet til toppen av linjen), så
  * andre paneler kan legge seg rett over den.
  */
@@ -160,6 +162,7 @@
           _shrunk: { state: true },
           _dragIdx: { state: true },
           _udRev: { state: true },
+          _popupApen: { state: true },
         };
       }
 
@@ -192,6 +195,15 @@
         this._bOutside = this._handleClickOutside.bind(this);
         this._bUd = (e) => { if (e && e.detail && e.detail.key === UD_KEY) this._udRev++; };
         this._bHjem = () => { this._udRev++; };
+        /* family-status-card (m.fl.) melder fra når en popup er åpen: linjen gjemmes så lenge
+           (klassen ki-popup-apen på <html> + window-hendelsen ki-popup {apen}). */
+        this._popupApen = false;
+        this._bPopup = (e) => {
+          const apen = e && e.detail && typeof e.detail.apen === "boolean" ? e.detail.apen
+            : document.documentElement.classList.contains("ki-popup-apen");
+          this._popupApen = apen;
+          if (apen) this._openMenu = null;
+        };
         this._bScroll = this._onScroll.bind(this);
         this._bResize = () => { this._syncLens(true); this._measureDock(); };
         this._tick = this._tick.bind(this);
@@ -205,6 +217,8 @@
         W.addEventListener("popstate", this._bNav);
         W.addEventListener("ki-ud", this._bUd);
         W.addEventListener("ki-hjem-registrert", this._bHjem);
+        W.addEventListener("ki-popup", this._bPopup);
+        this._popupApen = document.documentElement.classList.contains("ki-popup-apen");
         W.addEventListener("scroll", this._bScroll, { passive: true, capture: true });
         W.addEventListener("resize", this._bResize);
         document.addEventListener("click", this._bOutside);
@@ -218,6 +232,7 @@
         W.removeEventListener("popstate", this._bNav);
         W.removeEventListener("ki-ud", this._bUd);
         W.removeEventListener("ki-hjem-registrert", this._bHjem);
+        W.removeEventListener("ki-popup", this._bPopup);
         W.removeEventListener("scroll", this._bScroll, { capture: true });
         W.removeEventListener("resize", this._bResize);
         document.removeEventListener("click", this._bOutside);
@@ -529,7 +544,7 @@
         const last = items.length - 1;
 
         return html`
-          <div class="floating-layer ${isPreview ? "preview-mode" : ""} ${this._shrunk && !isPreview ? "shrunk" : ""} ${wCls}"
+          <div class="floating-layer ${isPreview ? "preview-mode" : ""} ${this._shrunk && !isPreview ? "shrunk" : ""} ${wCls} ${this._popupApen && !isPreview ? "popup-skjult" : ""}"
             @transitionend=${() => this._measureDock()}
             style="
               --navbar-bg: ${st.bg};
@@ -1047,6 +1062,10 @@
           .floating-layer.w-full { width: calc(100vw - 24px); max-width: none; }
           .floating-layer.w-fixed { width: var(--ki-fixed-w, 420px); max-width: calc(100vw - 24px); }
           .floating-layer.shrunk { transform: translateX(-50%) scale(0.86); }
+          /* Skjult mens en popup er åpen (ki-popup). Bare opasitet: størrelsen og --kd-dokk-h står. */
+          .floating-layer { transition: transform 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.18s ease; }
+          .floating-layer.popup-skjult { opacity: 0; pointer-events: none; }
+          .floating-layer.popup-skjult * { pointer-events: none !important; }
           .navbar-container {
             position: relative;
             display: flex;
