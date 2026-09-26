@@ -1,3 +1,11 @@
+# ki-cards 9.3.0
+
+- **Ny: ki-lys-card** – «Lys v3» fra Claude Design med ekte data: Utelys-scene, tidene, Automatikk/Kveld/Morgen, utelamper, Sola og Innstillinger, pluss fanene Første etg / Andre etg / Lys på.
+- **ki-person-card** er nå personarket fra Hjem-dashbordet (Tilstedeværelse: sone, mobil, soner i dag, søvn).
+- **family-status-card**: trykk på et bilde gir samme hurtigpopup som i Hjem-dashbordet (Hjemme/Borte, Våken/Sover, Ferdig, «Mobil, soner og søvn ›»). `person_hash: '#personer'` åpner en bubble-card-popup i stedet for arket.
+- **Tilpass** (familiekort og navbar) holder seg under statuslinja på iPhone. «Tilpass rommet»-linja er kompakt på mobil.
+- KD-grunnmuren fra Hjem-dashbordet er med i bundelen (brukes av ki-lys-card og ki-person-card).
+
 # ki-cards 9.2.0
 
 - **Ny: ki-person-card** – popupen for en person, samme type som rom-toppkortet: status (Hjemme / Sover / Borte / sone), stedet stort, «siden 15:40», mobilbatteri som søyle, og under det «Soner i dag», «Mobil» (batteri, Wi-Fi/mobildata, skritt, distanse, sted) og «Søvn».

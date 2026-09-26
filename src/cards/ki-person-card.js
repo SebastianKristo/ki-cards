@@ -1,509 +1,339 @@
 /*
- * ki-person-card — popupen for én person: samme type toppkort som ki-rom-hero-card (grå flate,
- * status-pille, stort stedsnavn, søyle til høyre) og seksjoner under for soner i dag, mobil og søvn.
- * Brukes når man trykker på en person i familiekortet, eller alene i en bubble-card-popup.
+ * ki-person-card — «Person» (Tilstedeværelse), samme ark som personarket i KD-dashbordet
+ * (kd-person-card, fra Claude Design «Person.dc.html»), bygd på KD-basen (kd-base.js, window.KD).
+ * Åpnes fra «Mobil, soner og søvn ›» i familiekortets hurtigpopup, eller alene i en bubble-card-popup.
  *
- * Tilstanden styrer aksentfargen (pillen, glyfen og små detaljer – flaten er alltid grå):
- *   sover   (søvnbryteren er på)   blålilla, måne      «Sover»
- *   hjemme  (person = home)        grønt,    hus       «Hjemme»
- *   sone    (person = en zone.*)   ravgult,  sonens ikon «Skole»
- *   borte   (person = not_home)    lilla,    ut-dør    «Borte · Oslo» (stedet fra mobilen)
+ * Sone og «siden» fra person.*, mobil og helse fra telefonens sensorer (prefiks funnet via personens
+ * device_trackers, f.eks. sensor.sebastian_iphone_17_pro_*), søvnvindu og «Våknet/Sovnet» fra søvnbryteren
+ * (on = sover), «Soner i dag» fra personens historikk.
  *
- * Minste oppsett – mobilsensorene finnes via personens device_trackers
- * (device_tracker.sebastian_iphone_17_pro → sensor.sebastian_iphone_17_pro_battery_level osv.):
- *   type: custom:ki-person-card
- *   person: person.sebastian
- *
- * Alt kan settes selv:
- *   navn: Sebastian                        # ellers personens friendly_name
- *   bilde: true                            # false = forbokstaven i stedet for entity_picture
- *   sovn: switch.sebastian_sovn            # switch/input_boolean, på = sover
- *   posisjon: switch.sebastian_hjemme      # reserve når personen er utilgjengelig (på = hjemme)
- *   mobil: sensor.sebastian_iphone_17_pro_ # prefikset til mobilsensorene
- *   farge: "#8fd6a0"                       # overstyr aksentfargen (CSS-farge)
- *   seksjoner: { soner: true, mobil: true, sovn: true }   # false skjuler seksjonen
- *   stov: true                             # de svake partiklene i toppkortet
- *   hoyde: 184                             # høyden på toppkortet
- *
- * Mobilsensorer (med prefiks): battery_level, battery_state, connection_type, ssid, steps,
- * distance / walking_running_distance, geocoded_location, sleep_duration
- * (+ binary_sensor.<prefiks>is_charging).
- *
- * Trykk på kortet/avataren = mer-info for personen, batterisøylen = batteriet. Radene: trykk =
- * mer-info, langt trykk = mer-info; søvnraden: trykk = bytt sover/våken, langt trykk = mer-info.
- * Soner i dag hentes fra historikken siden midnatt, på nytt hvert tiende minutt.
+ * type: custom:ki-person-card
+ * person: sebastian            # sebastian | cybele | rune (designets personId) – eller en hvilken som helst person.*-ID
+ * personer: { sebastian: { navn, entity, posisjon, sovn, mobil, farge, sovn_rom } }   # overstyr/utvid tabellen
+ * entity / posisjon / sovn / mobil / navn / farge / sovn_rom   # overstyr for valgt person direkte
+ *   posisjon: switch/input_boolean (på = hjemme), brukes når person.* er utilgjengelig
+ *   sovn:     switch/input_boolean (på = sover)
+ *   farge:    avatarens bakgrunn (CSS-farge) når bildet mangler
+ * soner: { skole: { navn: Skole, ikon: school, farge: 'oklch(…)', bestemt: skolen } }   # nøkkel = zone-objekt-ID
+ * bilde: true                  # true = bruk personens entity_picture i avataren i stedet for forbokstaven
+ * header: false                # uten topp-pillen (når kortet står inne i et annet ark)
+ * Mobil-sensorer (med prefiks): battery_level, battery_state, connection_type, ssid, geocoded_location, steps,
+ * distance / walking_running_distance, sleep_duration, core_sleep, deep_sleep, rem_sleep, awake, sleep_score.
  */
 (() => {
-  const VERSJON = "1.0.0";
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const DARLIG = new Set(["unavailable", "unknown", ""]);
-  const ok = (s) => s && !DARLIG.has(s.state);
-  const tall = (s) => (ok(s) ? parseFloat(s.state) : NaN);
-  const nf = (v, d = 0) => Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const to = (n) => String(n).padStart(2, "0");
-  const hm = (d) => `${to(d.getHours())}:${to(d.getMinutes())}`;
-  const DAG = ["søn.", "man.", "tir.", "ons.", "tor.", "fre.", "lør."];
-  const midnatt = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-  const iDag = (d) => d.toDateString() === new Date().toDateString();
-  const slug = (s) => String(s || "").toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a")
-    .replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-  const varighet = (min) => {
-    min = Math.max(0, Math.round(min));
-    const t = Math.floor(min / 60), m = min % 60;
-    return t ? (m ? `${t} t ${m} min` : `${t} t`) : `${m} min`;
+  const KD = window.KD;
+  if (!KD || customElements.get('ki-person-card')) return;
+  const { S, e, a } = KD;
+  const t = x => `<span>${e(x)}</span>`;
+  const C = { green: 'oklch(0.8 0.12 150)', blue: 'oklch(0.8 0.12 250)', purple: 'oklch(0.68 0.2 285)', amber: 'oklch(0.82 0.12 75)', pink: 'oklch(0.78 0.13 350)' };
+  const PERSONS = {
+    sebastian: { navn: 'Sebastian', entity: 'person.sebastian_kristo_jemtland', posisjon: 'switch.sebastian_posisjon_hjemme_borte', sovn: 'switch.homey_logic_sebastian_sovn_vaken', farge: 'oklch(0.55 0.08 40)', mobil: 'sensor.sebastian_iphone_17_pro_' },
+    cybele: { navn: 'Cybele', entity: 'person.cybele_kristo', posisjon: 'switch.cybele_posisjon_hjemme_borte', sovn: 'switch.homey_logic_cybele_sovn_vaken', farge: 'oklch(0.5 0.08 350)' },
+    rune: { navn: 'Rune', entity: 'person.rune_jemtland', posisjon: 'switch.rune_posisjon_hjemme_borte', sovn: 'switch.homey_logic_rune_sovn_vaken', farge: 'oklch(0.5 0.05 250)' },
   };
+  // [navn, ikon, farge, bestemt form («Forlot skolen»)]
+  const ZONES = {
+    home: ['Hjemme', 'home', C.green, 'hjemmet'], not_home: ['Borte', 'logout', C.purple, 'borte'],
+    skole: ['Skole', 'school', C.amber, 'skolen'], stromstad: ['Strømstad', 'cottage', C.amber, 'Strømstad'], toten: ['Toten', 'cottage', C.amber, 'Toten'],
+    mormor: ['Mormor', 'family_home', C.pink, 'mormor'], oslo_revmatologipraksis: ['Revmatologen', 'medical_services', C.blue, 'revmatologen'], kor: ['Kor', 'music_note', C.blue, 'koret'],
+  };
+  const STAGES = [['Våken', '#8e8d89'], ['Lett', 'oklch(0.72 0.1 250)'], ['Dyp', 'oklch(0.55 0.14 275)'], ['REM', 'oklch(0.75 0.13 330)']];
+  // Designets typiske natt – brukes som mal for rekkefølgen når bare fase-totalene er kjent.
+  const SEQ = [1, 2, 2, 1, 3, 1, 2, 1, 3, 0, 1, 3, 1, 3, 0];
+  const WD = ['sø', 'ma', 'ti', 'on', 'to', 'fr', 'lø'];
+  const WDL = ['søn.', 'man.', 'tir.', 'ons.', 'tor.', 'fre.', 'lør.'];
+  const slug = s => String(s || '').toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const isToday = d => new Date(d).toDateString() === new Date().toDateString();
+  const dayStart = (off = 0) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + off); return d; };
 
-  // aksentfargene
-  const F = { hjemme: "#8fd6a0", sover: "#a4a8ff", borte: "#b69cff", sone: "#f2b966", ukjent: "#8e8d89", rod: "#f47b74" };
-  // partiklene: [venstre %, forsinkelse s] – færre og svakere enn i rom-kortet
-  const STOV = [[14, 0], [30, 1.6], [46, 0.7], [58, 2.4], [70, 1.1], [38, 3.1]];
-
-  const CSS = `
-    :host { display: block; }
-    * { box-sizing: border-box; }
-    .kort { position: relative; height: var(--h, 184px); border-radius: 28px; overflow: hidden;
-      background: var(--gray200, #1c1c1f); color: var(--gray1000, #f2f1ee); cursor: pointer;
-      -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
-    .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
-    .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--f); pointer-events: none;
-      animation: drift var(--t, 7s) linear var(--d, 0s) infinite; }
-    @keyframes drift { 0% { transform: translate(0, 0); opacity: 0; } 25% { opacity: .35; } 100% { transform: translate(14px, -120px); opacity: 0; } }
-    .glyf { position: absolute; right: 86px; top: 36px; color: var(--f); pointer-events: none; opacity: .8;
-      animation: puste 3.4s ease-in-out infinite; }
-    .glyf ha-icon { --mdc-icon-size: 36px; display: block; }
-    @keyframes puste { 0%, 100% { opacity: .6; transform: scale(1); } 50% { opacity: .9; transform: scale(1.05); } }
-    .avatar { position: absolute; right: 16px; top: 16px; width: 48px; height: 48px; border-radius: 50%; padding: 0; cursor: pointer;
-      border: 2px solid color-mix(in srgb, var(--f) 70%, transparent); background: color-mix(in srgb, var(--f) 22%, var(--gray100, #26262a));
-      background-size: cover; background-position: center; color: var(--gray1000, #f2f1ee); display: grid; place-items: center;
-      font-family: inherit; font-size: 19px; font-weight: 500; line-height: 1; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
-    .avatar:active { transform: scale(.92); }
-    .topp { position: absolute; left: 18px; top: 18px; right: 130px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-    .navn { font-size: 13px; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-    .pille { height: 26px; padding: 0 10px 0 8px; border-radius: 999px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500;
-      white-space: nowrap; background: color-mix(in srgb, var(--f) 18%, transparent); color: var(--f); max-width: 100%; overflow: hidden; }
-    .pille ha-icon { --mdc-icon-size: 14px; flex: none; }
-    .pt { overflow: hidden; text-overflow: ellipsis; }
-    .bunn { position: absolute; left: 18px; right: 84px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
-    .sted { font-size: 38px; font-weight: 300; letter-spacing: -.035em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sted.lang { font-size: 30px; }
-    .sub { font-size: 12px; color: #8e8d89; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-    .bat { position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
-      background: rgba(255,255,255,.08); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
-      border: 0; padding: 0; cursor: pointer; }
-    .bat i { display: block; height: 0; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
-    .bat ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
-
-    .seksjoner { display: flex; flex-direction: column; gap: 8px; }
-    .seksjoner:not(:empty) { margin-top: 8px; }
-    .seksjon { background: var(--gray200, #1c1c1f); border-radius: 24px; padding: 14px 6px 6px; }
-    .tittel { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 12px 6px;
-      font-size: 14px; font-weight: 500; color: var(--gray1000, #f2f1ee); opacity: .7; }
-    .tittel span:last-child { font-size: 12px; font-variant-numeric: tabular-nums; }
-    .rad { display: flex; align-items: center; gap: 12px; padding: 7px 10px 7px 8px; border-radius: 20px; cursor: pointer;
-      color: var(--gray1000, #f2f1ee); -webkit-tap-highlight-color: transparent; transition: background .2s, transform .14s; }
-    .rad:active { transform: scale(.985); }
-    .rad:focus-visible { outline: 2px solid var(--f); outline-offset: -2px; }
-    .ik { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center;
-      background: rgba(250,251,252,.1); border: 1px solid rgba(250,251,252,.1); }
-    .ik ha-icon { --mdc-icon-size: 22px; }
-    .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-    .l { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .s { font-size: 12px; font-weight: 500; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-    .v { font-size: 14px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: .7; }
-    .rad.pa { background: var(--active-big, #ee95ff); color: var(--black, #101010); }
-    .rad.pa .ik { background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.1); }
-    .rad.pa .v, .rad.pa .s { opacity: .75; }
-    .rad.na .ik { background: color-mix(in srgb, var(--zf) 20%, transparent); border-color: color-mix(in srgb, var(--zf) 30%, transparent); color: var(--zf); }
-    @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
-  `;
-
-  class KiPersonCard extends HTMLElement {
-    static getStubConfig(hass) {
-      const p = hass && Object.keys(hass.states).find((id) => id.startsWith("person."));
-      return { person: p || "person.meg", seksjoner: { soner: true, mobil: true, sovn: true } };
+  /** Fordel N blokker på fasene etter minutter (største rest), i designets rekkefølge. */
+  function hypnogram(mins, n = SEQ.length) {
+    const tot = mins.reduce((p, q) => p + q, 0); if (!tot) return [];
+    const raw = mins.map(m => m / tot * n), cnt = raw.map(Math.floor);
+    let rest = n - cnt.reduce((p, q) => p + q, 0);
+    raw.map((r, i) => [r - Math.floor(r), i]).sort((p, q) => q[0] - p[0]).forEach(([, i]) => { if (rest > 0) { cnt[i]++; rest--; } });
+    const left = cnt.slice(), out = [];
+    for (const want of SEQ.slice(0, n)) {
+      let k = left[want] > 0 ? want : left.indexOf(Math.max(...left));
+      left[k]--; out.push(k);
     }
-    static getConfigForm() {
-      return {
-        schema: [
-          { name: "person", required: true, selector: { entity: { domain: "person" } } },
-          { name: "navn", selector: { text: {} } },
-          { name: "bilde", selector: { boolean: {} } },
-          { name: "sovn", selector: { entity: { domain: ["switch", "input_boolean"] } } },
-          { type: "expandable", name: "", title: "Mer", schema: [
-            { name: "posisjon", selector: { entity: { domain: ["switch", "input_boolean"] } } },
-            { name: "mobil", selector: { text: {} } },
-            { name: "farge", selector: { text: {} } },
-            { name: "stov", selector: { boolean: {} } },
-            { name: "hoyde", selector: { number: { min: 140, max: 320, step: 4, unit_of_measurement: "px", mode: "box" } } },
-          ] },
-          { type: "expandable", name: "seksjoner", title: "Seksjoner", schema: [
-            { name: "soner", selector: { boolean: {} } },
-            { name: "mobil", selector: { boolean: {} } },
-            { name: "sovn", selector: { boolean: {} } },
-          ] },
-        ],
-        computeLabel: (s) => ({ person: "Person", navn: "Navn", bilde: "Vis bilde", sovn: "Søvnbryter (på = sover)",
-          posisjon: "Posisjonsbryter (reserve, på = hjemme)", mobil: "Prefiks for mobilsensorer (sensor.navn_iphone_)",
-          farge: "Aksentfarge (CSS)", stov: "Partikler i toppkortet", hoyde: "Høyde på toppkortet",
-          soner: "Soner i dag", }[s.name] || (s.name === "mobil" ? "Mobil" : s.name === "sovn" ? "Søvn" : s.name)),
-      };
-    }
-
-    setConfig(c) {
-      if (!c || !c.person) throw new Error("ki-person-card: «person» mangler (person.*)");
-      this._c = { bilde: true, stov: true, ...c, seksjoner: { soner: true, mobil: true, sovn: true, ...(c.seksjoner || {}) } };
-      this._pfx = undefined;
-      this._hist = null; this._histFor = null;
-      this._siste = null;
-      this._bygget = false; this._sisteHtml = null;
-      if (this._hass) this._oppdater();
-    }
-
-    set hass(h) {
-      this._hass = h;
-      if (!this._c) return;
-      if (this._pfx === undefined || this._pfx === null) this._pfx = this._prefiks();
-      const n = this._alleIds().map((id) => h.states[id]);
-      if (this._bygget && this._siste && n.length === this._siste.length && n.every((s, i) => s === this._siste[i])) return;
-      this._siste = n;
-      this._oppdater();
-    }
-
-    connectedCallback() {
-      clearInterval(this._timer);
-      this._timer = setInterval(() => this._hentSoner(true), 10 * 60 * 1000);
-    }
-    disconnectedCallback() { clearInterval(this._timer); clearTimeout(this._holdT); }
-    getCardSize() { return 9; }
-    getGridOptions() { return { columns: 12, rows: "auto", min_rows: 3 }; }
-
-    /* ---------- oppslag ---------- */
-    _S(id) { return id && this._hass ? this._hass.states[id] : undefined; }
-
-    /* Prefikset til mobilsensorene: config, ellers personens device_trackers, ellers navnet. */
-    _prefiks() {
-      const c = this._c, h = this._hass;
-      if (c.mobil) { const m = String(c.mobil).replace(/^sensor\./, ""); return "sensor." + (m.endsWith("_") ? m : m + "_"); }
-      const p = this._S(c.person);
-      const trs = [].concat((p && p.attributes.device_trackers) || []);
-      for (const tr of trs) {
-        const o = String(tr).split(".")[1];
-        if (o && h.states[`sensor.${o}_battery_level`]) return `sensor.${o}_`;
-      }
-      const nokkel = slug(String(c.person).split(".")[1] || "").split("_")[0];
-      if (!nokkel) return "";
-      const id = Object.keys(h.states).find((x) => x.startsWith(`sensor.${nokkel}_`) && x.endsWith("_battery_level"));
-      return id ? id.replace(/battery_level$/, "") : "";
-    }
-
-    _mobilIds() {
-      const px = this._pfx;
-      if (!px) return {};
-      const o = px.slice(7);
-      const finnes = (id) => (this._hass.states[id] ? id : null);
-      return {
-        bat: finnes(px + "battery_level"), batState: finnes(px + "battery_state"), lader: finnes(`binary_sensor.${o}is_charging`),
-        conn: finnes(px + "connection_type"), ssid: finnes(px + "ssid"), skritt: finnes(px + "steps"),
-        dist: finnes(px + "distance") || finnes(px + "walking_running_distance"), geo: finnes(px + "geocoded_location"),
-        sovnTid: finnes(px + "sleep_duration"),
-      };
-    }
-
-    _alleIds() {
-      const c = this._c, p = this._S(c.person);
-      const m = Object.values(this._mobilIds()).filter(Boolean);
-      const z = p ? this._soneId(p.state) : null;
-      return [c.person, c.sovn, c.posisjon, z, ...m].filter(Boolean);
-    }
-
-    _soneId(state) {
-      if (!state || DARLIG.has(state) || state === "not_home") return null;
-      if (state === "home") return "zone.home";
-      const st = this._hass.states;
-      if (st["zone." + slug(state)]) return "zone." + slug(state);
-      return Object.keys(st).find((id) => id.startsWith("zone.") && st[id].attributes.friendly_name === state) || null;
-    }
-
-    /* [navn, ikon, farge] for en tilstand på person.* */
-    _sone(state) {
-      if (!state || DARLIG.has(state)) return ["Ukjent", "mdi:help-circle-outline", F.ukjent];
-      if (state === "home") return ["Hjemme", "mdi:home", F.hjemme];
-      if (state === "not_home") return ["Borte", "mdi:home-export-outline", F.borte];
-      const z = this._S(this._soneId(state));
-      return [(z && z.attributes.friendly_name) || state, (z && z.attributes.icon) || "mdi:map-marker", F.sone];
-    }
-
-    /* Personens tilstand, med posisjonsbryteren som reserve. */
-    _tilstand() {
-      const c = this._c, p = this._S(c.person), pos = this._S(c.posisjon);
-      if ((!p || !ok(p)) && ok(pos)) return { state: pos.state === "on" ? "home" : "not_home", siden: pos.last_changed };
-      return { state: p ? p.state : "", siden: p && p.last_changed };
-    }
-
-    _timer_(id) {
-      const s = this._S(id), v = tall(s);
-      if (isNaN(v)) return null;
-      const u = String(s.attributes.unit_of_measurement || "").toLowerCase();
-      return u === "min" ? v / 60 : u === "s" ? v / 3600 : u === "h" || u === "t" ? v : v > 24 ? v / 60 : v;
-    }
-
-    /* ---------- soner i dag ---------- */
-    async _hentSoner(tving = false) {
-      const c = this._c, h = this._hass;
-      if (!c.seksjoner.soner || !h || !h.callWS) return;
-      const p = this._S(c.person);
-      const nokkel = `${c.person}|${p && p.last_changed}|${midnatt().getTime()}`;
-      if (!tving && this._histFor === nokkel) return;
-      this._histFor = nokkel;
-      try {
-        const start = midnatt();
-        const svar = await h.callWS({
-          type: "history/history_during_period", start_time: start.toISOString(), end_time: new Date().toISOString(),
-          entity_ids: [c.person], minimal_response: true, no_attributes: true, significant_changes_only: false,
-        });
-        const rader = (svar && svar[c.person]) || [];
-        const t0 = start.getTime();
-        const seg = [];
-        for (const r of rader) {
-          const s = r.s !== undefined ? r.s : r.state;
-          if (s === undefined || DARLIG.has(s)) continue;
-          const tid = r.lc || r.lu ? (r.lc || r.lu) * 1000 : Date.parse(r.last_changed || r.last_updated);
-          const t = Math.max(t0, isNaN(tid) ? t0 : tid);
-          const forrige = seg[seg.length - 1];
-          if (forrige && forrige.s === s) continue;
-          if (forrige) forrige.til = t;
-          seg.push({ s, fra: t, til: null });
-        }
-        this._hist = seg.filter((x) => x.til === null || x.til - x.fra >= 60 * 1000);
-      } catch (e) {
-        this._hist = null;
-      }
-      this._tegnSeksjoner();
-    }
-
-    /* ---------- trykk ---------- */
-    _vibrer(ms = 8) {
-      if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* blokkert */ } }
-      this.dispatchEvent(new CustomEvent("haptic", { detail: ms > 10 ? "medium" : "light", bubbles: true, composed: true }));
-    }
-    _info(id) {
-      if (!id) return;
-      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true }));
-    }
-    _veksle(id) {
-      if (!id || !this._hass) return;
-      this._hass.callService("homeassistant", "toggle", { entity_id: id });
-    }
-
-    /* Trykk og langt trykk på et element (data-id, data-veksle). */
-    _trykk(el, trykk, hold) {
-      let holdt = false, x0 = 0, y0 = 0;
-      el.addEventListener("pointerdown", (e) => {
-        holdt = false; x0 = e.clientX; y0 = e.clientY;
-        clearTimeout(this._holdT);
-        this._holdT = setTimeout(() => { holdt = true; this._vibrer(20); hold(e); }, 500);
-      });
-      el.addEventListener("pointermove", (e) => { if (Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) > 10) clearTimeout(this._holdT); });
-      ["pointerup", "pointercancel", "pointerleave"].forEach((t) => el.addEventListener(t, () => clearTimeout(this._holdT)));
-      el.addEventListener("contextmenu", (e) => e.preventDefault());
-      el.addEventListener("click", (e) => { if (holdt) { holdt = false; e.stopPropagation(); return; } this._vibrer(); trykk(e); });
-      el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._vibrer(); trykk(e); } });
-    }
-
-    /* ---------- tegning ---------- */
-    _bygg() {
-      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-      this.shadowRoot.innerHTML = `<style>${CSS}</style>
-        <div class="kort" role="button" tabindex="0">
-          <div class="stovlag">${STOV.map(([x, d], i) =>
-            `<span class="stov" style="left:${x}%;width:${i % 2 ? 2 : 3}px;height:${i % 2 ? 2 : 3}px;--d:${d}s;--t:${6 + (i % 3)}s"></span>`).join("")}</div>
-          <span class="glyf"><ha-icon></ha-icon></span>
-          <button class="avatar" aria-label="Personen"></button>
-          <div class="topp"><span class="navn"></span><span class="pille"><ha-icon></ha-icon><span class="pt"></span></span></div>
-          <div class="bunn"><div class="sted"></div><span class="sub"></span></div>
-          <button class="bat" aria-label="Batteri"><i></i><ha-icon icon="mdi:cellphone"></ha-icon></button>
-        </div>
-        <div class="seksjoner"></div>`;
-      const r = this.shadowRoot;
-      this._trykk(r.querySelector(".kort"), () => this._info(this._c.person), () => this._info(this._c.person));
-      r.querySelector(".avatar").addEventListener("click", (e) => { e.stopPropagation(); this._vibrer(); this._info(this._c.person); });
-      r.querySelector(".bat").addEventListener("click", (e) => { e.stopPropagation(); this._vibrer(); this._info(this._mobilIds().bat); });
-      this._bygget = true;
-    }
-
-    _oppdater() {
-      if (!this._hass || !this._c) return;
-      if (this._pfx === undefined) this._pfx = this._prefiks();
-      if (!this._bygget) this._bygg();
-      this._hentSoner();
-      const c = this._c, h = this._hass;
-      const $ = (q) => this.shadowRoot.querySelector(q);
-      const p = this._S(c.person);
-      const t = this._tilstand();
-      const [sted, ikon, soneF] = this._sone(t.state);
-      const sover = this._S(c.sovn) && this._S(c.sovn).state === "on";
-      const m = this._mobilIds();
-      const geo = this._S(m.geo);
-      const lokal = geo && (geo.attributes.Locality || geo.attributes.locality);
-
-      const f = c.farge || (sover ? F.sover : soneF);
-      const pi = sover ? "mdi:sleep" : ikon;
-      const pt = sover ? "Sover" : t.state === "not_home" && lokal ? `Borte · ${lokal}` : sted;
-
-      const kort = $(".kort");
-      kort.style.setProperty("--f", f);
-      kort.style.setProperty("--h", `${Number(c.hoyde) || 184}px`);
-      this.style.setProperty("--f", f);
-      $(".stovlag").style.display = c.stov === false ? "none" : "";
-      $(".glyf ha-icon").setAttribute("icon", sover ? "mdi:weather-night" : ikon);
-
-      const navn = c.navn || (p && p.attributes.friendly_name) || String(c.person).split(".")[1] || "";
-      $(".navn").textContent = navn;
-      $(".pille ha-icon").setAttribute("icon", pi);
-      $(".pt").textContent = pt;
-
-      // avataren: bilde eller forbokstav
-      const av = $(".avatar");
-      const bilde = c.bilde !== false && p && p.attributes.entity_picture;
-      if (bilde) {
-        const url = h.hassUrl ? h.hassUrl(bilde) : bilde;
-        av.style.backgroundImage = `url("${String(url).replace(/"/g, "%22")}")`;
-        av.textContent = "";
-      } else {
-        av.style.backgroundImage = "";
-        av.textContent = (String(navn).trim()[0] || "?").toUpperCase();
-      }
-      av.setAttribute("aria-label", `${navn} – mer info`);
-
-      const stedEl = $(".sted");
-      stedEl.textContent = sted;
-      stedEl.classList.toggle("lang", sted.length > 9);
-
-      // «siden 14:32 · 82 %»
-      const deler = [];
-      const siden = t.siden ? new Date(t.siden) : null;
-      if (siden && !isNaN(siden)) deler.push(`siden ${iDag(siden) ? "" : DAG[siden.getDay()] + " "}${hm(siden)}`);
-      if (t.state === "not_home" && lokal) deler.push(lokal);
-      const bat = tall(this._S(m.bat));
-      if (!isNaN(bat)) deler.push(`${nf(bat)} %`);
-      $(".sub").textContent = deler.join(" · ");
-
-      const lader = this._lader(m);
-      const bs = $(".bat");
-      bs.style.display = isNaN(bat) ? "none" : "";
-      bs.style.setProperty("--fb", bat < 20 && !lader ? F.rod : lader ? F.hjemme : "#f2f1ee");
-      $(".bat i").style.height = `${Math.max(0, Math.min(100, isNaN(bat) ? 0 : bat))}%`;
-      $(".bat ha-icon").setAttribute("icon", lader ? "mdi:cellphone-charging" : "mdi:cellphone");
-      bs.setAttribute("aria-label", `Batteri ${isNaN(bat) ? "–" : nf(bat)} %${lader ? ", lader" : ""}`);
-      $(".bunn").style.right = isNaN(bat) ? "18px" : "84px";
-
-      kort.setAttribute("aria-label", `${navn}: ${pt}. ${$(".sub").textContent}`);
-      this._tegnSeksjoner();
-    }
-
-    _lader(m) {
-      const bst = String((this._S(m.batState) || {}).state || "").toLowerCase();
-      return ["charging", "full", "lader", "fulladet"].includes(bst) || (this._S(m.lader) || {}).state === "on";
-    }
-
-    _rad({ id, ikon, l, s, v, veksle, pa, zf }) {
-      return `<div class="rad${pa ? " pa" : ""}${zf ? " na" : ""}" role="button" tabindex="0" data-id="${esc(id || "")}"${veksle ? ` data-veksle="1"` : ""}${zf ? ` style="--zf:${esc(zf)}"` : ""}>
-        <span class="ik"><ha-icon icon="${esc(ikon)}"></ha-icon></span>
-        <span class="tx"><span class="l">${esc(l)}</span>${s ? `<span class="s">${esc(s)}</span>` : ""}</span>
-        ${v ? `<span class="v">${esc(v)}</span>` : ""}
-      </div>`;
-    }
-
-    _seksjon(tittel, hoyre, rader) {
-      return rader.length ? `<div class="seksjon"><div class="tittel"><span>${esc(tittel)}</span>${hoyre ? `<span>${esc(hoyre)}</span>` : ""}</div>${rader.join("")}</div>` : "";
-    }
-
-    _tegnSeksjoner() {
-      if (!this._bygget || !this._hass) return;
-      const c = this._c, vis = c.seksjoner;
-      const ut = [];
-
-      // Soner i dag
-      if (vis.soner && this._hist && this._hist.length) {
-        const rader = this._hist.map((x) => {
-          const [navn, ikon, farge] = this._sone(x.s);
-          const fra = new Date(x.fra), til = x.til ? new Date(x.til) : null;
-          return this._rad({ id: c.person, ikon, l: navn, s: `kl ${hm(fra)}–${til ? hm(til) : "nå"}`,
-            v: varighet(((til ? til.getTime() : Date.now()) - x.fra) / 60000), zf: farge });
-        });
-        const ulike = new Set(this._hist.map((x) => x.s)).size;
-        ut.push(this._seksjon("Soner i dag", `${ulike} ${ulike === 1 ? "sted" : "steder"}`, rader));
-      }
-
-      // Mobil
-      const m = this._mobilIds();
-      if (vis.mobil && this._pfx) {
-        const rader = [];
-        const S = (id) => this._S(id);
-        const bat = tall(S(m.bat));
-        const lader = this._lader(m);
-        if (!isNaN(bat)) {
-          const n = Math.round(bat / 10) * 10;
-          const bi = lader ? `mdi:battery-charging-${Math.max(10, n)}` : n >= 100 ? "mdi:battery" : n < 10 ? "mdi:battery-outline" : `mdi:battery-${n}`;
-          rader.push(this._rad({ id: m.bat, ikon: bi, l: "Batteri", s: lader ? (bat >= 100 ? "Fulladet" : "Lader") : "På batteri", v: `${nf(bat)} %` }));
-        }
-        const conn = S(m.conn);
-        if (ok(conn)) {
-          const wifi = /wi-?fi/i.test(conn.state), cell = /cell|mobil/i.test(conn.state);
-          const ssid = ok(S(m.ssid)) && !/not connected/i.test(S(m.ssid).state) ? S(m.ssid).state : "";
-          const tek = conn.attributes["Cellular Technology"] || conn.attributes.cellular_technology || "";
-          rader.push(this._rad({ id: m.conn, ikon: wifi ? "mdi:wifi" : cell ? "mdi:signal" : "mdi:access-point-network",
-            l: wifi ? "Wi-Fi" : cell ? "Mobildata" : conn.state, s: wifi ? ssid : cell ? tek : "", v: "" }));
-        }
-        const skritt = tall(S(m.skritt));
-        if (!isNaN(skritt)) rader.push(this._rad({ id: m.skritt, ikon: "mdi:walk", l: "Skritt i dag", v: nf(skritt) }));
-        let dist = tall(S(m.dist));
-        if (!isNaN(dist)) {
-          const u = String(S(m.dist).attributes.unit_of_measurement || "").toLowerCase();
-          if (u === "m") dist /= 1000;
-          rader.push(this._rad({ id: m.dist, ikon: "mdi:map-marker-distance", l: "Distanse", v: `${nf(dist, dist < 10 ? 1 : 0)} km` }));
-        }
-        const geo = S(m.geo);
-        if (ok(geo)) {
-          const a = geo.attributes;
-          const kort = [a.Name || a.Thoroughfare, a.Locality].filter(Boolean).join(", ");
-          rader.push(this._rad({ id: m.geo, ikon: "mdi:map-marker-radius", l: "Sted", s: kort || geo.state.replace(/\n/g, ", "), v: "" }));
-        }
-        ut.push(this._seksjon("Mobil", "", rader));
-      }
-
-      // Søvn
-      if (vis.sovn) {
-        const rader = [];
-        const sw = this._S(c.sovn);
-        if (sw) {
-          const sover = sw.state === "on";
-          const lc = new Date(sw.last_changed);
-          const nar = isNaN(lc) ? "" : `${sover ? "Sovnet" : "Våknet"} ${iDag(lc) ? "" : DAG[lc.getDay()] + " "}${hm(lc)}`;
-          rader.push(this._rad({ id: c.sovn, ikon: sover ? "mdi:sleep" : "mdi:white-balance-sunny", l: sover ? "Sover" : "Våken",
-            s: nar, v: sover && !isNaN(lc) ? varighet((Date.now() - lc.getTime()) / 60000) : "", veksle: true, pa: sover }));
-        }
-        const tid = this._timer_(m.sovnTid);
-        if (tid != null) rader.push(this._rad({ id: m.sovnTid, ikon: "mdi:bed-clock", l: "Søvn i natt", v: varighet(tid * 60) }));
-        ut.push(this._seksjon("Søvn", "", rader));
-      }
-
-      const boks = this.shadowRoot.querySelector(".seksjoner");
-      const html = ut.join("");
-      if (html === this._sisteHtml) return;
-      this._sisteHtml = html;
-      boks.innerHTML = html;
-      boks.querySelectorAll(".rad").forEach((el) => {
-        const id = el.dataset.id;
-        this._trykk(el, () => (el.dataset.veksle ? this._veksle(id) : this._info(id)), () => this._info(id));
-      });
-    }
+    return out;
   }
 
-  if (!customElements.get("ki-person-card")) customElements.define("ki-person-card", KiPersonCard);
-  window.customCards = window.customCards || [];
-  if (!window.customCards.some((k) => k.type === "ki-person-card"))
-    window.customCards.push({ type: "ki-person-card", name: "KI Person",
-      description: "Popupen for én person: sted og status, soner i dag, mobil og søvn – samme toppkort som rommene.", preview: true });
-  console.info(`%c KI-PERSON %c ${VERSJON} `, "color:#fff;background:#3a3a46", "color:#3a3a46;background:#c9c6ff");
+  class KiPersonCard extends KD.KDSheet {
+    static head = ['person', 'Tilstedeværelse', 'Mobil, sone og søvn'];
+    static defaults = { person: 'sebastian', personer: null, soner: null, bilde: true, sovn_rom: 'Soverom' };
+    static getStubConfig() { return { person: 'sebastian' }; }
+    getCardSize() { return 14; }
+
+    /* ---------- oppslag ---------- */
+    who() {
+      const cfg = this.config, table = { ...PERSONS };
+      for (const [k, v] of Object.entries(cfg.personer || {})) table[k] = { ...(table[k] || {}), ...(v || {}) };
+      let key = String(cfg.person || 'sebastian'), p;
+      if (key.startsWith('person.')) { p = Object.values(table).find(x => x.entity === key); if (!p) { const fn = this.fname(key, key); p = { navn: String(fn).split(' ')[0], entity: key }; } }
+      else p = table[key] || table.sebastian;
+      p = { ...p };
+      for (const k of ['entity', 'posisjon', 'sovn', 'mobil', 'navn', 'farge']) if (cfg[k]) p[k] = cfg[k];
+      p.key = slug(String(p.navn || '').split(' ')[0]) || 'person';
+      p.navn = p.navn || this.fname(p.entity, p.key);
+      p.farge = p.farge || 'oklch(0.5 0.05 250)';
+      p.prefix = this.phonePrefix(p);
+      return p;
+    }
+    phonePrefix(p) {
+      if (p.mobil) { const m = String(p.mobil).replace(/^sensor\./, ''); return 'sensor.' + (m.endsWith('_') ? m : m + '_'); }
+      const trs = this.at(p.entity, 'device_trackers', []) || [];
+      for (const tr of trs) { const o = String(tr).split('.')[1]; if (o && this.st(`sensor.${o}_battery_level`)) return `sensor.${o}_`; }
+      if (!this._pfx || this._pfx.k !== p.key) {
+        const id = Object.keys(this._hass ? this._hass.states : {}).find(x => x.startsWith(`sensor.${p.key}_`) && x.endsWith('_battery_level'));
+        this._pfx = { k: p.key, v: id ? id.replace(/battery_level$/, '') : null };
+      }
+      return this._pfx.v;
+    }
+    zones() {
+      const z = { ...ZONES };
+      for (const [k, v] of Object.entries(this.config.soner || {})) { const o = z[k] || [k, 'location_on', C.blue, k]; z[k] = [v.navn || o[0], v.ikon || o[1], v.farge || o[2], v.bestemt || v.navn || o[3]]; }
+      return z;
+    }
+    zoneKey(state) {
+      if (!state || KD.BAD.has(state)) return null;
+      if (state === 'home' || state === 'not_home') return state;
+      const states = this._hass ? this._hass.states : {};
+      const hit = Object.keys(states).find(id => id.startsWith('zone.') && (states[id].attributes.friendly_name === state || id === 'zone.' + slug(state)));
+      return hit ? hit.split('.')[1] : slug(state);
+    }
+    zoneInfo(key, state) {
+      const z = this.zones();
+      if (z[key]) return z[key];
+      const nm = this.fname('zone.' + key, state || key);
+      return [nm, 'location_on', C.blue, nm];
+    }
+    zoneName(key) {
+      if (key === 'home') return this.fname('zone.home', 'Hjem');
+      if (key === 'not_home') return '';
+      return this.fname('zone.' + key, this.zoneInfo(key)[0]);
+    }
+    /** tall i timer ut fra enheten */
+    hours(id) { const v = this.n(id); if (v == null) return null; const u = String(this.unit(id)).toLowerCase(); return u === 'min' ? v / 60 : u === 's' ? v / 3600 : u === 'h' || u === 't' ? v : v > 24 ? v / 60 : v; }
+    mins(id) { const h = this.hours(id); return h == null ? null : h * 60; }
+    firstOk(ids) { return ids.find(id => this.ok(id)) || null; }
+
+    /* ---------- innhold ---------- */
+    body() {
+      const cfg = this.config, p = this.who(), px = p.prefix || 'sensor.__none_';
+      const pst = this.st(p.entity);
+      const useSwitch = (!pst || KD.BAD.has(pst.state)) && this.ok(p.posisjon);
+      const state = useSwitch ? (this.v(p.posisjon) === 'on' ? 'home' : 'not_home') : pst ? pst.state : '';
+      const zkey = this.zoneKey(state);
+      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', '#8e8d89', ''];
+      const since = useSwitch ? (this.st(p.posisjon) || {}).last_changed : pst && pst.last_changed;
+      const geo = this.at(px + 'geocoded_location', 'Locality') ? this.st(px + 'geocoded_location').attributes : {};
+      const place = zkey === 'home' ? (geo.Locality || this.fname('zone.home', '')) : zkey === 'not_home' ? (geo['Sub Locality'] || geo.Locality || '') : zkey ? this.zoneName(zkey) : '';
+      const sinceD = since ? new Date(since) : null;
+      const sinceTxt = sinceD && !isNaN(sinceD) ? `${zl} siden ${isToday(sinceD) ? '' : WDL[sinceD.getDay()] + ' '}${KD.hm(sinceD)}${zkey === 'not_home' && geo.Locality ? ` · ${geo.Locality}` : ''}` : '';
+      const away = zkey !== 'home';
+
+      // aktivitet
+      const steps = this.n(px + 'steps');
+      const distId = this.firstOk([px + 'distance', px + 'walking_running_distance']);
+      let dist = distId ? this.n(distId) : null;
+      if (dist != null) { const u = String(this.unit(distId)).toLowerCase(); if (u === 'm' || (!u && distId.endsWith('_distance') && !distId.includes('walking') && dist > 100)) dist /= 1000; }
+      const scoreId = this.firstOk([px + 'sleep_score', `sensor.${p.key}_sovn_score`, `sensor.${p.key}_sleep_score`]);
+      const score = scoreId ? Math.round(this.n(scoreId)) : null;
+
+      // søvn
+      const stIds = [px + 'awake', px + 'core_sleep', px + 'deep_sleep', px + 'rem_sleep'];
+      const stMin = stIds.map(id => this.mins(id));
+      let dur = this.hours(px + 'sleep_duration');
+      if (dur == null && stMin[1] != null && stMin[2] != null && stMin[3] != null) dur = (stMin[1] + stMin[2] + stMin[3]) / 60;
+      const logH = this.cached(`ki-person-log|${p.entity}|${p.sovn}|${pst && pst.last_changed}|${(this.st(p.sovn) || {}).last_changed}|${dayStart().getTime()}`, 5 * 60e3,
+        () => this.history([p.entity, p.sovn].filter(Boolean), (Date.now() - dayStart(-1).getTime() + 6 * 3600e3) / 3600e3), null);
+      if (logH) this._logH = logH;
+      const H = this._logH || {};
+      // søvnvinduet: siste periode bryteren var «on»
+      const sw = (H[p.sovn] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
+      let win = null;
+      for (let i = 0; i < sw.length; i++) if (sw[i].v === 'on' && (i === 0 || sw[i - 1].v !== 'on')) { const end = sw.slice(i + 1).find(x => x.v !== 'on'); win = [sw[i].t, end ? end.t : null]; }
+      if (!win && this.v(p.sovn) === 'on') { const lc = (this.st(p.sovn) || {}).last_changed; if (lc) win = [new Date(lc), null]; }
+      if (dur == null && win) dur = ((win[1] || new Date()) - win[0]) / 3600e3;
+      const totMin = dur != null ? Math.round(dur * 60) : null;
+      const haveStages = stMin.every(x => x != null);
+      const seq = haveStages ? hypnogram(stMin) : [];
+      const good = score != null ? score >= 80 : dur != null && dur >= 7;
+      const ok = score != null ? score >= 70 : dur != null && dur >= 6;
+      const wkRaw = this.cached(`ki-person-wk|${px}sleep_duration|${dayStart().getTime()}|${(this.st(px + 'sleep_duration') || {}).last_changed}`, 30 * 60e3,
+        () => this.st(px + 'sleep_duration') ? this.history([px + 'sleep_duration'], (Date.now() - dayStart(-6).getTime()) / 3600e3) : Promise.resolve({}), null);
+      if (wkRaw) this._wk = wkRaw;
+      const wkPts = ((this._wk || {})[px + 'sleep_duration'] || []).filter(x => typeof x.v === 'number');
+      const uMul = (() => { const u = String(this.unit(px + 'sleep_duration')).toLowerCase(); return u === 'min' ? 1 / 60 : u === 's' ? 1 / 3600 : 1; })();
+      const wk = this.st(px + 'sleep_duration') ? Array.from({ length: 7 }, (_, i) => {
+        const d0 = dayStart(i - 6).getTime(), d1 = d0 + 864e5;
+        const vals = wkPts.filter(x => x.t >= d0 && x.t < d1).map(x => x.v * uMul);
+        const v = i === 6 && dur != null ? dur : vals.length ? Math.max(...vals) : 0;
+        return { v, d: i === 6 ? 'i n' : WD[new Date(d0).getDay()] };
+      }) : [];
+      const wmax = Math.max(0.01, ...wk.map(x => x.v));
+
+      // mobil
+      const bat = this.n(px + 'battery_level');
+      const bst = String(this.v(px + 'battery_state')).toLowerCase();
+      const charging = ['charging', 'full', 'lader', 'fulladet'].includes(bst) || this.v(`binary_sensor.${px.slice(7)}is_charging`) === 'on';
+      const conn = this.v(px + 'connection_type');
+      const wifi = /wi-?fi/i.test(conn), cell = /cell|mobil/i.test(conn);
+      const netShort = wifi ? 'Wi-Fi' : cell ? 'Mobildata' : conn && !KD.BAD.has(conn) ? conn : '';
+      const ssid = this.ok(px + 'ssid') ? this.v(px + 'ssid') : '';
+      const tech = this.at(px + 'connection_type', 'Cellular Technology', '') || this.at(px + 'connection_type', 'cellular_technology', '');
+      const net = charging ? ['Lader', netShort].filter(Boolean).join(' · ') : wifi ? ['Wi-Fi', ssid || zl].join(' · ') : cell ? ['Mobildata', tech].filter(Boolean).join(' · ') : netShort;
+      const trackers = this.at(p.entity, 'device_trackers', []) || [];
+      const tracker = trackers.find(x => String(x).includes(px.slice(7, -1))) || trackers[0];
+      const trName = tracker ? this.fname(tracker, '') : '';
+      const first = String(p.navn).split(' ')[0];
+      let model = trName && trName !== tracker ? trName.replace(new RegExp(`^${first}s?\\s+`, 'i'), '').replace(/\s*\(.*\)$/, '').trim() : '';
+      if (!model && p.prefix) model = p.prefix.slice(7, -1).replace(new RegExp(`^${p.key}_`), '').split('_').map(w => w === 'iphone' ? 'iPhone' : w === 'ipad' ? 'iPad' : /^\d/.test(w) ? w : w[0].toUpperCase() + w.slice(1)).join(' ');
+      const focusId = `binary_sensor.${px.slice(7)}focus`;
+      const chips = [[charging ? 'battery_charging_full' : 'battery_5_bar', charging ? 'Lader' : 'På batteri'], netShort ? [wifi ? 'wifi' : 'signal_cellular_alt', netShort] : null,
+        this.st(focusId) ? ['do_not_disturb_on', this.v(focusId) === 'on' ? 'Fokus på' : 'Fokus av'] : null,
+        tracker ? ['location_on', this.ok(tracker) ? 'Posisjon deles' : 'Posisjon av'] : null].filter(Boolean).map(([icon, label]) => ({ icon, label }));
+      const hasPhone = bat != null || !!p.prefix && this.st(px + 'battery_level');
+
+      // soner i dag
+      const log = [];
+      const hist = (H[p.entity] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
+      const t0 = dayStart().getTime();
+      for (let i = 1; i < hist.length; i++) {
+        const prev = hist[i - 1].v, cur = hist[i].v, when = hist[i].t;
+        if (prev === cur || when < t0) continue;
+        const pk = this.zoneKey(prev), ck = this.zoneKey(cur);
+        if (pk && pk !== 'not_home') { const zi2 = this.zoneInfo(pk, prev); log.push([pk === 'home' ? 'Forlot hjemmet' : `Forlot ${zi2[3]}`, this.zoneName(pk), when, pk === 'home' ? 'not_home' : pk]); }
+        if (ck && ck !== 'not_home') { const zi2 = this.zoneInfo(ck, cur); log.push([ck === 'home' ? 'Kom hjem' : `Ankom ${zi2[3]}`, this.zoneName(ck), when, ck]); }
+      }
+      const sl = (H[p.sovn] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
+      for (let i = 1; i < sl.length; i++) if (sl[i].v !== sl[i - 1].v && sl[i].t >= t0) log.push([sl[i].v === 'on' ? 'Sovnet' : 'Våknet', cfg.sovn_rom || 'Soverom', sl[i].t, 'home']);
+      log.sort((x, y) => y[2] - x[2]);
+
+      const vals = {
+        name: p.navn, initial: String(p.navn).trim()[0] || '?',
+        halo: { position: 'absolute', inset: -8, borderRadius: '50%', boxShadow: `0 0 0 2px ${a(zc, 0.55)}, 0 0 40px ${a(zc, 0.25)}` },
+        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 600, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
+        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: '#232326', color: zc, boxShadow: '0 0 0 3px #141416' },
+        zone: { label: [zl, place && place !== zl ? place : ''].filter(Boolean).join(' · '), icon: zi, since: sinceTxt },
+        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: '#e6e4df' },
+        zoneDot: { width: 8, height: 8, borderRadius: 4, background: zc, boxShadow: `0 0 10px ${zc}` },
+        stats: [['directions_walk', steps != null ? Math.round(steps).toLocaleString('nb-NO') : '–', 'skritt', C.green, px + 'steps'],
+          ['route', dist != null ? `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km` : '–', 'reist i dag', C.blue, distId],
+          ['bedtime', score != null ? `${score}` : '–', 'søvnscore', 'oklch(0.72 0.1 275)', scoreId]].map(([icon, v, label, col, id]) => ({ icon, v, label, id, iconStyle: { fontSize: 20, color: col, fontVariationSettings: "'FILL' 1" } })),
+        sleep: {
+          h: totMin != null ? Math.floor(totMin / 60) : '–', m: totMin != null ? totMin % 60 : '–',
+          window: win ? `${KD.hm(win[0])}–${win[1] ? KD.hm(win[1]) : 'nå'}` : '–',
+          score: good ? 'God natt' : ok ? 'Grei natt' : 'Urolig natt', hasScore: score != null || dur != null,
+          scoreStyle: { fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 10, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
+          blocks: seq.map((k, i) => ({ flex: 1 + (i % 3) * 0.5, background: STAGES[k][1], opacity: k === 0 ? 0.5 : 1, alignSelf: 'flex-end', height: `${[35, 60, 100, 80][k]}%`, borderRadius: 4 })),
+          legend: STAGES.map(([label, c], k) => ({ label, v: stMin[k] != null ? `${Math.round(stMin[k])} min` : '–', dot: { width: 8, height: 8, borderRadius: 4, background: c } })),
+          week: wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
+        },
+        phone: { model: model || 'Mobil', bat: bat != null ? Math.round(bat) : '–', sub: net || '–', id: px + 'battery_level',
+          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'oklch(0.72 0.15 25)' : charging ? C.green : '#f2f1ee' }, chips },
+        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(255,255,255,0.1)' : 'transparent', marginTop: 4 } })),
+      };
+      const pic = cfg.bilde && this.at(p.entity, 'entity_picture');
+      if (pic) Object.assign(vals.avatar, { backgroundImage: `url('${KD.e(String(this._hass.hassUrl ? this._hass.hassUrl(pic) : pic).replace(/'/g, '%27'))}')`, backgroundSize: 'cover', backgroundPosition: 'center', color: 'transparent' });
+      const v = vals;
+
+      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;padding:20px var(--kd-kant,10px) 40px;display:flex;flex-direction:column;gap:22px">
+  <header style="display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:13px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Tilstedeværelse</div>
+    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:#232326;display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
+  </header>
+
+  <section style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div data-on-click="info" data-arg="${e(p.entity)}" style="position:relative;width:132px;height:132px;cursor:pointer">
+      <div style="${S(v.halo)}"></div>
+      <div style="${S(v.avatar)}">${pic ? '' : t(v.initial)}</div>
+      <span style="${S(v.zoneBadge)}"><span class="ms" style="font-size:18px;font-variation-settings:'FILL' 1">${t(v.zone.icon)}</span></span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center">
+      <div style="font-size:26px;font-weight:500;letter-spacing:-0.015em">${t(v.name)}</div>
+      <div style="${S(v.zoneLine)}"><span style="${S(v.zoneDot)}"></span>${t(v.zone.label)}</div>
+      <div style="font-size:13px;color:#8e8d89">${t(v.zone.since)}</div>
+    </div>
+  </section>
+
+  <section style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:18px;background:#1c1c1f">
+        <span class="ms" style="${S(x.iconStyle)}">${t(x.icon)}</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <span style="font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap">${t(x.v)}</span>
+          <span style="font-size:11px;color:#8e8d89;white-space:nowrap">${t(x.label)}</span>
+        </div>
+      </div>`).join('')}
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
+      <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Søvn i natt</div>
+      <div style="font-size:12px;color:#6d6c69;font-variant-numeric:tabular-nums">${t(v.sleep.window)}</div>
+    </div>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:0 4px">
+      <div style="font-size:44px;font-weight:300;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:15px;color:#8e8d89"> t </span>${t(v.sleep.m)}<span style="font-size:15px;color:#8e8d89"> min</span></div>
+      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
+    </div>
+    <div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
+      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;padding:0 4px">
+      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#a9a7a2;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="color:#6d6c69;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:6px">
+      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="${S(w.bar)}"></div>
+          <span style="font-size:10px;color:#6d6c69">${t(w.d)}</span>
+        </div>`).join('')}
+    </div>
+  </section>
+
+  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Mobil</div>
+    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:22px;background:#1c1c1f;cursor:pointer">
+      <span style="width:40px;height:40px;border-radius:20px;background:#232326;display:grid;place-items:center;flex:none"><span class="ms" style="font-size:22px">smartphone</span></span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <span style="font-size:14px;font-weight:500;white-space:nowrap">${t(v.phone.model)}</span>
+          <span style="font-size:13px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:#2a2a2d;overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
+        <span style="font-size:12px;color:#8e8d89">${t(v.phone.sub)}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${v.phone.chips.map(c => `<span style="height:30px;padding:0 11px 0 8px;border-radius:15px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;background:#1c1c1f;color:#c9c7c2;white-space:nowrap"><span class="ms" style="font-size:16px;color:#8e8d89">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
+    </div>
+  </section>` : ''}
+
+  <section style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Soner i dag</div>
+    <div style="display:flex;flex-direction:column;padding-left:4px">
+      ${v.log.map(x => `<div style="display:flex;gap:14px;align-items:stretch">
+          <div style="display:flex;flex-direction:column;align-items:center;width:10px;flex:none">
+            <span style="${S(x.dot)}"></span>
+            <span style="${S(x.line)}"></span>
+          </div>
+          <div style="flex:1;display:flex;justify-content:space-between;gap:12px;padding-bottom:14px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="font-size:14px">${t(x.text)}</div>
+              <div style="font-size:12px;color:#8e8d89">${t(x.sub)}</div>
+            </div>
+            <div style="font-size:12px;color:#8e8d89;font-variant-numeric:tabular-nums">${t(x.time)}</div>
+          </div>
+        </div>`).join('')}
+      ${!v.log.length && this._logH ? `<div style="padding:4px 0 8px;font-size:13px;color:#6d6c69">Ingen soneendringer i dag</div>` : ''}
+    </div>
+  </section>
+</div>`;
+    }
+    info(ev, id) { if (id) this.more(id); }
+  }
+
+  KD.define('ki-person-card', KiPersonCard, 'KI Person', 'Tilstedeværelse: sone, aktivitet, søvn i natt, mobil og soner i dag for én person.');
+  if (KD.sheet && !(KD.SHEETS || {}).person) KD.sheet('person', 'ki-person-card');
 })();

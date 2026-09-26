@@ -74,8 +74,11 @@ const DEFAULT_CONFIG = {
   badge_style: "ikon",       // ikon | prikk | ring | ingen
   ring_me: false,            // ring rundt bildet til den innloggede
   tilpass: "hold",           // hold | knapp | av – hvordan Tilpass åpnes
-  // Trykk på en person åpner ki-person-card når det finnes; false = den gamle popupen
+  // Trykk på en person åpner hurtigpopupen (som på KD Hjem); false = den gamle popupen
   person_popup: true,
+  // «Mobil, soner og søvn ›» i hurtigpopupen: tom = ki-person-card i et bunnark her,
+  // "#personer" = naviger til en bubble-card-popup med den hashen i stedet
+  person_hash: "",
 };
 
 // Gjør tall om til px, men behold verdier som allerede har en enhet
@@ -156,13 +159,16 @@ const VAER_NB = {
 
 class FamilyStatusCard extends LitElement {
   static get properties() {
-    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {}, _serverApen: {}, _tpApen: {}, _tpLukker: {} };
+    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {}, _serverApen: {}, _tpApen: {}, _tpLukker: {},
+      _hurtig: {}, _hurtigUt: {} };
   }
 
   constructor() {
     super();
     this._dialogIndex = null;
     this._lukker = false;
+    this._hurtig = null;      // personConfig i hurtigpopupen
+    this._hurtigUt = false;
     this._serverApen = false;
     this._tpApen = false;
     this._tpLukker = false;
@@ -783,9 +789,10 @@ class FamilyStatusCard extends LitElement {
     });
   }
 
-  _openDialog(index) {
-    /* Personkortet (ki-person-card) når det finnes, ellers den gamle popupen. */
-    this._popupEl = this._lagPersonPopup(this.cfg.persons[index]);
+  _openDialog(index, personArk = false) {
+    /* Fra hurtigpopupen: personkortet (ki-person-card) i et bunnark når det finnes.
+       Ellers (person_popup: false) den gamle hjemme/borte-popupen. */
+    this._popupEl = personArk ? this._lagPersonPopup(this.cfg.persons[index]) : null;
     this._dialogIndex = index;
     this._openedAt = Date.now();
     window.addEventListener("keydown", this._onKeyDown);
@@ -819,15 +826,19 @@ class FamilyStatusCard extends LitElement {
 
   /* ── personkortet som popup ──────────────────────────────────────────────
    *
-   * Finnes ki-person-card, åpner et trykk på en person det kortet i et bunnark i stedet
-   * for den gamle hjemme/borte-popupen. Elementet lages én gang per åpning og får hass
-   * så lenge arket er oppe (se updated). Per person kan sovn, mobil og farge sendes
-   * videre, og alt under popup: legges oppå:
+   * «Mobil, soner og søvn ›» i hurtigpopupen åpner ki-person-card (KD-personarket) i et
+   * bunnark. Elementet lages én gang per åpning og får hass så lenge arket er oppe (se
+   * updated). presence_switch og sleep_switch sendes videre som posisjon og sovn, i tillegg
+   * til mobil og farge, og alt under popup: legges oppå:
    *
    *   persons:
    *     - person: person.ola
-   *       sovn: sensor.ola_sovn
-   *       popup: { bilde: /local/ola.jpg }
+   *       presence_switch: switch.ola_hjemme
+   *       sleep_switch: switch.ola_sovn
+   *       mobil: sensor.ola_iphone_          # prefikset til mobilsensorene (ellers funnet selv)
+   *       farge: "oklch(0.55 0.08 40)"       # avatarens farge når bildet mangler
+   *       popup: { sovn_rom: Soverom }
+   *   person_hash: "#personer"     # naviger til en bubble-card-popup i stedet for bunnarket
    *   person_popup: false          # tving den gamle popupen
    */
   _lagPersonPopup(pc) {
@@ -841,10 +852,16 @@ class FamilyStatusCard extends LitElement {
       const st = this.hass.states[pc.person];
       const navn = pc.display_name || (st && st.attributes && st.attributes.friendly_name) || pc.person;
       const ekstra = {};
-      for (const k of ["sovn", "mobil", "farge"]) if (pc[k] !== undefined && pc[k] !== null && pc[k] !== "") ekstra[k] = pc[k];
+      const har = (v) => v !== undefined && v !== null && v !== "";
+      if (har(pc.sleep_switch) || har(pc.sovn)) ekstra.sovn = har(pc.sleep_switch) ? pc.sleep_switch : pc.sovn;
+      if (har(pc.presence_switch) || har(pc.posisjon)) ekstra.posisjon = har(pc.posisjon) ? pc.posisjon : pc.presence_switch;
+      for (const k of ["mobil", "farge"]) if (har(pc[k])) ekstra[k] = pc[k];
       const popup = pc.popup && typeof pc.popup === "object" ? pc.popup : {};
       el.setConfig({ person: pc.person, navn, ...ekstra, ...popup });
       el.hass = this.hass;
+      /* KD-arkets lukkeknapp (topp-pillen) lukker arket her, uten å røre URL-hashen. */
+      el.closeSheet = () => { this._closeDialog(); };
+      el.addEventListener("kd-close", () => this._closeDialog());
       /* Åpner kortet mer-info eller navigerer, lukkes arket så det ikke ligger over.
          ki-lukk er en vei for kortet selv å be om å bli lukket. */
       const lukk = () => this._closeDialog();
@@ -862,10 +879,8 @@ class FamilyStatusCard extends LitElement {
     const ut = this._lukker ? "ut" : "";
     return html`
       <div class="backdrop ark-bak ${ut}" @click=${(e) => this._onBackdropClick(e)}>
-        <div class="person-ark ${ut}" role="dialog" aria-modal="true" aria-label=${navn}
+        <div class="person-ark kd ${ut}" role="dialog" aria-modal="true" aria-label=${navn}
           @click=${(e) => e.stopPropagation()}>
-          <button type="button" class="ark-hank" aria-label="Lukk"
-            @click=${() => { this._haptic(this.cfg.haptic_tap); this._closeDialog(); }}><span></span></button>
           ${this._popupEl}
         </div>
       </div>`;
@@ -996,6 +1011,7 @@ class FamilyStatusCard extends LitElement {
   _onKeyDown(ev) {
     if (ev.key !== "Escape") return;
     if (this._tpApen) this._lukkTilpass();
+    else if (this._hurtig) this._lukkHurtig();
     else this._closeDialog();
   }
 
@@ -1020,7 +1036,98 @@ class FamilyStatusCard extends LitElement {
   /* Et vanlig trykk på en person: veksle direkte, eller åpne personkortet/popupen. */
   _trykkPerson(personConfig, index) {
     if (this.cfg.tap_behavior === "toggle") this._togglePresence(personConfig);
+    else if (this._personPopupPa()) this._apneHurtig(personConfig);
     else this._openDialog(index);
+  }
+
+  _personPopupPa() {
+    const av = this.cfg.person_popup;
+    return !(av === false || ["false", "av", "off", "nei"].includes(String(av).toLowerCase()));
+  }
+
+  /* ── hurtigpopupen (samme som KD Hjem: quickHTML) ─────────────────────────
+   *
+   * Trykk på et bilde: et kort midt på skjermen med bildet over kanten, navnet, «Hjemme ·
+   * Våken», to rader (Hjemme/Borte via presence_switch, Våken/Sover via sleep_switch –
+   * en rad skjules når entiteten mangler), «Ferdig» og «Mobil, soner og søvn ›».
+   * Den siste åpner ki-person-card i et bunnark, eller navigerer til person_hash
+   * (f.eks. "#personer" for en bubble-card-popup) når den er satt. */
+  _apneHurtig(pc) {
+    if (!pc) return;
+    try { if (window.KD && window.KD.loadFonts) window.KD.loadFonts(); } catch (e) { /* tom */ }
+    this._hurtig = pc;
+    this._hurtigUt = false;
+    this._openedAt = Date.now();
+    window.addEventListener("keydown", this._onKeyDown);
+  }
+
+  _lukkHurtig(neste) {
+    if (!this._hurtig || this._hurtigUt) return;
+    window.removeEventListener("keydown", this._onKeyDown);
+    this._hurtigUt = true;
+    window.setTimeout(() => {
+      this._hurtig = null;
+      this._hurtigUt = false;
+      this._opt = {};
+      if (neste) neste();
+    }, 160);
+  }
+
+  _hurtigDetaljer() {
+    const pc = this._hurtig;
+    if (!pc) return;
+    this._haptic(this.cfg.haptic_tap);
+    const hash = this.cfg.person_hash;
+    if (hash) { this._lukkHurtig(() => this._navigate(String(hash))); return; }
+    let i = this.cfg.persons.indexOf(pc);
+    if (i < 0) i = this.cfg.persons.findIndex((x) => x && x.person === pc.person);
+    this._lukkHurtig(() => { if (i >= 0) this._openDialog(i, true); });
+  }
+
+  _hurtigBilde(pc) {
+    if (pc.bilde) return pc.bilde;
+    const st = this.hass.states[pc.person];
+    const u = st && st.attributes && st.attributes.entity_picture;
+    if (!u) return "";
+    return this.hass.hassUrl ? this.hass.hassUrl(u) : u;
+  }
+
+  _renderHurtig() {
+    const pc = this._hurtig;
+    const st = this.hass.states[pc.person];
+    const navn = pc.display_name || (st && st.attributes && st.attributes.friendly_name) || pc.person || "?";
+    const hjemmeNa = this._stedInfo(pc).hjemme;
+    const soverNa = this._isOn(pc.sleep_switch);
+    const hjemme = pc.presence_switch ? this._aktiv("qpres", hjemmeNa ? 0 : 1) === 0 : hjemmeNa;
+    const sover = pc.sleep_switch ? this._aktiv("qsovn", soverNa ? 1 : 0) === 1 : false;
+    const bilde = this._hurtigBilde(pc);
+    const GREEN = "oklch(0.8 0.12 150)", BLUE = "oklch(0.75 0.12 245)", AMBER = "oklch(0.8 0.12 70)",
+      PURP = "oklch(0.68 0.2 285)", SOV = "oklch(0.72 0.1 275)";
+    const velg = (nokkel, idx, sett) => { this._haptic("selection"); this._velg(nokkel, idx, sett); };
+    const opt = (pa, ikon, tekst, farge, klikk) => html`<button type="button" class="kq-opt"
+        style=${pa ? `background:${farge};color:#141416` : ""} @click=${klikk}>
+        <span class="ms" style="font-size:20px;font-variation-settings:'FILL' ${pa ? 1 : 0}">${ikon}</span>${tekst}</button>`;
+    const ut = this._hurtigUt ? "ut" : "";
+    return html`
+      <div class="kq-bak ${ut}" @click=${() => { if (Date.now() - this._openedAt > 600) this._lukkHurtig(); }}></div>
+      <div class="kq ${ut}" role="dialog" aria-modal="true" aria-label=${navn}>
+        <div class="kq-av" style=${`background-color:${pc.farge || "oklch(0.5 0.05 250)"};box-shadow:0 0 0 4px #141416, 0 0 0 6px ${hjemme ? GREEN : PURP};`
+          + (bilde ? `background-image:url('${String(bilde).replace(/'/g, "%27")}');color:transparent;` : "")}>${String(navn).trim().charAt(0)}</div>
+        <div class="kq-hode">
+          <div class="kq-navn">${navn}</div>
+          <div class="kq-sub">${hjemme ? "Hjemme" : "Borte"}${pc.sleep_switch ? ` · ${sover ? "Sover" : "Våken"}` : ""}</div>
+        </div>
+        ${pc.presence_switch ? html`<div class="kq-seg">
+          ${opt(hjemme, "home", "Hjemme", GREEN, () => velg("qpres", 0, () => this._setEntity(pc.presence_switch, true)))}
+          ${opt(!hjemme, "logout", "Borte", BLUE, () => velg("qpres", 1, () => this._setEntity(pc.presence_switch, false)))}
+        </div>` : ""}
+        ${pc.sleep_switch ? html`<div class="kq-seg">
+          ${opt(!sover, "light_mode", "Våken", AMBER, () => velg("qsovn", 0, () => this._setEntity(pc.sleep_switch, false)))}
+          ${opt(sover, "bedtime", "Sover", SOV, () => velg("qsovn", 1, () => this._setEntity(pc.sleep_switch, true)))}
+        </div>` : ""}
+        <button type="button" class="kq-ferdig" @click=${() => { this._haptic(this.cfg.haptic_tap); this._lukkHurtig(); }}>${this.cfg.done_label || "Ferdig"}</button>
+        <button type="button" class="kq-mer" @click=${() => this._hurtigDetaljer()}>Mobil, soner og søvn<span class="ms" style="font-size:18px">chevron_right</span></button>
+      </div>`;
   }
 
   _onPointerCancel() {
@@ -1347,6 +1454,7 @@ class FamilyStatusCard extends LitElement {
       <ha-card style=${this._hostStyle(cfg)}>
         ${this._renderRow(cfg)}
         ${this._dialogIndex !== null ? this._renderDialog() : ""}
+        ${this._hurtig ? this._renderHurtig() : ""}
         ${this._tpApen ? this._renderTilpass(cfg) : ""}
         ${cfg.debug ? this._renderDebug() : ""}
       </ha-card>
@@ -1960,8 +2068,10 @@ class FamilyStatusCard extends LitElement {
       .tpark {
         position: relative;
         width: min(420px, 100%);
-        max-height: calc(100vh - 32px);
-        max-height: calc(100dvh - 32px);
+        /* Holder seg under statuslinja (iPhone) og over navigasjonslinja. */
+        margin: env(safe-area-inset-top, 0px) 0 var(--kd-dokk-h, 0px);
+        max-height: calc(100vh - 32px - env(safe-area-inset-top, 0px) - var(--kd-dokk-h, 0px));
+        max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - var(--kd-dokk-h, 0px));
         display: flex;
         flex-direction: column;
         border-radius: 32px;
@@ -2505,8 +2615,8 @@ class FamilyStatusCard extends LitElement {
         width: 100%;
         max-width: 480px;
         margin-bottom: var(--kd-dokk-h, 0px);
-        max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px);
-        max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px);
+        max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px - env(safe-area-inset-top, 0px));
+        max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px - env(safe-area-inset-top, 0px));
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
@@ -2546,6 +2656,162 @@ class FamilyStatusCard extends LitElement {
       }
       .person-ark > ki-person-card {
         display: block;
+      }
+      /* KD-personarket: samme flate som arkene på KD Hjem (#141416, 38 px hjørner); kortets
+         egen topp-pille har grepet og lukkeknappen. */
+      .person-ark.kd {
+        max-width: 620px;
+        height: calc(100vh - 52px - var(--kd-dokk-h, 0px));
+        height: calc(100dvh - 52px - var(--kd-dokk-h, 0px));
+        padding: 0 0 env(safe-area-inset-bottom, 0px);
+        border-radius: 38px 38px 0 0;
+        background: #141416;
+        color: #f2f1ee;
+        box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      /* ------------------- HURTIGPOPUPEN (KD Hjem) ------------------- */
+      .kq-bak {
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        animation: kq-fadein 0.25s ease-out;
+      }
+      .kq {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        z-index: 9999;
+        width: 300px;
+        max-width: calc(100vw - 40px);
+        box-sizing: border-box;
+        padding: 62px 14px 14px;
+        border-radius: 30px;
+        background: #232326;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 30px 60px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transform: translate(-50%, -50%);
+        animation: kq-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        color: #f2f1ee;
+        font-family: "Space Grotesk", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .kq-bak.ut {
+        animation: kq-fadein 0.16s ease-in reverse forwards;
+      }
+      .kq.ut {
+        animation: kq-pop 0.16s ease-in reverse forwards;
+      }
+      .kq button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        background: none;
+        padding: 0;
+        margin: 0;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        text-align: center;
+      }
+      .kq .ms {
+        font-family: "Material Symbols Rounded";
+        font-weight: 400;
+        font-style: normal;
+        line-height: 1;
+        white-space: nowrap;
+        -webkit-font-feature-settings: "liga";
+        font-feature-settings: "liga";
+        user-select: none;
+        display: inline-block;
+        letter-spacing: normal;
+        text-transform: none;
+        direction: ltr;
+      }
+      .kq-av {
+        position: absolute;
+        left: 50%;
+        top: -48px;
+        transform: translateX(-50%);
+        width: 96px;
+        height: 96px;
+        border-radius: 48px;
+        display: grid;
+        place-items: center;
+        font-size: 36px;
+        font-weight: 600;
+        background-size: cover;
+        background-position: center;
+      }
+      .kq-hode {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding-bottom: 4px;
+      }
+      .kq-navn {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .kq-sub {
+        font-size: 13px;
+        color: #8e8d89;
+      }
+      .kq-seg {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 4px;
+        padding: 4px;
+        border-radius: 26px;
+        background: #1a1a1c;
+      }
+      .kq .kq-opt {
+        height: 48px;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        background: transparent;
+        color: #c9c7c2;
+        transition: background 0.25s, color 0.25s;
+      }
+      .kq .kq-ferdig {
+        height: 52px;
+        border-radius: 26px;
+        background: linear-gradient(135deg, oklch(0.78 0.13 350), oklch(0.9 0.05 20));
+        color: #2a1720;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .kq .kq-mer {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 13px;
+        color: #a9a7a2;
+      }
+      @keyframes kq-pop {
+        from {
+          transform: translate(-50%, -46%) scale(0.9);
+          opacity: 0;
+        }
+      }
+      @keyframes kq-fadein {
+        from {
+          opacity: 0;
+        }
       }
       @keyframes fsc-ark {
         from {
@@ -3579,10 +3845,12 @@ class FamilyStatusCardEditor extends LitElement {
               ],
               "dialog"
             )}
-            ${this._switch("Trykk åpner personkortet (ki-person-card) når det finnes", "person_popup")}
+            ${this._switch("Trykk åpner hurtigpopupen (som på KD Hjem)", "person_popup")}
+            ${this._text("«Mobil, soner og søvn ›» åpner (tom = personkortet her, f.eks. #personer)", "person_hash")}
             <div class="hint">
-              Av gir den gamle popupen med hjemme/borte og våken/sover. Per person kan
-              sovn, mobil, farge og popup: sendes videre til personkortet (i YAML).
+              Av gir den gamle popupen med hjemme/borte og våken/sover. «Mobil, soner og søvn»
+              åpner ki-person-card i et ark, eller bubble-card-popupen med hashen over. Per
+              person kan mobil, farge og popup: sendes videre til personkortet (i YAML).
             </div>
             ${this._text("Naviger til ved langt trykk på en person", "navigation_path")}
             ${this._select("Tilpass (brukerens egne valg)", "tilpass", [
