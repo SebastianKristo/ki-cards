@@ -612,6 +612,12 @@ class FamilyStatusCard extends LitElement {
       if (tekst + pil + bildeB <= bredde) continue;              // alt får plass
       if (pil) g.classList.add("uten-pil");                       // 1) fjern pila
       if (tekst + bildeB <= bredde || !bilder) continue;
+      // Hjem: ditt bilde beholder størrelsen – tittelen krympes litt og kortes av med …
+      if (rad.classList.contains("oppsett-hjem")) {
+        const f = Number.parseFloat(getComputedStyle(g).fontSize) || 36;
+        g.style.fontSize = (f * Math.max(0.85, (bredde - bildeB) / tekst)).toFixed(1) + "px";
+        continue;
+      }
       // 2) krymp bildene (ned til 32 px) så navnet får plass
       const n = bilder.querySelectorAll(".person").length || 1;
       const naa = Number.parseFloat(getComputedStyle(bilder).getPropertyValue("--fsc-avatar-size")) || Number.parseFloat(this.cfg.avatar_size) || 50;
@@ -2363,6 +2369,9 @@ class FamilyStatusCard extends LitElement {
       .hj-meg {
         --fsc-avatar-size: 60px;
         flex: none;
+        /* luft rundt, så ringen og merket ikke klippes */
+        padding: 8px;
+        margin: -8px;
       }
       .hj-bilde {
         position: relative;
@@ -2498,6 +2507,7 @@ class FamilyStatusCard extends LitElement {
         margin-bottom: var(--kd-dokk-h, 0px);
         max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px);
         max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px);
+        overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-width: none;
