@@ -1,6 +1,7 @@
 # ki-cards 9.7.1
 
 - **ki-floating-navbar**: «Tekst under «…»» i Tilpass navbar (vises når «Vis navn» er på) – skru av teksten under de tre prikkene mens de andre knappene beholder navnet. Config: `dots_name: false`.
+- **ki-floating-navbar**: «Tekst i «…»-menyen» i Tilpass navbar – skru av teksten i menyen bak de tre prikkene, så den blir en smal søyle med bare ikoner (navnet vises som verktøytips). Config: `menu_text: false`.
 
 # ki-cards 9.7.0
 

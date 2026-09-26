@@ -48493,6 +48493,7 @@ try {
  *   hjem_meny: true            # «Tilpass Hjem» nederst i menyen når et ki-hjem-card er på siden
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
  *   dots_name: false           # ingen tekst under «…»-knappen (brukeren kan overstyre i Tilpass navbar)
+ *   menu_text: false           # bare ikoner i menyen bak «…» (brukeren kan overstyre i Tilpass navbar)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
  * «Menyen» (de tre prikkene): den første config-knappen med sub_items (helst en med
@@ -48987,6 +48988,7 @@ try {
         if (m === "show") return true;
         return !item.hide_name;
       }
+      _menuTextOff() { const p = this._prefs(); return p.menu_text === undefined ? this._config.menu_text === false : p.menu_text === false; }
       _dotsNameOff() { const p = this._prefs(); return p.dots_name === undefined ? this._config.dots_name === false : p.dots_name === false; }
       _shrinkOn() { const p = this._prefs(); return p.shrink === undefined ? !!this._config.shrink_on_scroll : !!p.shrink; }
 
@@ -49035,16 +49037,17 @@ try {
                 return html`
                   <div class="nav-item-wrapper">
                     ${item.sub_items && isMenuOpen ? html`
-                      <div class="sub-menu ${idx === last && last > 0 ? "end" : ""}">
+                      <div class="sub-menu ${idx === last && last > 0 ? "end" : ""} ${this._menuTextOff() ? "ikoner" : ""}">
                         ${item.sub_items.map((sub) => {
                           if (sub._skille) return html`<div class="sub-menu-sep" role="separator"></div>`;
                           if (!this._checkUserVisibility(sub)) return nothing;
                           const subActive = !sub.sub_items && this._matches(sub);
                           return html`
-                            <div class="sub-menu-item ${!sub.name ? "icon-only" : ""} ${subActive ? "active" : ""} ${sub._hale ? "hale" : ""}"
+                            <div class="sub-menu-item ${!sub.name || this._menuTextOff() ? "icon-only" : ""} ${subActive ? "active" : ""} ${sub._hale ? "hale" : ""}"
+                              role="button" title=${sub.name || ""} aria-label=${sub.name || sub.icon || ""}
                               @click=${(e) => { e.stopPropagation(); this._handleAction(sub); }}>
                               <ha-icon icon="${sub.icon}"></ha-icon>
-                              ${sub.name ? html`<span>${sub.name}</span>` : ""}
+                              ${sub.name && !this._menuTextOff() ? html`<span>${sub.name}</span>` : ""}
                             </div>`;
                         })}
                       </div>` : ""}
@@ -49440,6 +49443,7 @@ try {
 
             <div class="p-sec">Visning</div>
             <div class="p-row set"><span>Vis navn</span>${sw(namesOn, (v) => this._setPref("names", v ? "show" : "hide"), "Vis navn")}</div>
+            <div class="p-row set"><span>Tekst i «…»-menyen</span>${sw(!this._menuTextOff(), (v) => this._setPref("menu_text", v), "Tekst i menyen bak de tre prikkene")}</div>
             ${namesOn ? html`<div class="p-row set"><span>Tekst under «…»</span>${sw(!this._dotsNameOff(), (v) => this._setPref("dots_name", v), "Tekst under de tre prikkene")}</div>` : ""}
             <div class="p-row set"><span>Krymp ved scrolling</span>${sw(this._shrinkOn(), (v) => { this._setPref("shrink", v); if (!v) this._shrunk = false; }, "Krymp ved scrolling")}</div>
             <div class="p-lbl">Bredde</div>
@@ -49667,6 +49671,10 @@ try {
             color: var(--navbar-color);
           }
           .sub-menu-item.icon-only { justify-content: center; }
+          /* «…»-menyen uten tekst: en smal søyle med ikoner. */
+          .sub-menu.ikoner { padding: 6px; gap: 2px; }
+          .sub-menu.ikoner .sub-menu-item { width: 48px; height: 48px; padding: 0; border-radius: 14px; box-sizing: border-box; }
+          .sub-menu.ikoner .sub-menu-sep { margin: 2px 8px; }
           .sub-menu-item.hale { opacity: .72; }
           .sub-menu-sep { height: 1px; margin: 0 10px; background: currentColor; color: var(--navbar-color); opacity: .14; }
           .sub-menu-item:hover { background: rgba(0,0,0,0.05); color: var(--navbar-active-color); }
