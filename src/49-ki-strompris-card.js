@@ -46,10 +46,16 @@
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # «… W nå» til høyre for overskriften
  *
+ * I dag / I morgen: dag_faner: true    # to faner til høyre for overskriften; grafen viser 24 timer for valgt dag.
+ *                   dag_faner: false   # én graf med 48 timer (i dag og i morgen), uten dagvelger
+ * dag: i_dag              # dagen som vises først: i_dag | i_morgen
+ *
  * Fanerada: fane_hoyde: 40   fane_tekst: 13   haptikk: false   sprett: false (glass: false)
+ * Begge velgerne kan dras: pilla følger fingeren, strekkes i fartsretningen og fjærer inn
+ * på valget du slipper på. sprett: false = pilla glir uten strekk.
  * Uten virkning nå (godtas fortsatt): graf_forhold, bakgrunn_glod.
  */
-const KI_SP_VERSJON = "4.0.0";
+const KI_SP_VERSJON = "4.1.0";
 const KI_SP_TIME = 3600000;
 const KI_SP_ORANSJE = "oklch(0.74 0.17 55)";
 const KI_SP_TURKIS = "oklch(0.78 0.13 175)";
@@ -62,27 +68,37 @@ const KI_SP_STIL = `
   .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--kort-bg, var(--gray200, var(--card-background-color)));
     color:var(--gray1000, var(--primary-text-color)); padding:16px 14px 12px; overflow:hidden; box-shadow:none;
     display:flex; flex-direction:column; gap:12px; }
-  .topp { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:0 4px; }
-  .tittel { font-size:var(--tittel-str,15px); font-weight:500; }
+  .topp { display:flex; align-items:center; gap:10px; padding:0 4px; min-height:28px; }
+  .tittel { font-size:var(--tittel-str,15px); font-weight:500; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Tittelen har forrang; effekten viker (klippes) før overskriften gjør det. */
+  .topp .effektnaa { flex:0 100 auto; overflow:hidden; text-overflow:ellipsis; }
+  .topp .seg.dag { margin-left:auto; }
   .effektnaa { font-size:14px; font-weight:500; color:var(--gray600, currentColor); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
-  /* Fanerada: fylt flate uten ramme, aktiv fane i --active-big med svart tekst (ki-tabs-card-formen). */
-  .valg { display:flex; gap:0; padding:var(--fane-kant,4px); border-radius:999px; background:var(--gray200,#262629);
-    width:100%; position:relative; }
-  .valg .v { flex:1 1 0; height:var(--fane-h,32px); padding:0 6px; border-radius:999px; gap:6px;
+  /* Fanevelgerne (Totalpris/Spotpris/Norgespris og I dag/I morgen): fylt spor uten ramme, og én pille
+     i --active-big som glir mellom valgene. Pilla kan dras med fingeren (strekkes i fartsretningen,
+     gummistrikk i endene) og fjærer inn på valget du slipper på – som fanevelgeren i kd, uten glass. */
+  .seg { position:relative; display:grid; grid-template-columns:repeat(var(--n,2),minmax(0,1fr)); padding:var(--fane-kant,4px);
+    border-radius:999px; background:var(--gray200,#262629); touch-action:pan-y; user-select:none; -webkit-user-select:none;
+    isolation:isolate; -webkit-tap-highlight-color:transparent; }
+  .seg-pille { position:absolute; z-index:0; top:var(--fane-kant,4px); bottom:var(--fane-kant,4px); border-radius:999px;
+    left:calc(var(--fane-kant,4px) + var(--i,0) * (100% - 2 * var(--fane-kant,4px)) / var(--n,2));
+    width:calc((100% - 2 * var(--fane-kant,4px)) / var(--n,2)); background:var(--active-big,#ee95ff);
+    transition:left .5s cubic-bezier(.34,1.35,.64,1), transform .35s cubic-bezier(.34,1.8,.64,1); pointer-events:none; }
+  .seg.drar .seg-pille { transition:left .12s cubic-bezier(.3,1.3,.6,1), transform .18s cubic-bezier(.2,.8,.3,1); }
+  .flatt .seg-pille, .flatt .seg.drar .seg-pille { transform:none !important; }
+  .seg .v { position:relative; z-index:1; height:var(--fane-h,32px); min-width:0; padding:0 6px; border-radius:999px; gap:6px;
     font-size:var(--fane-tekst,13px); font-weight:500; line-height:1; cursor:pointer; white-space:nowrap;
-    display:flex; align-items:center; justify-content:center; color:var(--gray600,#8e8d89);
-    transition:background .18s, color .18s; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
-  .valg .v span { overflow:hidden; text-overflow:ellipsis; }
-  .valg .v ha-icon { --mdc-icon-size:var(--fane-ikon,16px); flex:none; }
-  .valg .v:hover { color:var(--gray1000,#f2f1ee); }
-  .valg .v.aktiv { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .ramme:not(.flatt) .valg .ki-pille { background:transparent; box-shadow:none; }
-  .ramme:not(.flatt) .valg .ki-pille::before { content:""; position:absolute; inset:0; border-radius:999px;
-    background:var(--active-big,#ee95ff); transform:scale(var(--sx,1), var(--sy,1)); transform-origin:center;
-    transition:transform .34s cubic-bezier(.2,1.35,.35,1); }
-  .ramme:not(.flatt) .valg .ki-pille.land::before { animation:sp-sprett .42s cubic-bezier(.2,.9,.25,1); }
-  @keyframes sp-sprett { 0% { transform:scale(1.10,.90); } 45% { transform:scale(.97,1.04); } 75% { transform:scale(1.02,.99); } 100% { transform:scale(1,1); } }
+    display:flex; align-items:center; justify-content:center; color:var(--gray600,#8e8d89); transition:color .25s, opacity .25s; }
+  .seg .v span { overflow:hidden; text-overflow:ellipsis; }
+  .seg .v ha-icon { --mdc-icon-size:var(--fane-ikon,16px); flex:none; }
+  .seg .v:hover { color:var(--gray1000,#f2f1ee); }
+  .seg .v.aktiv { color:var(--black,#000); }
+  .seg .v.tom:not(.aktiv) { opacity:.4; }
+  .seg:focus-within .v:focus-visible { outline:2px solid var(--gray600,#8e8d89); outline-offset:-2px; }
+  /* I dag / I morgen i tittelraden: kompakt, like brede faner, like høy som tittellinja. */
+  .seg.dag { --fane-kant:3px; --fane-h:22px; --fane-tekst:12.5px; display:inline-grid; grid-template-columns:repeat(2,1fr); flex:none; }
+  .seg.dag .v { padding:0 11px; }
 
   .prisdel { display:flex; flex-direction:column; gap:14px; }
   /* Prisen nå / valgt time */
@@ -119,9 +135,9 @@ const KI_SP_STIL = `
 
   /* Under grafen */
   .stat { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-  .stat > div { background:var(--gray100,#1c1c1f); border-radius:16px; padding:9px 12px; }
+  .stat > div { background:var(--gray100,#1c1c1f); border-radius:16px; padding:9px 11px; }
   .stat b { display:block; font-size:16px; font-weight:500; font-variant-numeric:tabular-nums; }
-  .stat span { font-size:12px; font-weight:500; color:var(--gray600,#8e8d89); }
+  .stat span { display:block; font-size:12px; font-weight:500; color:var(--gray600,#8e8d89); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .vindu { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:400; padding:10px 12px; border-radius:16px; background:var(--gray100,#1c1c1f); }
   .vindu b { font-weight:500; }
   .vindu ha-icon { --mdc-icon-size:19px; color:${KI_SP_TURKIS}; flex:none; }
@@ -164,7 +180,7 @@ class KiStromprisCard extends HTMLElement {
     const el = this.shadowRoot && this.shadowRoot.querySelector(".effektnaa");
     const v = this._num(this._c.effekt);
     if (!el) return;
-    el.textContent = v === null ? "" : `${kiSpNf(v, 0)} W nå`;
+    el.textContent = v === null ? "" : `${kiSpNf(v, 0)} W${this._dagFaner() ? "" : " nå"}`;
   }
 
   _st(id) { return (this._h && id && typeof id === "string" && this._h.states[id]) || null; }
@@ -351,6 +367,16 @@ class KiStromprisCard extends HTMLElement {
     return { ser, MODI, modus, tot, spot, norges, alle, nn, kilde: tk };
   }
 
+  /* Dagvelgeren: på som standard. `dag_faner: false` gir den gamle grafen med 48 timer. */
+  _dagFaner() { return !this._c || this._c.dag_faner !== false; }
+  _dagNaa() { return this._dag || (this._c && this._c.dag === "i_morgen" ? "i_morgen" : "i_dag"); }
+  /* Utsnittet grafen viser: 24 timer for valgt dag, eller alle 48. */
+  _vindu() {
+    if (!this._dagFaner()) return { off: 0, N: 48, morgen: false };
+    const morgen = this._dagNaa() === "i_morgen";
+    return { off: morgen ? 24 : 0, N: 24, morgen };
+  }
+
   /* Hode + graf. Tegnes på nytt ved dra, men da byttes bare tekst og posisjoner (se _oppdaterGraf). */
   _prisdel(m) {
     const c = this._c, H = kiSpKlamp(Number(c.hoyde) || 150, 80, 400);
@@ -358,8 +384,15 @@ class KiStromprisCard extends HTMLElement {
     const { modus, tot, spot, norges, alle } = m;
     const nf = (v) => kiSpNf(v, 2);
     const enhet = c.enhet || "kr/kWh";
+    const { off, N, morgen } = this._vindu(); this._N = N;
+    const dagvis = N === 24;
+    const utsnitt = (arr) => arr.slice(off, off + N);
+    const vAlle = utsnitt(alle), vTot = utsnitt(tot), vNorges = utsnitt(norges);
+    const naaI = morgen ? -1 : NOW_H;        /* «nå» i utsnittet; -1 = ikke i denne dagen */
+    const snittAv = (arr) => { const g = kiSpGyldig(arr); return g.length ? g.reduce((x, y) => x + y, 0) / g.length : null; };
 
-    /* Skala i øre, som på Hjem: rund opp til nærmeste 100 og legg på 100 for luft. */
+    /* Skala i øre, som på Hjem: rund opp til nærmeste 100 og legg på 100 for luft.
+       Regnes over begge dagene, så skalaen står stille når du bytter dag. */
     const ref = kiSpGyldig(modus === "norges" ? tot.concat(norges) : alle).map((v) => v * 100);
     const top = Math.ceil(Math.max(0, ...ref) / 100) * 100 + 100;
     const bunn = Math.min(0, Math.floor(Math.min(0, ...ref) / 50) * 50);
@@ -372,37 +405,54 @@ class KiStromprisCard extends HTMLElement {
       if (start !== null) ut.push(d + `L${X(arr.length)},${b}L${X(start)},${b}Z`); return ut.join("") || `M0,${H}`; };
     const terskel = Number(modus === "spot" ? (c.terskel_spot ?? 1.2) : (c.terskel ?? 2.0));
     const thrA = kiSpKlamp((Y(terskel) - 8) / H, 0, 1), thrB = kiSpKlamp((Y(terskel) + 8) / H, 0, 1);
-    let sel = this._valgt ?? NOW_H; if (alle[sel] === null || alle[sel] === undefined) sel = NOW_H;
-    const selV = alle[sel];
+    const valgt = this._valgt !== null && this._valgt < N ? this._valgt : null;
+    let sel = valgt ?? naaI; if (sel >= 0 && (vAlle[sel] === null || vAlle[sel] === undefined)) sel = naaI;
+    const selV = sel >= 0 ? vAlle[sel] : null;
     const dyr = selV !== null && selV !== undefined && selV > terskel;
     const synlig = selV !== null && selV !== undefined;
     const selTop = ((synlig ? Y(selV) : H) / H) * 100;
-    const venstre = ((sel + 0.5) / 48) * 100;
+    const venstre = ((Math.max(0, sel) + 0.5) / N) * 100;
 
     /* Hodet */
     const slot = (i) => `${i >= 24 ? "I morgen" : "I dag"} kl. ${kiSpHh(i % 24)}–${kiSpHh((i + 1) % 24)}`;
+    const billigst = (arr, fra) => { let b = null; arr.forEach((v, h) => { if (v !== null && v !== undefined && h >= fra && (!b || v < b[0])) b = [v, h]; }); return b; };
+    const billigTekst = (b) => (b ? `Billigst kl. ${kiSpHh(b[1] % 24)} · ${nf(b[0])} kr` : "");
+    const sparTekst = (fra, til) => {
+      const par = tot.slice(fra, til).map((v, k) => [v, norges[fra + k]]).filter(([a, b]) => a !== null && b !== null);
+      const snitt = par.length ? par.reduce((s, [a, b]) => s + (a - b), 0) / par.length : null;
+      return snitt === null ? "" : `${snitt >= 0 ? "Sparer" : "Taper"} ca. ${nf(Math.abs(snitt))} kr/kWh mot spot`;
+    };
     let hode;
-    if (modus !== "total") {
-      const i = sel;
-      const tmrSpot = kiSpGyldig(spot.slice(24));
+    if (valgt !== null) {
+      /* Timen under fingeren */
+      const i = valgt, abs = off + i;
       let meta = "";
-      if (modus === "norges") {
-        const par = tot.slice(NOW_H).map((v, k) => [v, norges[NOW_H + k]]).filter(([a, b]) => a !== null && b !== null);
-        const snitt = par.length ? par.reduce((s, [a, b]) => s + (a - b), 0) / par.length : null;
-        if (snitt !== null) meta = `${snitt >= 0 ? "Sparer" : "Taper"} ca. ${nf(Math.abs(snitt))} kr/kWh mot spot`;
-      } else if (tmrSpot.length) meta = `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr`;
-      hode = { label: this._valgt !== null ? slot(i) : modus === "spot" ? "Spot nå" : `${m.nn} nå`, v: alle[i] !== null ? nf(alle[i]) : "–", meta };
-    } else if (this._valgt !== null) {
-      const i = this._valgt;
-      hode = { label: slot(i), v: tot[i] !== null ? nf(tot[i]) : "–",
-        meta: m.ser.norges && norges[i] !== null ? `${m.nn} ${nf(norges[i])} kr` : i < NOW_H ? "Tidligere i dag" : "" };
+      if (modus === "total") meta = m.ser.norges && vNorges[i] !== null ? `${m.nn} ${nf(vNorges[i])} kr` : abs < NOW_H ? "Tidligere i dag" : "";
+      else if (modus === "norges") meta = vTot[i] !== null && vTot[i] !== undefined ? `Spot totalpris ${nf(vTot[i])} kr` : "";
+      else meta = abs < NOW_H ? "Tidligere i dag" : "";
+      if (!dagvis && modus !== "total") {
+        /* 48-timersvisningen: samme tekst som før */
+        const tmrSpot = kiSpGyldig(spot.slice(24));
+        meta = modus === "norges" ? sparTekst(NOW_H, 48) : tmrSpot.length ? `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr` : "";
+      }
+      hode = { label: slot(abs), v: vAlle[i] !== null && vAlle[i] !== undefined ? nf(vAlle[i]) : "–", meta };
+    } else if (morgen) {
+      /* I morgen uten valgt time: snittet for dagen og billigste time */
+      const sn = snittAv(vAlle);
+      hode = { label: sn === null ? "I morgen" : "I morgen snitt", v: sn === null ? "–" : nf(sn),
+        meta: sn === null ? "" : modus === "norges" ? (sparTekst(24, 48) || billigTekst(billigst(vAlle, 0))) : billigTekst(billigst(vAlle, 0)) };
+    } else if (modus !== "total") {
+      let meta = "";
+      if (modus === "norges") meta = sparTekst(NOW_H, dagvis ? 24 : 48);
+      else if (dagvis) meta = billigTekst(billigst(vAlle, NOW_H + 1));
+      else { const tmrSpot = kiSpGyldig(spot.slice(24)); if (tmrSpot.length) meta = `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr`; }
+      hode = { label: modus === "spot" ? "Spot nå" : `${m.nn} nå`, v: alle[NOW_H] !== null && alle[NOW_H] !== undefined ? nf(alle[NOW_H]) : "–", meta };
     } else {
-      let fut = tot.map((p, h) => [p, h]).filter(([p, h]) => p !== null && h > NOW_H && h < 24);
-      if (!fut.length) fut = tot.map((p, h) => [p, h]).filter(([p, h]) => p !== null && h > NOW_H);
-      const billig = fut.length ? fut.reduce((a, x) => (x[0] < a[0] ? x : a)) : null;
+      let b = billigst(tot.slice(0, 24), NOW_H + 1);
+      if (!b && !dagvis) b = billigst(tot, NOW_H + 1);
       const egen = this._num(c.spot_naa);
       const naa = egen !== null ? egen : tot[NOW_H];
-      hode = { label: "Nå", v: naa !== null && naa !== undefined ? nf(naa) : "–", meta: billig ? `Billigst kl. ${kiSpHh(billig[1] % 24)} · ${nf(billig[0])} kr` : "" };
+      hode = { label: "Nå", v: naa !== null && naa !== undefined ? nf(naa) : "–", meta: billigTekst(b) };
     }
 
     /* Forklaringen over grafen */
@@ -417,8 +467,11 @@ class KiStromprisCard extends HTMLElement {
 
     const yl = Array.from({ length: 5 }, (_, i) => Math.round(top - (i * (top - bunn)) / 4));
     const grid = Array.from({ length: 5 }, (_, i) => (i * H) / 4);
-    const timer = [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44];
-    const imorgenTom = !kiSpGyldig(alle.slice(24)).length;
+    const timer = dagvis ? [0, 4, 8, 12, 16, 20, 24] : [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44];
+    const W = N * 10;
+    let venter = "";
+    if (dagvis) { if (!kiSpGyldig(vAlle).length) venter = morgen ? "Kommer ca. kl. 13" : "Venter på priser"; }
+    else if (!kiSpGyldig(alle.slice(24)).length) venter = "Kommer ca. kl. 13";
     const g = this._gid;
     const bg = "var(--kort-bg, var(--gray200, #262629))";
 
@@ -426,11 +479,11 @@ class KiStromprisCard extends HTMLElement {
         <div><div class="etikett">${kiSpEsc(hode.label)}</div><div class="tall">${kiSpEsc(hode.v)}<small>${kiSpEsc(enhet)}</small></div></div>
         <div class="meta">${kiSpEsc(hode.meta)}</div></div>
       <div class="graf">${forkl}
-        <div class="dager"><span>I dag</span><span>I morgen</span></div>
+        ${dagvis ? "" : `<div class="dager"><span>I dag</span><span>I morgen</span></div>`}
         <div class="rad">
           <div class="yakse" style="height:${H}px">${yl.map((y) => `<span>${y}</span>`).join("")}</div>
           <div class="flate" style="height:${H}px">
-            <svg viewBox="0 0 480 ${H}" preserveAspectRatio="none" aria-label="Strømpris time for time">
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Strømpris time for time">
               <defs>
                 <linearGradient id="${g}-s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${H}">
                   <stop offset="0" stop-color="${KI_SP_ORANSJE}"/><stop offset="${thrA}" stop-color="${KI_SP_ORANSJE}"/>
@@ -439,20 +492,20 @@ class KiStromprisCard extends HTMLElement {
                   <stop offset="0" stop-color="${KI_SP_ORANSJE}" stop-opacity=".28"/><stop offset="${thrA}" stop-color="${KI_SP_ORANSJE}" stop-opacity=".12"/>
                   <stop offset="${thrB}" stop-color="${KI_SP_TURKIS}" stop-opacity=".14"/><stop offset="1" stop-color="${KI_SP_TURKIS}" stop-opacity="0"/></linearGradient>
               </defs>
-              ${grid.map((y) => `<line x1="0" x2="480" y1="${y}" y2="${y}" stroke="var(--gray1000,#fff)" stroke-opacity=".07" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("")}
-              <line x1="240" x2="240" y1="0" y2="${H}" stroke="var(--gray1000,#fff)" stroke-opacity=".22" stroke-width="1" vector-effect="non-scaling-stroke"/>
-              <path d="${flate(alle)}" fill="url(#${g}-f)"/>
-              ${modus === "norges" && m.ser.total ? `<path d="${trapp(tot)}" fill="none" stroke="var(--gray1000,#fff)" stroke-opacity=".4" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>` : ""}
-              <path d="${trapp(alle)}" fill="none" stroke="url(#${g}-s)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-              <rect x="0" y="0" width="${NOW_H * 10}" height="${H}" style="fill:${bg}" opacity=".5"/>
+              ${grid.map((y) => `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--gray1000,#fff)" stroke-opacity=".07" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("")}
+              ${dagvis ? "" : `<line x1="240" x2="240" y1="0" y2="${H}" stroke="var(--gray1000,#fff)" stroke-opacity=".22" stroke-width="1" vector-effect="non-scaling-stroke"/>`}
+              <path d="${flate(vAlle)}" fill="url(#${g}-f)"/>
+              ${modus === "norges" && m.ser.total ? `<path d="${trapp(vTot)}" fill="none" stroke="var(--gray1000,#fff)" stroke-opacity=".4" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>` : ""}
+              <path d="${trapp(vAlle)}" fill="none" stroke="url(#${g}-s)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              ${naaI > 0 ? `<rect x="0" y="0" width="${naaI * 10}" height="${H}" style="fill:${bg}" opacity=".5"/>` : ""}
             </svg>
-            ${imorgenTom ? `<div class="venter">Kommer ca. kl. 13</div>` : ""}
-            <span class="band" style="left:${((sel / 48) * 100).toFixed(3)}%;width:${(100 / 48).toFixed(3)}%"></span>
+            ${venter ? `<div class="venter" style="left:${dagvis ? 50 : 75}%">${kiSpEsc(venter)}</div>` : ""}
+            <span class="band" style="left:${((Math.max(0, sel) / N) * 100).toFixed(3)}%;width:${(100 / N).toFixed(3)}%;display:${synlig ? "block" : "none"}"></span>
             <span class="halo" style="left:${venstre.toFixed(3)}%;top:${selTop.toFixed(2)}%;background:color-mix(in oklch, ${dyr ? KI_SP_ORANSJE : KI_SP_TURKIS} 30%, transparent);display:${synlig ? "block" : "none"}"></span>
             <span class="prikk" style="left:${venstre.toFixed(3)}%;top:${selTop.toFixed(2)}%;background:${dyr ? KI_SP_ORANSJE : KI_SP_TURKIS};display:${synlig ? "block" : "none"}"></span>
           </div>
         </div>
-        <div class="xakse">${timer.map((h) => `<span class="${h === 24 ? "midnatt" : ""}" style="left:${((h / 48) * 100).toFixed(3)}%">${kiSpHh(h % 24)}</span>`).join("")}</div>
+        <div class="xakse">${timer.map((h) => `<span class="${!dagvis && h === 24 ? "midnatt" : ""}" style="left:${((h / N) * 100).toFixed(3)}%">${kiSpHh(dagvis ? h : h % 24)}</span>`).join("")}</div>
       </div>`;
   }
 
@@ -461,7 +514,7 @@ class KiStromprisCard extends HTMLElement {
   _skrubb() {
     const g = this.shadowRoot.querySelector(".flate"); if (!g || g._k) return; g._k = 1;
     const finn = (e) => { const b = g.getBoundingClientRect(); if (!b.width) return;
-      const i = kiSpKlamp(Math.floor(((e.clientX - b.left) / b.width) * 48), 0, 47);
+      const N = this._N || 48, i = kiSpKlamp(Math.floor(((e.clientX - b.left) / b.width) * N), 0, N - 1);
       if (i !== this._valgt) { this._valgt = i; this._oppdaterGraf(); } };
     const slutt = () => { if (this._valgt !== null) { this._valgt = null; this._oppdaterGraf(); } };
     let start = null, aktiv = false, tid = null;
@@ -514,11 +567,17 @@ class KiStromprisCard extends HTMLElement {
     const fhPille = Math.max(16, fhRa - fhKant * 2);
     const fhTekst = Number(c.fane_tekst) || Math.max(11, Math.min(15, Math.round(fhPille * 0.42)));
     const fhStil = `--fane-kant:${fhKant}px;--fane-h:${fhPille}px;--fane-tekst:${fhTekst}px;--fane-ikon:${Math.round(fhTekst * 1.25)}px`;
-    const valg = m.MODI.length > 1 ? `<div class="valg" style="${fhStil}">${m.MODI.map(([k, navn, ikon]) =>
-      `<span class="v ${m.modus === k ? "aktiv" : ""}" data-m="${k}" role="button" tabindex="0"><ha-icon icon="${ikon}"></ha-icon><span>${kiSpEsc(navn)}</span></span>`).join("")}</div>` : "";
+    const valg = m.MODI.length > 1 ? this._segHTML("modus", m.MODI.map(([k, navn, ikon]) => [k, navn, ikon]), m.modus, "valg", fhStil) : "";
 
-    const topp = c.vis_tittel === false ? "" : `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${
-      effekt !== null ? `<span class="effektnaa">${kiSpNf(effekt, 0)} W nå</span>` : ""}</div>`;
+    /* Tittelraden: overskriften til venstre, I dag / I morgen til høyre på samme linje. */
+    const dagFaner = this._dagFaner(), vin = this._vindu();
+    const harMorgen = kiSpGyldig(m.alle.slice(24)).length > 0;
+    const dager = dagFaner ? this._segHTML("dag", [["i_dag", "I dag"], ["i_morgen", "I morgen", null, !harMorgen]], this._dagNaa(), "dag", "") : "";
+    /* Med dagvelgeren i samme rad er det trangt: «1 155 W» uten «nå». */
+    const effektHtml = effekt !== null ? `<span class="effektnaa">${kiSpNf(effekt, 0)} W${dagFaner ? "" : " nå"}</span>` : "";
+    const topp = c.vis_tittel === false
+      ? (dager ? `<div class="topp" style="justify-content:flex-end">${dager}</div>` : "")
+      : `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${effektHtml}${dager}</div>`;
     const kortStil = c.bakgrunn ? `--kort-bg:${kiSpEsc(c.bakgrunn)}` : "";
 
     if (!m.ser.total && !m.ser.spot && !m.ser.norges) {
@@ -529,17 +588,18 @@ class KiStromprisCard extends HTMLElement {
     let under = "";
     if (!c.enkel) {
       const NOW_H = new Date().getHours();
-      const idag = kiSpGyldig(m.alle.slice(0, 24));
+      const dagOff = vin.morgen ? 24 : 0;
+      const idag = kiSpGyldig(m.alle.slice(dagOff, dagOff + 24));
       if (c.vis_stat !== false && idag.length) {
         const snitt = idag.reduce((a, b) => a + b, 0) / idag.length;
-        under += `<div class="stat"><div><b>${kiSpNf(snitt)}</b><span>snitt i dag</span></div>
+        under += `<div class="stat"><div><b>${kiSpNf(snitt)}</b><span>snitt ${vin.morgen ? "i morgen" : "i dag"}</span></div>
           <div><b style="color:${KI_SP_TURKIS}">${kiSpNf(Math.min(...idag))}</b><span>lavest</span></div>
           <div><b style="color:${KI_SP_ORANSJE}">${kiSpNf(Math.max(...idag))}</b><span>høyest</span></div></div>`;
       }
       const n = Math.max(1, Number(c.vindu) || 3);
       if (c.vis_vindu !== false) {
         let best = -1, bestSum = Infinity;
-        for (let i = NOW_H; i + n <= 48; i++) {
+        for (let i = vin.morgen ? 24 : NOW_H; i + n <= 48; i++) {
           const bit = m.alle.slice(i, i + n); if (bit.some((v) => v === null || v === undefined)) continue;
           const s = bit.reduce((a, b) => a + b, 0); if (s < bestSum) { bestSum = s; best = i; }
         }
@@ -568,26 +628,116 @@ class KiStromprisCard extends HTMLElement {
   }
 
   /* Av-bryteren. `sprett: false` er navnet nå; `glass: false` godtas fortsatt. */
-  _stille() { const c = this._c || {}; return c.sprett === false || c.glass === false; }
+  _stille() { const c = this._c || {}; return c.sprett === false || c.glass === false ||
+    (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches); }
 
-  /* Klem og strekk. Settes som variabler på pilla, leses av ::before. */
-  _klem(sx, sy) {
-    if (this._stille()) return;
-    const p = this.shadowRoot.querySelector(".valg .ki-pille");
-    if (!p) return;
-    p.style.setProperty("--sx", sx);
-    p.style.setProperty("--sy", sy);
+  /* Fanevelger med glidende pille. items: [[verdi, tekst, ikon?, tom?]]. */
+  _segHTML(key, items, cur, klasse, stil) {
+    const n = Math.max(1, items.length), i = Math.max(0, items.findIndex((x) => x[0] === cur));
+    const attr = key === "modus" ? "m" : "d";
+    return `<div class="seg ${klasse}" data-seg="${key}" data-i="${i}" role="tablist" style="--n:${n};--i:${i};${stil}">
+      <span class="seg-pille" aria-hidden="true"></span>${items.map(([k, navn, ikon, tom], j) =>
+      `<span class="v${j === i ? " aktiv" : ""}${tom ? " tom" : ""}" data-${attr}="${k}" role="tab" aria-selected="${j === i}" tabindex="0">${
+        ikon ? `<ha-icon icon="${ikon}"></ha-icon>` : ""}<span>${kiSpEsc(navn)}</span></span>`).join("")}</div>`;
   }
 
-  _sprett() {
-    if (this._stille()) return;
-    const p = this.shadowRoot.querySelector(".valg .ki-pille");
-    if (!p) return;
-    p.style.removeProperty("--sx");
-    p.style.removeProperty("--sy");
-    p.classList.remove("land");
-    void p.offsetWidth;
-    p.classList.add("land");
+  /* Bytter fane eller dag og tegner på nytt. */
+  _velg(key, verdi, fraDrag) {
+    if (!verdi) return;
+    if (key === "modus") { if (this._m && verdi === this._m.modus) return; this._modus = verdi; }
+    else { if (verdi === this._dagNaa()) return; this._dag = verdi; }
+    if (!fraDrag) this._haptikk("selection");
+    this._valgt = null; this._tegn();
+  }
+
+  /* Dra i fanevelgeren, som i kd: pilla følger fingeren (gummistrikk forbi endene), strekkes i
+     fartsretningen mens den flyttes, og fjærer inn på valget du slipper på. Vibrerer hver gang
+     pilla passerer et nytt valg. Et vanlig trykk går via click. Kobles på hver ny rad. */
+  _segKoble(el) {
+    if (el._k) return; el._k = true;
+    const knapper = () => [...el.querySelectorAll(".v")];
+    const pille = el.querySelector(".seg-pille");
+    const idxAt = (x) => { let best = 0, bd = 1e9; knapper().forEach((b, j) => { const r = b.getBoundingClientRect(), dd = Math.abs(x - (r.left + r.width / 2)); if (dd < bd) { bd = dd; best = j; } }); return best; };
+    const merk = (j) => knapper().forEach((b, k) => b.classList.toggle("aktiv", k === j));
+    let d = null, hvile = null;
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button > 0) return;
+      d = { x0: e.clientX, y0: e.clientY, id: e.pointerId, moved: false, j: +el.dataset.i, lx: e.clientX, lt: e.timeStamp, v: 0 };
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!d || e.pointerId !== d.id || !pille) return;
+      if (!d.moved) {
+        const dx = Math.abs(e.clientX - d.x0), dy = Math.abs(e.clientY - d.y0);
+        if (dy > 10 && dy > dx) { d = null; return; }          /* loddrett: det er en scroll */
+        if (dx < 8) return;
+        d.moved = true; this._drar = true;
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* eldre nettlesere */ }
+        el.classList.add("drar");
+      }
+      const b = knapper(), w = pille.offsetWidth, r = el.getBoundingClientRect();
+      const min = b[0].offsetLeft, max = b[b.length - 1].offsetLeft;
+      let x = e.clientX - r.left - el.clientLeft - w / 2, over = 0;
+      if (x < min) over = x - min; else if (x > max) over = x - max;
+      if (over) x = (over < 0 ? min : max) + Math.sign(over) * Math.min(16, Math.abs(over) * 0.3);   /* gummistrikk */
+      const dt = Math.max(1, e.timeStamp - d.lt);
+      d.v = d.v * 0.6 + ((e.clientX - d.lx) / dt) * 0.4; d.lx = e.clientX; d.lt = e.timeStamp;
+      pille.style.left = x.toFixed(1) + "px";
+      if (!this._stille()) {
+        const st = Math.min(0.3, Math.abs(d.v) * 0.2 + Math.abs(over) * 0.004);
+        pille.style.transformOrigin = d.v >= 0 ? "35% 50%" : "65% 50%";
+        pille.style.transform = `scale(${(1.04 + st).toFixed(3)},${(1.06 - st * 0.55).toFixed(3)})`;
+        clearTimeout(hvile);
+        hvile = setTimeout(() => { if (d && d.moved) pille.style.transform = "scale(1.04,1.06)"; }, 90);
+      }
+      const j = idxAt(e.clientX);
+      if (j !== d.j) { d.j = j; this._haptikk("selection"); merk(j); }
+    });
+    const slutt = (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      const dd = d; d = null;
+      if (!dd.moved) return;
+      clearTimeout(hvile);
+      el._dragEnd = performance.now(); this._drar = false;
+      el.classList.remove("drar");
+      const i = +el.dataset.i, j = e.type === "pointercancel" ? i : idxAt(e.clientX), b = knapper()[j];
+      pille.style.transform = "";
+      if (j === i || !b) { pille.style.left = ""; merk(i); this._tegn(); return; }
+      this._segDratt = el.dataset.seg;
+      this._velg(el.dataset.seg, b.dataset.m || b.dataset.d, true);
+    };
+    el.addEventListener("pointerup", slutt);
+    el.addEventListener("pointercancel", slutt);
+  }
+
+  /* Før ny tegning: husk hvor hver pille står (også midt i en glidning eller et dra). */
+  _segHusk() {
+    this._segSist = this._segSist || {};
+    for (const el of this.shadowRoot.querySelectorAll(".seg")) {
+      const p = el.querySelector(".seg-pille"); if (!p) continue;
+      const tf = getComputedStyle(p).transform;
+      this._segSist[el.dataset.seg] = { i: +el.dataset.i, left: p.offsetLeft, tf: tf && tf !== "none" ? tf : "", dratt: this._segDratt === el.dataset.seg };
+    }
+    this._segDratt = null;
+  }
+
+  /* Etter ny tegning: raden er en ny node. Start pilla der den gamle sto og la den fjære over til
+     det nye valget; etter et trykk strekkes den i tillegg (etter dra er strekket alt vist). */
+  _segEtter() {
+    const sist = this._segSist || {};
+    for (const el of this.shadowRoot.querySelectorAll(".seg")) {
+      this._segKoble(el);
+      const s = sist[el.dataset.seg], i = +el.dataset.i, p = el.querySelector(".seg-pille");
+      if (!s || !p || s.i === i) continue;
+      p.style.transition = "none"; p.style.left = s.left + "px"; p.style.transform = s.tf;
+      void p.offsetWidth;
+      p.style.transition = ""; p.style.left = ""; p.style.transform = "";
+      if (!s.dratt && !this._stille() && p.animate) {
+        const d = Math.min(3, Math.abs(i - s.i));
+        p.animate([{ transform: "scale(1,1)" }, { transform: `scale(${1 + 0.14 * d},${1 - 0.06 * d})`, offset: 0.35 },
+          { transform: "scale(0.98,1.02)", offset: 0.7 }, { transform: "scale(1,1)" }], { duration: 520, easing: "ease-out" });
+      }
+    }
+    this._segSist = {};
   }
 
   /* Variabler som skal gjelde hele kortet. */
@@ -601,42 +751,19 @@ class KiStromprisCard extends HTMLElement {
 
   _koble() {
     const r = this.shadowRoot;
-    const bytt = (e) => { const el = e.composedPath().find((x) => x.dataset && x.dataset.m); if (!el) return;
-      const m = this._m ? this._m.modus : null;
-      if (el.dataset.m === m) return;
-      this._haptikk("selection");
-      this._modus = el.dataset.m; this._valgt = null; this._tegn(); this._sprett(); };
+    const bytt = (e) => {
+      const el = e.composedPath().find((x) => x.dataset && (x.dataset.m || x.dataset.d)); if (!el) return;
+      const seg = el.closest(".seg");
+      if (seg && performance.now() - (seg._dragEnd || 0) < 350) return;   /* klikket etter et dra */
+      if (el.dataset.m) this._velg("modus", el.dataset.m); else this._velg("dag", el.dataset.d);
+    };
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
-
-    /* Trykk og dra kjennes på pilla (klem ned, strekk under dra, sprett ved landing). */
-    let nedX = null;
-    r.addEventListener("pointerdown", (e) => {
-      if (!e.composedPath().some((x) => x.dataset && x.dataset.m)) return;
-      nedX = e.clientX;
-      this._klem(0.94, 0.86);
-    }, { passive: true });
-    r.addEventListener("pointermove", (e) => {
-      if (nedX === null) return;
-      const s2 = Math.min(0.13, Math.abs(e.clientX - nedX) / 420);
-      this._klem(1 + s2, 1 - s2 * 0.7);
-    }, { passive: true });
-    const slipp = () => { if (nedX === null) return; nedX = null; this._klem(1, 1); };
-    r.addEventListener("pointerup", slipp, { passive: true });
-    r.addEventListener("pointercancel", slipp, { passive: true });
   }
 
-  /* Glidende pille og dra på fanerada, som i faneradene ellers. MÅ kalles etter hver
-     tegning: .ramme byttes ut i sin helhet, så rada er en ny node. Slås opp på window,
-     siden kortet også skal virke alene fra /local/ uten KI. */
-  _pille() {
-    const ki = (typeof window !== "undefined" && window.KI) || null;
-    if (ki && ki.pillefaner && this.shadowRoot.querySelector(".valg")) {
-      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: false });
-    }
-  }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
+    if (this._drar) return;           /* ikke bytt ut rada under fingeren; tegnes når du slipper */
     let html;
     try {
       html = `<div class="ramme${this._stille() ? " flatt" : ""}" style="${this._ramStil()}">${this._innhold()}</div>`;
@@ -650,12 +777,13 @@ class KiStromprisCard extends HTMLElement {
       this._bygget = false; this._forrige = null;
       return;
     }
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; this._pille(); }
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; this._segSist = {}; this._segEtter(); }
     else if (html !== this._forrige) {
+      this._segHusk();
       const t = document.createElement("template"); t.innerHTML = html;
       this.shadowRoot.querySelector(".ramme").replaceWith(t.content);
       this._forrige = html;
-      this._pille();
+      this._segEtter();
     }
     this._skrubb();
   }
@@ -674,6 +802,7 @@ class KiStromprisCardEditor extends HTMLElement {
         modus: "Fanen som vises først", terskel: "Terskel for dyr time (kr/kWh)", terskel_spot: "Terskel for dyr spotpris (kr/kWh)",
         enhet: "Enhet bak tallet", bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet", spot: "Timespriser (eldre: raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", tittel_storrelse: "Skriftstørrelse på tittelen (px)", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+        dag_faner: "I dag / I morgen-faner (av = 48 timer i én graf)", dag: "Dagen som vises først",
         vis_tittel: "Vis tittel", enkel: "Bare faner og graf",
         fane_hoyde: "Høyde på fanerada (px)", fane_tekst: "Skriftstørrelse i fanene (px, tom = følger høyden)",
         haptikk: "Vibrasjon ved fanebytte", sprett: "Sprett i pilla ved trykk og dra",
@@ -684,13 +813,14 @@ class KiStromprisCardEditor extends HTMLElement {
       this.appendChild(this._f);
     }
     this._f.hass = this._h;
-    this._f.data = { vis_tittel: true, vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, haptikk: true, sprett: true, ...this._c };
+    this._f.data = { dag_faner: true, vis_tittel: true, vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, haptikk: true, sprett: true, ...this._c };
     const sensor = (name) => ({ name, selector: { entity: { domain: "sensor" } } });
     const tall = (name, o) => ({ name, selector: { number: { mode: "box", ...o } } });
     const bryter = (name) => ({ name, selector: { boolean: {} } });
     const tekst = (name) => ({ name, selector: { text: {} } });
     this._f.schema = [sensor("pris_total"), sensor("pris_spot"), sensor("pris_norges"), sensor("norgespris"), tekst("norgespris_navn"),
       { name: "modus", selector: { select: { mode: "dropdown", options: [{ value: "total", label: "Totalpris" }, { value: "spot", label: "Spotpris" }, { value: "norges", label: "Norgespris" }] } } },
+      bryter("dag_faner"), { name: "dag", selector: { select: { mode: "dropdown", options: [{ value: "i_dag", label: "I dag" }, { value: "i_morgen", label: "I morgen" }] } } },
       tall("terskel", { min: 0, max: 10, step: 0.05 }), tall("terskel_spot", { min: 0, max: 10, step: 0.05 }),
       tekst("tittel"), tall("tittel_storrelse", { min: 10, max: 40 }), bryter("vis_tittel"), bryter("enkel"),
       tekst("enhet"), tekst("bakgrunn"), tekst("maks_bredde"), tall("hoyde", { min: 80, max: 400 }),

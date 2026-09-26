@@ -290,6 +290,9 @@ class KiStromregningCard extends HTMLElement {
     this._rot.className = "rot";
     this.shadowRoot.appendChild(this._rot);
     this._rot.addEventListener("click", (e) => this._klikk(e));
+    /* Periodevelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".pille", knapp: ".pille button", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 

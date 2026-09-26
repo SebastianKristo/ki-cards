@@ -127,6 +127,10 @@ class KiPveCard extends HTMLElement {
       <div class="kort"><div class="velg"></div><div class="innhold"></div></div>`;
     this._bygget = true;
     this._sistValgt = null;
+    /* Velgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass).
+       Knappene tegnes på nytt ved hver oppdatering; vakta i basen setter pilla inn igjen. */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".velg", knapp: ".velg button", aktiv: "valgt",
+      farge: "var(--active-small, var(--active-big))" });
   }
 
   _oppdater() {

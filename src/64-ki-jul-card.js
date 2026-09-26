@@ -648,6 +648,9 @@ class KiJulCard extends HTMLElement {
     r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
       this._fane = b.dataset.f; this._forrige = null; this._tegn();
     }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".skinne"))
+      window.KI.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
     r.querySelectorAll("[data-veksle]").forEach((el) => {
       const slaa = () => {
         /* snu med en gang – tilstanden kommer tilbake fra Home Assistant like etter */

@@ -1338,10 +1338,21 @@
     }
     _u() { const K = window.KI; return (K && K.ud && this._hass) ? (K.ud(this._hass, 'ki_hjem') || {}) : {}; }
     _effCfg() { return { ...(this._config || {}), __u: this._u() }; }
+    /* «Avstand under»: margen må ligge på elementet HA legger rundt kortet (hui-card i nyere HA),
+       ellers blir den liggende inni innpakningen og flytter ingenting. */
+    _settBunn() {
+      const b = prefs(this._effCfg()).bunn;
+      const v = b ? b + 'px' : '';
+      const p = this.parentElement;
+      const mål = p && /^hui-card$|^hui-.*-card-wrapper$/.test(p.localName) ? p : this;
+      if (this._bunnMål && this._bunnMål !== mål) this._bunnMål.style.marginBottom = '';
+      this._bunnMål = mål;
+      if (mål.style.marginBottom !== v) mål.style.marginBottom = v;
+    }
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
-      if (this._config) { const b = prefs(this._effCfg()).bunn; const v = b ? b + 'px' : ''; if (this.style.marginBottom !== v) this.style.marginBottom = v; }
+      if (this._config) this._settBunn();
       /* Venter på brukerens valg før første oppbygging (maks 1,5 s), ellers ble kortet
          bygget to ganger ved åpning og hoppet fra standardoppsettet til brukerens. */
       const K = window.KI;

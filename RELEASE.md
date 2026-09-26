@@ -1,3 +1,11 @@
+# ki-cards 9.6.0
+
+- **Dra-animasjonen fra Liquid Glass** (uten glasseffekt) i alle fanerader: pillen følger fingeren, strekkes i fart, gir etter i endene og smetter på plass med fjær når du slipper. Gjelder etasjevelgeren i Hjem, ki-tabs-card, Hytta (Kalender/Opphold/Statistikk), Vanning (Nå/Soner/Programmer/Forbruk/Historikk), Fremover, Vær, Kamera, Klima pro, Server, Media, Strøm og flere. Felles hjelper: `KI.pillefaner` / `KI.segDrag`.
+- **ki-strompris-card 4.1**: «I dag | I morgen» i tittelraden (`dag_faner: false` gir 48 t-grafen), dra-animasjon på begge fanene.
+- **ki-person-card 2.0**: bygget om i ki-design – toppkort som rom-toppkortet (navn, status, sted, bilde, batterisøyle), fliser for skritt/reist/søvnscore, «Søvn i natt», «Soner i dag» og «Mobil».
+- **ki-rom-hero-card**: «Enkel» beholder tannhjulet og fuktsøylen.
+- **ki-hjem-card**: «Avstand under» virker nå – margen legges på HA sin innpakning (hui-card).
+
 # ki-cards 9.5.0
 
 - **ki-kamera-card 2.0**: funksjonene fra kamerakortet i Hjem-dashbordet i mysmart Home-designet – velg kameraer, ni oppsett (mosaikk, hovedkamera, rutenett, liste, masonry, oversikt, fokus, 2×2, 3 kolonner), «Tilpass kameraer» per bruker (skjul, sorter, bytt, legg til), deteksjon (person/bil/dyr/pakke), direktestrøm, lys/snakk/sirene/ta bilde og en «Hendelser»-fane.

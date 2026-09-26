@@ -1226,6 +1226,8 @@ class KiKameraCard extends HTMLElement {
         <button type="button" data-handling="kilde" data-verdi="frigate"
           class="${this._kilde === "frigate" ? "aktiv" : ""}"><ha-icon icon="mdi:history"></ha-icon>Frigate</button>
       </div>`;
+    /* Direkte/Frigate: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: "#kilde .pille", knapp: "#kilde .pille button", aktiv: "aktiv" });
 
     const faner = [];
     if (this._kilde === "frigate" && this._config.show_events !== false) {

@@ -210,21 +210,28 @@
         .pille.klar { opacity:1; }
         .pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
           background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
-          transform:translateX(var(--x, 0px)); width:var(--w, 0px);
+          translate:var(--x, 0px) 0; width:var(--w, 0px);
           scale:var(--sx, 1) var(--sy, 1);
-          transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1),
-            scale .24s cubic-bezier(.2,.8,.2,1);
+          transition:translate .5s cubic-bezier(.34,1.35,.64,1), width .5s cubic-bezier(.34,1.35,.64,1),
+            scale .35s cubic-bezier(.34,1.8,.64,1), opacity .2s;
           pointer-events:none; z-index:0; }
-        /* Under dra følger plasseringen fingeren uten forsinkelse, men strekken
-           (scale, en egen egenskap ved siden av transform) glattes litt — ellers
-           ville den flimret med hver pekerhendelse. */
-        .pille.drar { transition:scale .12s ease-out; }
-        /* Flytende glass: pilla strekkes i fartsretningen mens den glir, og
-           spretter lett tilbake når den lander. */
-        .pille.glid { animation:ki-pille-glid .34s cubic-bezier(.2,.8,.2,1); }
+        /* Plassering og form er to egne egenskaper (translate og scale). Lå plasseringen
+           i transform, ville strekken også skalert forflytningen, og pilla drev av sted
+           mens den ble strukket. Bevegelsen er den fra fanevelgeren i Liquid Glass (kd):
+           fjær som overskyter litt ved bytte, fingeren styrer under dra, og en stivere
+           fjær når den snapper inn etter slipp. */
+        .pille.stille { transition:opacity .2s; }
+        .pille.drar { transition:translate .12s cubic-bezier(.3,1.3,.6,1), width .12s ease-out,
+            scale .18s cubic-bezier(.2,.8,.3,1); }
+        .pille.snapp { transition:translate .55s cubic-bezier(.34,1.56,.64,1), width .55s cubic-bezier(.34,1.56,.64,1),
+            scale .45s cubic-bezier(.34,1.8,.64,1), opacity .2s; }
+        /* Strekk i fartsretningen når pilla glir til en ny fane (mer jo lenger den går),
+           og en liten landing når den ble dratt dit med fingeren. */
+        .pille.glid { animation:ki-pille-glid .52s ease-out; }
         .pille.land { animation:ki-pille-land .42s cubic-bezier(.2,.9,.25,1); }
         @keyframes ki-pille-glid {
-          0% { scale:1 1; } 40% { scale:1.12 .9; } 75% { scale:.98 1.03; } 100% { scale:1 1; } }
+          0% { scale:1 1; } 35% { scale:calc(1 + .14 * var(--d, 1)) calc(1 - .06 * var(--d, 1)); }
+          70% { scale:.98 1.02; } 100% { scale:1 1; } }
         @keyframes ki-pille-land {
           0% { scale:1.1 .9; } 45% { scale:.97 1.04; } 75% { scale:1.02 .99; } 100% { scale:1 1; } }
         .tab, .dd { position:relative; z-index:1; }
@@ -235,9 +242,8 @@
            i øyeblikket man trykker — bare et resultat et kvart sekund senere. */
         .tab { transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
         .tab:active { transform:scale(.94); }
-        .pille.trykk { transform:translateX(var(--x, 0px)) scaleX(.97); }
         @media (prefers-reduced-motion: reduce) {
-          .pille { transition:none; scale:none; }
+          .pille, .pille.drar, .pille.snapp { transition:opacity .2s; scale:none; }
           .pille.glid, .pille.land { animation:none; }
           .tab:active { transform:none; }
         }
@@ -681,9 +687,20 @@
         if (this._esc) document.removeEventListener("keydown", this._esc);
       }
     }
-    /* Flytter pilla til en fane. Kalles etter hver tegning og ved hvert valg. */
+    /* Flytter pilla til en fane. Kalles etter hver tegning og ved hvert valg.
+     * `uten`: en måling eller korreksjon, ingen animasjon. Et bytte glir med fjær og
+     * strekk; rett etter et slipp snapper den inn med en stivere fjær og en landing. */
     _flyttPille(i, uten = false) {
       const r = this.shadowRoot;
+      /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut som
+         en bevegelse. Vi animerer bare når målet er en annen fane — eller når pilla
+         skal snappe inn etter et slipp. */
+      const fra = this._sistePille;
+      const bytte = fra !== undefined && fra !== i;
+      this._sistePille = i;
+      const na = performance.now();
+      const snapp = na < (this._snappTil || 0);
+      if (!bytte && !snapp) uten = true;
       for (const rad of r.querySelectorAll(".tabs.pills, .spor")) {
         const pille = rad.querySelector(".pille");
         const knapp = rad.querySelector(`.tab[data-i="${i}"]`);
@@ -692,28 +709,24 @@
            pilla. Ellers ville den blitt stående på fanen man kom fra, som om to var
            valgt samtidig. */
         if (!knapp) { pille.style.setProperty("--w", "0px"); continue; }
-        pille.classList.toggle("drar", uten);
-
-        /* Målt med getBoundingClientRect, ikke offsetLeft.
-         *
-         * `offsetLeft` måles fra forelderens KANT, mens `position:absolute; left:0`
-         * måles fra innsiden av padding-en. Rada har 1 px ramme og 2 px padding, så
-         * pilla lå tre piksler for langt til venstre — nok til at «Kalender» stakk ut
-         * på høyre side.
-         *
-         * Rektangelet tar med ramme, padding og eventuell skalering, så det stemmer
-         * uansett hva stilen gjør. */
-        /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut
-           som en bevegelse. Vi animerer bare når målet er en annen fane. */
-        const bytte = this._sistePille !== undefined && this._sistePille !== i;
-        this._sistePille = i;
-        if (!bytte) uten = true;
-        /* Flytende glass: strekk mens den glir til en ny fane, eller en liten
-           landing når den ble dratt dit med fingeren. */
-        if (bytte && pille.animate) {
-          const klasse = this._fraDra ? "land" : (uten ? "" : "glid");
+        if (rad._dra && rad._dra.drar) continue;      // fingeren styrer
+        if (uten) {
+          /* En korreksjon midt i en glidning skal ikke slå av overgangen — da hopper
+             pilla resten av veien. Den retter bare målet. */
+          if (na >= (this._animTil || 0)) { pille.classList.add("stille"); pille.classList.remove("snapp"); }
+        } else {
+          pille.classList.remove("stille");
+          pille.classList.toggle("snapp", snapp);
+          this._animTil = na + 650;
+          clearTimeout(pille._snappT);
+          if (snapp) pille._snappT = setTimeout(() => pille.classList.remove("snapp"), 650);
+        }
+        pille.classList.remove("drar");
+        if (bytte && !uten && pille.animate) {
+          pille.style.setProperty("--d", String(Math.min(3, Math.abs(i - fra))));
           pille.classList.remove("glid", "land");
-          if (klasse) { void pille.offsetWidth; pille.classList.add(klasse); }
+          void pille.offsetWidth;
+          pille.classList.add(snapp ? "land" : "glid");
         }
 
         /* offsetLeft/offsetWidth, ikke rektangelet: det regner med transformer, og en
@@ -726,102 +739,135 @@
       }
     }
 
-    /* Dra: pilla følger fingeren, og fanen under den blir valgt når du slipper.
+    /* Dra: bevegelsen fra fanevelgeren i Liquid Glass (kd), uten glasset.
      *
-     * Vi flytter pilla fritt mens du drar — ikke fane for fane — fordi det er det som
-     * gjør at den føles festet til fingeren. Den snapper til nærmeste fane først ved
-     * slipp. Et lite utslag teller som trykk, ikke som dra, ellers ville et vanlig
-     * trykk med litt skjelv blitt tolket som en dratt bevegelse. */
+     * Etter 6 px sidelengs følger pilla fingeren fritt — ikke fane for fane — løftet
+     * litt og strukket etter farten. Bredden glir mellom fanene den passerer, endene
+     * gir etter som en gummistrikk, og det vibrerer når den krysser en fane. Ved slipp
+     * snapper den med fjær inn på nærmeste fane, som blir valgt. Et lite utslag teller
+     * som trykk; loddrett bevegelse overlates til siden. Langt trykk åpner «Tilpass
+     * faner». */
     _koblDra(rad) {
       const pille = rad.querySelector(".pille");
-      if (!pille) return;
-      let drar = false, start = 0, startX = 0, bredde = 0;
-
-      const fanen = (klientX) => {
-        const kasse = rad.getBoundingClientRect();
-        const x = klientX - kasse.left + rad.scrollLeft;
-        let best = null, avstand = Infinity;
-        for (const b of rad.querySelectorAll(".tab[data-i]")) {
-          const midt = b.offsetLeft + b.offsetWidth / 2;
-          const d = Math.abs(midt - x);
-          if (d < avstand) { avstand = d; best = +b.dataset.i; }
-        }
-        return best;
+      if (!pille || rad._draKoblet) return;
+      rad._draKoblet = true;
+      const na = () => performance.now();
+      const redusert = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      const form = (sx, sy) => { pille.style.setProperty("--sx", sx); pille.style.setProperty("--sy", sy); };
+      /* Pekeren i radas koordinater (samme som --x), også når rada er skalert eller rullet. */
+      const iRad = (x) => {
+        const q = rad.getBoundingClientRect(), f = rad.offsetWidth ? (q.width / rad.offsetWidth) || 1 : 1;
+        return (x - q.left) / f - (rad.clientLeft || 0) + rad.scrollLeft;
       };
-
-      /* Strekken mens man drar: pilla blir bredere og lavere jo fortere fingeren går,
-         og slapper av når fingeren står stille. */
-      let sistX = 0, sistT = 0, roT = null, holdT = null;
-      const strekk = (sx, sy) => {
-        pille.style.setProperty("--sx", sx);
-        pille.style.setProperty("--sy", sy);
+      let holdT = null;
+      const avslutt = () => {
+        const d = rad._dra; rad._dra = null;
+        if (d) clearTimeout(d.ro);
+        form(1, 1); pille.classList.remove("drar");
+        return d;
       };
+      /* Teksten følger pilla mens man drar: fanen under den får den aktive fargen. */
+      const farg = (d, j) => {
+        d.g.forEach((q, idx) => {
+          q.b.style.color = idx === j ? d.paa : (q.i === this._active ? d.av : "");
+        });
+      };
+      const avfarg = (d) => { if (d && d.g) d.g.forEach((q) => { q.b.style.color = ""; }); };
 
       rad.addEventListener("pointerdown", (e) => {
+        if (e.button > 0) return;
         const b = e.target.closest && e.target.closest(".tab[data-i]");
         if (!b) return;
-        start = e.clientX;
-        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
-        bredde = pille.offsetWidth;
-        drar = false;
-        sistX = e.clientX; sistT = performance.now();
-        pille.classList.add("trykk");
+        rad._dra = { id: e.pointerId, x0: e.clientX, y0: e.clientY, fraAktiv: +b.dataset.i === this._active,
+          drar: false, lx: e.clientX, lt: na(), s: 0, j: -1, off: 0 };
+        /* Trykk: pilla synker litt med fanen, så noe skjer i det øyeblikket man trykker. */
+        if (!redusert()) form(0.97, 1);
         /* Langt trykk (uten dra) åpner «Tilpass faner». */
         clearTimeout(holdT);
         this._holdt = false;
         if (this._config.tilpass !== false) {
           holdT = setTimeout(() => {
-            if (drar || !start) return;
-            start = 0;
+            const d = rad._dra;
+            if (!d || d.drar) return;
+            avslutt();
             this._holdt = true;
-            pille.classList.remove("trykk");
             this._apneTilpass();
           }, 600);
         }
       });
 
       rad.addEventListener("pointermove", (e) => {
-        if (!start) return;
-        const dx = e.clientX - start;
-        if (!drar && Math.abs(dx) < 6) return;      // skjelv er ikke en dra
-        if (!drar) clearTimeout(holdT);
-        drar = true;
-        pille.classList.remove("trykk", "glid", "land");
-        pille.classList.add("drar");
-        const maks = rad.scrollWidth - bredde - 4;
-        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
-        const na = performance.now();
-        const fart = Math.abs(e.clientX - sistX) / Math.max(8, na - sistT);   // px per ms
-        sistX = e.clientX; sistT = na;
-        const s = Math.min(0.16, fart * 0.1);
-        strekk((1 + s).toFixed(3), (1 - s * 0.55).toFixed(3));
-        clearTimeout(roT);
-        roT = setTimeout(() => strekk(1, 1), 90);
-        rad.setPointerCapture && e.pointerId !== undefined
-          && rad.setPointerCapture(e.pointerId);
+        const d = rad._dra;
+        if (!d || e.pointerId !== d.id) return;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (!d.drar) {
+          if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { clearTimeout(holdT); avslutt(); return; }
+          if (Math.abs(dx) < 6) return;                 // skjelv er ikke en dra
+          clearTimeout(holdT);
+          const kant = rad.clientLeft || 0;
+          d.g = [...rad.querySelectorAll(".tab[data-i]")].filter((b) => b.offsetWidth > 0)
+            .map((b) => ({ b, i: +b.dataset.i, w: b.offsetWidth, c: b.offsetLeft - kant + b.offsetWidth / 2 }));
+          if (!d.g.length) { avslutt(); return; }
+          d.drar = true;
+          try { rad.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+          /* Tar man i pilla, holder den grepet der fingeren tok; ellers hopper den til fingeren. */
+          if (d.fraAktiv) {
+            const x = parseFloat(pille.style.getPropertyValue("--x")) || 0;
+            d.off = iRad(d.x0) - (x + pille.offsetWidth / 2);
+          }
+          pille.classList.remove("stille", "snapp", "glid", "land");
+          pille.classList.add("drar");
+          d.j = d.g.findIndex((o) => o.i === this._active);
+          const a = d.g[d.j], annen = d.g.find((o) => o.i !== this._active);
+          d.paa = a ? getComputedStyle(a.b).color : "";
+          d.av = annen ? getComputedStyle(annen.b).color : "";
+        }
+        const g = d.g, n = g.length;
+        const raa = iRad(e.clientX) - d.off;
+        const c = Math.max(g[0].c, Math.min(g[n - 1].c, raa));
+        const o = raa - c;
+        const gummi = o / (1 + Math.abs(o) / 40) * 0.35;      // gummistrikk i endene (maks ~14 px)
+        let k = 0;
+        while (k < n - 2 && c > g[k + 1].c) k++;
+        const A = g[k], B = g[Math.min(n - 1, k + 1)];
+        const t = B.c === A.c ? 0 : (c - A.c) / (B.c - A.c);
+        const w = A.w + (B.w - A.w) * t;
+        pille.style.setProperty("--x", (c + gummi - w / 2) + "px");
+        pille.style.setProperty("--w", w + "px");
+        /* Strekk etter farten, løftet litt mens den holdes; slapper av når fingeren står stille. */
+        const tid = na(), v = Math.abs(e.clientX - d.lx) / Math.max(8, tid - d.lt);
+        d.lx = e.clientX; d.lt = tid;
+        d.s = d.s * 0.6 + Math.min(0.18, v * 0.12) * 0.4;
+        const ekstra = Math.min(0.12, Math.abs(gummi) / Math.max(20, w) * 0.8);
+        if (!redusert()) form((1.04 + d.s + ekstra).toFixed(3), (1.06 - d.s * 0.55 - ekstra * 0.5).toFixed(3));
+        clearTimeout(d.ro);
+        d.ro = setTimeout(() => { if (rad._dra === d) { d.s = 0; if (!redusert()) form(1.04, 1.06); } }, 90);
+        /* Nærmeste fane; vibrasjon når pilla krysser en ny. */
+        let j = 0, best = Infinity;
+        g.forEach((q, idx) => { const dd = Math.abs(q.c - c); if (dd < best) { best = dd; j = idx; } });
+        if (j !== d.j) { d.j = j; farg(d, j); if (window.KI && window.KI.haptic) window.KI.haptic("selection"); }
       });
 
       const slipp = (e) => {
         clearTimeout(holdT);
-        if (!start) return;
-        clearTimeout(roT);
-        strekk(1, 1);
-        pille.classList.remove("trykk", "drar");
-        const valgt = drar ? fanen(e.clientX) : null;
-        start = 0;
-        this._fraDra = drar;
-        if (valgt !== null && valgt !== undefined && valgt !== this._active) {
-          this._select(valgt);
-        } else {
-          /* snapp tilbake — med en landing når den faktisk ble dratt */
-          this._flyttPille(this._active);
-          if (drar) { pille.classList.remove("glid", "land"); void pille.offsetWidth; pille.classList.add("land"); }
-        }
-        this._fraDra = false;
-        drar = false;
+        const d = rad._dra;
+        if (!d || e.pointerId !== d.id) return;
+        avslutt();
+        if (!d.drar) return;                          // vanlig trykk: klikket gjør jobben
+        this._draSlutt = na();
+        this._snappTil = na() + 450;
+        const valgt = e.type === "pointerup" && d.g[d.j] ? d.g[d.j].i : null;
+        if (valgt !== null && valgt !== this._active) this._select(valgt);
+        else this._flyttPille(this._active);           // fjærer tilbake
+        avfarg(d);
       };
       rad.addEventListener("pointerup", slipp);
       rad.addEventListener("pointercancel", slipp);
+      rad.addEventListener("lostpointercapture", slipp);
+      /* Klikket nettleseren sender etter et drag skal ikke også velge en fane. */
+      rad.addEventListener("click", (e) => {
+        if (na() - (this._draSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
       rad.addEventListener("scroll", () => this._flyttPille(this._active, true));
     }
 

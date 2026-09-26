@@ -244,6 +244,9 @@ class KiSparingCard extends HTMLElement {
 
     for (const b of this.shadowRoot.querySelectorAll("[data-p]"))
       b.addEventListener("click", () => { this._p = b.dataset.p; this._tegn(); });
+    /* Periodevelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && this.shadowRoot.querySelector(".valg"))
+      window.KI.pillefaner(this, { rad: ".valg", knapp: ".valg button", aktiv: "aktiv" });
     for (const el of this.shadowRoot.querySelectorAll("[data-mer]"))
       el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",
         { detail: { entityId: el.dataset.mer }, bubbles: true, composed: true })));

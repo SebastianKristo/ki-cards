@@ -1177,6 +1177,8 @@
       firstUpdated() {
         const ki = window.KI;
         if (ki && ki.pillefaner) ki.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv", sprett: true });
+        /* Tidsvinduet på grafen (24 t / 3 d / 7 d): samme glidende pille som kan dras. */
+        if (ki && ki.pillefaner) ki.pillefaner(this, { rad: ".vindu", knapp: ".vindu button", aktiv: "aktiv", farge: "var(--kib-accent)" });
       }
 
       _faner(liste, aktiv) {
