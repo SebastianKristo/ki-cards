@@ -27,7 +27,9 @@
  *  rom_tall: auto                 # KI Energis number.ki_rom_<rom>_temp brukes hvis den finnes
  *  teller_suffix: _teller         # input_number.<klima>_teller brukes hvis den finnes
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
- *  tilpass: false                 # skjul «Tilpass rommet»-knappen nederst og tannhjulet i toppen
+ *  tilpass: false                 # skru av «Tilpass rommet» (tannhjulet i toppen)
+ *  tilpass_knapp: true            # vis også «Tilpass rommet»-knappen nederst
+ *  farge_topp: '#80c3ff'          # grafens/aksentens farge i toppkortet (brukeren kan velge selv i Tilpass)
  *  topp: klassisk                 # gammel topp i stedet for ki-rom-hero-card
  *  topp_hoyde: 184                # høyden på toppkortet (px)
  *
@@ -176,6 +178,7 @@
       if (hum) hero.fukt = hum;
       if (clim) hero.klima = clim;
       if (cfg.topp_hoyde) hero.hoyde = cfg.topp_hoyde;
+      if (cfg.farge_topp) hero.farge = cfg.farge_topp;
       return hero;
     }
     const custom = {};
@@ -900,6 +903,9 @@
    *             fliser: { skjul, vis, rekkefolge, navn: {seksjon: tekst} } } }
    * <rom> er area_id (flere rom: «stue+kjokken»). ki-rom-tile-card leser temp/fukt herfra. */
   const UD_KEY = 'ki_rom';
+  /* Fargene brukeren kan velge for grafen i toppkortet. '' = automatisk (følger varme/lys). */
+  const FARGER = [['Auto', ''], ['Blå', '#80c3ff'], ['Grønn', '#8fd6a0'], ['Gul', '#ead070'], ['Oransje', '#f2b966'],
+    ['Rød', '#f47b74'], ['Lilla', '#c7a6ff'], ['Rosa', '#f3a6c8'], ['Hvit', '#e8e6e1']];
   const DEFAULT_ORDER = ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
   const romKey = (cfg) => [].concat(cfg.rom || cfg.entity || []).filter(Boolean).join('+');
   function udAll(hass) {
@@ -921,6 +927,7 @@
     const ut = { ...cfg };
     if (U.temp && hass.states[U.temp]) ut.temperatur = U.temp;
     if (U.fukt && hass.states[U.fukt]) ut.fuktighet = U.fukt;
+    if (U.farge) ut.farge_topp = U.farge;
     return ut;
   }
   /* Seksjonene i brukerens rekkefølge, med skjult-flagg og eget navn. */
@@ -1342,6 +1349,7 @@
     .chip .l { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .chip .v { opacity:.7; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .chip.sel { background:var(--active-big, #ee95ff); color:var(--black, #000); }
+    .chip .dot { width:14px; height:14px; border-radius:7px; flex:none; }
     .chip.sel .v { opacity:.8; }
     input.sok { width:100%; height:46px; border-radius:999px; border:none; outline:none; padding:0 18px;
       background:var(--gray100); color:var(--gray1000); font:inherit; font-size:14px; font-weight:500; }
@@ -1494,7 +1502,7 @@
         delete this._root.dataset.error;
         els.forEach((el) => this._root.appendChild(el));
         /* «Tilpass rommet» nederst – før mellomrommet som skyver innholdet opp. */
-        if (this._config.tilpass !== false) {
+        if (this._config.tilpass !== false && this._config.tilpass_knapp === true) {
           const gapEl = els[els.length - 1];
           this._root.insertBefore(this._tilpassKnapp(), gapEl || null);
         }
@@ -1730,7 +1738,11 @@
       };
       const sensPanel = '<section class="panel"><div class="ph"><ha-icon icon="mdi:thermometer"></ha-icon><span class="t">Temperatur og fukt</span>'
         + '<span class="alt">' + (U.temp || U.fukt ? 'Eget valg' : 'Automatisk') + '</span></div>'
-        + sensRad('temp', 'Temperatur fra', 'mdi:thermometer') + sensRad('fukt', 'Fukt fra', 'mdi:water-percent') + '</section>';
+        + sensRad('temp', 'Temperatur fra', 'mdi:thermometer') + sensRad('fukt', 'Fukt fra', 'mdi:water-percent')
+        + '<div class="sens"><div class="sh"><ha-icon icon="mdi:palette-outline"></ha-icon><span class="t">Farge på grafen</span></div><div class="chips">'
+        + FARGER.map(([navn, f]) => '<button type="button" class="chip press' + ((U.farge || '') === f ? ' sel' : '') + '" data-act="farge" data-id="' + esc(f) + '">'
+          + (f ? '<span class="dot" style="background:' + esc(f) + '"></span>' : '<ha-icon icon="mdi:auto-fix"></ha-icon>') + '<span class="l">' + navn + '</span></button>').join('')
+        + '</div></div></section>';
 
       // --- seksjoner (de store flisene/kategoriene i popupen)
       const sek = seksjonModell(cfg, U);
@@ -1791,6 +1803,7 @@
         const tap = () => {
           switch (d.act) {
             case 'sens': this._sensPick(d.k, d.id); break;
+            case 'farge': this._lagre((r) => { if (d.id) r.farge = d.id; else delete r.farge; }); break;
             case 'sensall': this._st.sensAll = this._st.sensAll === d.k ? null : d.k; this._st.sensQ = ''; haptic(); this._renderEdit(); break;
             case 'sekhide': this._sekHide(d.key); break;
             case 'schide': this._scHide(d.key); break;
