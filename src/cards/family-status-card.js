@@ -585,11 +585,35 @@ class FamilyStatusCard extends LitElement {
     const r = this.shadowRoot; if (!r) return;
     for (const g of r.querySelectorAll(".greeting")) {
       const t = g.querySelector(".hilsentekst"), rad = g.closest(".row");
-      if (!t || !rad || !g.querySelector(".serverpil")) { g.classList.remove("uten-pil"); continue; }
+      if (!t || !rad) continue;
       const bilder = rad.querySelector(".persons");
-      const plass = rad.clientWidth - (bilder ? bilder.offsetWidth : 0) - 16;
-      const skjul = t.scrollWidth + 32 > plass;
-      if (g.classList.contains("uten-pil") !== skjul) g.classList.toggle("uten-pil", skjul);
+      // nullstill tidligere tilpasning og mål naturlige bredder
+      g.classList.remove("uten-pil"); g.style.fontSize = "";
+      if (bilder) for (const v of ["--fsc-avatar-size", "--fsc-badge-size", "--fsc-badge-icon-size"]) bilder.style.removeProperty(v);
+      const cs = getComputedStyle(rad);
+      const bredde = rad.clientWidth - (Number.parseFloat(cs.paddingLeft) || 0) - (Number.parseFloat(cs.paddingRight) || 0) - (Number.parseFloat(cs.columnGap) || 8);
+      const pil = g.querySelector(".serverpil") ? 32 : 0;
+      const tekst = t.scrollWidth + 6;
+      let bildeB = bilder ? bilder.scrollWidth - 16 : 0; // minus luft til merket
+      if (tekst + pil + bildeB <= bredde) continue;              // alt får plass
+      if (pil) g.classList.add("uten-pil");                       // 1) fjern pila
+      if (tekst + bildeB <= bredde || !bilder) continue;
+      // 2) krymp bildene (ned til 32 px) så navnet får plass
+      const n = bilder.querySelectorAll(".person").length || 1;
+      const naa = Number.parseFloat(getComputedStyle(bilder).getPropertyValue("--fsc-avatar-size")) || Number.parseFloat(this.cfg.avatar_size) || 50;
+      const ny = Math.max(32, Math.floor(naa - (tekst + bildeB - bredde) / n));
+      if (ny < naa) {
+        bilder.style.setProperty("--fsc-avatar-size", ny + "px");
+        const merke = Number.parseFloat(this.cfg.badge_size) || 20;
+        bilder.style.setProperty("--fsc-badge-size", Math.max(14, Math.round(merke * ny / naa)) + "px");
+        bilder.style.setProperty("--fsc-badge-icon-size", Math.max(9, Math.round(merke * ny / naa * 0.6)) + "px");
+      }
+      // 3) fortsatt for trangt: krymp teksten litt (til 85 %) – til slutt kortes den av med …
+      bildeB = bilder.scrollWidth - 16;
+      if (tekst + bildeB > bredde) {
+        const f = Number.parseFloat(getComputedStyle(g).fontSize) || 22;
+        g.style.fontSize = (f * Math.max(0.85, (bredde - bildeB) / tekst)).toFixed(1) + "px";
+      }
     }
   }
 
@@ -1646,9 +1670,11 @@ class FamilyStatusCard extends LitElement {
       }
       /* Hilsenen tar plassen som er igjen, og kortes av med … i stedet for å legge seg
          over bildene. Menyen ligger fortsatt fritt under (ingen overflow på .hilsen). */
+      /* Navnet får plassen først (som før). Blir det trangt, skjules pila og bildene krymper
+         (se _sjekkPil); først til slutt kortes navnet av med … */
       .hilsen {
-        flex: 1 1 0;
-        min-width: min(28%, 92px);
+        flex: 0 1 auto;
+        min-width: 0;
       }
       /* Mange eller store bilder: raden kan dras sidelengs i stedet for å skyve
          hilsenen bort. Luft oppe og til høyre, så merket ikke klippes. */
@@ -1667,6 +1693,7 @@ class FamilyStatusCard extends LitElement {
       .person {
         flex: none;
       }
+
       .greeting {
         max-width: 100%;
         min-width: 0;

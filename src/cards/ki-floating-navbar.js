@@ -495,8 +495,10 @@
         const ind = this._config.indicator || "both";
         const flags = items.map((item) => this._isActive(item));
         // Linsen: en åpen popup (hash) vinner over siden den ligger på.
-        let activeIdx = items.findIndex((item, i) => flags[i] && this._hashHit(item));
-        if (activeIdx < 0) activeIdx = flags.indexOf(true);
+        // Er en popup (hash) åpen, trengs ikke glasslinsen bak – popupen ligger uansett over.
+        // lens_popup: true gir den gamle oppførselen (linsen flytter seg til popup-knappen).
+        const popupIdx = items.findIndex((item, i) => flags[i] && this._hashHit(item));
+        let activeIdx = popupIdx >= 0 ? (this._config.lens_popup ? popupIdx : -1) : flags.indexOf(true);
         this._activeIdx = activeIdx < 0 ? null : activeIdx;
         const wCls = p.width === "full" ? "w-full" : p.width === "fixed" ? "w-fixed" : "";
         const wPx = Math.max(200, Math.min(1200, Number(p.width_px) || 420));

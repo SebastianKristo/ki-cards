@@ -15,6 +15,7 @@ Hold inne for å tilpasse – valgene lagres per bruker i Home Assistant:
 - **ki-floating-navbar** – ny navbar lik mysmart-floating-navbar (bytt `type`), med glasslinse du kan dra, «Tilpass navbar» og GUI-editor.
 - **ki-hjem-card** – langt trykk på en fane: faner, rom per etasje, romflis-størrelse, klimaknapp og høyde/bredde på fanerada.
 - **ki-rom-card** – «Tilpass rommet»: skjul/vis, temp/fukt-sensor, seksjoner og scener.
+- **ki-rom-hero-card** – nytt toppkort i hvert rom (temperatur, fukt, døgnspenn, levende bakgrunn); tannhjulet åpner «Tilpass rommet».
 - **ki-tabs-card** – `fane_hoyde`/`fane_bredde` og «Tilpass faner».
 - **family-status-card** – «Tilpass»: oppsett, personer, bilder, hilsen og dobbelttrykk.
 

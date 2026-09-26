@@ -27,7 +27,9 @@
  *  rom_tall: auto                 # KI Energis number.ki_rom_<rom>_temp brukes hvis den finnes
  *  teller_suffix: _teller         # input_number.<klima>_teller brukes hvis den finnes
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
- *  tilpass: false                 # skjul «Tilpass rommet»-knappen nederst
+ *  tilpass: false                 # skjul «Tilpass rommet»-knappen nederst og tannhjulet i toppen
+ *  topp: klassisk                 # gammel topp i stedet for ki-rom-hero-card
+ *  topp_hoyde: 184                # høyden på toppkortet (px)
  *
  *  «Tilpass rommet» (nederst i popupen) lar hver bruker skjule/vise enheter, sortere,
  *  gi nytt navn til og skjule seksjoner og scener, legge til scener/skript og velge
@@ -153,11 +155,29 @@
   const FALLBACK_TEMP = 'sensor.hus_temperature';
   const FALLBACK_HUM = 'sensor.hus_fuktighet';
 
+  /* Toppkortet: ki-rom-hero-card med tannhjul som åpner «Tilpass rommet».
+     `topp: klassisk` gir den gamle button-card-toppen. */
   function sectionHeader(hass, ov, cfg, roomName) {
     const has = (e) => e && hass.states[e];
     const temp = cfg.temperatur || ov.temperatur[0] || (has(cfg.reserve_temperatur || FALLBACK_TEMP) ? (cfg.reserve_temperatur || FALLBACK_TEMP) : null);
     const hum = cfg.fuktighet || ov.fuktighet[0] || (has(cfg.reserve_fuktighet || FALLBACK_HUM) ? (cfg.reserve_fuktighet || FALLBACK_HUM) : null);
     const clim = ov.klima[0] && ov.klima[0].entity;
+    if (cfg.topp !== 'klassisk') {
+      const idOf = (x) => (typeof x === 'string' ? x : x && x.entity);
+      const hero = {
+        type: 'custom:ki-rom-hero-card',
+        navn: roomName,
+        lys: ov.lys.map(idOf).filter(Boolean),
+        tannhjul: cfg.tilpass !== false,
+      };
+      const omr = ov.rooms[0] && ov.rooms[0].area_id;
+      if (omr) hero.omrade = omr;
+      if (temp) hero.temperatur = temp;
+      if (hum) hero.fukt = hum;
+      if (clim) hero.klima = clim;
+      if (cfg.topp_hoyde) hero.hoyde = cfg.topp_hoyde;
+      return hero;
+    }
     const custom = {};
     if (clim) {
       custom.btn1 = {
@@ -1367,6 +1387,13 @@
       this._st = this._st || {};
       if (!this._root) {
         this._root = document.createElement('div');
+        /* Tannhjulet i toppkortet (ki-rom-hero-card) ber om «Tilpass rommet». */
+        this._root.addEventListener('ki-rom-tilpass', (ev) => {
+          if (this._config && this._config.tilpass === false) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          this._setEdit(true);
+        });
         this._root.style.display = 'flex';
         this._root.style.flexDirection = 'column';
         this.appendChild(this._root);
