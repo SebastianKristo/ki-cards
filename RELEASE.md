@@ -1,3 +1,8 @@
+# ki-cards 9.0.2
+
+- **ki-floating-navbar**: glasslinsen skjules når en popup (hash) er åpen – popupen ligger uansett over. `lens_popup: true` gir den gamle oppførselen.
+- **family-status-card**: navnet får plassen først igjen. Blir det trangt, skjules serverpila, så krymper profilbildene (ned til 32 px, merkene følger med), og helt til slutt krympes/kortes teksten.
+
 # ki-cards 9.0.1
 
 - **ki-floating-navbar**: samme størrelse som den gamle navbaren. «Standard» bruker config; størrelsene er nå Liten 8/20, Middels 12/24 (klassisk), Stor 16/28 og Ekstra stor 20/32. Gamle størrelsesvalg ignoreres, så navbaren går tilbake til config-utseendet.
