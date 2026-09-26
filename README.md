@@ -8,6 +8,18 @@ De nye `ki-*`-kortene bruker temaets CSS-variabler (`--gray100`, `--gray200`, `-
 Hvert kort er pakket i sin egen blokk, så én feil stopper ikke resten – og kort som allerede finnes
 (for eksempel `ki-klima-pro-card` installert via [ki-strom](https://github.com/SebastianKristo/ki-strom)) hoppes over.
 
+
+## Tilpass fra dashbordet (9.0)
+
+Hold inne for å tilpasse – valgene lagres per bruker i Home Assistant:
+- **ki-floating-navbar** – ny navbar lik mysmart-floating-navbar (bytt `type`), med glasslinse du kan dra, «Tilpass navbar» og GUI-editor.
+- **ki-hjem-card** – langt trykk på en fane: faner, rom per etasje, romflis-størrelse, klimaknapp og høyde/bredde på fanerada.
+- **ki-rom-card** – «Tilpass rommet»: skjul/vis, temp/fukt-sensor, seksjoner og scener.
+- **ki-tabs-card** – `fane_hoyde`/`fane_bredde` og «Tilpass faner».
+- **family-status-card** – «Tilpass»: oppsett, personer, bilder, hilsen og dobbelttrykk.
+
+Se RELEASE.md for alle nye nøkler.
+
 ## Installasjon
 
 **HACS:** Legg til `https://github.com/SebastianKristo/ki-cards` som egendefinert repository (type *Dashboard*),

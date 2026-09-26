@@ -19,7 +19,14 @@
                       - type: custom:ki-kalender-card
                   cards: [ … post og bursdager ellers … ]
    rad_hoyde: hele fanens høyde i px. fane_hoyde er luft over og under teksten, og under den
-              luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde. */
+              luften ligger fortsatt teksten selv – vil du LAVERE enn det, er det rad_hoyde.
+   fane_hoyde / fane_bredde tar også ferdige størrelser (samme valg som «Tilpass Hjem»):
+     fane_hoyde: lav | middels | hoy | ekstra     (hele fanens høyde 30 / 38 / 46 / 56 px)
+     fane_bredde: standard | kompakt | full       (kompakt = smalere piller, full = rada i full bredde)
+   Et tall betyr det samme som før (luft i px / minste fanebredde i px).
+   Langt trykk på en fane åpner «Tilpass faner», der hver bruker velger høyde og bredde selv.
+   Valget lagres per bruker i Home Assistant (KI.udSave(hass, "ki_tabs", …)), per kort:
+   nøkkelen er `id:` hvis kortet har det, ellers fanetitlene. tilpass: false slår av langt trykk. */
 (function (KI) {
   /* `align` tar både norske ord og CSS-verdier. «venstre» er lettere å huske enn
      «flex-start», og den som alt har skrevet flex-start skal ikke måtte endre noe. */
@@ -28,6 +35,14 @@
     hoyre: "flex-end", høyre: "flex-end",
     left: "flex-start", center: "center", right: "flex-end",
   }[String(v || "").toLowerCase()] || v || "center");
+
+  /* Ferdige fanestørrelser. Høyden er hele fanen, som rad_hoyde. De samme ordene brukes i
+     ki-hjem-card, så en bruker kjenner dem igjen fra «Tilpass Hjem». */
+  const FANE_H = { lav: 30, middels: 38, hoy: 46, "høy": 46, ekstra: 56 };
+  const FANE_B = ["standard", "kompakt", "full"];
+  KI.faneMal = KI.faneMal || { hoyde: FANE_H, bredde: FANE_B };
+  const hoydeOrd = (v) => (typeof v === "string" && FANE_H[v.toLowerCase()] ? v.toLowerCase().replace("ø", "o") : null);
+  const breddeOrd = (v) => (typeof v === "string" && FANE_B.includes(v.toLowerCase()) ? v.toLowerCase() : null);
 
   class SkTabsCard extends KI.Card {
     static getStubConfig() { return { tabs: [{ title: "Fane 1", cards: [] }] }; }
@@ -60,9 +75,28 @@
       this._config = config; this._built = false; this._menuOpen = false;
       if (this._hass) this._build();
     }
-    set hass(h) { this._hass = h; if (!this._built) this._build(); (this._panels || []).forEach(p => p.hass = h); }
+    set hass(h) {
+      this._hass = h;
+      if (!this._built) this._build();
+      else if (!this._udLest && KI.ud) { this._udLest = true; KI.ud(h, "ki_tabs"); }
+      (this._panels || []).forEach(p => p.hass = h);
+    }
     get hass() { return this._hass; }
+    connectedCallback() {
+      /* Brukerens egne fanemål kan endres i et annet kort (eller på en annen enhet
+         som lagrer). Da settes bare variablene på nytt — ingen ny tegning. */
+      if (!this._udLytter) {
+        this._udLytter = (e) => {
+          if (!e.detail || e.detail.key !== "ki_tabs" || !this._built) return;
+          this._mal();
+          if (this._tilpassApen) this._tegnTilpass();
+        };
+      }
+      window.addEventListener("ki-ud", this._udLytter);
+    }
     disconnectedCallback() {
+      if (this._udLytter) window.removeEventListener("ki-ud", this._udLytter);
+      this._lukkTilpass();
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._hro) { this._hro.disconnect(); this._hro = null; }
       if (this._ro) this._ro.disconnect();
@@ -78,24 +112,7 @@
       const sticky = !!c.sticky;
       /* px/em/rem eller et tall (som blir px). Et tall alene er den vanligste
          skrivemåten i YAML, og å kreve enhet ville bare gitt feilsøking. */
-      const enhet = (v) => (v === undefined || v === null || v === "" ? null
-        : (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v))) ? v + "px" : String(v));
-      const vars = [
-        ["--ki-fane-py", enhet(c.fane_hoyde)],
-        /* Hele høyden, ikke luften rundt teksten. Med bare padding å skru på stopper
-           fanen ved tekstens egen linjehøyde: fane_hoyde: 1 gir fortsatt ~20 px, og det
-           var ikke til å komme under. rad_hoyde setter høyden direkte og lar teksten
-           sentreres i den. */
-        ["--ki-fane-h", enhet(c.rad_hoyde)],
-        ["--ki-fane-h-py", c.rad_hoyde ? "0px" : null],
-        ["--ki-fane-lh", c.rad_hoyde ? "1" : null],
-        ["--ki-fane-px", enhet(c.fane_sidepadding)],
-        ["--ki-fane-bredde", enhet(c.fane_bredde)],
-        ["--ki-fane-tekst", enhet(c.fane_tekst)],
-        ["--ki-rad-bredde", c.rad_bredde === "full" ? "100%" : enhet(c.rad_bredde)],
-        ["--ki-fane-flex", c.fane_lik ? "1 1 0" : null],
-      ].filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(";");
-      if (vars) this.style.cssText = vars;
+      this._mal(true);
 
       this.shadowRoot.innerHTML = `<style>${KI.css}
         :host { overflow:visible; position:relative; }
@@ -152,7 +169,7 @@
            knappen til å se løsrevet ut. Negativ margin trekker den inn til 4 px: rett
            utenfor rammen, ikke et eget element lenger borte.
            INGEN backticks i denne kommentaren — CSS-en er en mal-streng. */
-        .tab.utenfor { flex:0 0 auto; margin-left:-6px; width:40px; height:40px;
+        .tab.utenfor { flex:0 0 auto; margin-left:-6px; width:var(--ki-utenfor, 40px); height:var(--ki-utenfor, 40px);
           padding:0; justify-content:center; border-radius:50%;
           border:1px solid rgba(255,255,255,.3); --mdc-icon-size:20px;
           transition:background .15s, color .15s, transform .25s cubic-bezier(.2,.8,.2,1); }
@@ -194,9 +211,22 @@
         .pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
           background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
           transform:translateX(var(--x, 0px)); width:var(--w, 0px);
-          transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
+          scale:var(--sx, 1) var(--sy, 1);
+          transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1),
+            scale .24s cubic-bezier(.2,.8,.2,1);
           pointer-events:none; z-index:0; }
-        .pille.drar { transition:none; }
+        /* Under dra følger plasseringen fingeren uten forsinkelse, men strekken
+           (scale, en egen egenskap ved siden av transform) glattes litt — ellers
+           ville den flimret med hver pekerhendelse. */
+        .pille.drar { transition:scale .12s ease-out; }
+        /* Flytende glass: pilla strekkes i fartsretningen mens den glir, og
+           spretter lett tilbake når den lander. */
+        .pille.glid { animation:ki-pille-glid .34s cubic-bezier(.2,.8,.2,1); }
+        .pille.land { animation:ki-pille-land .42s cubic-bezier(.2,.9,.25,1); }
+        @keyframes ki-pille-glid {
+          0% { scale:1 1; } 40% { scale:1.12 .9; } 75% { scale:.98 1.03; } 100% { scale:1 1; } }
+        @keyframes ki-pille-land {
+          0% { scale:1.1 .9; } 45% { scale:.97 1.04; } 75% { scale:1.02 .99; } 100% { scale:1 1; } }
         .tab, .dd { position:relative; z-index:1; }
         .tab.active { color:rgba(70,58,64,.95); }
         .dd { background:var(--active-big); color:rgba(70,58,64,.95); box-shadow:0 1px 6px rgba(0,0,0,.35); }
@@ -207,9 +237,38 @@
         .tab:active { transform:scale(.94); }
         .pille.trykk { transform:translateX(var(--x, 0px)) scaleX(.97); }
         @media (prefers-reduced-motion: reduce) {
-          .pille { transition:none; }
+          .pille { transition:none; scale:none; }
+          .pille.glid, .pille.land { animation:none; }
           .tab:active { transform:none; }
         }
+        /* Fanene i pillegruppa: sidelengs drag er vårt (pilla), loddrett ruller siden.
+           Uten dette tar nettleseren noen ganger over et sidelengs drag på touch og
+           sender pointercancel midt i. Den rullbare rada får beholde sin egen rulling.
+           Langt trykk åpner «Tilpass faner», så ingen tekstmarkering eller meny. */
+        .tabs.pills .tab { touch-action:pan-y; }
+        .tab { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+        /* Målerada skal alltid ha innholdets bredde. Med full bredde ville den målt
+           like bred som rada og kortet trodd at fanene aldri får plass. */
+        .tabs.measure { width:auto; }
+        .tabs.measure .tab { flex:0 0 auto; }
+        /* Tilpass faner: lite panel ved rada. Flat --gray200-flate, 24 px, 14 px/500. */
+        .tp-bak { position:fixed; inset:0; z-index:998; background:rgba(0,0,0,.25); }
+        .tp { position:fixed; z-index:999; left:0; top:0; width:min(360px, calc(100vw - 32px));
+          background:var(--gray200); color:var(--gray1000); border-radius:24px; padding:14px;
+          display:grid; gap:12px; font-size:14px; font-weight:500; box-sizing:border-box; }
+        .tp-topp { display:flex; align-items:center; gap:8px; }
+        .tp-tittel { flex:1; font-size:16px; font-weight:500; }
+        .tp-knapp { border:0; font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+          height:34px; padding:0 14px; border-radius:999px; background:var(--gray100); color:var(--gray1000); }
+        .tp-knapp.ferdig { background:var(--active-big); color:var(--black, #000); }
+        .tp-rad { display:grid; gap:6px; }
+        .tp-etikett { opacity:.7; }
+        .tp-chips { display:flex; flex-wrap:wrap; gap:6px; }
+        .tp-chip { border:0; font:inherit; font-size:14px; font-weight:500; cursor:pointer;
+          height:34px; padding:0 14px; border-radius:999px; background:var(--gray100);
+          color:var(--gray1000); transition:transform .12s cubic-bezier(.2,.8,.2,1); }
+        .tp-chip:active, .tp-knapp:active { transform:scale(.94); }
+        .tp-chip.pa { background:var(--active-big); color:var(--black, #000); }
         .tab:focus-visible, .dd:focus-visible, .item:focus-visible { outline:2px solid var(--active-big); outline-offset:2px; }
         .dd .chev { transition:transform .15s; --mdc-icon-size:20px; margin-right:-6px; }
         .dd.open .chev { transform:rotate(180deg); }
@@ -257,7 +316,14 @@
         <div class="paneler">${tabs.map((t, i) => `<div class="panel ${i === this._active ? "active" : ""}" data-i="${i}"><div class="stack"></div></div>`).join("")}</div>
       </div>`;
       const r = this.shadowRoot;
-      r.querySelectorAll(".tab[data-i]").forEach(b => b.addEventListener("click", () => this._select(+b.dataset.i)));
+      r.querySelectorAll(".tab[data-i]").forEach(b => b.addEventListener("click", () => {
+        /* Klikket som kommer etter et langt trykk skal ikke også bytte fane. */
+        if (this._holdt) { this._holdt = false; return; }
+        this._select(+b.dataset.i);
+      }));
+      r.querySelectorAll(".tabs.pills, .spor").forEach((rad) => rad.addEventListener("contextmenu", (e) => {
+        if (this._config.tilpass !== false && e.target.closest && e.target.closest(".tab")) e.preventDefault();
+      }));
 
       /* Dra-håndtering på begge faneradene, og pilla plasseres når bredden er kjent.
          `requestAnimationFrame` fordi offsetWidth er 0 før første layout, og pilla da
@@ -360,12 +426,147 @@
           this._setMode(fits ? "pills" : (smal && bar.clientWidth < smal ? "dropdown" : "scroll"));
         };
         this._ro = new ResizeObserver(apply); this._ro.observe(r.querySelector(".bar"));
+        this._tilpassAuto = apply;
         requestAnimationFrame(apply);
       } else this._setMode(style);
       this._renderDd();
 
       this._panels = [];
       for (let i = 0; i < tabs.length; i++) await this._byggPanel(i);
+    }
+
+    /* ------------------------------------------------------------ fanemål
+     *
+     * Kortets egne mål (fane_hoyde, rad_hoyde, fane_bredde …) er standarden. Brukerens
+     * valg i «Tilpass faner» ligger oppå: { hoyde: "middels", bredde: "full" } per kort
+     * under nøkkelen «ki_tabs». «standard» betyr kortets egne tall, uten forhåndsvalg.
+     * Alt settes som variabler på vertselementet — ingen ny tegning, så pilla og det
+     * valgte panelet står der de står. */
+    _udNokkel() {
+      const c = this._config || {};
+      return c.id ? String(c.id) : "faner:" + (c.tabs || []).map((t) => (t && (t.title || t.aria || t.icon)) || "").join("|");
+    }
+    _brukerMal() {
+      const alle = (KI.ud && this._hass) ? KI.ud(this._hass, "ki_tabs") : null;
+      return (alle && alle[this._udNokkel()]) || {};
+    }
+    _faneValg() {
+      const c = this._config || {}, u = this._brukerMal();
+      const h = u.hoyde ? (u.hoyde === "standard" ? null : hoydeOrd(u.hoyde)) : hoydeOrd(c.fane_hoyde);
+      const b = u.bredde ? (u.bredde === "standard" ? null : breddeOrd(u.bredde)) : breddeOrd(c.fane_bredde);
+      return { h, b };
+    }
+    _mal(forst) {
+      const c = this._config;
+      /* px/em/rem eller et tall (som blir px). Et tall alene er den vanligste
+         skrivemåten i YAML, og å kreve enhet ville bare gitt feilsøking. */
+      const enhet = (v) => (v === undefined || v === null || v === "" ? null
+        : (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v))) ? v + "px" : String(v));
+      const { h, b } = this._faneValg();
+      /* Et ord i fane_hoyde / fane_bredde er et forhåndsvalg, ikke et tall. */
+      const py = hoydeOrd(c.fane_hoyde) ? null : c.fane_hoyde;
+      const minB = breddeOrd(c.fane_bredde) ? null : c.fane_bredde;
+      const radH = h ? FANE_H[h] : c.rad_hoyde;
+      const full = b === "full" || c.rad_bredde === "full";
+      const vars = [
+        ["--ki-fane-py", h ? null : enhet(py)],
+        /* Hele høyden, ikke luften rundt teksten. Med bare padding å skru på stopper
+           fanen ved tekstens egen linjehøyde: fane_hoyde: 1 gir fortsatt ~20 px, og det
+           var ikke til å komme under. rad_hoyde setter høyden direkte og lar teksten
+           sentreres i den. */
+        ["--ki-fane-h", enhet(radH)],
+        ["--ki-fane-h-py", radH ? "0px" : null],
+        ["--ki-fane-lh", radH ? "1" : null],
+        ["--ki-fane-px", b === "kompakt" ? "12px" : enhet(c.fane_sidepadding)],
+        ["--ki-fane-bredde", enhet(minB)],
+        ["--ki-fane-tekst", enhet(c.fane_tekst)],
+        ["--ki-rad-bredde", full ? "100%" : enhet(c.rad_bredde)],
+        ["--ki-fane-flex", (b === "full" || c.fane_lik) ? "1 1 0" : null],
+        /* Den runde fanen utenfor gruppa følger rada: fanehøyden + ramme og innrykk. */
+        ["--ki-utenfor", h ? (FANE_H[h] + 6) + "px" : null],
+      ];
+      for (const [k, v] of vars) {
+        if (v) this.style.setProperty(k, v); else this.style.removeProperty(k);
+      }
+      if (forst) return;
+      requestAnimationFrame(() => {
+        if (this._tilpassAuto) this._tilpassAuto();
+        this._flyttPille(this._active, true);
+        if (this._tilpassApen) this._plasserTilpass();
+      });
+    }
+
+    /* ------------------------------------------------------- Tilpass faner */
+    _apneTilpass() {
+      if (this._config.tilpass === false) return;
+      KI.fire(this, "haptic", "medium");
+      if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) { /* ok */ }
+      const r = this.shadowRoot;
+      this._lukkTilpass();
+      const bak = document.createElement("div");
+      bak.className = "tp-bak";
+      bak.addEventListener("click", () => this._lukkTilpass());
+      const tp = document.createElement("div");
+      tp.className = "tp";
+      tp.setAttribute("role", "dialog");
+      tp.setAttribute("aria-label", "Tilpass faner");
+      tp.addEventListener("click", (e) => {
+        const el = e.target.closest && e.target.closest("[data-tp]");
+        if (el) this._tilpassValg(el.dataset.tp);
+      });
+      r.appendChild(bak); r.appendChild(tp);
+      this._tp = tp; this._tpBak = bak; this._tilpassApen = true;
+      this.classList.add("ki-meny-apen");
+      this._tpEsc = this._tpEsc || ((e) => { if (e.key === "Escape") this._lukkTilpass(); });
+      document.addEventListener("keydown", this._tpEsc);
+      this._tegnTilpass();
+      this._plasserTilpass();
+    }
+    _lukkTilpass() {
+      if (this._tp) this._tp.remove();
+      if (this._tpBak) this._tpBak.remove();
+      this._tp = this._tpBak = null;
+      if (this._tpEsc) document.removeEventListener("keydown", this._tpEsc);
+      if (this._tilpassApen && !this._menuOpen) this.classList.remove("ki-meny-apen");
+      this._tilpassApen = false;
+    }
+    _tegnTilpass() {
+      if (!this._tp) return;
+      const { h, b } = this._faneValg();
+      const chip = (on, arg, tekst) => `<button class="tp-chip ${on ? "pa" : ""}" data-tp="${arg}" aria-pressed="${on}">${tekst}</button>`;
+      this._tp.innerHTML = `
+        <div class="tp-topp"><span class="tp-tittel">Tilpass faner</span>
+          <button class="tp-knapp" data-tp="nullstill">Nullstill</button>
+          <button class="tp-knapp ferdig" data-tp="lukk">Ferdig</button></div>
+        <div class="tp-rad"><span class="tp-etikett">Bredde</span><div class="tp-chips">
+          ${[["standard", "Standard"], ["kompakt", "Kompakt"], ["full", "Full"]].map(([v, t]) => chip((b || "standard") === v, "bredde|" + v, t)).join("")}
+        </div></div>
+        <div class="tp-rad"><span class="tp-etikett">Høyde</span><div class="tp-chips">
+          ${[["standard", "Standard"], ["lav", "Lav"], ["middels", "Middels"], ["hoy", "Høy"], ["ekstra", "Ekstra"]].map(([v, t]) => chip((h || "standard") === v, "hoyde|" + v, t)).join("")}
+        </div></div>`;
+    }
+    /* Under rada når det er plass, ellers over. Fast posisjon, så foreldre med
+       overflow:hidden ikke klipper panelet — samme grep som nedtrekksmenyen. */
+    _plasserTilpass() {
+      const tp = this._tp, bar = this.shadowRoot.querySelector(".bar");
+      if (!tp || !bar) return;
+      const b = bar.getBoundingClientRect(), t = tp.getBoundingClientRect(), marg = 16;
+      const venstre = Math.min(Math.max(marg, b.left + b.width / 2 - t.width / 2), Math.max(marg, window.innerWidth - t.width - marg));
+      const under = window.innerHeight - b.bottom - marg >= t.height + 8 || b.top < t.height + 8 + marg;
+      tp.style.left = Math.round(venstre) + "px";
+      tp.style.top = under ? Math.round(b.bottom + 8) + "px" : Math.round(b.top - t.height - 8) + "px";
+    }
+    _tilpassValg(arg) {
+      if (arg === "lukk") { this._lukkTilpass(); return; }
+      const alle = { ...((KI.ud && KI.ud(this._hass, "ki_tabs")) || {}) }, n = this._udNokkel();
+      if (arg === "nullstill") delete alle[n];
+      else {
+        const [k, v] = String(arg).split("|");
+        alle[n] = { ...(alle[n] || {}), [k]: v };
+      }
+      KI.fire(this, "haptic", "selection");
+      if (KI.udSave) KI.udSave(this._hass, "ki_tabs", alle);
+      else { this._mal(); this._tegnTilpass(); }
     }
 
     /* Hvilken nøkkel i kort_naar/ikon_naar som treffer akkurat nå. Tom streng betyr
@@ -507,6 +708,13 @@
         const bytte = this._sistePille !== undefined && this._sistePille !== i;
         this._sistePille = i;
         if (!bytte) uten = true;
+        /* Flytende glass: strekk mens den glir til en ny fane, eller en liten
+           landing når den ble dratt dit med fingeren. */
+        if (bytte && pille.animate) {
+          const klasse = this._fraDra ? "land" : (uten ? "" : "glid");
+          pille.classList.remove("glid", "land");
+          if (klasse) { void pille.offsetWidth; pille.classList.add(klasse); }
+        }
 
         /* offsetLeft/offsetWidth, ikke rektangelet: det regner med transformer, og en
            popup som glir inn med scale gir da en skalert bredde. `clientLeft` er
@@ -541,6 +749,14 @@
         return best;
       };
 
+      /* Strekken mens man drar: pilla blir bredere og lavere jo fortere fingeren går,
+         og slapper av når fingeren står stille. */
+      let sistX = 0, sistT = 0, roT = null, holdT = null;
+      const strekk = (sx, sy) => {
+        pille.style.setProperty("--sx", sx);
+        pille.style.setProperty("--sy", sy);
+      };
+
       rad.addEventListener("pointerdown", (e) => {
         const b = e.target.closest && e.target.closest(".tab[data-i]");
         if (!b) return;
@@ -548,32 +764,60 @@
         startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
         bredde = pille.offsetWidth;
         drar = false;
+        sistX = e.clientX; sistT = performance.now();
         pille.classList.add("trykk");
+        /* Langt trykk (uten dra) åpner «Tilpass faner». */
+        clearTimeout(holdT);
+        this._holdt = false;
+        if (this._config.tilpass !== false) {
+          holdT = setTimeout(() => {
+            if (drar || !start) return;
+            start = 0;
+            this._holdt = true;
+            pille.classList.remove("trykk");
+            this._apneTilpass();
+          }, 600);
+        }
       });
 
       rad.addEventListener("pointermove", (e) => {
         if (!start) return;
         const dx = e.clientX - start;
         if (!drar && Math.abs(dx) < 6) return;      // skjelv er ikke en dra
+        if (!drar) clearTimeout(holdT);
         drar = true;
-        pille.classList.remove("trykk");
+        pille.classList.remove("trykk", "glid", "land");
         pille.classList.add("drar");
         const maks = rad.scrollWidth - bredde - 4;
         pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
+        const na = performance.now();
+        const fart = Math.abs(e.clientX - sistX) / Math.max(8, na - sistT);   // px per ms
+        sistX = e.clientX; sistT = na;
+        const s = Math.min(0.16, fart * 0.1);
+        strekk((1 + s).toFixed(3), (1 - s * 0.55).toFixed(3));
+        clearTimeout(roT);
+        roT = setTimeout(() => strekk(1, 1), 90);
         rad.setPointerCapture && e.pointerId !== undefined
           && rad.setPointerCapture(e.pointerId);
       });
 
       const slipp = (e) => {
+        clearTimeout(holdT);
         if (!start) return;
+        clearTimeout(roT);
+        strekk(1, 1);
         pille.classList.remove("trykk", "drar");
         const valgt = drar ? fanen(e.clientX) : null;
         start = 0;
+        this._fraDra = drar;
         if (valgt !== null && valgt !== undefined && valgt !== this._active) {
           this._select(valgt);
         } else {
-          this._flyttPille(this._active);           // snapp tilbake
+          /* snapp tilbake — med en landing når den faktisk ble dratt */
+          this._flyttPille(this._active);
+          if (drar) { pille.classList.remove("glid", "land"); void pille.offsetWidth; pille.classList.add("land"); }
         }
+        this._fraDra = false;
         drar = false;
       };
       rad.addEventListener("pointerup", slipp);
@@ -862,8 +1106,15 @@
       const f = document.createElement("ha-form");
       f.hass = this._h;
       f.data = { align: this._c.align || "midten", tittel: this._c.tittel || "",
-        fane_hoyde: this._c.fane_hoyde ?? 9, fane_sidepadding: this._c.fane_sidepadding ?? 20,
-        fane_bredde: this._c.fane_bredde ?? 0, fane_tekst: this._c.fane_tekst ?? 14,
+        /* fane_hoyde / fane_bredde kan være et tall ELLER et forhåndsvalg (ord).
+           Tallfeltet får bare tall; ordet vises i sitt eget nedtrekk. */
+        fane_hoyde: hoydeOrd(this._c.fane_hoyde) ? 9 : (this._c.fane_hoyde ?? 9),
+        fane_sidepadding: this._c.fane_sidepadding ?? 20,
+        fane_bredde: breddeOrd(this._c.fane_bredde) ? 0 : (this._c.fane_bredde ?? 0),
+        fane_tekst: this._c.fane_tekst ?? 14,
+        hoyde_valg: hoydeOrd(this._c.fane_hoyde) || "standard",
+        bredde_valg: breddeOrd(this._c.fane_bredde) || "standard",
+        tilpass: this._c.tilpass !== false,
         rad_hoyde: this._c.rad_hoyde ?? 0,
         fane_lik: !!this._c.fane_lik, rad_bredde: this._c.rad_bredde || "",
         tittel_storrelse: this._c.tittel_storrelse || "", gap: this._c.gap ?? 12,
@@ -890,6 +1141,13 @@
           ] },
         { name: "mal", type: "expandable", flatten: true, icon: "mdi:ruler",
           schema: [
+            { name: "hoyde_valg", selector: { select: { mode: "dropdown", options: [
+              { value: "standard", label: "Standard (tallene under)" }, { value: "lav", label: "Lav (30 px)" },
+              { value: "middels", label: "Middels (38 px)" }, { value: "hoy", label: "Høy (46 px)" },
+              { value: "ekstra", label: "Ekstra høy (56 px)" }] } } },
+            { name: "bredde_valg", selector: { select: { mode: "dropdown", options: [
+              { value: "standard", label: "Standard" }, { value: "kompakt", label: "Kompakt" },
+              { value: "full", label: "Full bredde" }] } } },
             { name: "rad_hoyde", selector: { number: { min: 0, max: 72, mode: "slider" } } },
             { name: "fane_hoyde", selector: { number: { min: 0, max: 28, mode: "slider" } } },
             { name: "fane_sidepadding", selector: { number: { min: 4, max: 60, mode: "slider" } } },
@@ -909,6 +1167,7 @@
             { name: "sticky", selector: { boolean: {} } },
             { name: "fast_hoyde", selector: { boolean: {} } },
             { name: "dropdown_under", selector: { boolean: {} } },
+            { name: "tilpass", selector: { boolean: {} } },
           ] },
       ];
       const navn = { utseende: "Utseende", oppforsel: "Oppførsel", mal: "Mål",
@@ -925,10 +1184,22 @@
         style: "Form", sticky: "Fest rada øverst ved rulling",
         default: "Fanen kortet åpner på",
         fast_hoyde: "Lås høyden til den høyeste fanen",
-        dropdown_under: "Nedtrekk under rada i stedet for over" };
+        dropdown_under: "Nedtrekk under rada i stedet for over",
+        hoyde_valg: "Fanehøyde (ferdig valg – overstyrer tallene)",
+        bredde_valg: "Fanebredde (ferdig valg)",
+        tilpass: "Langt trykk på en fane åpner «Tilpass faner» (per bruker)" };
       f.computeLabel = (x) => navn[x.name] || x.name;
       f.addEventListener("value-changed", (e) => {
-        Object.assign(this._c, e.detail.value);
+        const inn = { ...e.detail.value };
+        const hv = inn.hoyde_valg, bv = inn.bredde_valg, tp = inn.tilpass;
+        delete inn.hoyde_valg; delete inn.bredde_valg; delete inn.tilpass;
+        Object.assign(this._c, inn);
+        /* Et forhåndsvalg vinner over tallfeltet, og skrives som ordet. «Standard»
+           betyr tallene — da brukes det som står i tallfeltet (og standardtallet
+           ryddes bort under, som før). */
+        if (hv && hv !== "standard") this._c.fane_hoyde = hv;
+        if (bv && bv !== "standard") this._c.fane_bredde = bv;
+        if (tp === false) this._c.tilpass = false; else delete this._c.tilpass;
         /* Tomme og standardverdier ut av YAML-en. Ellers står `bg: ""` og
            `sticky: false` igjen og ser ut som noe man har valgt. */
         for (const k of ["tittel", "tittel_storrelse", "bg", "default"]) {

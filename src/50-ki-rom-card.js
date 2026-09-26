@@ -1,5 +1,5 @@
 /* ============================================================================
- * ki-rom-card  v1.10.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
+ * ki-rom-card  v1.14.0  –  auto-bygd rom-popup fra KI Rom-integrasjonen
  *
  *  type: custom:ki-rom-card
  *  rom: stue                      # area_id – eller liste: [stue, kjokken] – eller alle (+ ekskluder_rom: [garasje, bod])
@@ -27,6 +27,15 @@
  *  rom_tall: auto                 # KI Energis number.ki_rom_<rom>_temp brukes hvis den finnes
  *  teller_suffix: _teller         # input_number.<klima>_teller brukes hvis den finnes
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
+ *  tilpass: false                 # skjul «Tilpass rommet»-knappen nederst
+ *
+ *  «Tilpass rommet» (nederst i popupen) lar hver bruker skjule/vise enheter, sortere,
+ *  gi nytt navn til og skjule seksjoner og scener, legge til scener/skript og velge
+ *  temperatur-/fuktsensor. Lagres per bruker i HA (KI.udSave, nøkkel ki_rom):
+ *    { <rom>: { skjul: [], vis: [], temp, fukt,
+ *               scener: { skjul, rekkefolge, navn: {}, ekstra: [] },
+ *               fliser: { skjul, vis, rekkefolge, navn: {} } } }
+ *  ki-rom-tile-card leser temp/fukt herfra, så flisa på forsiden viser samme sensor.
  *
  *  type: custom:ki-rom-popups     # lager én bubble-card pop-up per rom (#<area_id>)
  *  farger: { stue: var(--green), kjokken: var(--red) }
@@ -58,6 +67,11 @@
     return out;
   }
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  /* Brukerens rekkefølge først, så resten i standardrekkefølge. */
+  function ordered(all, rek) {
+    const r = (rek || []).filter((x) => all.includes(x));
+    return [...r, ...all.filter((x) => !r.includes(x))].filter((x, i, a) => a.indexOf(x) === i);
+  }
 
   function stripRoom(name, room) {
     if (!name) return name;
@@ -151,8 +165,8 @@
           type: 'custom:paper-buttons-row',
           styles: { display: 'flex', 'flex-direction': 'column', 'flex-wrap': 'wrap', 'border-radius': '30px' },
           buttons: [
-            { icon: 'mdi:chevron-up', ripple: 'none', styles: { icon: { color: 'var(--gray100)' }, button: { background: 'var(--gray100)', 'border-radius': '50% 50% 0 0', width: '38px', height: '38px', 'z-index': 1 } } },
-            { name: "{{ state_attr('" + clim + "', 'temperature') | round(0) }}°", ripple: 'none', styles: { name: { color: 'var(--gray100)' }, button: { background: 'var(--gray100)', 'border-radius': 0 } } },
+            { icon: 'mdi:chevron-up', ripple: 'none', entity: clim, tap_action: { action: 'none' }, hold_action: { action: 'more-info' }, styles: { icon: { color: 'var(--gray100)' }, button: { background: 'var(--gray100)', 'border-radius': '50% 50% 0 0', width: '38px', height: '38px', 'z-index': 1 } } },
+            { name: "{{ state_attr('" + clim + "', 'temperature') | round(0) }}°", ripple: 'none', entity: clim, tap_action: { action: 'none' }, hold_action: { action: 'more-info' }, styles: { name: { color: 'var(--gray100)' }, button: { background: 'var(--gray100)', 'border-radius': 0 } } },
           ],
         },
       };
@@ -175,6 +189,8 @@
     return {
       type: 'custom:button-card',
       name: roomName,
+      /* Langt trykk på toppen åpner temperatursensoren bak tallet. */
+      ...(temp ? { hold_action: { action: 'more-info', entity: temp } } : {}),
       styles: {
         grid: [{ 'grid-template-areas': '"temp btn1" "n btn1"' }, { 'grid-template-columns': '1fr min-content' }, { 'grid-template-rows': '65% 1fr' }],
         card: [{ height: '160px' }, { padding: '6px' }, { 'margin-top': '12px' }],
@@ -202,16 +218,18 @@
   const coverPct = (e, size) => ({
     type: 'custom:button-card', view_layout: { 'grid-area': 'three' }, entity: e,
     name: T('return 100-Math.floor(entity.attributes.current_position) + "%"'), show_icon: false,
+    hold_action: { action: 'more-info' },
     styles: { card: [{ background: 'none' }, { padding: '8px 0px' }, { overflow: 'visible' }, { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': size }, { 'font-weight': 500 }, { 'justify-self': 'end' }] },
   });
   const coverLabel = (e, name, pad) => ({
     type: 'custom:button-card', view_layout: { 'grid-area': 'one' }, name, entity: e,
-    tap_action: { action: 'more-info' }, show_icon: false,
+    tap_action: { action: 'more-info' }, hold_action: { action: 'more-info' }, show_icon: false,
     styles: { card: [{ background: 'none' }, { padding: pad }, { overflow: 'visible' }, { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'start' }] },
   });
   const presetBtn = (e, label, pos, first) => ({
     type: 'custom:button-card', name: label, show_icon: false,
     tap_action: { action: 'perform-action', perform_action: 'cover.set_cover_position', target: { entity_id: e }, data: { position: pos } },
+    hold_action: { action: 'more-info', entity: e },
     styles: { card: [{ padding: '8px 14px' }, ...(first ? [{ 'margin-bottom': '6px' }] : []), { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }] },
   });
 
@@ -295,40 +313,61 @@
     return ut;
   }
 
-  function sectionScener(hass, ov, roomName, ekstra, cfg) {
+  const sceneIcon = (hass, e, ikon) => {
+    const st = hass.states[e] || { attributes: {} };
+    const kind = e.split('.')[0];
+    let icon = ikon || st.attributes.icon;
+    if (!icon) {
+      const hit = ICON_GUESS.find(([re]) => re.test(objId(e)));
+      icon = hit ? hit[1] : (kind === 'scene' ? 'mdi:palette-outline'
+        : kind === 'button' ? 'mdi:lightbulb-group' : 'mdi:script-text-outline');
+    }
+    return icon;
+  };
+
+  /* Alle scenene raden KAN vise – også de brukeren har skjult – i brukerens rekkefølge.
+     US er brukerens valg for rommet: { skjul, rekkefolge, navn, ekstra }. */
+  function sceneItems(hass, ov, roomName, ekstra, cfg, US = {}) {
     const seen = new Set();
     const items = [];
     const fraLys = (cfg && cfg.lysscener === false) ? [] : lysScener(hass, ov);
-    [...fraLys, ...ov.skript, ...ov.scener, ...(ekstra || [])].forEach((raw) => {
+    const add = (raw, extra) => {
       const e = typeof raw === 'string' ? raw : raw && raw.entity;
       if (!e || seen.has(e) || !/^(script|scene|button)\./.test(e)) return;
+      if (extra && !hass.states[e]) return;
       seen.add(e);
-      items.push({ e, kind: e.split('.')[0], navn: raw && raw.navn, ikon: raw && raw.ikon });
-    });
+      const navn = raw && raw.navn;
+      const def = navn || cap(friendly(hass, e, roomName).replace(/^Lys /, ''));
+      items.push({ e, key: e, kind: e.split('.')[0], def, icon: sceneIcon(hass, e, raw && raw.ikon), extra: !!extra });
+    };
+    [...fraLys, ...ov.skript, ...ov.scener, ...(ekstra || [])].forEach((raw) => add(raw, false));
+    [].concat(US.ekstra || []).forEach((e) => add(e, true));
+    const skjul = new Set(US.skjul || []);
+    const navn = US.navn || {};
+    return ordered(items.map((x) => x.key), US.rekkefolge)
+      .map((k) => items.find((x) => x.key === k))
+      .map((x) => ({ ...x, name: navn[x.key] || x.def, hid: skjul.has(x.key) }));
+  }
+
+  function sectionScener(hass, ov, roomName, ekstra, cfg, US) {
+    const items = sceneItems(hass, ov, roomName, ekstra, cfg, US).filter((x) => !x.hid);
     if (!items.length) return null;
-    const buttons = items.map(({ e, kind, navn, ikon }) => {
-      const st = hass.states[e] || { attributes: {} };
-      const name = navn || cap(friendly(hass, e, roomName).replace(/^Lys /, ''));
-      let icon = ikon || st.attributes.icon;
-      if (!icon) {
-        const hit = ICON_GUESS.find(([re]) => re.test(objId(e)));
-        icon = hit ? hit[1] : (kind === 'scene' ? 'mdi:palette-outline'
-          : kind === 'button' ? 'mdi:lightbulb-group' : 'mdi:script-text-outline');
-      }
-      return {
-        icon, layout: 'icon_name_state', name,
-        tap_action: kind === 'script'
-          ? { action: 'call-service', service: e }
-          : kind === 'button'
-            ? { action: 'call-service', service: 'button.press', target: { entity_id: e } }
-            : { action: 'call-service', service: 'scene.turn_on', target: { entity_id: e }, data: { transition: 1 } },
-        styles: {
-          name: { color: 'var(--gray800)' },
-          button: { padding: '12px', width: '76px', height: '76px', 'flex-basis': 1, 'flex-shrink': 0, display: 'flex', 'background-color': 'var(--gray200)', 'border-radius': '24px', color: 'var(--white)' },
-          icon: { '--mdc-icon-size': '26px', color: 'var(--gray800)' },
-        },
-      };
-    });
+    const buttons = items.map(({ e, kind, name, icon }) => ({
+      /* entity gir langt trykk = mer-info. «icon_name» og ikke «icon_name_state»: med
+         entitet ville tilstanden (et tidsstempel for scener) blitt vist under navnet. */
+      icon, layout: 'icon_name', name, entity: e,
+      hold_action: { action: 'more-info' },
+      tap_action: kind === 'script'
+        ? { action: 'call-service', service: e }
+        : kind === 'button'
+          ? { action: 'call-service', service: 'button.press', target: { entity_id: e } }
+          : { action: 'call-service', service: 'scene.turn_on', target: { entity_id: e }, data: { transition: 1 } },
+      styles: {
+        name: { color: 'var(--gray800)' },
+        button: { padding: '12px', width: '76px', height: '76px', 'flex-basis': 1, 'flex-shrink': 0, display: 'flex', 'background-color': 'var(--gray200)', 'border-radius': '24px', color: 'var(--white)' },
+        icon: { '--mdc-icon-size': '26px', color: 'var(--gray800)' },
+      },
+    }));
     return {
       type: 'custom:paper-buttons-row',
       styles: { gap: '8px', 'justify-content': 'flex-start', overflow: 'scroll', margin: 0, 'padding-left': 0, width: '100%' },
@@ -338,7 +377,7 @@
     };
   }
 
-  function sectionLys(hass, ov, roomName) {
+  function sectionLys(hass, ov, roomName, title) {
     if (!ov.lys.length) return null;
     const cards = ov.lys.map((e) => {
       const modes = (hass.states[e] || {}).attributes?.supported_color_modes || [];
@@ -348,7 +387,7 @@
       return c;
     });
     return expander(
-      [headerTitle('Lys', 'mdi:lamp'), headerCounter(activeCountTemplate(ov.lys, 'på', 'av'))],
+      [headerTitle(title || 'Lys', 'mdi:lamp'), headerCounter(activeCountTemplate(ov.lys, 'på', 'av'))],
       cards, '100px 0px'
     );
   }
@@ -379,7 +418,7 @@
           type: 'custom:paper-buttons-row',
           styles: { 'justify-content': 'flex-end', gap: '4px' },
           buttons: ['decrease_speed', 'increase_speed'].map((svc, i) => ({
-            layout: 'icon', icon: i ? 'mdi:plus' : 'mdi:minus',
+            layout: 'icon', icon: i ? 'mdi:plus' : 'mdi:minus', entity: e, hold_action: { action: 'more-info' },
             tap_action: { action: 'call-service', service: 'fan.' + svc, service_data: { entity_id: e } },
             styles: {
               button: { 'flex-basis': 1, 'flex-shrink': 0, 'background-color': T('return entity.state === "on" ? "rgba(0,0,0, 0.1)" : "var(--gray200)";'), height: '34px', width: '34px', 'border-radius': '50%', border: '1px solid rgba(0,0,0, 0.1)' },
@@ -401,7 +440,7 @@
     },
   });
 
-  function sectionEnheter(hass, ov, roomName, palette, cfg) {
+  function sectionEnheter(hass, ov, roomName, palette, cfg, title) {
     const flyttet = new Set([].concat((cfg && cfg.klima_ekstra) || [])
       .map((x) => (typeof x === 'string' ? x : x && x.entity)).filter(Boolean));
     /* Viftene ligger under Klima, ikke her. En vifte er noe man styrer sammen med
@@ -414,7 +453,7 @@
     const cards = ov.brytere.map((d, i) =>
       switchCard(hass, d.entity, d.effekt, friendly(hass, d.entity, roomName), palette[i % palette.length]));
     return expander(
-      [headerTitle('Enheter', 'mdi:radio'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
+      [headerTitle(title || 'Enheter', 'mdi:radio'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
       [{ square: false, type: 'grid', columns: 1, cards }]
     );
   }
@@ -496,7 +535,9 @@
       ? T('return Math.round(states["' + teller + '"].state) + "°";')
       : T('return Math.round(entity.attributes.temperature) + "°";');
     const btn = (icon, radius, height, border, action, nameTpl) => {
-      const b = { ripple: 'none', styles: { button: { background: bgTpl, 'border-radius': radius, width: '46px', height, 'z-index': 1, 'border-width': border, 'border-style': 'solid', 'border-color': 'var(--gray400)' } } };
+      /* entity gir langt trykk = mer-info; tap_action none så en knapp uten handling
+         (tallet i midten) ikke faller tilbake på paper-buttons-rows standard toggle. */
+      const b = { ripple: 'none', entity: e, tap_action: { action: 'none' }, hold_action: { action: 'more-info' }, styles: { button: { background: bgTpl, 'border-radius': radius, width: '46px', height, 'z-index': 1, 'border-width': border, 'border-style': 'solid', 'border-color': 'var(--gray400)' } } };
       if (icon) { b.icon = icon; b.name = false; b.styles.icon = { color: colorTpl }; }
       else { b.name = nameTpl; b.icon = false; b.styles.name = { color: colorTpl }; }
       if (action) b.tap_action = action;
@@ -542,12 +583,12 @@
     };
   }
 
-  function sectionKlima(hass, ov, cfg, roomName) {
+  function sectionKlima(hass, ov, cfg, roomName, title) {
     /* Panelovner og andre varmekilder kan legges til med klima_ekstra – enten som
        climate-entitet eller som bryter med egen effektsensor. */
     const ekstra = [].concat(cfg.klima_ekstra || [])
       .map((x) => (typeof x === 'string' ? { entity: x } : x))
-      .filter((d) => d && d.entity && hass.states[d.entity])
+      .filter((d) => d && d.entity && hass.states[d.entity] && !(ov.skjult && ov.skjult.has(d.entity)))
       .map((d) => ({ ...d, effekt: d.effekt || finnEffekt(hass, d.entity) }));
     const enheter = [...ov.klima, ...ekstra.filter((d) => !ov.klima.some((k) => k.entity === d.entity))];
     /* Viftene hører hjemme her. De kommer sist, etter varmekildene: man ser etter
@@ -589,7 +630,7 @@
     }
 
     return expander(
-      [headerTitle('Klima', 'mdi:thermostat'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
+      [headerTitle(title || 'Klima', 'mdi:thermostat'), headerCounter(wIds.length ? sumWattTemplate(wIds) : '')],
       body
     );
   }
@@ -599,7 +640,7 @@
   // kontrollrad nederst (av/på · forrige · play/pause · neste · …). Grønt når det spiller.
   const mediaCard = (e, name) => {
     const ctlBtn = (icon, service, size, big) => ({
-      layout: 'icon', icon, ripple: 'none',
+      layout: 'icon', icon, ripple: 'none', entity: e, hold_action: { action: 'more-info' },
       tap_action: { action: 'call-service', service, target: { entity_id: e } },
       styles: {
         button: {
@@ -653,14 +694,14 @@
     type: 'custom:layout-card', layout_type: 'custom:grid-layout',
     layout: { 'grid-template-columns': '90px 1fr 50px', 'grid-template-areas': '"one two three"\n' },
     cards: [
-      { type: 'custom:button-card', view_layout: { 'grid-area': 'one' }, name: 'Volum', show_icon: false, styles: { card: [{ background: 'none' }, { padding: '6px 12px' }, { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'start' }] } },
+      { type: 'custom:button-card', view_layout: { 'grid-area': 'one' }, name: 'Volum', show_icon: false, hold_action: { action: 'more-info', entity: e }, styles: { card: [{ background: 'none' }, { padding: '6px 12px' }, { '--mdc-ripple-press-opacity': 0 }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'start' }] } },
       { type: 'custom:my-slider-v2', view_layout: { 'grid-area': 'two' }, entity: e, mode: 'volume', allowTapping: true, allowSliding: true, styles: { container: [{ overflow: 'visible' }, { 'margin-top': '10px' }], card: [{ background: 'var(--gray100)' }, { 'border-radius': '4px' }, { height: '8px' }], progress: [{ background: 'var(--active-big)' }, { 'border-radius': '4px' }], thumb: [{ width: '18px' }, { height: '18px' }, { top: '-5px' }, { 'margin-right': '-4px' }, { 'border-radius': '50%' }, { background: 'var(--gray1000)' }], track: [{ background: 'none' }] } },
-      { type: 'custom:button-card', view_layout: { 'grid-area': 'three' }, entity: e, name: T('return Math.floor((entity.attributes.volume_level || 0) * 100) + "%"'), show_icon: false, styles: { card: [{ background: 'none' }, { padding: '6px 0' }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'end' }] } },
+      { type: 'custom:button-card', view_layout: { 'grid-area': 'three' }, entity: e, name: T('return Math.floor((entity.attributes.volume_level || 0) * 100) + "%"'), show_icon: false, hold_action: { action: 'more-info' }, styles: { card: [{ background: 'none' }, { padding: '6px 0' }], name: [{ 'font-size': '14px' }, { 'font-weight': 500 }, { 'justify-self': 'end' }] } },
     ],
   });
 
   let mediaSwipeSeq = 0;
-  function sectionMedia(hass, ov, roomName, cfg = {}) {
+  function sectionMedia(hass, ov, roomName, cfg = {}, title) {
     if (!ov.media.length) return null;
     const page = (e) => ({ type: 'vertical-stack', cards: [mediaCard(e, friendly(hass, e, roomName)), volumeRow(e)] });
     let cards;
@@ -677,7 +718,7 @@
       }];
     }
     return expander(
-      [headerTitle('Media', 'mdi:speaker'), headerCounter(activeCountTemplate(ov.media, 'spiller', 'av', 'playing'))],
+      [headerTitle(title || 'Media', 'mdi:speaker'), headerCounter(activeCountTemplate(ov.media, 'spiller', 'av', 'playing'))],
       cards
     );
   }
@@ -719,7 +760,7 @@
     styles: universalGrid,
   });
 
-  function sectionSensorer(hass, ov, roomName) {
+  function sectionSensorer(hass, ov, roomName, title) {
     if (!ov.sensorer.length && !ov.lysniva.length) return null;
     const ids = ov.sensorer.map((s) => s.entity);
     const cards = [
@@ -727,7 +768,7 @@
       ...ov.lysniva.map((e) => luxCard(e, ov.lysniva.length > 1 ? friendly(hass, e, roomName) : 'Lys')),
     ];
     return expander(
-      [headerTitle('Sensorer', 'mdi:motion-sensor'), headerCounter(ids.length ? activeCountTemplate(ids, 'aktiv', 'stille') : '')],
+      [headerTitle(title || 'Sensorer', 'mdi:motion-sensor'), headerCounter(ids.length ? activeCountTemplate(ids, 'aktiv', 'stille') : '')],
       [{ square: false, type: 'grid', columns: 1, cards }], '130px 0px'
     );
   }
@@ -827,28 +868,76 @@
       ov.rooms.push({ ...a, prefix: st.entity_id.replace(/^sensor\./, '').replace(/_oversikt$/, '') });
     });
     ov.prefix = ov.rooms[0].prefix;
+    ov.skjult = hide;
     ov.rom = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' '))).join(' + ');
     return ov;
   }
 
-  function generate(hass, ovStates, cfg) {
-    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], cfg.skjul);
+  /* ---------------------------------------------------------- brukervalg («Tilpass rommet»)
+   * Lagres per bruker i HA (KI.udSave) under nøkkelen ki_rom:
+   *   { <rom>: { skjul: [entity], vis: [entity], temp: sensor, fukt: sensor,
+   *             scener: { skjul, rekkefolge, navn: {id: tekst}, ekstra: [scene/script] },
+   *             fliser: { skjul, vis, rekkefolge, navn: {seksjon: tekst} } } }
+   * <rom> er area_id (flere rom: «stue+kjokken»). ki-rom-tile-card leser temp/fukt herfra. */
+  const UD_KEY = 'ki_rom';
+  const DEFAULT_ORDER = ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
+  const romKey = (cfg) => [].concat(cfg.rom || cfg.entity || []).filter(Boolean).join('+');
+  function udAll(hass) {
+    const K = window.KI || {};
+    const v = K.ud && hass ? K.ud(hass, UD_KEY) : null;
+    return v && typeof v === 'object' ? v : {};
+  }
+  function userRom(hass, cfg) {
+    const r = udAll(hass)[romKey(cfg)];
+    return r && typeof r === 'object' ? r : {};
+  }
+  /* skjul fra kortets config + brukerens skjul, minus det brukeren har valgt å vise */
+  function effSkjul(cfg, U) {
+    const vis = new Set(U.vis || []);
+    return [...new Set([].concat(cfg.skjul || [], U.skjul || []))].filter((x) => !vis.has(x));
+  }
+  /* Brukerens temperatur-/fuktsensor går foran alt annet – så lenge den finnes. */
+  function medSensorvalg(hass, cfg, U) {
+    const ut = { ...cfg };
+    if (U.temp && hass.states[U.temp]) ut.temperatur = U.temp;
+    if (U.fukt && hass.states[U.fukt]) ut.fuktighet = U.fukt;
+    return ut;
+  }
+  /* Seksjonene i brukerens rekkefølge, med skjult-flagg og eget navn. */
+  function seksjonModell(cfg, U) {
+    const UF = U.fliser || {};
+    const skjul = new Set(UF.skjul || []);
+    const vis = new Set(UF.vis || []);
+    const navn = UF.navn || {};
+    const def = (cfg.rekkefolge || DEFAULT_ORDER).filter((k) => k in DEFAULT_SECTIONS);
+    return ordered(def, UF.rekkefolge).map((k) => ({
+      key: k, navn: navn[k] || '',
+      hid: skjul.has(k) || (!cfg.seksjoner[k] && !vis.has(k)),
+    }));
+  }
+
+  function generate(hass, ovStates, cfg0, U = {}) {
+    const cfg = medSensorvalg(hass, cfg0, U);
+    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], effSkjul(cfg, U));
     parEffekt(hass, ov, cfg);
     const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
     const roomName = roomNames.length === 1 ? (cfg.navn || roomNames[0]) : roomNames;
-    const s = cfg.seksjoner;
-    const order = cfg.rekkefolge || ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
+    const sek = seksjonModell(cfg, U);
+    const tittel = {};
+    sek.forEach((x) => { tittel[x.key] = x.navn || undefined; });
     const builders = {
       // én header uansett antall rom: første temperatur-/fuktsensor og første klima (eller overstyring i cfg)
-      header: () => sectionHeader(hass, ov, cfg, cfg.navn || (Array.isArray(roomName) ? roomName.join(' + ') : roomName)),
+      header: () => sectionHeader(hass, ov, cfg, tittel.header || cfg.navn || (Array.isArray(roomName) ? roomName.join(' + ') : roomName)),
       gardiner: () => sectionGardiner(hass, ov, roomName),
-      scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra, cfg),
-      lys: () => sectionLys(hass, ov, roomName),
-      enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE, cfg),
-      klima: () => sectionKlima(hass, ov, cfg, roomName),
-      media: () => sectionMedia(hass, ov, roomName, cfg),
-      sensorer: () => sectionSensorer(hass, ov, roomName),
+      scener: () => sectionScener(hass, ov, roomName, cfg.scener_ekstra, cfg, U.scener || {}),
+      lys: () => sectionLys(hass, ov, roomName, tittel.lys),
+      enheter: () => sectionEnheter(hass, ov, roomName, cfg.farger || PALETTE, cfg, tittel.enheter),
+      klima: () => sectionKlima(hass, ov, cfg, roomName, tittel.klima),
+      media: () => sectionMedia(hass, ov, roomName, cfg, tittel.media),
+      sensorer: () => sectionSensorer(hass, ov, roomName, tittel.sensorer),
     };
+    const s = {};
+    const order = sek.map((x) => { s[x.key] = !x.hid; return x.key; });
     const cards = [];
     /* Vi teller seksjonene som faktisk GA et kort, ikke de som er slått på. Et rom kan
        ha «Vis media» på uten å ha en eneste høyttaler, og da er kortet like kort som om
@@ -870,6 +959,112 @@
     cards.push(bunn > 0 ? { type: 'custom:gap-card', height: bunn }
                         : { type: 'custom:gap-card' });
     return cards;
+  }
+
+  // ------------------------------------------------------------ modell for «Tilpass rommet»
+  const SEK_INFO = {
+    header: ['Topp', 'mdi:thermometer'], gardiner: ['Gardiner', 'mdi:curtains'],
+    scener: ['Scener', 'mdi:palette-outline'], lys: ['Lys', 'mdi:lamp'], enheter: ['Enheter', 'mdi:radio'],
+    klima: ['Klima', 'mdi:thermostat'], media: ['Media', 'mdi:speaker'], sensorer: ['Sensorer', 'mdi:motion-sensor'],
+  };
+  /* Seksjoner uten overskrift i popupen kan ikke få nytt navn. */
+  const KAN_NAVN = new Set(['header', 'lys', 'enheter', 'klima', 'media', 'sensorer']);
+  const KLASSE_IKON = {
+    door: 'mdi:door', window: 'mdi:window-closed-variant', opening: 'mdi:window-closed-variant', garage_door: 'mdi:garage',
+    motion: 'mdi:motion-sensor', occupancy: 'mdi:account', presence: 'mdi:account', moving: 'mdi:run',
+    vibration: 'mdi:vibrate', sound: 'mdi:volume-high',
+  };
+  const DOMENE_IKON = {
+    light: 'mdi:lightbulb', switch: 'mdi:power-socket-eu', fan: 'mdi:fan', climate: 'mdi:radiator',
+    cover: 'mdi:curtains', media_player: 'mdi:speaker', binary_sensor: 'mdi:motion-sensor', sensor: 'mdi:eye',
+  };
+  function entIkon(hass, e, klasse) {
+    const st = hass.states[e];
+    const a = (st && st.attributes) || {};
+    if (a.icon) return a.icon;
+    if (e.startsWith('media_player.') && a.device_class === 'tv') return 'mdi:television';
+    if (e.startsWith('sensor.') && a.device_class === 'illuminance') return 'mdi:brightness-5';
+    return KLASSE_IKON[klasse || a.device_class] || DOMENE_IKON[e.split('.')[0]] || 'mdi:help-circle-outline';
+  }
+  const TILSTAND = { on: 'På', off: 'Av', open: 'Åpen', closed: 'Lukket', opening: 'Åpner', closing: 'Lukker', playing: 'Spiller', paused: 'Pause', idle: 'Klar', standby: 'Standby', heat: 'Varme', cool: 'Kjøling', auto: 'Auto', unavailable: 'Utilgjengelig', unknown: 'Ukjent' };
+  function entTilstand(hass, e, klasse) {
+    const st = hass.states[e];
+    if (!st) return 'Finnes ikke';
+    const a = st.attributes || {};
+    if (e.startsWith('binary_sensor.') && SENSOR_STYLE[klasse || a.device_class] && (st.state === 'on' || st.state === 'off')) {
+      const [p, a2] = SENSOR_STYLE[klasse || a.device_class];
+      return st.state === 'on' ? p : a2;
+    }
+    if (e.startsWith('climate.') && a.current_temperature != null) return (TILSTAND[st.state] || st.state) + ' · ' + a.current_temperature + '°';
+    if (e.startsWith('cover.') && a.current_position != null) return (TILSTAND[st.state] || st.state) + ' · ' + a.current_position + ' %';
+    if (!isNaN(parseFloat(st.state)) && a.unit_of_measurement) return st.state + ' ' + a.unit_of_measurement;
+    return TILSTAND[st.state] || st.state;
+  }
+
+  /* Alle entitetene rommet KAN vise, gruppert som i popupen, med skjult-flagg. */
+  function entitetGrupper(hass, ovStates, cfg, U) {
+    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], []);
+    const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
+    const roomName = roomNames.length === 1 ? (cfg.navn || roomNames[0]) : roomNames;
+    const skjul = new Set(effSkjul(cfg, U));
+    const tittel = {};
+    seksjonModell(cfg, U).forEach((x) => { tittel[x.key] = x.navn; });
+    const idOf = (x) => (typeof x === 'string' ? x : x && x.entity);
+    const flyttet = [].concat(cfg.klima_ekstra || []).map(idOf).filter((e) => e && hass.states[e]);
+    const flyttSet = new Set(flyttet);
+    const klasse = {};
+    (ov.sensorer || []).forEach((x) => { if (x && x.entity) klasse[x.entity] = x.klasse; });
+    const g = [
+      ['gardiner', ov.gardiner.map(idOf)],
+      ['lys', ov.lys.map(idOf)],
+      ['enheter', ov.brytere.map(idOf).filter((e) => !flyttSet.has(e))],
+      ['klima', [...ov.klima.map(idOf), ...flyttet, ...ov.vifter.map(idOf).filter((e) => !flyttSet.has(e))]],
+      ['media', ov.media.map(idOf)],
+      ['sensorer', [...ov.sensorer.map(idOf), ...ov.lysniva.map(idOf)]],
+    ];
+    return g.map(([key, ids]) => ({
+      key, tittel: tittel[key] || SEK_INFO[key][0], ikon: SEK_INFO[key][1],
+      items: [...new Set(ids.filter(Boolean))].map((id) => ({
+        id, navn: friendly(hass, id, roomName), ikon: entIkon(hass, id, klasse[id]),
+        sub: entTilstand(hass, id, klasse[id]), hid: skjul.has(id),
+        pa: ['on', 'open', 'playing', 'heat'].includes((hass.states[id] || {}).state),
+      })),
+    })).filter((x) => x.items.length);
+  }
+
+  /* Kandidatene til temperatur/fukt: brukerens valg, config, rommets egne og reserven. */
+  function sensorValg(hass, ovStates, cfg, U) {
+    const ov = mergeOversikt(Array.isArray(ovStates) ? ovStates : [ovStates], []);
+    const has = (e) => e && hass.states[e];
+    const r = (k) => {
+      const [cfgKey, ovKey, resKey, fb, uKey] = k === 'temp'
+        ? ['temperatur', 'temperatur', 'reserve_temperatur', FALLBACK_TEMP, 'temp']
+        : ['fuktighet', 'fuktighet', 'reserve_fuktighet', FALLBACK_HUM, 'fukt'];
+      const res = cfg[resKey] || fb;
+      const auto = cfg[cfgKey] || ov[ovKey][0] || (has(res) ? res : null);
+      const valgt = has(U[uKey]) ? U[uKey] : null;
+      const liste = [...new Set([valgt, cfg[cfgKey], ...ov[ovKey], res].filter(has))];
+      return { liste, cur: valgt || auto, valgt };
+    };
+    return { temp: r('temp'), fukt: r('fukt'), roomName: ov.rooms.map((x) => x.rom || x.prefix).join(' ') };
+  }
+
+  /* Alle temperatur- eller fuktsensorer i HA, rommets egne først. */
+  function alleSensorer(hass, k, q, ord) {
+    const w = String(ord || '').toLowerCase().split(/\s+/)[0] || '#';
+    const qq = String(q || '').toLowerCase();
+    const navn = (id) => String((hass.states[id].attributes || {}).friendly_name || id);
+    const ok = (id) => {
+      if (!id.startsWith('sensor.')) return false;
+      const a = hass.states[id].attributes || {};
+      const u = String(a.unit_of_measurement || '');
+      return k === 'temp' ? (a.device_class === 'temperature' || /°\s*[cf]/i.test(u))
+        : (a.device_class === 'humidity' || (u === '%' && /fukt|humid/i.test(id + ' ' + navn(id))));
+    };
+    const rel = (id) => (id.includes(w) || navn(id).toLowerCase().includes(w) ? 1 : 0);
+    return Object.keys(hass.states).filter(ok)
+      .filter((id) => !qq || (id + ' ' + navn(id)).toLowerCase().includes(qq))
+      .sort((a, b) => rel(b) - rel(a) || navn(a).localeCompare(navn(b), 'nb'));
   }
 
   // Finn oversikt-sensor for et rom (area_id, entity-prefix eller entity id)
@@ -1032,6 +1227,123 @@
     }
   }
 
+  /* Skjult popup: bygg i ledig tid, så den er klar når den åpnes. */
+  function enqueueBuild(kort) {
+    if (kort._iKo) return;
+    kort._iKo = true;
+    const kjor = window.requestIdleCallback || ((f) => setTimeout(f, 250));
+    kjor(() => {
+      kort._iKo = false;
+      if (kort._dirty && kort._lastOv && kort.isConnected && !kort._building) { kort._dirty = false; kort._rebuild(kort._lastOv); }
+    });
+  }
+
+  const esc = (x) => String(x == null ? '' : x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const haptic = (t = 'selection') => {
+    try { window.dispatchEvent(new CustomEvent('haptic', { detail: t, bubbles: true, composed: true })); } catch (e) { /* ok */ }
+    try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) { /* ok */ }
+  };
+  /* Tap = handling, hold = mer-info. KI.bindPress fra basen når den finnes. */
+  const bindPress = (el, tap, hold) => {
+    if (window.KI && window.KI.bindPress) return window.KI.bindPress(el, tap, hold);
+    el.addEventListener('click', tap);
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); if (hold) hold(); });
+  };
+  /* Tomme lister og objekter ut, så lagret data holder seg liten. */
+  function rydd(o) {
+    Object.keys(o).forEach((k) => {
+      const v = o[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) rydd(v);
+      if (v == null || v === '' || (Array.isArray(v) && !v.length) || (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length)) delete o[k];
+    });
+    return o;
+  }
+
+  /* Stilen til «Tilpass rommet» – ki-cards sitt designspråk (DESIGN.md): flate --gray200-kort,
+     24/22 px radius, 52 px ikonsirkler, 14 px/500, ingen skygger. */
+  const TILPASS_CSS = `
+    :host { display:block; }
+    *, *::before, *::after { box-sizing:border-box; min-width:0; }
+    button { font:inherit; color:inherit; border:none; background:none; padding:0; margin:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    ha-icon { --mdc-icon-size:22px; display:inline-flex; }
+    .press { transition: transform .08s ease, filter .15s ease; }
+    .press:active { transform: scale(.97); filter: brightness(1.08); }
+    .ic { width:52px; height:52px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+      background:rgba(250,251,252,.1); border:1px solid rgba(250,251,252,.1); color:var(--gray1000); }
+    .ic ha-icon { --mdc-icon-size:26px; }
+    .knapp { display:flex; align-items:center; gap:12px; width:100%; height:66px; padding:0 20px 0 7px; border-radius:22px;
+      background:var(--gray200); color:var(--gray1000); text-align:left; user-select:none; }
+    .knapp .txt { flex:1; display:flex; flex-direction:column; gap:2px; }
+    .n { font-size:14px; font-weight:500; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .s { font-size:14px; font-weight:500; line-height:1.25; opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .knapp .n { font-size:16px; }
+    .knapp > ha-icon { opacity:.5; }
+
+    .wrap { display:flex; flex-direction:column; gap:var(--ki-rom-gap, 8px); color:var(--gray1000); user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      padding-bottom:calc(var(--kd-dokk-h, 90px) + 96px + env(safe-area-inset-bottom)); }
+    .intro { padding:18px 20px; border-radius:24px; background:var(--gray200); }
+    .intro .h { font-size:30px; font-weight:500; line-height:1.1; }
+    .intro .s { white-space:normal; margin-top:6px; }
+    .panel { border-radius:24px; background:var(--gray200); padding:4px 12px 12px; display:flex; flex-direction:column; }
+    .ph { display:flex; align-items:center; gap:12px; min-height:46px; padding:0 2px; }
+    .ph .t { flex:1; font-size:16px; font-weight:500; }
+    .ph .alt { font-size:14px; font-weight:500; color:var(--gray600, var(--gray800)); white-space:nowrap; }
+    .rows { display:flex; flex-direction:column; gap:6px; }
+    .row { display:flex; align-items:center; gap:8px; min-height:66px; padding:7px 7px; border-radius:22px; background:var(--gray100); }
+    .row .txt { flex:1; display:flex; flex-direction:column; gap:2px; padding-left:4px; }
+    .row.on .ic { background:var(--active-big, #ee95ff); border-color:transparent; color:var(--black, #000); }
+    .row.hid .ic, .row.hid .txt, .row.hid input { opacity:.4; }
+    .row.hid .n, .row.hid input { text-decoration:line-through; }
+    .row.ent { cursor:pointer; }
+    .rb { width:40px; height:40px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+      background:var(--gray200); color:var(--gray1000); }
+    .rb[disabled] { opacity:.25; pointer-events:none; }
+    .rb.eye { background:var(--gray200); color:var(--gray1000); }
+    .row.hid .rb.eye { background:none; border:1px dashed var(--gray400); color:var(--gray600, var(--gray800)); }
+    .rb.del { color:var(--red, #e5484d); }
+    input.nm { flex:1; height:40px; border-radius:999px; border:none; outline:none; padding:0 14px;
+      background:var(--gray200); color:var(--gray1000); font:inherit; font-size:14px; font-weight:500; }
+    input.nm::placeholder, input.sok::placeholder { color:var(--gray1000); opacity:.45; }
+    .tom { font-size:14px; font-weight:500; opacity:.5; padding:6px 4px; }
+    .sens { display:flex; flex-direction:column; gap:10px; padding:4px 2px 8px; }
+    .sens + .sens { border-top:1px solid rgba(250,251,252,.06); padding-top:12px; }
+    .sh { display:flex; align-items:center; gap:10px; }
+    .sh .t { flex:1; font-size:14px; font-weight:500; opacity:.7; }
+    .pill { display:flex; align-items:center; gap:6px; height:36px; padding:0 14px; border-radius:999px;
+      background:var(--gray100); font-size:14px; font-weight:500; white-space:nowrap; }
+    .pill ha-icon { --mdc-icon-size:18px; }
+    .pill.sel { background:var(--active-big, #ee95ff); color:var(--black, #000); }
+    .chips { display:flex; flex-wrap:wrap; gap:6px; }
+    .chips.scroll { max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
+    .chip { display:flex; align-items:center; gap:6px; max-width:100%; height:36px; padding:0 14px; border-radius:999px;
+      background:var(--gray100); font-size:14px; font-weight:500; }
+    .chip ha-icon { --mdc-icon-size:18px; flex:none; }
+    .chip .l { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chip .v { opacity:.7; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .chip.sel { background:var(--active-big, #ee95ff); color:var(--black, #000); }
+    .chip.sel .v { opacity:.8; }
+    input.sok { width:100%; height:46px; border-radius:999px; border:none; outline:none; padding:0 18px;
+      background:var(--gray100); color:var(--gray1000); font:inherit; font-size:14px; font-weight:500; }
+    .mer { font-size:14px; font-weight:500; opacity:.5; }
+    .add { display:flex; align-items:center; justify-content:center; gap:8px; height:46px; margin-top:8px; border-radius:999px;
+      background:var(--gray100); font-size:14px; font-weight:500; }
+    .add.sel { background:var(--active-big, #ee95ff); color:var(--black, #000); }
+    .addbox { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+
+    .bar { position:fixed; left:12px; right:12px; z-index:30; max-width:560px; margin:0 auto;
+      bottom:calc(var(--kd-dokk-h, 90px) + 6px + env(safe-area-inset-bottom));
+      display:flex; align-items:center; gap:8px; padding:8px 8px 8px 8px; border-radius:999px;
+      background:var(--gray200); border:1px solid rgba(250,251,252,.1);
+      -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); box-shadow:none; }
+    .bar .ic { width:46px; height:46px; }
+    .bar .txt { flex:1; display:flex; flex-direction:column; gap:1px; padding-left:2px; }
+    .bar .b { height:46px; padding:0 18px; border-radius:999px; background:var(--gray100); font-size:14px; font-weight:500; flex:none; }
+    .bar .b.ok { background:var(--active-big, #ee95ff); color:var(--black, #000); }
+    @media (max-width:380px) { .bar .txt .s { display:none; } }
+    @media (prefers-reduced-motion: reduce) { .press { transition:none; } .press:active { transform:none; } }
+  `;
+
   class KiRomCard extends HTMLElement {
     static getConfigElement() { return document.createElement('ki-rom-card-editor'); }
     static getStubConfig(hass) {
@@ -1051,6 +1363,8 @@
       this._children = [];
       this._lastOv = null;
       this._dirty = true;
+      this._udSig = null;
+      this._st = this._st || {};
       if (!this._root) {
         this._root = document.createElement('div');
         this._root.style.display = 'flex';
@@ -1059,6 +1373,8 @@
       }
       const gap = this._config.gap === undefined ? 8 : this._config.gap;
       this._root.style.gap = typeof gap === 'number' ? gap + 'px' : String(gap);
+      this._gapCss = this._root.style.gap;
+      if (this._edit) this._renderEdit();
     }
 
     set hass(hass) {
@@ -1070,7 +1386,10 @@
       const ov = findOversikt(hass, this._config);
       if (!ov) { this._showError('KI Rom: fant ikke sensor.<rom>_oversikt for «' + [].concat(this._config.rom || this._config.entity).join(', ') + '» – er ki-rom ≥ 1.1 installert?'); return; }
       const changed = !this._lastOv || ov.length !== this._lastOv.length || ov.some((o, i) => o !== this._lastOv[i] && JSON.stringify(o.attributes) !== JSON.stringify(this._lastOv[i].attributes));
-      if (changed || this._dirty) {
+      /* Brukerens valg (skjul, rekkefølge, sensorer …) kom fra HA eller ble endret.
+         Mens «Tilpass rommet» er åpent venter vi – popupen bygges når brukeren trykker Ferdig. */
+      const udEndret = !this._edit && this._udSig !== null && JSON.stringify(userRom(hass, this._config)) !== this._udSig;
+      if (changed || udEndret || this._dirty) {
         this._lastOv = ov;
         this._dirty = true;
         if (this._visible !== false) { this._dirty = false; this._rebuild(ov); return; }
@@ -1105,10 +1424,23 @@
         }, { rootMargin: '300px' });
         this._io.observe(this);
       }
+      /* Brukervalgene lagres av dette kortet, et annet rom-kort eller en annen fane. */
+      if (!this._udLytter) {
+        this._udLytter = (ev) => {
+          if (!ev.detail || ev.detail.key !== UD_KEY || !this._hass) return;
+          if (this._edit) { this._renderEdit(); return; }
+          this.hass = this._hass;
+        };
+        window.addEventListener('ki-ud', this._udLytter);
+      }
       // sikkerhetsnett: er kortet fortsatt tomt etter 3 s, bygg uansett
       setTimeout(() => { if (this.isConnected && !this._children.length && this._lastOv && !this._building) { this._dirty = false; this._rebuild(this._lastOv); } }, 3000);
     }
-    disconnectedCallback() { if (this._io) { this._io.disconnect(); this._io = null; } this._visible = undefined; }
+    disconnectedCallback() {
+      if (this._io) { this._io.disconnect(); this._io = null; }
+      this._visible = undefined;
+      if (this._udLytter) { window.removeEventListener('ki-ud', this._udLytter); this._udLytter = null; }
+    }
 
     _showError(msg) {
       if (this._root.dataset.error === msg) return;
@@ -1122,7 +1454,9 @@
       this._building = true;
       try {
         const helpers = await window.loadCardHelpers();
-        const configs = generate(this._hass, ov, this._config);
+        const U = userRom(this._hass, this._config);
+        this._udSig = JSON.stringify(U);
+        const configs = generate(this._hass, ov, this._config, U);
         const els = [];
         for (const c of configs) {
           const el = await helpers.createCardElement(c);
@@ -1132,6 +1466,11 @@
         this._root.innerHTML = '';
         delete this._root.dataset.error;
         els.forEach((el) => this._root.appendChild(el));
+        /* «Tilpass rommet» nederst – før mellomrommet som skyver innholdet opp. */
+        if (this._config.tilpass !== false) {
+          const gapEl = els[els.length - 1];
+          this._root.insertBefore(this._tilpassKnapp(), gapEl || null);
+        }
         this._children = els;
         this._pendingHass = null;
       } catch (err) {
@@ -1140,6 +1479,324 @@
         this._building = false;
         if (this._pending) { const p = this._pending; this._pending = null; this._rebuild(p); }
       }
+    }
+
+    _tilpassKnapp() {
+      const host = document.createElement('div');
+      host.className = 'ki-rom-tilpass';
+      const sr = host.attachShadow({ mode: 'open' });
+      sr.innerHTML = '<style>' + TILPASS_CSS + '</style>'
+        + '<button class="knapp press" type="button"><span class="ic"><ha-icon icon="mdi:tune-variant"></ha-icon></span>'
+        + '<span class="txt"><span class="n">Tilpass rommet</span><span class="s">Skjul, sorter og velg sensorer</span></span>'
+        + '<ha-icon icon="mdi:chevron-right"></ha-icon></button>';
+      sr.querySelector('button').addEventListener('click', () => { haptic('light'); this._setEdit(true); });
+      return host;
+    }
+
+    // ---------------------------------------------------------- «Tilpass rommet»
+    _setEdit(on) {
+      this._edit = !!on;
+      this._st = {};
+      if (on) {
+        this._root.style.display = 'none';
+        this._renderEdit();
+        try { this.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* ok */ }
+      } else {
+        if (this._ed) { this._ed.remove(); this._ed = null; }
+        this._root.style.display = 'flex';
+        /* Bygg på nytt hvis noe ble endret mens vi redigerte. */
+        if (this._hass && JSON.stringify(userRom(this._hass, this._config)) !== this._udSig) {
+          this._dirty = true; this.hass = this._hass;
+        }
+        try { this.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { /* ok */ }
+      }
+    }
+
+    /* Endrer brukerens rad for rommet og lagrer den per bruker i HA. */
+    _lagre(fn) {
+      const K = window.KI || {};
+      const alle = JSON.parse(JSON.stringify(udAll(this._hass)));
+      const key = romKey(this._config);
+      const rad = alle[key] && typeof alle[key] === 'object' ? alle[key] : {};
+      fn(rad);
+      rydd(rad);
+      if (Object.keys(rad).length) alle[key] = rad; else delete alle[key];
+      haptic();
+      if (K.udSave) K.udSave(this._hass, UD_KEY, alle);
+      else this._renderEdit();
+    }
+
+    _ovListe() { return findOversikt(this._hass, this._config) || this._lastOv; }
+
+    _entHide(id) {
+      const hid = effSkjul(this._config, userRom(this._hass, this._config)).includes(id);
+      const fraCfg = [].concat(this._config.skjul || []).includes(id);
+      this._lagre((r) => {
+        r.skjul = (r.skjul || []).filter((x) => x !== id);
+        r.vis = (r.vis || []).filter((x) => x !== id);
+        /* Skjult i kortets config: vis-lista overstyrer. Ellers: brukerens skjul-liste. */
+        if (fraCfg) { if (hid) r.vis.push(id); } else if (!hid) r.skjul.push(id);
+      });
+    }
+
+    _sekHide(k) {
+      const m = seksjonModell(this._config, userRom(this._hass, this._config)).find((x) => x.key === k);
+      if (!m) return;
+      this._lagre((r) => {
+        const g = r.fliser = r.fliser || {};
+        g.skjul = (g.skjul || []).filter((x) => x !== k);
+        g.vis = (g.vis || []).filter((x) => x !== k);
+        if (!m.hid) g.skjul.push(k);
+        else if (!this._config.seksjoner[k]) g.vis.push(k);
+      });
+    }
+
+    _flytt(kind, key, d) {
+      const U = userRom(this._hass, this._config);
+      const liste = kind === 'fliser'
+        ? seksjonModell(this._config, U).map((x) => x.key)
+        : this._sceneListe(U).map((x) => x.key);
+      const i = liste.indexOf(key), j = i + d;
+      if (i < 0 || j < 0 || j >= liste.length) return;
+      [liste[i], liste[j]] = [liste[j], liste[i]];
+      this._lagre((r) => { r[kind] = r[kind] || {}; r[kind].rekkefolge = liste; });
+    }
+
+    _navn(kind, key, v, def) {
+      const t = String(v || '').trim().slice(0, 30);
+      this._lagre((r) => {
+        const g = r[kind] = r[kind] || {};
+        g.navn = { ...(g.navn || {}) };
+        if (!t || t === def) delete g.navn[key]; else g.navn[key] = t;
+      });
+    }
+
+    _sceneListe(U) {
+      const ovs = this._ovListe();
+      if (!ovs) return [];
+      const ov = mergeOversikt(ovs, []);
+      const roomNames = ov.rooms.map((r) => r.rom || cap(r.prefix.replace(/_/g, ' ')));
+      const roomName = roomNames.length === 1 ? (this._config.navn || roomNames[0]) : roomNames;
+      return sceneItems(this._hass, ov, roomName, this._config.scener_ekstra, this._config, U.scener || {});
+    }
+
+    _scHide(key) {
+      const x = this._sceneListe(userRom(this._hass, this._config)).find((y) => y.key === key);
+      this._lagre((r) => {
+        const g = r.scener = r.scener || {};
+        g.skjul = (g.skjul || []).filter((y) => y !== key);
+        if (x && !x.hid) g.skjul.push(key);
+      });
+    }
+
+    _scDel(key) {
+      this._lagre((r) => {
+        const g = r.scener = r.scener || {};
+        ['ekstra', 'skjul', 'rekkefolge'].forEach((k) => { g[k] = (g[k] || []).filter((y) => y !== key); });
+        if (g.navn) delete g.navn[key];
+      });
+    }
+
+    _scAdd(id) {
+      this._lagre((r) => {
+        const g = r.scener = r.scener || {};
+        g.ekstra = [...(g.ekstra || []).filter((y) => y !== id), id];
+        g.skjul = (g.skjul || []).filter((y) => y !== id);
+      });
+    }
+
+    _sensPick(k, id) {
+      this._lagre((r) => { if (r[k] === id) delete r[k]; else r[k] = id; });
+    }
+
+    _nullstill() {
+      this._lagre((r) => { Object.keys(r).forEach((k) => delete r[k]); });
+    }
+
+    _verdi(id, k) {
+      const st = this._hass.states[id];
+      const v = st ? parseFloat(st.state) : NaN;
+      if (isNaN(v)) return '–';
+      return k === 'fukt' ? Math.round(v) + ' %' : v.toFixed(1).replace('.', ',') + '°';
+    }
+
+    _chip(k, id, cur, valgt) {
+      const st = this._hass.states[id];
+      const navn = (st && st.attributes.friendly_name) || id;
+      return '<button type="button" class="chip press' + (id === cur ? ' sel' : '') + '" data-act="sens" data-k="' + k + '" data-id="' + esc(id) + '" data-more="' + esc(id) + '">'
+        + (id === valgt ? '<ha-icon icon="mdi:pin"></ha-icon>' : '')
+        + '<span class="l">' + esc(navn) + '</span><span class="v">' + esc(this._verdi(id, k)) + '</span></button>';
+    }
+
+    _sensListe(k) {
+      const sv = this._sv;
+      const r = sv[k];
+      const mer = alleSensorer(this._hass, k, this._st.sensQ, sv.roomName).filter((id) => !r.liste.includes(id));
+      return (mer.slice(0, 60).map((id) => this._chip(k, id, r.cur, r.valgt)).join('') || '<span class="tom">Ingen treff</span>')
+        + (mer.length > 60 ? '<span class="mer">' + (mer.length - 60) + ' til – søk for å snevre inn</span>' : '');
+    }
+
+    _scKandidater() {
+      const have = new Set(this._sceneListe(userRom(this._hass, this._config)).map((x) => x.key));
+      const q = String(this._st.scQ || '').toLowerCase();
+      const w = String(romKey(this._config)).split('+')[0].toLowerCase();
+      const navn = (id) => String((this._hass.states[id].attributes || {}).friendly_name || id);
+      const rel = (id) => (id.includes(w) || navn(id).toLowerCase().includes(w) ? 1 : 0);
+      return Object.keys(this._hass.states)
+        .filter((id) => /^(scene|script)\./.test(id) && !have.has(id) && (!q || (id + ' ' + navn(id)).toLowerCase().includes(q)))
+        .sort((a, b) => rel(b) - rel(a) || (b.startsWith('scene.') - a.startsWith('scene.')) || navn(a).localeCompare(navn(b), 'nb'));
+    }
+
+    _scListe() {
+      const c = this._scKandidater();
+      const navn = (id) => String((this._hass.states[id].attributes || {}).friendly_name || id);
+      return (c.slice(0, 40).map((id) => '<button type="button" class="chip press" data-act="scadd" data-id="' + esc(id) + '" data-more="' + esc(id) + '">'
+        + '<ha-icon icon="' + (id.startsWith('script.') ? 'mdi:script-text-outline' : 'mdi:palette-outline') + '"></ha-icon>'
+        + '<span class="l">' + esc(navn(id)) + '</span></button>').join('') || '<span class="tom">Ingen scener eller skript funnet</span>')
+        + (c.length > 40 ? '<span class="mer">' + (c.length - 40) + ' til – søk for å snevre inn</span>' : '');
+    }
+
+    /* Rad i redigeringspanelet for seksjoner og scener: navn, flytt, skjul (+ fjern). */
+    _edRad(kind, x, i, n) {
+      const rb = (act, d, icon, tip, dis, cls) => '<button type="button" class="rb press' + (cls ? ' ' + cls : '') + '" data-act="' + act + '" data-kind="' + kind + '" data-key="' + esc(x.key) + '"'
+        + (d ? ' data-d="' + d + '"' : '') + ' title="' + tip + '" aria-label="' + tip + '"' + (dis ? ' disabled' : '') + '><ha-icon icon="' + icon + '"></ha-icon></button>';
+      const felt = x.kanNavn
+        ? '<input class="nm" data-kind="' + kind + '" data-key="' + esc(x.key) + '" value="' + esc(x.navn) + '" placeholder="' + esc(x.def) + '" data-def="' + esc(x.def) + '" maxlength="30" enterkeyhint="done" autocomplete="off">'
+        : '<span class="txt"><span class="n">' + esc(x.navn) + '</span></span>';
+      return '<div class="row' + (x.hid ? ' hid' : '') + '"' + (x.more ? ' data-hold="' + esc(x.more) + '"' : '') + '>'
+        + '<span class="ic"><ha-icon icon="' + esc(x.icon) + '"></ha-icon></span>' + felt
+        + rb('flytt', '-1', 'mdi:arrow-up', 'Flytt opp', i === 0)
+        + rb('flytt', '1', 'mdi:arrow-down', 'Flytt ned', i === n - 1)
+        + rb(kind === 'fliser' ? 'sekhide' : 'schide', '', x.hid ? 'mdi:eye-off-outline' : 'mdi:eye-outline', x.hid ? 'Vis' : 'Skjul', false, 'eye')
+        + (x.extra ? rb('scdel', '', 'mdi:trash-can-outline', 'Fjern', false, 'del') : '')
+        + '</div>';
+    }
+
+    _renderEdit() {
+      if (!this._edit || !this._hass) return;
+      const ovs = this._ovListe();
+      if (!ovs) return;
+      if (!this._ed) {
+        this._ed = document.createElement('div');
+        this._ed.className = 'ki-rom-rediger';
+        this._ed.attachShadow({ mode: 'open' });
+        this.appendChild(this._ed);
+      }
+      const cfg = this._config;
+      const hass = this._hass;
+      const U = userRom(hass, cfg);
+      const st = this._st;
+      const sv = this._sv = sensorValg(hass, ovs, cfg, U);
+      const grupper = entitetGrupper(hass, ovs, cfg, U);
+      const roomName = ovs.map((o) => o.attributes.rom || o.attributes.area_id).join(' + ');
+
+      // --- temperatur og fukt
+      const sensRad = (k, tittel, ikon) => {
+        const r = sv[k];
+        const open = st.sensAll === k;
+        return '<div class="sens"><div class="sh"><ha-icon icon="' + ikon + '"></ha-icon><span class="t">' + tittel + '</span>'
+          + '<button type="button" class="pill press' + (open ? ' sel' : '') + '" data-act="sensall" data-k="' + k + '"><ha-icon icon="' + (open ? 'mdi:chevron-up' : 'mdi:magnify') + '"></ha-icon>' + (open ? 'Lukk' : 'Alle sensorer') + '</button></div>'
+          + '<div class="chips">' + (r.liste.map((id) => this._chip(k, id, r.cur, r.valgt)).join('') || '<span class="tom">Ingen forslag i rommet – søk i alle sensorer</span>') + '</div>'
+          + (open ? '<input class="sok" data-sok="sens" placeholder="Søk etter sensor …" autocomplete="off" value="' + esc(st.sensQ || '') + '">'
+            + '<div class="chips scroll" data-liste="sens">' + this._sensListe(k) + '</div>' : '')
+          + '</div>';
+      };
+      const sensPanel = '<section class="panel"><div class="ph"><ha-icon icon="mdi:thermometer"></ha-icon><span class="t">Temperatur og fukt</span>'
+        + '<span class="alt">' + (U.temp || U.fukt ? 'Eget valg' : 'Automatisk') + '</span></div>'
+        + sensRad('temp', 'Temperatur fra', 'mdi:thermometer') + sensRad('fukt', 'Fukt fra', 'mdi:water-percent') + '</section>';
+
+      // --- seksjoner (de store flisene/kategoriene i popupen)
+      const sek = seksjonModell(cfg, U);
+      const sekPanel = '<section class="panel"><div class="ph"><ha-icon icon="mdi:view-grid-outline"></ha-icon><span class="t">Seksjoner</span>'
+        + '<span class="alt">' + sek.filter((x) => !x.hid).length + ' av ' + sek.length + ' vises</span></div><div class="rows">'
+        + sek.map((x, i) => {
+          const def = x.key === 'header' ? (cfg.navn || roomName) : SEK_INFO[x.key][0];
+          return this._edRad('fliser', { key: x.key, icon: SEK_INFO[x.key][1], navn: x.navn || (KAN_NAVN.has(x.key) ? '' : def), def, hid: x.hid, kanNavn: KAN_NAVN.has(x.key) }, i, sek.length);
+        }).join('') + '</div></section>';
+
+      // --- scener
+      const scener = this._sceneListe(U);
+      const scPanel = '<section class="panel"><div class="ph"><ha-icon icon="mdi:palette-outline"></ha-icon><span class="t">Scener</span>'
+        + '<span class="alt">' + scener.filter((x) => !x.hid).length + ' av ' + scener.length + ' vises</span></div><div class="rows">'
+        + (scener.map((x, i) => this._edRad('scener', { key: x.key, icon: x.icon, navn: x.name === x.def ? '' : x.name, def: x.def, hid: x.hid, extra: x.extra, kanNavn: true, more: x.key }, i, scener.length)).join('')
+          || '<span class="tom">Ingen scener ennå</span>') + '</div>'
+        + '<button type="button" class="add press' + (st.scAdd ? ' sel' : '') + '" data-act="scaddtog"><ha-icon icon="' + (st.scAdd ? 'mdi:chevron-up' : 'mdi:plus') + '"></ha-icon>' + (st.scAdd ? 'Lukk' : 'Legg til scene eller skript') + '</button>'
+        + (st.scAdd ? '<div class="addbox"><input class="sok" data-sok="sc" placeholder="Søk etter scene eller skript …" autocomplete="off" value="' + esc(st.scQ || '') + '">'
+          + '<div class="chips scroll" data-liste="sc">' + this._scListe() + '</div></div>' : '')
+        + '</section>';
+
+      // --- entitetene, gruppert som i popupen
+      const entPanel = grupper.map((g) => '<section class="panel"><div class="ph"><ha-icon icon="' + g.ikon + '"></ha-icon><span class="t">' + esc(g.tittel) + '</span>'
+        + '<span class="alt">' + g.items.filter((x) => !x.hid).length + ' av ' + g.items.length + ' vises</span></div><div class="rows">'
+        + g.items.map((x) => '<div class="row ent press' + (x.hid ? ' hid' : '') + (x.pa ? ' on' : '') + '" data-ent="' + esc(x.id) + '" role="button" tabindex="0" aria-label="' + (x.hid ? 'Vis ' : 'Skjul ') + esc(x.navn) + '">'
+          + '<span class="ic"><ha-icon icon="' + esc(x.ikon) + '"></ha-icon></span>'
+          + '<span class="txt"><span class="n">' + esc(x.navn) + '</span><span class="s">' + esc(x.hid ? 'Skjult' : x.sub) + '</span></span>'
+          + '<span class="rb eye"><ha-icon icon="' + (x.hid ? 'mdi:eye-off-outline' : 'mdi:eye-outline') + '"></ha-icon></span></div>').join('')
+        + '</div></section>').join('');
+
+      const bar = '<div class="bar"><span class="ic"><ha-icon icon="mdi:tune-variant"></ha-icon></span>'
+        + '<span class="txt"><span class="n">Tilpass rommet</span><span class="s">Gjelder bare deg</span></span>'
+        + '<button type="button" class="b press" data-act="reset">Nullstill</button>'
+        + '<button type="button" class="b ok press" data-act="ferdig">Ferdig</button></div>';
+
+      const sr = this._ed.shadowRoot;
+      sr.innerHTML = '<style>' + TILPASS_CSS + '</style><div class="wrap" style="--ki-rom-gap:' + esc(this._gapCss || '8px') + '">'
+        + '<div class="intro"><div class="h">Tilpass ' + esc(roomName) + '</div><div class="s">Trykk på en rad for å skjule eller vise den. Hold inne for detaljer. Valgene lagres på brukeren din og følger deg til alle enheter.</div></div>'
+        + sensPanel + sekPanel + scPanel + entPanel + '</div>' + bar;
+      this._bind(sr);
+    }
+
+    _bind(root) {
+      const more = (id) => { if (id && window.KI && window.KI.moreInfo) window.KI.moreInfo(this, id); else if (id) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); };
+      root.querySelectorAll('[data-ent]').forEach((el) => {
+        const id = el.dataset.ent;
+        bindPress(el, () => this._entHide(id), () => { haptic('medium'); more(id); });
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._entHide(id); } });
+      });
+      root.querySelectorAll('[data-hold]').forEach((el) => {
+        let t = null;
+        const stopp = () => clearTimeout(t);
+        el.addEventListener('pointerdown', (e) => { if (e.target.closest('button,input')) return; t = setTimeout(() => { haptic('medium'); more(el.dataset.hold); }, 500); });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach((n) => el.addEventListener(n, stopp));
+      });
+      root.querySelectorAll('button[data-act]').forEach((el) => {
+        const d = el.dataset;
+        const tap = () => {
+          switch (d.act) {
+            case 'sens': this._sensPick(d.k, d.id); break;
+            case 'sensall': this._st.sensAll = this._st.sensAll === d.k ? null : d.k; this._st.sensQ = ''; haptic(); this._renderEdit(); break;
+            case 'sekhide': this._sekHide(d.key); break;
+            case 'schide': this._scHide(d.key); break;
+            case 'flytt': this._flytt(d.kind, d.key, Number(d.d)); break;
+            case 'scdel': this._scDel(d.key); break;
+            case 'scaddtog': this._st.scAdd = !this._st.scAdd; this._st.scQ = ''; haptic(); this._renderEdit(); break;
+            case 'scadd': this._scAdd(d.id); break;
+            case 'reset': this._nullstill(); break;
+            case 'ferdig': haptic('light'); this._setEdit(false); break;
+            default:
+          }
+        };
+        /* Chips i søkelistene: trykk = velg, hold = mer-info. */
+        if (d.more) bindPress(el, tap, () => { haptic('medium'); more(d.more); });
+        else el.addEventListener('click', tap);
+      });
+      root.querySelectorAll('input.nm').forEach((el) => {
+        el.addEventListener('change', () => this._navn(el.dataset.kind, el.dataset.key, el.value, el.dataset.def));
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+      });
+      root.querySelectorAll('input.sok').forEach((el) => {
+        el.addEventListener('input', () => {
+          const sens = el.dataset.sok === 'sens';
+          if (sens) this._st.sensQ = el.value; else this._st.scQ = el.value;
+          clearTimeout(this._sokT);
+          this._sokT = setTimeout(() => {
+            const liste = root.querySelector('[data-liste="' + el.dataset.sok + '"]');
+            if (!liste) return;
+            liste.innerHTML = sens ? this._sensListe(this._st.sensAll) : this._scListe();
+            this._bind(liste);
+          }, 120);
+        });
+      });
     }
 
     getCardSize() { return this._children.reduce((n, c) => n + (c.getCardSize ? c.getCardSize() : 3), 0) || 6; }
@@ -1222,5 +1879,5 @@
     { type: 'ki-rom-card', name: 'KI Rom', description: 'Auto-bygd rom-popup fra KI Rom-integrasjonen (velg rom i editoren)', preview: false },
     { type: 'ki-rom-popups', name: 'KI Rom popups', description: 'Én bubble-card pop-up per rom, automatisk', preview: false },
   );
-  console.info('%c KI-ROM-CARD %c 1.13.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
+  console.info('%c KI-ROM-CARD %c 1.14.0 ', 'background:#1e2327;color:#fff;border-radius:4px 0 0 4px', 'background:#4caf50;color:#000;border-radius:0 4px 4px 0');
 })();

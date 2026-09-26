@@ -68,6 +68,12 @@ const DEFAULT_CONFIG = {
   auto_zones: true,
   profiles: [],
   debug: false,
+  // Oppsett og Tilpass
+  layout: "",                // tom = som før (server_plass bestemmer)
+  show_location: false,      // stedet under navnet
+  badge_style: "ikon",       // ikon | prikk | ring | ingen
+  ring_me: false,            // ring rundt bildet til den innloggede
+  tilpass: "hold",           // hold | knapp | av – hvordan Tilpass åpnes
 };
 
 // Gjør tall om til px, men behold verdier som allerede har en enhet
@@ -80,6 +86,56 @@ function toCssSize(value, fallbackPx) {
   if (/^[0-9.]+$/.test(String(value))) return `${value}px`;
   return String(value);
 }
+
+/* ── «Tilpass» ───────────────────────────────────────────────────────────
+ *
+ * Hver bruker kan velge sitt eget utseende på toppkortet. Valgene lagres per bruker i
+ * Home Assistant (KI.udSave → frontend/set_user_data) under nøkkelen ki_familie, så de
+ * følger brukeren til alle enheter. Konfigurasjonen er standarden; brukerens valg
+ * legges oppå:
+ *
+ *   { profil: "familie"|"server"|"navn"|"under"|"kompakt",
+ *     personer: ["person.a", "person.b"],   // hvem som vises, i rekkefølge
+ *     vis_navn: true, vis_sted: false, ring_meg: true,
+ *     merke: "ikon"|"prikk"|"ring"|"ingen",
+ *     storrelse: "liten"|"middels"|"stor",
+ *     hilsen: "👋 Hei {name}!",
+ *     dobbeltrykk: "/config" }              // "" = ingenting
+ */
+const UD_KEY = "ki_familie";
+
+/* Oppsettene. `plass` er servernavnets plass (samme som server_plass). */
+const OPPSETT = [
+  { id: "familie", navn: "Familie", ikon: "mdi:account-group-outline", plass: "navn",
+    tekst: "Hilsen og bilder" },
+  { id: "server", navn: "Sted", ikon: "mdi:map-marker-outline", plass: "tittel",
+    tekst: "Stedet som tittel" },
+  { id: "navn", navn: "Navn", ikon: "mdi:account-outline", plass: "navn",
+    tekst: "Navnet ditt som tittel" },
+  { id: "under", navn: "Under", ikon: "mdi:format-align-top", plass: "under",
+    tekst: "Stedet under hilsenen" },
+  { id: "kompakt", navn: "Kompakt", ikon: "mdi:view-agenda-outline", plass: "navn",
+    tekst: "Lav og tett" },
+];
+
+/* Bildestørrelsene i Tilpass (og som tekst i avatar_size). */
+const STORRELSER = {
+  liten: { avatar: 40, badge: 17, navn: 10 },
+  middels: { avatar: 50, badge: 20, navn: 11 },
+  stor: { avatar: 64, badge: 24, navn: 12 },
+};
+const storrelseNavn = (v) => {
+  const s = String(v ?? "").toLowerCase();
+  if (s === "small" || s === "liten" || s === "s") return "liten";
+  if (s === "medium" || s === "middels" || s === "m") return "middels";
+  if (s === "large" || s === "stor" || s === "l") return "stor";
+  return "";
+};
+
+const KIfriendly = (hass, id) => {
+  const st = hass && hass.states[id];
+  return (st && st.attributes && st.attributes.friendly_name) || String(id).replace(/^person\./, "");
+};
 
 /* Malen «Vær»-profilen skriver inn: temperatur og tilstand, som i appen. */
 const VAER_MAL = "{temp} • {vaer}";
@@ -94,7 +150,7 @@ const VAER_NB = {
 
 class FamilyStatusCard extends LitElement {
   static get properties() {
-    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {}, _serverApen: {} };
+    return { hass: {}, config: {}, _dialogIndex: {}, _lukker: {}, _serverApen: {}, _tpApen: {}, _tpLukker: {} };
   }
 
   constructor() {
@@ -102,6 +158,9 @@ class FamilyStatusCard extends LitElement {
     this._dialogIndex = null;
     this._lukker = false;
     this._serverApen = false;
+    this._tpApen = false;
+    this._tpLukker = false;
+    this._onUd = (e) => { if (e.detail && e.detail.key === UD_KEY) this.requestUpdate(); };
     /* Valget man nettopp gjorde, til entiteten svarer. Se _aktiv(). */
     this._opt = {};
     this._openedAt = 0;
@@ -113,6 +172,7 @@ class FamilyStatusCard extends LitElement {
     if (!config.persons || !Array.isArray(config.persons) || config.persons.length === 0) {
       throw new Error("Legg til minst én person under 'persons' i konfigurasjonen.");
     }
+    this._raw = config;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this._pressTimer = null;
   }
@@ -187,9 +247,92 @@ class FamilyStatusCard extends LitElement {
   /** Basiskonfigurasjonen med eventuell profil lagt oppå. */
   get cfg() {
     const profile = this._activeProfile();
-    if (!profile) return this.config;
-    const { name, user, user_agent, model, min_width, max_width, ...overrides } = profile;
-    return { ...this.config, ...overrides };
+    let c = this.config;
+    if (profile) {
+      const { name, user, user_agent, model, min_width, max_width, ...overrides } = profile;
+      c = { ...c, ...overrides };
+    }
+    return this._medValg(c);
+  }
+
+  /* ── Tilpass: brukerens egne valg ─────────────────────────────────────── */
+
+  _tilpassPa() {
+    const v = this.config && this.config.tilpass;
+    return !(v === false || String(v).toLowerCase() === "av" || String(v).toLowerCase() === "off");
+  }
+
+  /** Brukerens lagrede valg ({} til de er hentet, eller når Tilpass er slått av). */
+  _valg() {
+    if (!this._tilpassPa()) return {};
+    const K = window.KI;
+    if (K && K.ud) return K.ud(this.hass, UD_KEY) || {};
+    return this._udLokal || {};
+  }
+
+  _lagreValg(endring) {
+    const ny = endring === null ? {} : { ...this._valg(), ...endring };
+    for (const k of Object.keys(ny)) if (ny[k] === undefined) delete ny[k];
+    const K = window.KI;
+    if (K && K.udSave) K.udSave(this.hass, UD_KEY, ny);
+    else { this._udLokal = ny; this.requestUpdate(); }
+  }
+
+  /* Personer som ikke står i konfigurasjonen, men som brukeren har lagt til selv. Vi
+     leter etter en hjemme/borte- og en søvnbryter med personens navn i id-en. */
+  _autoPerson(id) {
+    const slug = id.replace(/^person\./, "");
+    const ids = Object.keys((this.hass && this.hass.states) || {});
+    const finn = (re) => ids.find((e) => /^(switch|input_boolean)\./.test(e) && e.includes(slug) && re.test(e)) || "";
+    return {
+      person: id,
+      presence_switch: finn(/hjemme|home|presence|tilstede/),
+      sleep_switch: finn(/sov|sleep/),
+      _auto: true,
+    };
+  }
+
+  /** Konfigurasjonen med brukerens valg lagt oppå. */
+  _medValg(c) {
+    const u = this._valg();
+    const raw = this._raw || {};
+    const o = { ...c };
+    if (u.profil) o.layout = u.profil;
+    if (typeof u.hilsen === "string" && u.hilsen.trim()) o.greeting = u.hilsen;
+    if (typeof u.vis_navn === "boolean") o.show_names = u.vis_navn;
+    if (typeof u.vis_sted === "boolean") o.show_location = u.vis_sted;
+    if (typeof u.ring_meg === "boolean") o.ring_me = u.ring_meg;
+    if (u.merke) o.badge_style = u.merke;
+    if (u.storrelse) o.avatar_size = u.storrelse;
+    if ("dobbeltrykk" in u && typeof u.dobbeltrykk === "string") {
+      o.greeting_double_tap_action = u.dobbeltrykk
+        ? { action: "navigate", navigation_path: u.dobbeltrykk } : { action: "none" };
+    }
+    if (Array.isArray(u.personer) && u.personer.length) {
+      const kjente = [...(c.persons || []), ...((this.config && this.config.persons) || [])];
+      o.persons = u.personer.map((id) => kjente.find((p) => p && p.person === id) || this._autoPerson(id));
+    }
+    /* Størrelse som navn: liten / middels / stor (også small / medium / large). */
+    const st = STORRELSER[storrelseNavn(o.avatar_size)];
+    if (st) {
+      o.avatar_size = st.avatar;
+      if (u.storrelse || raw.badge_size === undefined) o.badge_size = st.badge;
+      if (raw.name_font_size === undefined) o.name_font_size = st.navn;
+    }
+    /* Kompakt: lavere linje, mindre bilder og ingen navn – med mindre noe er valgt. */
+    if (String(o.layout || "").toLowerCase() === "kompakt") {
+      o.greeting_font_size = Math.min(Number.parseFloat(o.greeting_font_size) || 22, 18);
+      if (!st && raw.avatar_size === undefined) { o.avatar_size = 36; o.badge_size = 15; }
+      if (typeof u.vis_navn !== "boolean" && raw.show_names === undefined) o.show_names = false;
+      if (raw.card_padding === undefined) o.card_padding = "6px 8px";
+      if (raw.persons_gap === undefined) o.persons_gap = 8;
+    }
+    return o;
+  }
+
+  _oppsett() {
+    const id = String(this.cfg.layout || "").toLowerCase();
+    return OPPSETT.find((x) => x.id === id) || null;
   }
 
   /** Fornavnet til den innloggede brukeren, f.eks. "Sebastian". */
@@ -205,6 +348,13 @@ class FamilyStatusCard extends LitElement {
    *   navn   – bare hilsenen/navnet, ingen servernavn noe sted; trykk på den åpner menyen
    * Det er feltet med pila som åpner menyen, uansett hvilken. */
   _serverPlass() {
+    const opp = this._oppsett();
+    if (opp) {
+      /* Med et oppsett valgt: «Sted» og «Under» viser stedsnavnet selv uten servere
+         (da uten meny); de andre trenger servere for å ha noe å åpne. */
+      if (this._servere().length) return opp.plass;
+      return opp.plass === "navn" || !this._serverNavn() ? "" : opp.plass;
+    }
     if (!this._servere().length) return "";
     const v = String(this.cfg.server_plass || "tittel").toLowerCase();
     if (v.startsWith("u")) return "under";
@@ -214,13 +364,16 @@ class FamilyStatusCard extends LitElement {
 
   /* Er det den store linja som er knappen for menyen? */
   _storLinjeErMeny() {
+    if (!this._servere().length) return false;
     const p = this._serverPlass();
     return p === "tittel" || p === "navn";
   }
 
   _greetingText() {
-    const text = this._serverPlass() === "tittel" && !/\{server\}/.test(this.cfg.greeting || "")
-      ? "{server}" : (this.cfg.greeting || "");
+    const opp = this._oppsett();
+    const text = opp && opp.id === "navn" && this._firstName() ? "{first_name}"
+      : this._serverPlass() === "tittel" && !/\{server\}/.test(this.cfg.greeting || "")
+        ? "{server}" : (this.cfg.greeting || "");
     return text
       .replace(/\{(name|user|first_name)\}/g, this._firstName())
       .replace(/\{server\}/g, this._serverNavn());
@@ -322,8 +475,10 @@ class FamilyStatusCard extends LitElement {
     const tekst = this._underTekst();
     const under = this._serverPlass() === "under";
     if (!tekst && !under) return "";
+    const meny = this._servere().length > 0;
     return html`<div class="undertekst">
-      ${under ? html`<span class="servervalg" role="button" tabindex="0"
+      ${under && !meny ? html`<span class="stedsnavn">${this._serverNavn()}</span>` : ""}
+      ${under && meny ? html`<span class="servervalg" role="button" tabindex="0"
           @click=${(e) => this._apneMeny(e)}
           @keydown=${(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._apneMeny(e); } }}
         >${this._serverNavn()}<ha-icon class="serverpil liten ${this._serverApen ? "apen" : ""}"
@@ -385,6 +540,14 @@ class FamilyStatusCard extends LitElement {
               : html`<ha-icon class="gaa" icon="mdi:chevron-right"></ha-icon>`}
           </button>`;
         })}
+        ${this._tilpassPa() ? html`
+          <div class="menyskille"></div>
+          <button class="serverrad tilpassrad" role="menuitem"
+            style="--rad-farge:var(--gray1000, #fafbfc);--forsink:${this._servere().length * 45}ms"
+            @click=${(e) => { e.stopPropagation(); this._serverApen = false; this._apneTilpass(); }}>
+            <span class="flis"><ha-icon icon="mdi:tune-variant"></ha-icon></span>
+            <span class="radnavn">Tilpass …</span>
+          </button>` : ""}
       </div>`;
   }
 
@@ -392,6 +555,7 @@ class FamilyStatusCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener("resize", this._onResize);
+    window.addEventListener("ki-ud", this._onUd);
     // Client hints gir det faktiske modellnavnet på Android, der user agent
     // bare rapporterer "K". Ikke tilgjengelig på iOS/Safari.
     if (this._model === undefined && navigator.userAgentData?.getHighEntropyValues) {
@@ -410,6 +574,7 @@ class FamilyStatusCard extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("resize", this._onResize);
+    window.removeEventListener("ki-ud", this._onUd);
   }
 
   _fire(type, detail) {
@@ -498,7 +663,7 @@ class FamilyStatusCard extends LitElement {
     const presenceState = personConfig.presence_switch
       ? this.hass.states[personConfig.presence_switch]
       : null;
-    const isHome = presenceState && presenceState.state === "on";
+    const isHome = presenceState ? presenceState.state === "on" : this._erHjemme(personConfig);
 
     if (isHome) {
       /* Hjemme: vis søvntilstanden hvis personen har en søvnbryter */
@@ -712,7 +877,9 @@ class FamilyStatusCard extends LitElement {
   }
 
   _onKeyDown(ev) {
-    if (ev.key === "Escape") this._closeDialog();
+    if (ev.key !== "Escape") return;
+    if (this._tpApen) this._lukkTilpass();
+    else this._closeDialog();
   }
 
   /** Langt trykk: personens egen hold_navigation_path, ellers kortets navigation_path. */
@@ -801,6 +968,12 @@ class FamilyStatusCard extends LitElement {
       return;
     }
     const h = this._greetingHandling(gest);
+    /* Langt trykk uten noe annet å gjøre åpner Tilpass. */
+    if ((!h || h.action === "none") && gest === "hold" && this._tilpassPa()) {
+      this._haptic(this.cfg.haptic_hold);
+      this._apneTilpass();
+      return;
+    }
     if (!h || h.action === "none") return;
     this._haptic(gest === "hold" ? this.cfg.haptic_hold : this.cfg.haptic_tap);
     this._kjorHandling(h);
@@ -870,13 +1043,11 @@ class FamilyStatusCard extends LitElement {
     }
   }
 
-  render() {
-    if (!this.hass || !this.config) return html``;
-    const cfg = this.cfg;
-    const hostStyle = `
+  _hostStyle(cfg) {
+    return `
       --fsc-avatar-size: ${toCssSize(cfg.avatar_size, 50)};
       --fsc-badge-size: ${toCssSize(cfg.badge_size, 20)};
-      --fsc-badge-icon-size: ${Math.round(Number(cfg.badge_size ?? 20) * 0.6)}px;
+      --fsc-badge-icon-size: ${Math.round(Number.parseFloat(cfg.badge_size ?? 20) * 0.6)}px;
       --fsc-persons-gap: ${toCssSize(cfg.persons_gap, 12)};
       --fsc-card-padding: ${cfg.card_padding || "12px 8px"};
       --fsc-greeting-size: ${toCssSize(cfg.greeting_font_size, 22)};
@@ -884,32 +1055,49 @@ class FamilyStatusCard extends LitElement {
       --fsc-name-size: ${toCssSize(cfg.name_font_size, 11)};
       --fsc-name-color: ${cfg.name_color || "var(--gray1000)"};
     `;
+  }
 
+  /* Selve linja: hilsenen til venstre og bildene til høyre. Tegnes også som
+     forhåndsvisning i Tilpass (forhand = true), da uten gester og meny. */
+  _renderRow(cfg, forhand = false) {
+    const opp = this._oppsett();
+    const knapp = !forhand && this._tilpassPa() && String(cfg.tilpass || "").toLowerCase() === "knapp";
     return html`
-      <ha-card style=${hostStyle}>
-        <div class="row">
-          <div class="hilsen">
-          <div
-            class="greeting"
-            @pointerdown=${() => this._onGreetingPointerDown()}
-            @pointerup=${() => this._onGreetingPointerUp()}
-            @pointerleave=${() => this._onGreetingPointerCancel()}
-            @pointercancel=${() => this._onGreetingPointerCancel()}
-            @click=${(e) => this._onGreetingClick(e)}
-            @contextmenu=${(e) => e.preventDefault()}
-          >
-            ${this._greetingText()}${this._storLinjeErMeny()
-              ? html`<ha-icon class="serverpil ${this._serverApen ? "apen" : ""}" icon="mdi:menu-down"></ha-icon>`
-              : ""}
-          </div>
-          ${this._renderUnder()}
-          ${this._serverApen ? this._renderServerMeny() : ""}
-          </div>
-          <div class="persons">
-            ${cfg.persons.map((p, i) => this._renderPerson(p, i))}
-          </div>
+      <div class="row ${opp ? `oppsett-${opp.id}` : ""} ${forhand ? "forhand" : ""}">
+        <div class="hilsen">
+        <div
+          class="greeting"
+          @pointerdown=${() => !forhand && this._onGreetingPointerDown()}
+          @pointerup=${() => !forhand && this._onGreetingPointerUp()}
+          @pointerleave=${() => !forhand && this._onGreetingPointerCancel()}
+          @pointercancel=${() => !forhand && this._onGreetingPointerCancel()}
+          @click=${(e) => !forhand && this._onGreetingClick(e)}
+          @contextmenu=${(e) => e.preventDefault()}
+        >
+          <span class="hilsentekst">${this._greetingText()}</span>${this._storLinjeErMeny()
+            ? html`<ha-icon class="serverpil ${this._serverApen && !forhand ? "apen" : ""}" icon="mdi:menu-down"></ha-icon>`
+            : ""}
         </div>
+        ${this._renderUnder()}
+        ${this._serverApen && !forhand ? this._renderServerMeny() : ""}
+        </div>
+        <div class="persons">
+          ${cfg.persons.map((p, i) => this._renderPerson(p, i, forhand))}
+          ${knapp ? html`<button class="tilpassknapp" aria-label="Tilpass" title="Tilpass"
+              @click=${(e) => { e.stopPropagation(); this._haptic(this.cfg.haptic_tap); this._apneTilpass(); }}>
+              <ha-icon icon="mdi:tune-variant"></ha-icon></button>` : ""}
+        </div>
+      </div>`;
+  }
+
+  render() {
+    if (!this.hass || !this.config) return html``;
+    const cfg = this.cfg;
+    return html`
+      <ha-card style=${this._hostStyle(cfg)}>
+        ${this._renderRow(cfg)}
         ${this._dialogIndex !== null ? this._renderDialog() : ""}
+        ${this._tpApen ? this._renderTilpass(cfg) : ""}
         ${cfg.debug ? this._renderDebug() : ""}
       </ha-card>
     `;
@@ -928,32 +1116,278 @@ class FamilyStatusCard extends LitElement {
     `;
   }
 
-  _renderPerson(personConfig, index) {
+  /* Er dette personen til den som er logget inn? */
+  _erMeg(personConfig) {
+    const uid = this.hass && this.hass.user && this.hass.user.id;
+    const st = this.hass.states[personConfig.person];
+    return !!uid && !!st && st.attributes && st.attributes.user_id === uid;
+  }
+
+  _erHjemme(personConfig) {
+    if (personConfig.presence_switch) return this._isOn(personConfig.presence_switch);
+    const st = this.hass.states[personConfig.person];
+    return !!personConfig._auto && !!st && st.state === "home";
+  }
+
+  /* Stedet i klartekst: Hjemme / Sover / sonens navn / Borte. */
+  _stedTekst(personConfig) {
+    const cfg = this.cfg;
+    if (this._erHjemme(personConfig)) {
+      if (cfg.show_sleep_badge !== false && personConfig.sleep_switch && this._isOn(personConfig.sleep_switch))
+        return cfg.asleep_label;
+      return cfg.home_label;
+    }
+    const st = this.hass.states[personConfig.person];
+    const v = st ? st.state : "";
+    if (!v || v === "unknown" || v === "unavailable") return "";
+    if (v === "home") return cfg.home_label;
+    if (v === "not_home") return cfg.away_label;
+    const sone = this.hass.states["zone." + v];
+    return (sone && sone.attributes && sone.attributes.friendly_name) || v;
+  }
+
+  _renderPerson(personConfig, index, forhand = false) {
+    const cfg = this.cfg;
     const state = this.hass.states[personConfig.person];
     const picture = state?.attributes?.entity_picture || "";
     const fallbackName = state?.attributes?.friendly_name || personConfig.person || "Ukjent";
     const displayName = personConfig.display_name || fallbackName;
     const status = this._resolveStatus(personConfig);
-    const showNames = this.cfg.show_names !== false;
+    const showNames = cfg.show_names !== false;
+    const sted = cfg.show_location ? this._stedTekst(personConfig) : "";
+    const merke = String(cfg.badge_style || "ikon").toLowerCase();
+    const meg = cfg.ring_me && this._erMeg(personConfig);
+    const initial = !picture ? String(displayName).trim().charAt(0).toUpperCase() : "";
 
     return html`
       <div class="person">
         <div
-          class="avatar-wrap"
+          class="avatar-wrap merke-${merke} ${meg ? "meg" : ""}"
           title=${fallbackName}
-          @pointerdown=${() => this._onPointerDown(personConfig)}
-          @pointerup=${() => this._onPointerUp(personConfig, index)}
-          @pointerleave=${() => this._onPointerCancel()}
+          style="--fsc-status:${status.color}"
+          @pointerdown=${() => !forhand && this._onPointerDown(personConfig)}
+          @pointerup=${() => !forhand && this._onPointerUp(personConfig, index)}
+          @pointerleave=${() => !forhand && this._onPointerCancel()}
           @contextmenu=${(e) => e.preventDefault()}
         >
-          <div class="avatar" style=${picture ? `background-image:url(${picture})` : ""}></div>
-          <div class="badge" style="background:${status.color}">
+          <div class="avatar" style=${picture ? `background-image:url(${picture})` : ""}>${initial}</div>
+          ${merke === "ikon" ? html`<div class="badge" style="background:${status.color}">
             <ha-icon icon=${status.icon}></ha-icon>
-          </div>
+          </div>` : merke === "prikk" ? html`<div class="prikk" style="background:${status.color}"></div>` : ""}
         </div>
         ${showNames ? html`<div class="person-name">${displayName}</div>` : ""}
+        ${sted ? html`<div class="person-sted">${sted}</div>` : ""}
       </div>
     `;
+  }
+
+  /* ---------------------------- TILPASS ---------------------------- */
+
+  _apneTilpass() {
+    if (!this._tilpassPa()) return;
+    this._tpHilsen = undefined;
+    this._tpEgenSti = false;
+    this._tpApen = true;
+    this._tpLukker = false;
+    this._openedAt = Date.now();
+    window.addEventListener("keydown", this._onKeyDown);
+  }
+
+  _lukkTilpass() {
+    if (this._tpLukker || !this._tpApen) return;
+    this._lagreHilsenNa();
+    window.removeEventListener("keydown", this._onKeyDown);
+    this._tpLukker = true;
+    window.setTimeout(() => { this._tpApen = false; this._tpLukker = false; }, 170);
+  }
+
+  _lagreHilsenNa() {
+    if (this._tpHilsenTimer) { window.clearTimeout(this._tpHilsenTimer); this._tpHilsenTimer = null; }
+    if (this._tpHilsen === undefined) return;
+    const t = this._tpHilsen;
+    const std = (this.config && this.config.greeting) || "";
+    const ny = t.trim() && t !== std ? t : undefined;
+    if (ny === this._valg().hilsen) return;
+    this._lagreValg({ hilsen: ny });
+  }
+
+  _hilsenInput(verdi) {
+    this._tpHilsen = verdi;
+    if (this._tpHilsenTimer) window.clearTimeout(this._tpHilsenTimer);
+    this._tpHilsenTimer = window.setTimeout(() => this._lagreHilsenNa(), 500);
+  }
+
+  _tpPersoner(cfg) {
+    const vist = (cfg.persons || []).map((p) => p && p.person).filter(Boolean);
+    const navn = (id) => KIfriendly(this.hass, id);
+    const alle = Object.keys(this.hass.states).filter((id) => id.startsWith("person."));
+    const skjult = alle.filter((id) => !vist.includes(id))
+      .sort((x, y) => navn(x).localeCompare(navn(y), "nb"));
+    return { vist, skjult };
+  }
+
+  _tpFlytt(vist, i, retning) {
+    const j = i + retning;
+    if (j < 0 || j >= vist.length) return;
+    const ny = [...vist];
+    [ny[i], ny[j]] = [ny[j], ny[i]];
+    this._haptic("selection");
+    this._lagreValg({ personer: ny });
+  }
+
+  _tpVis(vist, id, pa) {
+    const ny = pa ? [...vist, id] : vist.filter((x) => x !== id);
+    if (!ny.length) return; // minst én person
+    this._haptic("selection");
+    this._lagreValg({ personer: ny });
+  }
+
+  _tpSett(nokkel, verdi) {
+    this._haptic("selection");
+    this._lagreValg({ [nokkel]: verdi });
+  }
+
+  /* Pilleraden fra ki-cards: spor med piller, den valgte fylt. */
+  _tpValg(valg, aktiv, sett) {
+    return html`<div class="tp-piller" role="radiogroup">
+      ${valg.map(([v, tekst]) => html`<button type="button" role="radio"
+        aria-checked=${aktiv === v ? "true" : "false"}
+        class="tp-pille ${aktiv === v ? "aktiv" : ""}"
+        @click=${() => sett(v)}>${tekst}</button>`)}
+    </div>`;
+  }
+
+  _tpBryter(tekst, pa, sett, forklaring = "") {
+    return html`<button type="button" class="tp-rad tp-bryterrad" role="switch" aria-checked=${pa ? "true" : "false"}
+      @click=${() => sett(!pa)}>
+      <span class="tp-radtekst">${tekst}${forklaring ? html`<small>${forklaring}</small>` : ""}</span>
+      <span class="tp-sw ${pa ? "pa" : ""}"><i></i></span>
+    </button>`;
+  }
+
+  _renderTilpass(cfg) {
+    const u = this._valg();
+    const opp = this._oppsett();
+    /* Uten valgt oppsett markeres det som ligner mest på det kortet viser nå. */
+    const plass = this._serverPlass();
+    const oppId = opp ? opp.id : plass === "tittel" ? "server" : plass === "under" ? "under" : "familie";
+    const { vist, skjult } = this._tpPersoner(cfg);
+    const avatarPx = Number.parseFloat(cfg.avatar_size) || 50;
+    const storrelse = storrelseNavn(u.storrelse) || (avatarPx <= 44 ? "liten" : avatarPx <= 56 ? "middels" : "stor");
+    const merke = String(cfg.badge_style || "ikon").toLowerCase();
+    const hilsen = this._tpHilsen !== undefined ? this._tpHilsen : (cfg.greeting || "");
+    const fornavn = this._firstName();
+    const fornavnFinnes = !!fornavn;
+    const dt = cfg.greeting_double_tap_action;
+    const dtSti = dt && dt.action === "navigate" ? dt.navigation_path || "" : "";
+    const dtValg = this._tpEgenSti ? "egen" : !dtSti ? "ingen" : dtSti === "/config" ? "config" : "egen";
+    const hilsenBrukes = !(oppId === "navn" && fornavnFinnes)
+      && !(plass === "tittel" && !/\{server\}/.test(cfg.greeting || ""));
+    const ut = this._tpLukker ? "ut" : "";
+    const personRad = (id, i, erVist) => {
+      const st = this.hass.states[id];
+      const bilde = st && st.attributes && st.attributes.entity_picture;
+      const pc = (cfg.persons || []).find((p) => p && p.person === id) || this._autoPerson(id);
+      const navn = pc.display_name || KIfriendly(this.hass, id);
+      return html`<div class="tp-rad tp-person ${erVist ? "" : "skjult"}">
+        <span class="tp-bilde" style=${bilde ? `background-image:url(${bilde})` : ""}>${bilde ? "" : String(navn).charAt(0)}</span>
+        <span class="tp-radtekst">${navn}<small>${st ? this._stedTekst(pc) || st.state : "Finnes ikke"}</small></span>
+        ${erVist ? html`
+          <button type="button" class="tp-ikon" aria-label="Flytt opp" ?disabled=${i === 0}
+            @click=${() => this._tpFlytt(vist, i, -1)}><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+          <button type="button" class="tp-ikon" aria-label="Flytt ned" ?disabled=${i === vist.length - 1}
+            @click=${() => this._tpFlytt(vist, i, 1)}><ha-icon icon="mdi:chevron-down"></ha-icon></button>` : ""}
+        <button type="button" class="tp-sw ${erVist ? "pa" : ""} ${erVist && vist.length === 1 ? "laast" : ""}"
+          role="switch" aria-checked=${erVist ? "true" : "false"} aria-label=${erVist ? "Skjul " + navn : "Vis " + navn}
+          @click=${() => this._tpVis(vist, id, !erVist)}><i></i></button>
+      </div>`;
+    };
+
+    return html`
+      <div class="backdrop ${ut}" @click=${(e) => {
+        if (e.target !== e.currentTarget || Date.now() - this._openedAt < 600) return;
+        this._lukkTilpass();
+      }}>
+        <div class="tpark ${ut}" role="dialog" aria-label="Tilpass" @click=${(e) => e.stopPropagation()}>
+          <div class="tp-hode">
+            <div class="tp-hodetekst">
+              <div class="tp-tittel">Tilpass</div>
+              <div class="tp-sub">Bare for ${fornavn || "deg"}, på alle enhetene dine</div>
+            </div>
+            <button type="button" class="tp-ferdig" @click=${() => { this._haptic(this.cfg.haptic_tap); this._lukkTilpass(); }}>Ferdig</button>
+          </div>
+
+          <div class="tp-forhand" style=${this._hostStyle(cfg)} aria-hidden="true">${this._renderRow(cfg, true)}</div>
+
+          <div class="tp-rull">
+            <div class="tp-seksjon">Oppsett</div>
+            <div class="tp-oppsett">
+              ${OPPSETT.map((o) => html`<button type="button" class="tp-flis ${oppId === o.id ? "aktiv" : ""}"
+                aria-pressed=${oppId === o.id ? "true" : "false"}
+                @click=${() => this._tpSett("profil", o.id)}>
+                <span class="tp-flisikon"><ha-icon icon=${o.ikon}></ha-icon></span>
+                <span class="tp-flisnavn">${o.navn}</span>
+                <span class="tp-flistekst">${o.tekst}</span>
+              </button>`)}
+            </div>
+
+            <div class="tp-seksjon">Hilsen</div>
+            <div class="tp-gruppe">
+              <input class="tp-felt" type="text" .value=${hilsen} placeholder="👋 Hei {name}!"
+                ?disabled=${!hilsenBrukes}
+                @input=${(e) => this._hilsenInput(e.target.value)}
+                @change=${() => this._lagreHilsenNa()} />
+              ${hilsenBrukes ? html`<div class="tp-brikker">
+                ${[["{name}", "Fornavn"], ["{server}", "Sted"], ["👋", "👋"]].map(([sett, tekst]) => html`
+                  <button type="button" class="tp-brikke" @click=${() => {
+                    const ny = hilsen + (hilsen && !/\s$/.test(hilsen) ? " " : "") + sett;
+                    this._tpHilsen = ny; this._lagreHilsenNa(); this.requestUpdate();
+                  }}>+ ${tekst}</button>`)}
+              </div>
+              <div class="tp-hint">{name} blir fornavnet ditt, {server} stedet du er på.</div>`
+              : html`<div class="tp-hint">${oppId === "navn" ? "«Navn» viser fornavnet ditt som tittel." : "Her står stedsnavnet som tittel i stedet for hilsenen."}</div>`}
+            </div>
+
+            <div class="tp-seksjon">Personer</div>
+            <div class="tp-gruppe">
+              ${vist.map((id, i) => personRad(id, i, true))}
+              ${skjult.length ? html`<div class="tp-underseksjon">Skjult</div>` : ""}
+              ${skjult.map((id) => personRad(id, -1, false))}
+            </div>
+
+            <div class="tp-seksjon">Bilder</div>
+            <div class="tp-gruppe">
+              <div class="tp-rad tp-valgrad"><span class="tp-radtekst">Størrelse</span>
+                ${this._tpValg([["liten", "Liten"], ["middels", "Middels"], ["stor", "Stor"]], storrelse,
+                  (v) => this._tpSett("storrelse", v))}</div>
+              <div class="tp-rad tp-valgrad"><span class="tp-radtekst">Merke</span>
+                ${this._tpValg([["ikon", "Ikon"], ["prikk", "Prikk"], ["ring", "Ring"], ["ingen", "Ingen"]], merke,
+                  (v) => this._tpSett("merke", v))}</div>
+              ${this._tpBryter("Vis navn", cfg.show_names !== false, (v) => this._tpSett("vis_navn", v))}
+              ${this._tpBryter("Vis sted", !!cfg.show_location, (v) => this._tpSett("vis_sted", v), "Hjemme, sonen eller Borte under bildet")}
+              ${this._tpBryter("Ring rundt meg", !!cfg.ring_me, (v) => this._tpSett("ring_meg", v), "Markerer bildet ditt")}
+            </div>
+
+            <div class="tp-seksjon">Dobbelttrykk på ${plass === "tittel" ? "stedsnavnet" : "hilsenen"}</div>
+            <div class="tp-gruppe">
+              ${this._tpValg([["config", "Innstillinger"], ["egen", "Annen side"], ["ingen", "Ingenting"]], dtValg, (v) => {
+                this._tpEgenSti = v === "egen";
+                if (v === "config") this._tpSett("dobbeltrykk", "/config");
+                else if (v === "ingen") this._tpSett("dobbeltrykk", "");
+                else this.requestUpdate();
+              })}
+              ${dtValg === "egen" ? html`<input class="tp-felt" type="text" placeholder="/dashboard-mysmarthome/rom eller #popup"
+                .value=${dtSti === "/config" ? "" : dtSti}
+                @change=${(e) => { const v = e.target.value.trim(); if (v) { this._tpEgenSti = false; this._tpSett("dobbeltrykk", v); } }} />` : ""}
+              ${this._serverGest() === "double_tap" ? html`<div class="tp-hint">Dobbelttrykk åpner stedsmenyen i dette kortet, så valget gjelder ikke her.</div>` : ""}
+            </div>
+
+            ${Object.keys(u).length ? html`<button type="button" class="tp-nullstill"
+              @click=${() => { this._haptic("warning"); this._tpHilsen = undefined; this._tpEgenSti = false; this._lagreValg(null); }}>
+              Tilbake til standard</button>` : ""}
+          </div>
+        </div>
+      </div>`;
   }
 
   /* ---------------------------- POPUP ---------------------------- */
@@ -1150,6 +1584,497 @@ class FamilyStatusCard extends LitElement {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .avatar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: calc(var(--fsc-avatar-size, 50px) * 0.4);
+        font-weight: 500;
+        color: var(--gray800, var(--secondary-text-color));
+      }
+      .person-sted {
+        margin-top: -2px;
+        font-size: calc(var(--fsc-name-size, 11px) - 1px);
+        color: var(--fsc-name-color, var(--gray1000));
+        opacity: 0.55;
+        text-align: center;
+        max-width: calc(var(--fsc-avatar-size, 50px) + 16px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* Merkestiler: prikk, ring i statusfargen, eller ingenting. */
+      .prikk {
+        position: absolute;
+        top: 1px;
+        right: 1px;
+        width: calc(var(--fsc-badge-size, 20px) * 0.55);
+        height: calc(var(--fsc-badge-size, 20px) * 0.55);
+        border-radius: 50%;
+        border: 2px solid var(--gray000, var(--primary-background-color, #111));
+        box-sizing: content-box;
+      }
+      .merke-ring .avatar {
+        box-shadow: 0 0 0 2px var(--gray000, var(--primary-background-color, #111)),
+          0 0 0 4px var(--fsc-status);
+      }
+      /* Ring rundt meg: aktiv-fargen, litt utenfor merket. */
+      .meg .avatar {
+        outline: 2px solid var(--active-big, #ee95ff);
+        outline-offset: 2px;
+      }
+      .merke-ring.meg .avatar {
+        outline-offset: 5px;
+      }
+      /* Hilsenen tar plassen som er igjen, og kortes av med … i stedet for å legge seg
+         over bildene. Menyen ligger fortsatt fritt under (ingen overflow på .hilsen). */
+      .hilsen {
+        flex: 1 1 0;
+        min-width: min(28%, 92px);
+      }
+      /* Mange eller store bilder: raden kan dras sidelengs i stedet for å skyve
+         hilsenen bort. Luft oppe og til høyre, så merket ikke klippes. */
+      .persons {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        padding: 8px 8px 0 8px;
+        margin: -8px -8px 0 -8px;
+      }
+      .persons::-webkit-scrollbar {
+        display: none;
+      }
+      .person {
+        flex: none;
+      }
+      .greeting {
+        max-width: 100%;
+        min-width: 0;
+      }
+      .hilsentekst {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row.oppsett-kompakt {
+        align-items: center;
+      }
+      .row.forhand,
+      .row.forhand * {
+        pointer-events: none;
+      }
+      .undertekst > .stedsnavn {
+        color: var(--gray1000, var(--primary-text-color));
+        font-weight: 500;
+      }
+      .tilpassknapp {
+        align-self: center;
+        width: 30px;
+        height: 30px;
+        flex: none;
+        border: 0;
+        padding: 0;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: rgba(250, 251, 252, 0.1);
+        color: var(--gray1000, var(--primary-text-color));
+        cursor: pointer;
+        --mdc-icon-size: 18px;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .menyskille {
+        height: 1px;
+        margin: 2px 10px;
+        background: rgba(250, 251, 252, 0.08);
+      }
+      .serverrad.tilpassrad .flis {
+        background: rgba(250, 251, 252, 0.1);
+      }
+      .serverrad.tilpassrad .radnavn {
+        opacity: 0.85;
+      }
+
+      /* ---------------------------- TILPASS ---------------------------- */
+      .tpark {
+        position: relative;
+        width: min(420px, 100%);
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        display: flex;
+        flex-direction: column;
+        border-radius: 32px;
+        background: var(--gray000, var(--ha-card-background, var(--card-background-color)));
+        color: var(--gray1000, var(--primary-text-color));
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        animation: fsc-pop 260ms cubic-bezier(0.2, 1.2, 0.3, 1);
+      }
+      .tpark.ut {
+        animation: fsc-vekk 160ms ease-in forwards;
+      }
+      .tp-hode {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 18px 10px 22px;
+      }
+      .tp-hodetekst {
+        min-width: 0;
+      }
+      .tp-tittel {
+        font-size: 28px;
+        font-weight: 500;
+        line-height: 1.1;
+      }
+      .tp-sub {
+        margin-top: 3px;
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0.6;
+        line-height: 1.35;
+      }
+      .tp-ferdig {
+        flex: none;
+        height: 40px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #101010);
+        font: inherit;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 160ms cubic-bezier(0.2, 1.3, 0.3, 1);
+      }
+      .tp-ferdig:active {
+        transform: scale(0.95);
+      }
+      /* Forhåndsvisningen: kortet slik det blir, i en flate over valgene. */
+      .tp-forhand {
+        flex: none;
+        margin: 4px 14px 6px;
+        padding: 6px 4px;
+        border-radius: 22px;
+        background: var(--gray100, rgba(250, 251, 252, 0.05));
+        overflow: hidden;
+      }
+      .tp-rull {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 0 14px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tp-seksjon {
+        padding: 12px 8px 0;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0.7;
+      }
+      .tp-underseksjon {
+        padding: 8px 10px 2px;
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.5;
+      }
+      .tp-gruppe {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 6px;
+        border-radius: 22px;
+        background: var(--gray200, rgba(250, 251, 252, 0.06));
+      }
+      .tp-oppsett {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
+      }
+      .tp-flis {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        min-height: 96px;
+        padding: 10px 12px 12px;
+        border: 0;
+        border-radius: 22px;
+        background: var(--gray200, rgba(250, 251, 252, 0.06));
+        color: var(--gray1000, var(--primary-text-color));
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.18s ease, transform 0.14s cubic-bezier(0.2, 1.3, 0.3, 1);
+      }
+      .tp-flis:active {
+        transform: scale(0.96);
+      }
+      .tp-flis.aktiv {
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #101010);
+      }
+      .tp-flisikon {
+        width: 36px;
+        height: 36px;
+        margin-bottom: auto;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: rgba(250, 251, 252, 0.1);
+        border: 1px solid rgba(250, 251, 252, 0.1);
+        --mdc-icon-size: 20px;
+      }
+      .tp-flis.aktiv .tp-flisikon {
+        background: rgba(0, 0, 0, 0.08);
+        border-color: rgba(0, 0, 0, 0.08);
+      }
+      .tp-flisnavn {
+        margin-top: 10px;
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .tp-flistekst {
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.65;
+        line-height: 1.25;
+      }
+      .tp-felt {
+        width: 100%;
+        box-sizing: border-box;
+        height: 46px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 16px;
+        background: var(--gray100, rgba(250, 251, 252, 0.06));
+        color: var(--gray1000, var(--primary-text-color));
+        font: inherit;
+        font-size: 16px;
+        font-weight: 500;
+        outline: none;
+      }
+      .tp-felt:focus-visible {
+        outline: 2px solid var(--active-big, #ee95ff);
+      }
+      .tp-felt:disabled {
+        opacity: 0.45;
+      }
+      .tp-brikker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 4px 2px 0;
+      }
+      .tp-brikke {
+        height: 30px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--gray100, rgba(250, 251, 252, 0.06));
+        color: var(--gray1000, var(--primary-text-color));
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0.8;
+        cursor: pointer;
+      }
+      .tp-hint {
+        padding: 4px 8px 4px;
+        font-size: 12.5px;
+        font-weight: 500;
+        opacity: 0.55;
+        line-height: 1.4;
+      }
+      .tp-rad {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 52px;
+        padding: 6px 8px 6px 10px;
+        border: 0;
+        border-radius: 16px;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .tp-bryterrad {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .tp-bryterrad:active {
+        background: rgba(250, 251, 252, 0.05);
+      }
+      .tp-radtekst {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        font-size: 15px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tp-radtekst small {
+        font-size: 12.5px;
+        font-weight: 500;
+        opacity: 0.55;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tp-valgrad {
+        flex-wrap: wrap;
+      }
+      .tp-valgrad .tp-radtekst {
+        flex: 1 0 80px;
+      }
+      .tp-person.skjult .tp-bilde,
+      .tp-person.skjult .tp-radtekst {
+        opacity: 0.5;
+      }
+      .tp-bilde {
+        width: 38px;
+        height: 38px;
+        flex: none;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--gray100, rgba(250, 251, 252, 0.08)) center / cover;
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .tp-ikon {
+        width: 34px;
+        height: 34px;
+        flex: none;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--gray100, rgba(250, 251, 252, 0.06));
+        color: var(--gray1000, var(--primary-text-color));
+        cursor: pointer;
+        --mdc-icon-size: 20px;
+      }
+      .tp-ikon:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      /* Bryteren fra ki-cards (.sw). */
+      .tp-sw {
+        position: relative;
+        width: 44px;
+        height: 26px;
+        flex: none;
+        padding: 0;
+        border: 0;
+        border-radius: 13px;
+        background: var(--gray100, rgba(250, 251, 252, 0.12));
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .tp-sw.pa {
+        background: var(--active-big, #ee95ff);
+      }
+      .tp-sw.laast {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .tp-sw i {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform 0.2s cubic-bezier(0.2, 1.2, 0.3, 1);
+      }
+      .tp-sw.pa i {
+        transform: translateX(18px);
+      }
+      /* Pilleraden: spor med like brede piller, den valgte fylt. */
+      .tp-piller {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        gap: 3px;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--gray100, rgba(250, 251, 252, 0.06));
+        flex: 1 1 220px;
+      }
+      .tp-pille {
+        min-width: 0;
+        height: 34px;
+        padding: 0 6px;
+        border: 0;
+        border-radius: 999px;
+        background: none;
+        color: var(--gray1000, var(--primary-text-color));
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 500;
+        opacity: 0.6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.18s ease, opacity 0.18s ease;
+      }
+      .tp-pille.aktiv {
+        background: var(--active-big, #ee95ff);
+        color: var(--black, #101010);
+        opacity: 1;
+      }
+      .tp-gruppe > .tp-piller {
+        flex: none;
+      }
+      .tp-nullstill {
+        align-self: center;
+        margin-top: 10px;
+        height: 40px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 999px;
+        background: none;
+        color: var(--red, #ff453a);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .tp-ferdig:focus-visible,
+      .tp-flis:focus-visible,
+      .tp-pille:focus-visible,
+      .tp-sw:focus-visible,
+      .tp-ikon:focus-visible,
+      .tp-bryterrad:focus-visible,
+      .tp-brikke:focus-visible,
+      .tilpassknapp:focus-visible {
+        outline: 2px solid var(--active-big, #ee95ff);
+        outline-offset: 2px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tpark {
+          animation: none;
+        }
       }
 
       /* ---------------------------- DEBUG ---------------------------- */
@@ -1834,9 +2759,20 @@ class FamilyStatusCardEditor extends LitElement {
             <span>Hilsen</span>
           </div>
           <div class="body">
+            <ha-selector
+              .hass=${this.hass}
+              .label=${"Oppsett"}
+              .selector=${{ select: { mode: "dropdown", options: [
+                { value: "", label: "Som før – «Hvor servernavnet står» bestemmer" },
+                ...OPPSETT.map((o) => ({ value: o.id, label: `${o.navn} – ${o.tekst.toLowerCase()}` }))] } }}
+              .value=${cfg.layout || ""}
+              @value-changed=${(e) => this._update("layout", e.detail.value || "")}
+            ></ha-selector>
             ${this._text("Tekst", "greeting")}
             <div class="hint">
-              Skriv {name} der fornavnet til den innloggede brukeren skal stå.
+              Skriv {name} der fornavnet til den innloggede brukeren skal stå, og {server}
+              for stedet. Hver bruker kan velge sitt eget oppsett, sine personer og sin
+              hilsen under «Tilpass» – langt trykk på hilsenen eller i stedsmenyen.
             </div>
             <div class="field-row">
               ${this._number("Skriftstørrelse", "greeting_font_size", 22)}
@@ -2088,7 +3024,18 @@ class FamilyStatusCardEditor extends LitElement {
               Kantavstand skrives som CSS, f.eks. 12px 8px. Øk den om badgen
               blir klippet på smale skjermer.
             </div>
+            <div class="hint">
+              Avatar-størrelsen kan også skrives som liten, middels eller stor.
+            </div>
             ${this._switch("Vis navn under bildet", "show_names")}
+            ${this._switch("Vis sted under bildet (Hjemme, sonen, Borte)", "show_location", false)}
+            ${this._switch("Ring rundt bildet til den som er logget inn", "ring_me", false)}
+            ${this._select("Merke på bildet", "badge_style", [
+              { value: "ikon", label: "Ikon – farget sirkel med ikon" },
+              { value: "prikk", label: "Prikk – liten farget prikk" },
+              { value: "ring", label: "Ring – farget ring rundt bildet" },
+              { value: "ingen", label: "Ingen" },
+            ], "ikon")}
             ${cfg.show_names !== false
               ? html`
                   <div class="field-row">
@@ -2137,6 +3084,11 @@ class FamilyStatusCardEditor extends LitElement {
               "dialog"
             )}
             ${this._text("Naviger til ved langt trykk på en person", "navigation_path")}
+            ${this._select("Tilpass (brukerens egne valg)", "tilpass", [
+              { value: "hold", label: "Langt trykk på hilsenen og i stedsmenyen" },
+              { value: "knapp", label: "Også en liten knapp ved bildene" },
+              { value: "av", label: "Av – alle ser konfigurasjonen" },
+            ], "hold")}
 
             <div class="subheading">Vibrasjon</div>
             ${this._switch("Vibrasjonsrespons ved trykk og hold", "haptic")}
