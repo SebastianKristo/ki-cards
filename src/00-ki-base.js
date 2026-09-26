@@ -429,6 +429,33 @@ window.KI = window.KI || {};
     window.customCards.push({ type, name, description, preview: false, documentationURL });
   };
 
+  /* ------------------------------------------------------------------ brukerlagring
+   *
+   * Valg brukeren gjør i «Tilpass»-panelene (skjulte ting, rekkefølge, størrelser …) lagres
+   * per bruker i Home Assistant med frontend/set_user_data, så de følger brukeren til alle
+   * enheter — ikke i localStorage, som bare gjelder den ene nettleseren.
+   *
+   *   KI.ud(hass, "ki_hjem")              → siste kjente verdi ({} til den er hentet)
+   *   KI.udLoad(hass, "ki_hjem").then(v)  → henter fra HA (én gang per nøkkel)
+   *   KI.udSave(hass, "ki_hjem", verdi)   → lagrer og varsler alle kort som lytter
+   *   window "ki-ud" (detail: {key, value}) sendes etter lagring, så andre kort kan tegne på nytt.
+   */
+  KI._ud = {}; KI._udP = {};
+  KI.ud = (hass, key) => KI._ud[key] || (hass && KI.udLoad(hass, key), {});
+  KI.udLoad = (hass, key) => {
+    if (KI._udP[key]) return KI._udP[key];
+    KI._udP[key] = (hass && hass.callWS ? hass.callWS({ type: "frontend/get_user_data", key }) : Promise.resolve(null))
+      .then(r => { const v = (r && r.value) || {}; if (!KI._ud[key]) { KI._ud[key] = v; window.dispatchEvent(new CustomEvent("ki-ud", { detail: { key, value: v } })); } return KI._ud[key]; })
+      .catch(() => { KI._ud[key] = KI._ud[key] || {}; return KI._ud[key]; });
+    return KI._udP[key];
+  };
+  KI.udSave = (hass, key, value) => {
+    KI._ud[key] = value || {};
+    window.dispatchEvent(new CustomEvent("ki-ud", { detail: { key, value: KI._ud[key] } }));
+    if (!hass || !hass.callWS) return Promise.resolve();
+    return hass.callWS({ type: "frontend/set_user_data", key, value: KI._ud[key] }).catch(e => console.warn("ki-cards: kunne ikke lagre " + key, e));
+  };
+
   /* Basisklasse: renderer på nytt bare når _key() endrer seg. */
   KI.Card = class extends HTMLElement {
     constructor() { super(); this.attachShadow({ mode: "open" }); this._lastKey = null; }
