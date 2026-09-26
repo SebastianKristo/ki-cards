@@ -556,6 +556,7 @@ class FamilyStatusCard extends LitElement {
     super.connectedCallback();
     window.addEventListener("resize", this._onResize);
     window.addEventListener("ki-ud", this._onUd);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => this._sjekkPil());
     // Client hints gir det faktiske modellnavnet på Android, der user agent
     // bare rapporterer "K". Ikke tilgjengelig på iOS/Safari.
     if (this._model === undefined && navigator.userAgentData?.getHighEntropyValues) {
@@ -575,6 +576,21 @@ class FamilyStatusCard extends LitElement {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("ki-ud", this._onUd);
+  }
+
+  /* Får ikke navnet og pila plass ved siden av bildene, fjernes pila – navnet er viktigere
+     enn hintet om servermenyen (trykk på navnet åpner den fortsatt). */
+  updated() { this._sjekkPil(); }
+  _sjekkPil() {
+    const r = this.shadowRoot; if (!r) return;
+    for (const g of r.querySelectorAll(".greeting")) {
+      const t = g.querySelector(".hilsentekst"), rad = g.closest(".row");
+      if (!t || !rad || !g.querySelector(".serverpil")) { g.classList.remove("uten-pil"); continue; }
+      const bilder = rad.querySelector(".persons");
+      const plass = rad.clientWidth - (bilder ? bilder.offsetWidth : 0) - 16;
+      const skjul = t.scrollWidth + 32 > plass;
+      if (g.classList.contains("uten-pil") !== skjul) g.classList.toggle("uten-pil", skjul);
+    }
   }
 
   _fire(type, detail) {
@@ -1660,6 +1676,9 @@ class FamilyStatusCard extends LitElement {
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .greeting.uten-pil .serverpil {
+        display: none !important;
+      }
       .row.oppsett-kompakt {
         align-items: center;
       }
@@ -2145,7 +2164,10 @@ class FamilyStatusCard extends LitElement {
         transition: transform 0.2s ease;
         flex: none;
       }
-      .serverpil.apen {
+.greeting.uten-pil .serverpil {
+        display: none;
+      }
+            .serverpil.apen {
         transform: rotate(180deg);
       }
       /* Et usynlig lag over resten av siden, så et trykk utenfor menyen lukker den. */
