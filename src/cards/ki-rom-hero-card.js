@@ -90,15 +90,14 @@
     .kort.rolig .stov { display: none; }
     .kort.rolig .glyf { animation: none; }
     /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
-    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .fukt, .kort.enkel .sub { display: none; }
+    /* Tannhjulet og fuktsøylen står i begge stilene. */
+    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub { display: none; }
     .kort.enkel .graf { height: 62%; right: 0 !important; }
     .kort.enkel .graf .linje { display: none; }
     .kort.enkel .graf .flate { fill: var(--graf-enkel, rgba(250,251,252,.16)); }
-    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; right: 18px !important; left: 22px; }
+    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; left: 22px; }
     .kort.enkel .temp b { font-size: 44px; }
     .kort.enkel .temp span { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
-    .kort.enkel .ikon { background: transparent; width: 40px; height: 40px; right: 10px; top: 10px; opacity: .55; }
-    .kort.enkel .ikon ha-icon { --mdc-icon-size: 20px; }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
