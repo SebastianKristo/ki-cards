@@ -16,7 +16,8 @@ Hold inne for å tilpasse – valgene lagres per bruker i Home Assistant:
 - **ki-hjem-card** – langt trykk på en fane: faner, rom per etasje, romflis-størrelse, klimaknapp og høyde/bredde på fanerada.
 - **ki-rom-card** – «Tilpass rommet»: skjul/vis, temp/fukt-sensor, seksjoner og scener.
 - **ki-rom-hero-card** – nytt toppkort i hvert rom (temperatur, fukt, døgnspenn, levende bakgrunn); tannhjulet åpner «Tilpass rommet».
-- **ki-person-card** – popup for en person (sone, mobil, søvn); åpnes ved trykk i familiekortet, som også har fått profilen «Hjem».
+- **ki-person-card** – personarket fra Hjem-dashbordet; familiekortet viser hurtigpopupen ved trykk på et bilde.
+- **ki-lys-card** – «Lys v3»: utelys, etasjer og lys som er på.
 - **ki-tabs-card** – `fane_hoyde`/`fane_bredde` og «Tilpass faner».
 - **family-status-card** – «Tilpass»: oppsett, personer, bilder, hilsen og dobbelttrykk.
 
