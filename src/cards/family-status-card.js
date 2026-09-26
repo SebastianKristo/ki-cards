@@ -74,6 +74,8 @@ const DEFAULT_CONFIG = {
   badge_style: "ikon",       // ikon | prikk | ring | ingen
   ring_me: false,            // ring rundt bildet til den innloggede
   tilpass: "hold",           // hold | knapp | av – hvordan Tilpass åpnes
+  // Trykk på en person åpner ki-person-card når det finnes; false = den gamle popupen
+  person_popup: true,
 };
 
 // Gjør tall om til px, men behold verdier som allerede har en enhet
@@ -94,7 +96,7 @@ function toCssSize(value, fallbackPx) {
  * følger brukeren til alle enheter. Konfigurasjonen er standarden; brukerens valg
  * legges oppå:
  *
- *   { profil: "familie"|"server"|"navn"|"under"|"kompakt",
+ *   { profil: "familie"|"server"|"navn"|"under"|"kompakt"|"hjem",
  *     personer: ["person.a", "person.b"],   // hvem som vises, i rekkefølge
  *     vis_navn: true, vis_sted: false, ring_meg: true,
  *     merke: "ikon"|"prikk"|"ring"|"ingen",
@@ -116,6 +118,10 @@ const OPPSETT = [
     tekst: "Stedet under hilsenen" },
   { id: "kompakt", navn: "Kompakt", ikon: "mdi:view-agenda-outline", plass: "navn",
     tekst: "Lav og tett" },
+  /* Som toppen på Hjem-dashbordet: stedet som stor tittel med været under og ditt eget
+     bilde til høyre, og resten av familien på en egen rad under. */
+  { id: "hjem", navn: "Hjem", ikon: "mdi:home-account", plass: "tittel",
+    tekst: "Sted, vær og personer" },
 ];
 
 /* Bildestørrelsene i Tilpass (og som tekst i avatar_size). */
@@ -326,6 +332,11 @@ class FamilyStatusCard extends LitElement {
       if (typeof u.vis_navn !== "boolean" && raw.show_names === undefined) o.show_names = false;
       if (raw.card_padding === undefined) o.card_padding = "6px 8px";
       if (raw.persons_gap === undefined) o.persons_gap = 8;
+    }
+    /* Hjem: stedet under navnet og ringen rundt deg er på – med mindre noe er valgt. */
+    if (String(o.layout || "").toLowerCase() === "hjem") {
+      if (typeof u.vis_sted !== "boolean" && raw.show_location === undefined) o.show_location = true;
+      if (typeof u.ring_meg !== "boolean" && raw.ring_me === undefined) o.ring_me = true;
     }
     return o;
   }
@@ -1102,6 +1113,7 @@ class FamilyStatusCard extends LitElement {
   _renderRow(cfg, forhand = false) {
     const opp = this._oppsett();
     const knapp = !forhand && this._tilpassPa() && String(cfg.tilpass || "").toLowerCase() === "knapp";
+    if (opp && opp.id === "hjem") return this._renderHjem(cfg, forhand, knapp);
     return html`
       <div class="row ${opp ? `oppsett-${opp.id}` : ""} ${forhand ? "forhand" : ""}">
         <div class="hilsen">
