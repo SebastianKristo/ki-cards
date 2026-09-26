@@ -1,27 +1,49 @@
 /**
- * ki-kamera-card.js  —  v1.0.0
+ * ki-kamera-card.js
  *
  * Kameraoversikt i samme designspråk som ki-energi-card og ki-alarm-card.
  *   • Kildebryter: Frigate (advanced-camera-card + hendelsesgalleri) eller
- *     Vanlig (rå kamerastrøm, f.eks. UniFi high resolution channel)
- *   • Kamerapiller med ikon, horisontalt rullbare
+ *     Direkte (rå kamerastrøm, f.eks. UniFi high resolution channel)
+ *   • Kamerapiller med ikon og bevegelsesprikk, horisontalt rullbare
+ *   • Alle-visningen i ni oppsett: mosaikk, hovedkamera, rutenett, liste, masonry,
+ *     oversikt (stort kamera med direktestrøm + småbilder), fokus (bla ett og ett),
+ *     2×2 (sider med fire) og 3 kolonner
+ *   • Fliser med LIVE-merke, deteksjon (person/bil/dyr/pakke/bevegelse), modell og åpne-knapp;
+ *     stillbildene byttes hvert `oppdater` sekund
+ *   • Enkeltvisning med personvern, bevegelse, siste bevegelse, lys, sirene, snakk og «ta bilde»
+ *   • Hendelser (Direkte): dagens deteksjoner fra sensorhistorikken, med filter og tall
  *   • Hendelsesfane som samler alle Frigate-kameraene
  *   • Full GUI-editor
  *
  * De eksisterende kortene dine brukes videre — dette kortet monterer
  * custom:advanced-camera-card og custom:mysmart-frigate-gallery inni seg.
  *
- * Ruteoppsett per bruker og enhet: hver bruker kan velge oppsett, rekkefølge og hvilke
- * kameraer som vises i Alle-visningen – det lagres i nettleseren for den brukeren på den
- * enheten. Standard for en bruker kan settes i konfigurasjonen:
+ * Tilpass kameraer (per bruker): hver bruker velger oppsett, hvilke kameraer som vises og i hvilken
+ * rekkefølge, bytter kamera-entitet, legger til andre camera.* og velger egen entitet for stillbildene
+ * (f.eks. lav oppløsning). Lagres i Home Assistant (frontend/set_user_data, nøkkel «ki_kamera»), så valgene
+ * følger brukeren til alle enheter: { [oppsett_id]: { oppsett, liste: [camera.*], skjul: [camera.*], bilde: {} } }.
+ * Standard for en bruker kan settes i konfigurasjonen:
  *   per_bruker:
  *     Sebastian: { grid_layout: hoved, rekkefolge: [Inngang, Garasje], skjul: [Bod] }
+ *
+ * Nye valg (alle valgfrie):
+ *   auto: false            # ta med andre camera.* som ikke står i cameras (medium/low/insecure hoppes over)
+ *   navn: { ringeklokke: Inngang }   # nøkkelord i objekt-ID → navn for automatiske kameraer
+ *   oppdater: 10           # sek mellom stillbilder i rutenettet
+ *   direkte: true          # direktestrøm (ha-camera-stream) i oversikt/fokus
+ *   sirene: null           # siren.* for sirene-flisen (tom = første siren.*, false = skjul)
+ *   bilde_mappe: /config/www/kamera   # camera.snapshot (må være i allowlist_external_dirs)
+ *   lagring: null          # sensor for opptakskapasitet (auto: sensor.*_recording_capacity)
+ *   show_detections: true  # Hendelser-fanen i Direkte
+ *   show_customize: true   # «Tilpass kameraer»-knappen under rutenettet
+ *   oppsett_id: standard   # skiller brukervalgene når flere kamerakort finnes
+ *   cameras[].lys / .snakk # lys og snakk-bryter for enkeltvisningen
  *
  * Legges i /config/www/ki-kamera-card.js og registreres som
  * JavaScript Module: /local/ki-kamera-card.js
  */
 
-const KI_KAMERA_VERSION = "1.12.0";
+const KI_KAMERA_VERSION = "2.0.0";
 
 console.info(
   `%c KI-KAMERA-CARD %c ${KI_KAMERA_VERSION} `,
@@ -75,7 +97,44 @@ const OPPSETT = {
     celleRatio: "16 / 9",
     auto: true,
   },
+  /* Oppsettene under er hentet fra kd-kamera-card og tegnes av _byggSpesial(). */
+  masonry: { navn: "Masonry", ikon: "mdi:view-dashboard-variant-outline", spesial: true },
+  oversikt: { navn: "Oversikt", ikon: "mdi:view-quilt-outline", spesial: true },
+  fokus: { navn: "Fokus", ikon: "mdi:crop-free", spesial: true },
+  "2x2": { navn: "2×2", ikon: "mdi:grid-large", spesial: true },
+  "3kol": { navn: "3 kolonner", ikon: "mdi:view-column-outline", spesial: true },
 };
+
+/* Deteksjon: binary_sensor.<enhet><suffiks> (UniFi Protect / Frigate). */
+const DET = {
+  person: ["_person_detected", "_person_occupancy"],
+  car: ["_vehicle_detected", "_car_occupancy"],
+  animal: ["_animal_detected", "_cat_occupancy", "_dog_occupancy"],
+  package: ["_package_detected", "_package_occupancy"],
+};
+const OBJ = {
+  person: ["Person", "mdi:account"],
+  car: ["Bil", "mdi:car"],
+  animal: ["Dyr", "mdi:paw"],
+  package: ["Pakke", "mdi:package-variant-closed"],
+  motion: ["Bevegelse", "mdi:motion-sensor"],
+};
+const AUTO_IKON = [
+  [/pakke|package/, "mdi:package-variant-closed"], [/inngang|ringeklokke|doorbell|entry|d[øo]r/, "mdi:doorbell-video"],
+  [/mellomgang|trapp|gang|hall|stair/, "mdi:stairs"], [/veranda|terrasse|deck|balkong|patio/, "mdi:flower"],
+  [/stue|living/, "mdi:sofa"], [/garasje|garage/, "mdi:garage"], [/kj[øo]kken|kitchen/, "mdi:countertop"],
+  [/hage|ute|yard|garden|innkj/, "mdi:tree"], [/printer|k2|creality/, "mdi:printer-3d"],
+];
+const UD_NOKKEL = "ki_kamera";
+const slug = (s) => String(s || "").toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a")
+  .replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+/** Objekt-ID uten oppløsning/kanal: ringeklokke_g6_entry_high_resolution_channel → ringeklokke_g6_entry */
+const enhetAv = (obj) => obj.replace(/_(ultra_)?(high|medium|low)(_resolution_channel|_resolution|_res)?$/, "")
+  .replace(/_insecure$/, "").replace(/_package(_camera)?$/, "");
+const kvalitet = (id) => /_high|_ultra_high/.test(id) ? "Høy" : /_medium/.test(id) ? "Middels" : /_low/.test(id) ? "Lav"
+  : /_insecure/.test(id) ? "Usikret" : /_package/.test(id) ? "Pakke" : "";
+const LAV_OPPLOSNING = /_(medium|low)(_resolution_channel|_resolution|_res)?$|_insecure$/;
+const mmss = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 const FELTNAVN = "abcdefghijklmnop".split("");
 
