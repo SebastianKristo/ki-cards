@@ -910,8 +910,8 @@
    * <rom> er area_id (flere rom: «stue+kjokken»). ki-rom-tile-card leser temp/fukt herfra. */
   const UD_KEY = 'ki_rom';
   const cfg0Stil = (cfg) => cfg.topp_stil || 'levende';
-  /* Fargene brukeren kan velge for grafen i toppkortet. '' = automatisk (følger varme/lys). */
-  const FARGER = [['Auto', ''], ['Blå', '#80c3ff'], ['Grønn', '#8fd6a0'], ['Gul', '#ead070'], ['Oransje', '#f2b966'],
+  /* Fargene brukeren kan velge for temperaturgrafen i toppkortet. '' = dynamisk (fargen følger temperaturen). */
+  const FARGER = [['Dynamisk', ''], ['Rav', '#f2b966'], ['Blå', '#80c3ff'], ['Grønn', '#8fd6a0'], ['Gul', '#ead070'],
     ['Rød', '#f47b74'], ['Lilla', '#c7a6ff'], ['Rosa', '#f3a6c8'], ['Hvit', '#e8e6e1']];
   const DEFAULT_ORDER = ['header', 'gardiner', 'scener', 'lys', 'enheter', 'klima', 'media', 'sensorer'];
   const romKey = (cfg) => [].concat(cfg.rom || cfg.entity || []).filter(Boolean).join('+');
@@ -1760,7 +1760,7 @@
         + sensRad('temp', 'Temperatur fra', 'mdi:thermometer') + sensRad('fukt', 'Fukt fra', 'mdi:water-percent')
         + '<div class="sens"><div class="sh"><ha-icon icon="mdi:palette-outline"></ha-icon><span class="t">Farge på grafen</span></div><div class="chips">'
         + FARGER.map(([navn, f]) => '<button type="button" class="chip press' + ((U.farge || '') === f ? ' sel' : '') + '" data-act="farge" data-id="' + esc(f) + '">'
-          + (f ? '<span class="dot" style="background:' + esc(f) + '"></span>' : '<ha-icon icon="mdi:auto-fix"></ha-icon>') + '<span class="l">' + navn + '</span></button>').join('')
+          + (f ? '<span class="dot" style="background:' + esc(f) + '"></span>' : '<span class="dot" style="background:linear-gradient(90deg,#80c3ff,#8fd6a0,#f2b966,#f47b74)"></span>') + '<span class="l">' + navn + '</span></button>').join('')
         + '</div></div>'
         + '<div class="sens"><div class="sh"><ha-icon icon="mdi:card-outline"></ha-icon><span class="t">Toppkort</span></div><div class="chips">'
         + [['levende', 'Levende', 'mdi:creation'], ['enkel', 'Enkel', 'mdi:chart-areaspline-variant']].map(([v, t, ic]) => '<button type="button" class="chip press' + ((U.stil || cfg.topp_stil || 'levende') === v ? ' sel' : '') + '" data-act="stil" data-id="' + v + '"><ha-icon icon="' + ic + '"></ha-icon><span class="l">' + t + '</span></button>').join('')

@@ -38,7 +38,7 @@
  * kortet ikke har fått temperatur/fukt i config.
  */
 (() => {
-  const VERSJON = "1.4.0"
+  const VERSJON = "1.5.0"
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 1) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const ok = (s) => s && !["unavailable", "unknown", ""].includes(s.state);
@@ -54,41 +54,52 @@
   const CSS = `
     :host { display: block; }
     * { box-sizing: border-box; }
-    /* «Levende» (standard): navn og statuspille øverst, stor temperatur med fukt ved siden av,
-       spennet siste døgn under, og temperaturgrafen langs bunnen med en prikk for «nå».
-       --m er tilstandsfargen (pille og ikon), --f grafens farge (rav som standard). */
+    /* «Levende» (standard) – «Romkort» fra designet: navn og statuspille øverst, stor temperatur og
+       fukt-pille som bytter grafen (temperatur/fukt), «Nå · spenn siste døgn», og grafen langs
+       bunnen med en prikk som kan dras bakover i tid. --m er tilstandsfargen (pille og ikon). */
     .kort { position: relative; height: var(--h, 184px); border-radius: 28px; overflow: hidden; color: var(--gray1000, #f2f1ee);
       transition: background .8s; cursor: pointer;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
     .kort:focus-visible { outline: 2px solid var(--m); outline-offset: 2px; }
-    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 32%; pointer-events: none; display: block; overflow: visible; }
-    .graf .linje { fill: none; stroke: var(--f); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-    .graf .flate { fill: color-mix(in srgb, var(--f) 26%, transparent); }
-    .prikk { position: absolute; right: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--gray1000, #f2f1ee);
-      box-shadow: 0 0 0 3px var(--f); pointer-events: none; transform: translateY(-50%); display: none; }
+    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 58%; pointer-events: none; display: none; }
+    .graf .linje { fill: none; stroke: var(--f); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+    .graf .flate { fill: url(#kiHeroFyll); }
+    .g2 { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; }
+    .g2 svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+    .g2 .linje { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+    .g2 .markor { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--gk, rgba(242,185,102,.6)); pointer-events: none; }
+    .g2 .markor span { position: absolute; left: -6px; width: 10px; height: 10px; border-radius: 5px; background: #f4f3ef; box-shadow: 0 0 0 3px var(--gr, rgba(242,185,102,.5)); }
+    .g2 .skrubb { position: absolute; inset: 0; touch-action: none; cursor: crosshair; }
+    .prikk { display: none; }
     .stovlag { display: none; }
     .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--m); pointer-events: none; }
-    .glyf { position: absolute; right: 88px; top: 24px; color: var(--m); pointer-events: none;
-      filter: drop-shadow(0 0 14px color-mix(in srgb, var(--m) 60%, transparent)); animation: puste 3s ease-in-out infinite; }
-    .glyf ha-icon { --mdc-icon-size: 36px; display: block; }
+    .glyf { position: absolute; right: 74px; top: 22px; color: var(--m); pointer-events: none;
+      filter: drop-shadow(0 0 14px color-mix(in srgb, var(--m) 70%, transparent)); animation: puste 3s ease-in-out infinite; }
+    .glyf ha-icon { --mdc-icon-size: 30px; display: block; }
     @keyframes puste { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-    .ikon { position: absolute; right: 16px; top: 16px; width: 56px; height: 56px; border-radius: 50%; background: rgba(250,251,252,.08);
+    .ikon { position: absolute; right: 16px; top: 16px; width: 44px; height: 44px; border-radius: 22px; background: rgba(255,255,255,.1);
       display: grid; place-items: center; border: 0; padding: 0; color: var(--gray1000, #f2f1ee); cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
     .ikon:active { transform: scale(.92); }
-    .ikon ha-icon { --mdc-icon-size: 26px; }
-    .topp { position: absolute; left: 20px; top: 18px; right: 128px; display: flex; flex-direction: row; gap: 12px; align-items: center; min-width: 0; }
-    .navn { font-size: 16px; font-weight: 500; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 2.5em; }
-    .pille { height: 32px; padding: 0 14px 0 12px; border-radius: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
-      white-space: nowrap; background: color-mix(in srgb, var(--m) 22%, transparent); color: var(--m); flex: 0 1 auto; min-width: 0; overflow: hidden; }
+    .ikon ha-icon { --mdc-icon-size: 22px; }
+    .topp { position: absolute; left: 18px; top: 18px; right: 120px; display: flex; flex-direction: row; gap: 8px; align-items: center; min-width: 0; }
+    .navn { font-size: 13px; font-weight: 400; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 2.5em; }
+    .pille { height: 26px; padding: 0 10px 0 8px; border-radius: 13px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+      white-space: nowrap; background: color-mix(in srgb, var(--m) 18%, transparent); color: var(--m); flex: 0 1 auto; min-width: 0; overflow: hidden; }
     .pille .pt { overflow: hidden; text-overflow: ellipsis; }
-    .pille ha-icon { --mdc-icon-size: 16px; }
-    .bunn { position: absolute; left: 20px; right: 18px; top: 54px; display: flex; flex-direction: column; gap: 8px; }
-    .temp { display: flex; align-items: baseline; gap: 2px; white-space: nowrap; }
-    .temp b { font-size: 60px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .pille ha-icon { --mdc-icon-size: 14px; }
+    .bunn { position: absolute; left: 18px; right: 18px; top: 54px; display: flex; flex-direction: column; gap: 2px; }
+    .temp { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+    .temp b { font-size: 44px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
     .temp .grad { display: none; }
-    .fuktv { margin-left: 20px; font-size: 26px; font-weight: 400; color: var(--gray600, #8e8d89); font-variant-numeric: tabular-nums; cursor: pointer; }
-    .fuktv small { font-size: 18px; margin-left: 1px; }
-    .sub { font-size: 15px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .tknapp { display: flex; align-items: flex-start; color: var(--gray1000, #f2f1ee); transition: color .25s; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+    .tknapp i { font-style: normal; font-size: 24px; font-weight: 300; }
+    .fuktv { display: flex; align-items: baseline; gap: 1px; height: 26px; padding: 0 9px; border-radius: 13px; border: 0; font: inherit;
+      background: transparent; color: var(--gray800, #c9c7c2); font-size: 17px; font-weight: 400; font-variant-numeric: tabular-nums; cursor: pointer;
+      transition: background .25s, color .25s; }
+    .fuktv small { font-size: 12px; }
+    .kort.fukt-valgt .tknapp { color: var(--gray600, #8e8d89); }
+    .kort.fukt-valgt .fuktv { background: rgba(128,195,255,.2); color: var(--gray1000, #f2f1ee); }
+    .sub { font-size: 12px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .fukt { display: none; position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
       background: var(--gray100, rgba(255,255,255,.08)); overflow: hidden; flex-direction: column; justify-content: flex-end;
       border: 0; padding: 0; cursor: pointer; }
@@ -98,7 +109,9 @@
     .kort.rolig .glyf { animation: none; }
     /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
     /* Tannhjulet og fuktsøylen står i begge stilene. */
-    .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub, .kort.enkel .fuktv, .kort.enkel .prikk { display: none !important; }
+    .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub, .kort.enkel .fuktv, .kort.enkel .prikk, .kort.enkel .g2 { display: none !important; }
+    .kort.enkel .graf { display: block; }
+    .kort.enkel .tknapp i { display: none; }
     .kort.enkel { border-radius: 24px; }
     .kort.enkel .fukt { display: flex; }
     .kort.enkel .ikon { width: 48px; height: 48px; }
@@ -266,6 +279,17 @@
         const v = pkt.map((x) => x.v);
         this._spenn = v.length ? [Math.min(...v), Math.max(...v)] : null;
         this._punkter = pkt;
+        /* Fukt siste døgn til fuktgrafen (trykk på fukttallet). */
+        const fid = (this._auto || {}).fukt;
+        this._punkterF = null;
+        if (fid && this._hass.states[fid]) {
+          const sf = await this._hass.callWS({
+            type: "history/history_during_period", start_time: start.toISOString(), end_time: slutt.toISOString(),
+            entity_ids: [fid], minimal_response: true, no_attributes: true, significant_changes_only: false,
+          });
+          this._punkterF = ((sf && sf[fid]) || []).map((q) => ({ t: Number(q.lu || q.lc) * 1000, v: parseFloat(q.s) }))
+            .filter((x) => !isNaN(x.v) && !isNaN(x.t));
+        }
       } catch (e) {
         this._spenn = null;
         this._punkter = null;
@@ -312,10 +336,21 @@
             <path class="flate"></path><path class="linje"></path>
           </svg>
           <span class="prikk"></span>
+          <div class="g2">
+            <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient class="gl" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="92"></linearGradient>
+                <linearGradient class="gf" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="92"></linearGradient>
+              </defs>
+              <polyline class="flate2" style="stroke:none"></polyline><polyline class="linje"></polyline>
+            </svg>
+            <div class="markor"><span></span></div>
+            <div class="skrubb"></div>
+          </div>
           <span class="glyf"><ha-icon></ha-icon></span>
           <button class="ikon" aria-label="${this._c.tannhjul === false ? "Åpne rommet" : "Tilpass rommet"}"><ha-icon></ha-icon></button>
           <div class="topp"><span class="navn"></span><span class="pille"><ha-icon></ha-icon><span class="pt"></span></span></div>
-          <div class="bunn"><div class="temp"><b></b><span class="grad">°</span><span class="fuktv"></span></div><span class="sub"></span></div>
+          <div class="bunn"><div class="temp"><button class="tknapp" aria-label="Temperaturgraf"><b></b><i>°</i></button><span class="grad">°</span><button class="fuktv" aria-label="Fuktgraf"></button></div><span class="sub"></span></div>
           <button class="fukt" aria-label="Luftfuktighet"><i></i><ha-icon icon="mdi:water"></ha-icon></button>
         </div>`;
       const r = this.shadowRoot;
@@ -333,11 +368,20 @@
         }
         this._handling(this._c.ikon_tap_action || (a.klima ? { action: "more-info" } : { action: "none" }), a.klima);
       });
-      r.querySelector(".fuktv").addEventListener("click", (e) => {
-        e.stopPropagation();
-        const a = this._auto || {};
-        this._handling(this._c.fukt_tap_action, a.fukt || a.klima);
-      });
+      /* Trykk på temperaturen / fukt-pilla bytter grafen; langt trykk åpner sensoren. */
+      const velgGraf = (fukt) => (e) => { e.stopPropagation(); if (this._graf === (fukt ? "h" : "t")) { const a = this._auto || {}; this._handling(fukt ? this._c.fukt_tap_action : this._c.tap_action, fukt ? (a.fukt || a.klima) : this._tempKilde()); return; }
+        this._graf = fukt ? "h" : "t"; this._sel = null; if (navigator.vibrate) { try { navigator.vibrate(6); } catch (x) { /* blokkert */ } } this._siste = null; this._oppdater(); };
+      r.querySelector(".tknapp").addEventListener("click", velgGraf(false));
+      r.querySelector(".fuktv").addEventListener("click", velgGraf(true));
+      /* Dra i grafen: vis verdien for en tidligere time. */
+      const sk = r.querySelector(".skrubb");
+      const pos = (e) => { const q = sk.getBoundingClientRect(); return Math.max(0, Math.min(24, Math.round((e.clientX - q.left) / q.width * 24))); };
+      const settSel = (v) => { if (v === this._sel) return; this._sel = v; this._siste = null; this._oppdater(); };
+      sk.addEventListener("pointerdown", (e) => { e.stopPropagation(); this._skrubb = true; try { sk.setPointerCapture(e.pointerId); } catch (x) { /* ok */ } settSel(pos(e)); });
+      sk.addEventListener("pointermove", (e) => { if (this._skrubb || e.pointerType === "mouse") settSel(pos(e)); });
+      const slipp = () => { this._skrubb = false; settSel(null); };
+      sk.addEventListener("pointerup", slipp); sk.addEventListener("pointercancel", slipp); sk.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") slipp(); });
+      sk.addEventListener("click", (e) => e.stopPropagation());
       r.querySelector(".fukt").addEventListener("click", (e) => {
         e.stopPropagation();
         const a = this._auto || {};
@@ -390,23 +434,39 @@
       const enkel = c.stil === "enkel" || a.stil === "enkel";
       kort.classList.toggle("enkel", enkel);
       kort.classList.toggle("rolig", c.animasjon === false || a.animasjon === false);
-      $(".temp b").textContent = `${komma(temp)}°`;
+      /* Serier per time siste døgn (0 = 24 t siden, 24 = nå). */
+      const serie = (pkt, naa) => { const ut = [], sl = Date.now(), st = sl - 24 * 3600 * 1000; let j = 0, sist = pkt && pkt.length ? pkt[0].v : naa;
+        for (let i = 0; i <= 24; i++) { const t = st + i * 3600 * 1000; while (pkt && j < pkt.length && pkt[j].t <= t) { sist = pkt[j].v; j++; } ut.push(i === 24 && !isNaN(naa) ? naa : sist); }
+        return ut; };
+      const erH = !enkel && this._graf === "h" && !isNaN(fukt);
+      kort.classList.toggle("fukt-valgt", erH);
+      const tS = serie(this._punkter, temp), hS = serie(this._punkterF, fukt);
+      const sel = this._sel == null ? 24 : this._sel;
+      const tv = isNaN(tS[sel]) ? temp : tS[sel], hv = isNaN(hS[sel]) ? fukt : hS[sel];
+      $(".temp b").textContent = enkel ? `${komma(temp)}°` : komma(tv);
       $(".temp .grad").textContent = enkel ? (isNaN(fukt) ? "" : `${komma(fukt, 0)}%`) : "";
-      $(".fuktv").innerHTML = isNaN(fukt) ? "" : `${komma(fukt, 0)}<small>%</small>`;
+      $(".fuktv").innerHTML = isNaN(fukt) ? "" : `${komma(hv, 0)}<small>%</small>`;
+      $(".fuktv").style.display = isNaN(fukt) ? "none" : "";
+      if (!enkel) this._tegnGraf2(erH ? hS : tS, erH, sel, c.farge || a.farge);
       const deler = ["Nå"];
       if (this._spenn) {
         // dagens verdi skal alltid være innenfor spennet
         const lo = Math.min(this._spenn[0], isNaN(temp) ? Infinity : temp), hi = Math.max(this._spenn[1], isNaN(temp) ? -Infinity : temp);
         deler.push(`${komma(lo)}–${komma(hi)}° siste døgn`);
       }
-      $(".sub").textContent = deler.length > 1 ? deler.join(" · ") : "";
+      if (!enkel && erH) {
+        const v = hS.filter((x) => !isNaN(x));
+        deler.length = 1;
+        if (v.length) deler.push(`${komma(Math.min(...v), 0)}–${komma(Math.max(...v), 0)} % siste døgn`);
+      }
+      $(".sub").textContent = sel !== 24 && !enkel ? `−${24 - sel} t` : (deler.length > 1 ? deler.join(" · ") : "");
 
       const fs = $(".fukt");
       fs.style.display = isNaN(fukt) ? "none" : "";
       fs.style.setProperty("--fb", fukt > 60 ? F.rav : F.bla);
       $(".fukt i").style.height = `${Math.max(0, Math.min(100, isNaN(fukt) ? 0 : fukt))}%`;
       fs.setAttribute("aria-label", `Luftfuktighet ${komma(fukt, 0)} %`);
-      this._tegnGraf(temp, !isNaN(fukt));
+      if (enkel) this._tegnGraf(temp, !isNaN(fukt));
 
       kort.setAttribute("aria-label", `${a.navn || ""}: ${komma(temp)} grader. ${pt}. ${$(".sub").textContent}`);
     }
@@ -459,6 +519,58 @@
       prikk.style.top = `calc(68% + ${(y * 32).toFixed(2)}%)`;
       prikk.style.display = enkel ? "none" : "block";
     }
+  };
+
+  /* Dynamisk farge etter temperatur: kaldt blått, behagelig grønt, varmt rav og rødt. */
+  const FARGESKALA = [[16, [128, 195, 255]], [19.5, [143, 214, 160]], [22.5, [242, 185, 102]], [25.5, [244, 123, 116]]];
+  const fargeFor = (t) => {
+    const S = FARGESKALA;
+    if (!(t > S[0][0])) return `rgb(${S[0][1].join(",")})`;
+    for (let i = 1; i < S.length; i++) {
+      if (t <= S[i][0]) { const k = (t - S[i - 1][0]) / (S[i][0] - S[i - 1][0]); const c = S[i - 1][1].map((x, j) => Math.round(x + (S[i][1][j] - x) * k)); return `rgb(${c.join(",")})`; }
+    }
+    return `rgb(${S[S.length - 1][1].join(",")})`;
+  };
+  const medAlfa = (c, a) => (c.startsWith("rgb(") ? c.replace("rgb(", "rgba(").replace(")", `,${a})`) : `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, transparent)`);
+
+  /* «Romkort»-grafen: 25 timepunkter (24 t siden → nå), rette streker, fyll under, markør med prikk.
+     Temperatur: brukerens farge, eller dynamisk (fargen følger temperaturen). Fukt: blå. */
+  KiRomHeroCard.prototype._tegnGraf2 = function (ser, erH, sel, farge) {
+    const R = this.shadowRoot, g = R.querySelector(".g2");
+    const v = ser.filter((x) => !isNaN(x));
+    if (this._c.graf === false || v.length < 2) { g.style.display = "none"; return; }
+    g.style.display = "";
+    const lo = Math.floor(Math.min(...v) - (erH ? 2 : 0.3)), hi = Math.ceil(Math.max(...v) + (erH ? 2 : 0.3));
+    const X = (i) => (i / 24 * 300).toFixed(1), Y = (x) => (92 - (x - lo) / (hi - lo || 1) * 72);
+    const ok = ser.map((x, i) => (isNaN(x) ? null : [X(i), Y(x).toFixed(1)])).filter(Boolean);
+    const pts = ok.map((p) => p.join(",")).join(" ");
+    const linje = R.querySelector(".g2 .linje"), flate = R.querySelector(".g2 .flate2");
+    linje.setAttribute("points", pts);
+    flate.setAttribute("points", `${ok[0][0]},100 ${pts} ${ok[ok.length - 1][0]},100`);
+    const dyn = !erH && (!farge || farge === "dynamisk");
+    const fast = erH ? "#80c3ff" : (dyn ? null : farge);
+    const gl = R.querySelector(".g2 .gl"), gf = R.querySelector(".g2 .gf");
+    if (dyn) {
+      /* Loddrett gradient i grafens koordinater: y for hver farge i skalaen. */
+      const stopp = [];
+      for (let k = 0; k <= 6; k++) { const t = hi - (hi - lo) * k / 6; stopp.push([Y(t), fargeFor(t)]); }
+      gl.setAttribute("y1", stopp[0][0]); gl.setAttribute("y2", stopp[6][0]);
+      gf.setAttribute("y1", stopp[0][0]); gf.setAttribute("y2", stopp[6][0]);
+      gl.innerHTML = stopp.map(([, c], k) => `<stop offset="${k / 6}" stop-color="${c}"></stop>`).join("");
+      gf.innerHTML = stopp.map(([, c], k) => `<stop offset="${k / 6}" stop-color="${c}" stop-opacity=".22"></stop>`).join("");
+      const id = this._gid || (this._gid = "kh" + Math.random().toString(36).slice(2, 8));
+      gl.id = id + "l"; gf.id = id + "f";
+      linje.style.stroke = `url(#${id}l)`; flate.style.fill = `url(#${id}f)`;
+    } else {
+      linje.style.stroke = fast; flate.style.fill = medAlfa(fast.startsWith("#") ? `rgb(${[1, 3, 5].map((i) => parseInt(fast.slice(i, i + 2), 16)).join(",")})` : fast, 0.2);
+    }
+    const selV = isNaN(ser[sel]) ? v[v.length - 1] : ser[sel];
+    const pc = fast || fargeFor(selV);
+    const m = R.querySelector(".g2 .markor");
+    m.style.left = `${sel / 24 * 100}%`;
+    m.style.setProperty("--gk", medAlfa(pc.startsWith("#") ? `rgb(${[1, 3, 5].map((i) => parseInt(pc.slice(i, i + 2), 16)).join(",")})` : pc, 0.6));
+    m.style.setProperty("--gr", medAlfa(pc.startsWith("#") ? `rgb(${[1, 3, 5].map((i) => parseInt(pc.slice(i, i + 2), 16)).join(",")})` : pc, 0.5));
+    m.querySelector("span").style.top = `calc(${Y(selV).toFixed(1)}% - 5px)`;
   };
 
   if (!customElements.get("ki-rom-hero-card")) customElements.define("ki-rom-hero-card", KiRomHeroCard);

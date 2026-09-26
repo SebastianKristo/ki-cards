@@ -1,3 +1,13 @@
+# ki-cards 9.7.0
+
+- **ki-strompris-card 5.0** – etter «Strømpriser»-designet: tittel og «I dag | I morgen», «Spot nå» og Norgespris i rosa side om side, forklaring (Nord Pool spot / Norgespris · øre/kWh), trappekurve med stiplet rosa Norgespris-linje, prikk for «nå» og dra over grafen for hver time. Prisfanene, statistikk, billigste timer og spart-flisene er skjult som standard – `vis_modus`, `vis_stat`, `vis_vindu`, `vis_spart` slår dem på. Standard pris er spot (`modus: total` for totalpris).
+- **ki-rom-hero-card 1.5** – etter «Romkort»-designet: trykk på temperaturen/fukt-pilla bytter mellom temperatur- og fuktgraf, dra i grafen for å se en tidligere time («−14 t»). Temperaturgrafen har **dynamisk farge** (blå → grønn → rav → rød etter temperaturen); i «Tilpass rommet» → «Farge på grafen» kan du velge Dynamisk, Rav eller en fast farge.
+- **Faner (dra-animasjon)**: hass-oppdateringer holdes tilbake mens fingeren drar, så kortet ikke tegnes på nytt under fingeren; en pille som lages på nytt etter slipp glir på plass i stedet for å hoppe.
+
+# ki-cards 9.6.3
+
+- **ki-rom-hero-card**: litt mindre tekst – temperaturen 48 px (var 60), fukt 20 px, romnavn 14 px, pille 12 px og undertekst 13 px.
+
 # ki-cards 9.6.2
 
 - **ki-rom-hero-card 1.4**: nytt utseende (standard «Levende») etter designet – romnavn og statuspille på én linje, stort tall med fukten ved siden av («22,8°  50%»), «Nå · 20,8–23,2° siste døgn», tilstandsikonet og tannhjulet oppe til høyre, og temperaturgrafen langs bunnen i rav med en prikk for «nå» på høyre kant. Pilla/ikonet følger tilstanden (varmer/lys/holder), grafen er rav (eller fargen du velger). Fuktsøylen og partiklene er borte fra «Levende»; «Enkel» er uendret.
