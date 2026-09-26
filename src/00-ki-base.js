@@ -629,6 +629,35 @@ window.KI = window.KI || {};
 
     let fontKlar = !(document.fonts && document.fonts.ready);
 
+    /* Mens fingeren drar, holdes nye hass-oppdateringer tilbake. Ellers tegnet kortet seg på
+       nytt (innerHTML / Lit) ved hver tilstandsendring i huset, byttet ut rada under fingeren
+       og pilla hakket. Siste hass sendes videre når fingeren slippes. */
+    const frys = () => {
+      if (vert._kiFrosset) return;
+      const eie = Object.getOwnPropertyDescriptor(vert, "hass");
+      if (eie && !eie.configurable) return;
+      vert._kiFrosset = { eie, venter: undefined, har: false };
+      try {
+        Object.defineProperty(vert, "hass", {
+          configurable: true,
+          get() { const f = vert._kiFrosset; return f && f.har ? f.venter : (f && f.eie ? (f.eie.get ? f.eie.get.call(vert) : f.eie.value) : Object.getPrototypeOf(vert) && (() => { const pd = (function finn(o) { while (o) { const x = Object.getOwnPropertyDescriptor(o, "hass"); if (x) return x; o = Object.getPrototypeOf(o); } return null; })(Object.getPrototypeOf(vert)); return pd && pd.get ? pd.get.call(vert) : undefined; })()); },
+          set(h) { const f = vert._kiFrosset; if (f) { f.venter = h; f.har = true; } },
+        });
+      } catch (x) { vert._kiFrosset = null; }
+    };
+    const tin = () => {
+      const f = vert._kiFrosset;
+      if (!f) return;
+      vert._kiFrosset = null;
+      try { delete vert.hass; if (f.eie) Object.defineProperty(vert, "hass", f.eie); } catch (x) { /* ok */ }
+      /* Etter snappen, så pilla får lande før kortet eventuelt tegner seg på nytt – og bare
+         hvis HA ikke alt har sendt en nyere hass i mellomtiden. */
+      if (f.har) {
+        let for_ = undefined; try { for_ = vert.hass; } catch (x) { /* ok */ }
+        setTimeout(() => { try { if (vert.hass === for_) vert.hass = f.venter; } catch (x) { /* ok */ } }, 600);
+      }
+    };
+
     /* Flytter pilla til den aktive knappen.
        modus: "stille" (måling/korreksjon, ingen animasjon), "glid" (bytte), "snapp" (etter dra). */
     const flytt = (r, modus) => {
@@ -711,6 +740,7 @@ window.KI = window.KI || {};
       const avslutt = () => {
         const d = r._kiDra; r._kiDra = null;
         if (d) clearTimeout(d.ro);
+        if (d && d.drar) tin();
         const p = r._kiPille; if (p) { form(p, 1, 1); p.classList.toggle("drar", false); }
         return d;
       };
@@ -736,6 +766,7 @@ window.KI = window.KI || {};
           d.g = knapper(r).filter((b) => !sperret(b)).map((b) => { const m = maal(b, r); return { b, c: m.x + m.w / 2, ...m }; });
           if (!d.g.length) { avslutt(); return; }
           d.drar = true;
+          frys();
           try { r.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
           /* Tar man i pilla, holder den grepet der fingeren tok; ellers hopper den til fingeren. */
           if (d.fraAktiv) {
@@ -836,8 +867,12 @@ window.KI = window.KI || {};
       const husk = sist[r._kiHusk];
       r._kiSisteI = undefined;
       if (husk && husk.w) {
-        p.classList.add("stille");
+        p.classList.add("stille", "klar");
+        r.classList.add("ki-pille-klar");
         settVar(p, husk);
+        /* Tving fram stilen her, så nettleseren har et utgangspunkt å gli fra. Uten dette
+           hoppet pilla rett til målet når kortet tegnet rada på nytt etter et slipp. */
+        void getComputedStyle(p).translate; void p.offsetWidth;
         r._kiSisteI = husk.i;
         if (na() < (husk.snappTil || 0)) r._kiSnappTil = husk.snappTil;
       }
