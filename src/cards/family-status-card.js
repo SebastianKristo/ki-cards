@@ -1960,8 +1960,10 @@ class FamilyStatusCard extends LitElement {
       .tpark {
         position: relative;
         width: min(420px, 100%);
-        max-height: calc(100vh - 32px);
-        max-height: calc(100dvh - 32px);
+        /* Holder seg under statuslinja (iPhone) og over navigasjonslinja. */
+        margin: env(safe-area-inset-top, 0px) 0 var(--kd-dokk-h, 0px);
+        max-height: calc(100vh - 32px - env(safe-area-inset-top, 0px) - var(--kd-dokk-h, 0px));
+        max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - var(--kd-dokk-h, 0px));
         display: flex;
         flex-direction: column;
         border-radius: 32px;
@@ -2505,8 +2507,8 @@ class FamilyStatusCard extends LitElement {
         width: 100%;
         max-width: 480px;
         margin-bottom: var(--kd-dokk-h, 0px);
-        max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px);
-        max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px);
+        max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px - env(safe-area-inset-top, 0px));
+        max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px - env(safe-area-inset-top, 0px));
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;

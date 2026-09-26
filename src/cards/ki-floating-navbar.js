@@ -1183,8 +1183,8 @@
             bottom: calc(var(--dock, 100px) + 12px);
             transform: translateX(-50%);
             width: min(440px, calc(100vw - 24px));
-            max-height: calc(100vh - var(--dock, 100px) - 36px);
-            max-height: calc(100dvh - var(--dock, 100px) - 36px);
+            max-height: calc(100vh - var(--dock, 100px) - 36px - env(safe-area-inset-top, 0px));
+            max-height: calc(100dvh - var(--dock, 100px) - 36px - env(safe-area-inset-top, 0px));
             overflow-y: auto; overscroll-behavior: contain;
             box-sizing: border-box;
             z-index: calc(var(--z-index, 6) + 2);
