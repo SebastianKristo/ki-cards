@@ -18,13 +18,16 @@
  *   # ellers som før: badge_template, active_template, active, users: [navn], hide_name, id
  *   # tap_action: navigate | url | call-service | perform-action | fire-dom-event | toggle-menu
  *   #             | toggle (entity) | more-info (entity) | ki-navbar-edit (åpner «Tilpass navbar»)
+ *   #             | ki-hjem-tilpass (åpner «Tilpass Hjem» i ki-hjem-card på siden)
  * styles: { background, blur, color, active_color, width, icon_size, button_padding, z_index, margin_left, spacer_height }
  *
  * Nytt (alle valgfrie):
  *   indicator: both            # both (glasslinse + prikk) | lens | dot | none
  *   drag: true                 # dra fingeren langs linjen – linsen følger, slipp aktiverer
  *   customize: true            # langt trykk på linjen åpner «Tilpass navbar»
- *   edit_entry: false          # legger «Tilpass navbar» inn i «Mer»-menyen
+ *   edit_entry: auto           # «Tilpass navbar» nederst i menyen bak prikkene (standard når linjen
+ *                              # har en meny; true = alltid, lager «Mer» om nødvendig; false = aldri)
+ *   hjem_meny: true            # «Tilpass Hjem» nederst i menyen når et ki-hjem-card er på siden
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
@@ -45,6 +48,10 @@
  * Id-er: item.id, ellers "n:"+navn, (underknapper) "p:"+navigation_path, ellers "i:"+ikon.
  * Config er standarden; det som står her overstyrer. «Nullstill» sletter <nav_id>.
  * (Den gamle nøkkelen `size` ignoreres – størrelsene var mindre enn config og krympet linjen.)
+ * Menyen får nederst, under en skillelinje, «Tilpass navbar» og «Tilpass Hjem» (som i kd-dokken).
+ * «Tilpass Hjem» sender window-hendelsen `ki-hjem-tilpass` ({ detail: { apen: true } }); ki-hjem-card
+ * lytter og åpner panelet sitt. Kortet melder seg i `window.__kiHjem` (antall på siden) og sender
+ * `ki-hjem-registrert` når det kommer og går, så menyvalget bare vises når det virker.
  * Setter --kd-dokk-h på <html> (avstand fra bunnen av vinduet til toppen av linjen), så
  * andre paneler kan legge seg rett over den.
  */
@@ -184,6 +191,7 @@
         this._bNav = this._handleBrowserEvents.bind(this);
         this._bOutside = this._handleClickOutside.bind(this);
         this._bUd = (e) => { if (e && e.detail && e.detail.key === UD_KEY) this._udRev++; };
+        this._bHjem = () => { this._udRev++; };
         this._bScroll = this._onScroll.bind(this);
         this._bResize = () => { this._syncLens(true); this._measureDock(); };
         this._tick = this._tick.bind(this);
@@ -196,6 +204,7 @@
         W.addEventListener("location-changed", this._bNav);
         W.addEventListener("popstate", this._bNav);
         W.addEventListener("ki-ud", this._bUd);
+        W.addEventListener("ki-hjem-registrert", this._bHjem);
         W.addEventListener("scroll", this._bScroll, { passive: true, capture: true });
         W.addEventListener("resize", this._bResize);
         document.addEventListener("click", this._bOutside);
@@ -208,6 +217,7 @@
         W.removeEventListener("location-changed", this._bNav);
         W.removeEventListener("popstate", this._bNav);
         W.removeEventListener("ki-ud", this._bUd);
+        W.removeEventListener("ki-hjem-registrert", this._bHjem);
         W.removeEventListener("scroll", this._bScroll, { capture: true });
         W.removeEventListener("resize", this._bResize);
         document.removeEventListener("click", this._bOutside);
@@ -391,6 +401,10 @@
           case "toggle": if (entity && this.hass) this.hass.callService("homeassistant", "toggle", { entity_id: entity }); break;
           case "more-info": if (entity) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: entity }, bubbles: true, composed: true })); break;
           case "ki-navbar-edit": this._openEditor(); break;
+          case "ki-hjem-tilpass":
+            haptic("medium");
+            W.dispatchEvent(new CustomEvent("ki-hjem-tilpass", { detail: { apen: true } }));
+            break;
           default: break;
         }
       }
@@ -449,7 +463,17 @@
       _barItems() {
         const m = this._model();
         const subs = [...m.menu];
-        if (this._config.edit_entry) subs.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" } });
+        /* Nederst i menyen, under en skillelinje: «Tilpass navbar» og «Tilpass Hjem» (som i kd-dokken).
+           Standard bare når linjen har en meny; edit_entry: true gir dem alltid (og lager «Mer»). */
+        const c = this._config;
+        const harMeny = !!this._menuId || subs.length > 0;
+        const hale = [];
+        if (c.edit_entry === true || (c.edit_entry !== false && harMeny))
+          hale.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" }, _hale: true });
+        if (c.hjem_meny !== false && (harMeny || c.edit_entry === true) && (W.__kiHjem || 0) > 0)
+          hale.push({ id: "__hjem", name: "Tilpass Hjem", icon: "mdi:view-dashboard-edit-outline", tap_action: { action: "ki-hjem-tilpass" }, _hale: true });
+        if (hale.length && subs.length) subs.push({ id: "__skille", _skille: true });
+        subs.push(...hale);
         const bar = [];
         m.bar.forEach((it) => {
           if (it.id !== this._menuId) { bar.push(it); return; }
@@ -531,10 +555,11 @@
                     ${item.sub_items && isMenuOpen ? html`
                       <div class="sub-menu ${idx === last && last > 0 ? "end" : ""}">
                         ${item.sub_items.map((sub) => {
+                          if (sub._skille) return html`<div class="sub-menu-sep" role="separator"></div>`;
                           if (!this._checkUserVisibility(sub)) return nothing;
                           const subActive = !sub.sub_items && this._matches(sub);
                           return html`
-                            <div class="sub-menu-item ${!sub.name ? "icon-only" : ""} ${subActive ? "active" : ""}"
+                            <div class="sub-menu-item ${!sub.name ? "icon-only" : ""} ${subActive ? "active" : ""} ${sub._hale ? "hale" : ""}"
                               @click=${(e) => { e.stopPropagation(); this._handleAction(sub); }}>
                               <ha-icon icon="${sub.icon}"></ha-icon>
                               ${sub.name ? html`<span>${sub.name}</span>` : ""}
@@ -1155,6 +1180,8 @@
             color: var(--navbar-color);
           }
           .sub-menu-item.icon-only { justify-content: center; }
+          .sub-menu-item.hale { opacity: .72; }
+          .sub-menu-sep { height: 1px; margin: 0 10px; background: currentColor; color: var(--navbar-color); opacity: .14; }
           .sub-menu-item:hover { background: rgba(0,0,0,0.05); color: var(--navbar-active-color); }
           .sub-menu-item span { font-size: 14px; font-weight: 500; }
           .sub-menu-item.active {
@@ -1313,6 +1340,7 @@
       { v: "service", l: "Kjør handling" },
       { v: "toggle-menu", l: "HA-sidemeny" },
       { v: "edit", l: "Tilpass navbar" },
+      { v: "hjem", l: "Tilpass Hjem" },
       { v: "submenu", l: "Undermeny" },
       { v: "none", l: "Ingen" },
     ];
@@ -1335,6 +1363,7 @@
         case "call-service": case "perform-action": return "service";
         case "toggle-menu": return "toggle-menu";
         case "ki-navbar-edit": return "edit";
+        case "ki-hjem-tilpass": return "hjem";
         case "fire-dom-event": return "other";
         case undefined: case "none": return "none";
         default: return "other";
@@ -1381,6 +1410,7 @@
           else if (type === "service") it.tap_action = { action: "perform-action", perform_action: old.perform_action || old.service || "" };
           else if (type === "toggle-menu") it.tap_action = { action: "toggle-menu" };
           else if (type === "edit") it.tap_action = { action: "ki-navbar-edit" };
+          else if (type === "hjem") it.tap_action = { action: "ki-hjem-tilpass" };
           else it.tap_action = { action: "none" };
           Object.keys(it.tap_action).forEach((k) => { if (it.tap_action[k] === "") delete it.tap_action[k]; });
         });
@@ -1516,7 +1546,8 @@
               </select></label>
             <label class="chk"><input type="checkbox" .checked=${c.drag !== false} @change=${(e) => this._setTop("drag", e.target.checked, true)}> Dra fingeren langs linjen for å velge</label>
             <label class="chk"><input type="checkbox" .checked=${c.customize !== false} @change=${(e) => this._setTop("customize", e.target.checked, true)}> Langt trykk åpner «Tilpass navbar»</label>
-            <label class="chk"><input type="checkbox" .checked=${!!c.edit_entry} @change=${(e) => this._setTop("edit_entry", e.target.checked, false)}> «Tilpass navbar» i «Mer»-menyen</label>
+            <label class="chk"><input type="checkbox" .checked=${c.edit_entry !== false} @change=${(e) => this._setTop("edit_entry", e.target.checked ? undefined : false, undefined)}> «Tilpass navbar» nederst i menyen</label>
+            <label class="chk"><input type="checkbox" .checked=${c.hjem_meny !== false} @change=${(e) => this._setTop("hjem_meny", e.target.checked ? undefined : false, undefined)}> «Tilpass Hjem» nederst i menyen (når Hjem-kortet er på siden)</label>
             <label class="chk"><input type="checkbox" .checked=${!!c.shrink_on_scroll} @change=${(e) => this._setTop("shrink_on_scroll", e.target.checked, false)}> Krymp ved scrolling (standard)</label>
             ${this._txt("Navbar-ID (for brukervalg)", c.nav_id, (v) => this._setTop("nav_id", v, "default"), "default")}
 
