@@ -28,11 +28,23 @@
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
+ * «Menyen» (de tre prikkene): den første config-knappen med sub_items (helst en med
+ * mdi:dots-horizontal). Innholdet kan brukeren endre i «Tilpass navbar»: flytte knapper inn
+ * og ut, endre rekkefølge, skjule og legge til egne. Uten en slik knapp lages en «Mer» først
+ * når noe flyttes dit.
+ *
  * Brukerens valg lagres per bruker i HA (KI.udSave, nøkkel "ki_navbar"):
- *   { <nav_id>: { order:[id], hidden:[id], more:[id], custom:[{id,name,icon,tap_action}],
+ *   { <nav_id>: { order:[id]          rekkefølgen i linjen
+ *                 menu:[id]           rekkefølgen i menyen
+ *                 hidden:[id]         skjult (også underknapper)
+ *                 more:[id]           linjeknapper flyttet inn i menyen
+ *                 out:[id]            menyknapper flyttet ut i linjen
+ *                 custom:[{id,name,icon,tap_action,place:"bar"|"menu"}],
  *                 names:"show"|"hide", shrink:bool, width:"auto"|"full"|"fixed", width_px:num,
- *                 size:"s"|"m"|"l" } }
+ *                 storrelse:"s"|"m"|"l"|"xl" } }
+ * Id-er: item.id, ellers "n:"+navn, (underknapper) "p:"+navigation_path, ellers "i:"+ikon.
  * Config er standarden; det som står her overstyrer. «Nullstill» sletter <nav_id>.
+ * (Den gamle nøkkelen `size` ignoreres – størrelsene var mindre enn config og krympet linjen.)
  * Setter --kd-dokk-h på <html> (avstand fra bunnen av vinduet til toppen av linjen), så
  * andre paneler kan legge seg rett over den.
  */
@@ -96,11 +108,17 @@
 
   const clone = (o) => JSON.parse(JSON.stringify(o === undefined ? null : o));
 
-  const SIZES = { s: { pad: "4px", icon: "20px" }, m: { pad: "6px", icon: "24px" }, l: { pad: "10px", icon: "28px" } };
+  /* «Middels» er det klassiske mysmart-utseendet (12 px polstring, 24 px ikon). «Standard» er config. */
+  const SIZES = {
+    s: { pad: "8px", icon: "20px", l: "Liten" },
+    m: { pad: "12px", icon: "24px", l: "Middels" },
+    l: { pad: "16px", icon: "28px", l: "Stor" },
+    xl: { pad: "20px", icon: "32px", l: "Ekstra stor" },
+  };
 
   const ADD_TYPES = [
-    { v: "navigate", l: "Side", ph: "/lovelace/hjem" },
     { v: "popup", l: "Popup", ph: "#strom" },
+    { v: "navigate", l: "Side", ph: "/lovelace/hjem" },
     { v: "url", l: "Lenke", ph: "https://…" },
     { v: "toggle", l: "Bryter", ph: "light.stue" },
     { v: "more-info", l: "Info", ph: "sensor.temperatur" },
@@ -202,11 +220,20 @@
         if (!config || !Array.isArray(config.items)) throw new Error("You need to define a list of items");
         this._config = config;
         const seen = {};
-        this._navItems = config.items.map((item, index) => {
-          let id = item.id || (item.name ? "n:" + item.name : item.icon ? "i:" + item.icon : "x:" + index);
-          if (seen[id]) id += "#" + (++seen[id]); else seen[id] = 1;
-          return { ...item, id };
-        });
+        const uniq = (id) => { if (seen[id]) return id + "#" + (++seen[id]); seen[id] = 1; return id; };
+        this._navItems = config.items.map((item, index) =>
+          ({ ...item, id: uniq(item.id || (item.name ? "n:" + item.name : item.icon ? "i:" + item.icon : "x:" + index)) }));
+        // Menyen bak de tre prikkene: helst prikkeknappen med sub_items, ellers første med sub_items,
+        // ellers en prikkeknapp uten egen handling.
+        const dots = (it) => it.icon === "mdi:dots-horizontal";
+        const menu = this._navItems.find((it) => Array.isArray(it.sub_items) && dots(it))
+          || this._navItems.find((it) => Array.isArray(it.sub_items))
+          || this._navItems.find((it) => dots(it) && !it.sub_items && (!it.tap_action || it.tap_action.action === "none"));
+        this._menuId = menu ? menu.id : null;
+        this._subs = menu ? (menu.sub_items || []).filter((s) => s && typeof s === "object").map((s, j) => {
+          const path = s.tap_action && s.tap_action.navigation_path;
+          return { ...s, id: uniq(s.id || (s.name ? "n:" + s.name : path ? "p:" + path : s.icon ? "i:" + s.icon : "s:" + j)) };
+        }) : [];
       }
 
       getCardSize() { return 1; }
@@ -372,6 +399,7 @@
       _prefs() { const all = ud.get(this.hass); return (all && all[this._navId()]) || {}; }
       _savePrefs(p) {
         const all = { ...(ud.get(this.hass) || {}) };
+        if (p) { p = { ...p }; delete p.size; } // gammel størrelsesnøkkel (ga for liten linje)
         if (p && Object.keys(p).length) all[this._navId()] = p; else delete all[this._navId()];
         ud.save(this.hass, all);
         this._udRev++;
@@ -382,36 +410,55 @@
         this._savePrefs(p);
       }
 
-      /* Alle knapper (config + egne) i brukerens rekkefølge, uten dem brukeren ikke skal se. */
-      _allItems() {
+      /* Hvor hver knapp havner: { bar:[…], menu:[…], hidden:[…], menuItem }.
+         bar er linjen i brukerens rekkefølge (med config-menyknappen), menu innholdet bak prikkene. */
+      _model() {
         const p = this._prefs();
-        const own = (Array.isArray(p.custom) ? p.custom : []).map((c) => ({ ...c, _own: true }));
-        let all = [...(this._navItems || []), ...own].filter((it) => this._checkUserVisibility(it));
-        if (Array.isArray(p.order) && p.order.length) {
-          const pos = new Map(p.order.map((id, i) => [id, i]));
-          all = all.map((it, i) => ({ it, k: pos.has(it.id) ? pos.get(it.id) : 1e4 + i }))
-            .sort((a, b) => a.k - b.k).map((o) => o.it);
-        }
-        return all;
+        const hidden = new Set(p.hidden || []), more = new Set(p.more || []), out = new Set(p.out || []);
+        const own = (Array.isArray(p.custom) ? p.custom : []).map((c) => ({ ...c, _own: true, _def: c.place === "menu" ? "menu" : "bar" }));
+        const entries = [
+          ...(this._navItems || []).map((it) => ({ ...it, _def: "bar" })),
+          ...(this._subs || []).map((it) => ({ ...it, _def: "menu", _sub: true })),
+          ...own,
+        ].filter((it) => this._checkUserVisibility(it));
+        const menuId = this._menuId;
+        const place = (it) => {
+          if (it.id === menuId) return "bar";
+          if (hidden.has(it.id)) return "hidden";
+          if (it.sub_items) return "bar"; // undermenyer kan ikke ligge inne i menyen
+          if (more.has(it.id)) return "menu";
+          if (out.has(it.id)) return "bar";
+          return it._def;
+        };
+        const sortBy = (list, ids, base) => {
+          const pos = new Map((Array.isArray(ids) ? ids : []).map((id, i) => [id, i]));
+          return list.map((it, i) => ({ it, k: pos.has(it.id) ? pos.get(it.id) : 1e4 + base(it) + i }))
+            .sort((x, y) => x.k - y.k).map((o) => o.it);
+        };
+        const bar = sortBy(entries.filter((it) => place(it) === "bar"), p.order, () => 0);
+        // Standardrekkefølge i menyen: config-underknappene først, så det som er flyttet inn.
+        const menu = sortBy(entries.filter((it) => place(it) === "menu"), p.menu, (it) => (it._def === "menu" ? 0 : 5000));
+        const hid = entries.filter((it) => place(it) === "hidden");
+        return { bar, menu, hidden: hid, menuItem: menuId ? bar.find((it) => it.id === menuId) || null : null };
       }
 
       _barItems() {
-        const p = this._prefs();
-        const hidden = new Set(p.hidden || []);
-        const more = new Set(p.more || []);
-        const all = this._allItems().filter((it) => !hidden.has(it.id));
-        const inMore = (it) => more.has(it.id) && !it.sub_items;
-        const bar = all.filter((it) => !inMore(it));
-        const subs = all.filter(inMore);
+        const m = this._model();
+        const subs = [...m.menu];
         if (this._config.edit_entry) subs.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" } });
-        if (subs.length) bar.push({ id: "__more", name: "Mer", icon: "mdi:dots-horizontal", sub_items: subs, _more: true });
+        const bar = [];
+        m.bar.forEach((it) => {
+          if (it.id !== this._menuId) { bar.push(it); return; }
+          if (subs.length) bar.push({ ...it, sub_items: subs, _more: true });
+        });
+        if (!this._menuId && subs.length) bar.push({ id: "__more", name: "Mer", icon: "mdi:dots-horizontal", sub_items: subs, _more: true });
         return bar;
       }
 
       _effStyles() {
         const s = this._config.styles || {};
         const p = this._prefs();
-        const size = SIZES[p.size];
+        const size = SIZES[p.storrelse];
         return {
           bg: s.background || "#ffffff",
           blur: s.blur || "10px",
