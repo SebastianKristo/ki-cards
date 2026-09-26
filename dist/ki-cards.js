@@ -1,4 +1,4 @@
-/* ki-cards v9.6.3 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.7.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.6.3";
+  KI.VERSION = "9.7.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -8857,7 +8857,7 @@ const KI_SP_STIL = `
   .halo { width:34px; height:34px; margin:-17px; border-radius:50%; transition:left .15s, top .15s; }
   .prikk { width:14px; height:14px; margin:-7px; border-radius:50%; box-shadow:0 0 0 3px var(--kort-bg, var(--gray000,#141416)); transition:left .15s, top .15s; }
   .venter { position:absolute; top:50%; left:75%; transform:translate(-50%,-50%); font-size:12px; color:var(--gray600,#8e8d89);
-    text-align:center; white-space:nowrap; pointer-events:none; }
+    text-align:center; white-space:nowrap; pointer-events:none; padding:2px 8px; border-radius:8px; background:var(--kort-bg, var(--gray000,#141416)); }
   .xakse { display:flex; justify-content:space-between; padding-left:26px; font-size:9px; color:var(--gray500,#6d6c69); font-variant-numeric:tabular-nums; }
   .xakse.abs { position:relative; display:block; height:12px; padding-left:0; margin-left:26px; }
   .xakse.abs span { position:absolute; top:0; transform:translateX(-50%); }
