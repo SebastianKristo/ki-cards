@@ -5,6 +5,7 @@
 - **Servervelgeren**: ett trykk åpner menyen med en gang, to trykk navigerer med en gang.
 - **Tilpass Hjem fra navbaren**: «…»-menyen har fått «Tilpass navbar» og «Tilpass Hjem» nederst (`hjem_meny: false` skjuler den). Panelet ligger over navbaren og har fanerad, seksjoner, enkeltfliser, faner og etasjer (velg rom per etasje), rommene i Hjem-fanens to swiper, romkort og klimaknapp, og en ny «Alle rom»-fane (`alle_rom`).
 - Langt trykk på fanene åpner fortsatt Tilpass Hjem.
+- **ki-lys-card** passer inn i bubble-card-popupene: ingen egen «Lys»-topp og gjennomsiktig bakgrunn som standard (popupen har toppen), flater fra ki-temaet (--gray200). `topp: design` gir designets topp og bakgrunn tilbake.
 
 # ki-cards 9.3.0
 

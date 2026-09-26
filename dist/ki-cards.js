@@ -57344,7 +57344,8 @@ try {
  *
  *   type: custom:ki-lys-card          # virker uten noe mer
  *   fane: out                         # out | f1 | f2 | on (startfane: Utelys, Første etg, Andre etg, Lys på)
- *   topp: design                      # design (designets «Lys»-topp, standard) | pille (KD-arkets topp-pille)
+ *   topp: design                      # ingen (standard – popupen har toppen) | design (designets «Lys»-topp) | pille (KD-arkets topp-pille)
+ *   bakgrunn: transparent             # kortets bakgrunn uten egen topp (standard: gjennomsiktig)
  *   header: false                     # uten topp (når kortet ligger inne i et annet ark)
  *   utelys: light.ute_lys             # utelysgruppe (På/Av-pillen i scenen)
  *   utelamper: [light.verandalamp, light.utelys_inngang]      # store lampe-piller under automatikken
@@ -57358,7 +57359,7 @@ try {
  *   rom: { stue: { navn: 'Stuen' } }  # overstyr/utvid romtabellen (KD.ROOMS)
  *   etasjer: { f1: [stue, kjokken], f2: [pult, soverom] }   # overstyr etasjene
  *   skjul: [light.x, 'switch.pultvifte_*']                  # lys som ikke vises (erstatter standardlista)
- *   kant: 14                          # sidemarg i px (designet: 14)
+ *   kant: 14                          # sidemarg i px (standard 0 i popup, 14 med topp: design)
  *   tilpass: false                    # skjul «Tilpass oppsett»-knappen nederst
  *
  * Lysene per rom hentes fra ki_rom (`sensor.<rom>_lys` → `entiteter`, `sensor.<rom>_lys_oversikt` → `lys`/`scener`),
@@ -57559,9 +57560,9 @@ try {
   H.pill = (card, id, name, rom) => {
     const lv = H.shown(card, id), v = lv.v, Y = H.Y, a = KD.a;
     const moving = card._d && card._d.moved;
-    const pill = { position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8, height: 56, padding: '0 12px 0 6px', borderRadius: 28, background: '#323235', touchAction: 'pan-y', cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' };
+    const pill = { position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8, height: 56, padding: '0 12px 0 6px', borderRadius: 28, background: SURF, touchAction: 'pan-y', cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' };
     const fill = { position: 'absolute', left: 0, top: 0, bottom: 0, width: `${v}%`, background: `linear-gradient(90deg, ${a(Y, 0.18)}, ${a(Y, 0.42)})`, transition: moving ? 'none' : 'width .35s cubic-bezier(.34,1.2,.64,1)' };
-    const iconWrap = { position: 'relative', width: 44, height: 44, borderRadius: 22, flex: 'none', display: 'grid', placeItems: 'center', background: v ? Y : '#3e3e41', color: v ? '#141416' : '#6d6c69', transition: 'background .25s' };
+    const iconWrap = { position: 'relative', width: 44, height: 44, borderRadius: 22, flex: 'none', display: 'grid', placeItems: 'center', background: v ? Y : SURF2, color: v ? '#141416' : '#6d6c69', transition: 'background .25s' };
     const valStyle = rom ? { fontSize: 11, color: v ? '#e6e4df' : '#6d6c69', fontVariantNumeric: 'tabular-nums' } : { fontSize: 11, color: v ? '#e6e4df' : '#6d6c69' };
     return `<div data-key="${E(id)}" data-arg="${E(id)}" data-on-pointerdown="lDown" data-on-pointermove="lMove" data-on-pointerup="lUp" data-on-pointercancel="lCancel" data-on-contextmenu="lMenu" style="${S(pill)}">
               <span style="${S(fill)}"></span>
@@ -57659,7 +57660,9 @@ try {
    * ki-lys-card
    * ==================================================================== */
   const Y = H.Y, G = 'oklch(0.8 0.12 160)', PINK = KD.PINK, a = KD.a;
-  const BG = '#232325', SURF = '#323235', SURF2 = '#3e3e41';
+  /* Designets v3-bakgrunn brukes bare med `topp: design`/`pille`. Flatene følger ki-temaet (--gray200),
+     med v3-fargen som reserve, så kortet glir inn i rom-popupene. */
+  const BG = '#232325', SURF = 'var(--gray200, #323235)', SURF2 = 'rgba(250,251,252,.1)';
   const STARS = [[8, 14], [18, 30], [30, 10], [40, 24], [52, 8], [60, 34], [70, 16], [84, 28], [92, 12], [24, 46], [46, 44], [78, 42]];
   /* Designets scener → ki_rom-scener (button.<rom>_lys_<id>) og nivå for reserve-dimming */
   const SC = [['max', 'Maks', 'light_mode', 100, 'maks'], ['kveld', 'Kveld', 'weekend', 45, 'komfort'], ['dim', 'Dempet', 'brightness_4', 20, 'mindre'], ['natt', 'Natt', 'bedtime', 5, 'natt'], ['av', 'Alt av', 'dark_mode', 0, 'av']];
@@ -57678,9 +57681,13 @@ a:hover{color:oklch(0.86 0.12 95)}
     /** v3-bakgrunn (#232325) i stedet for KD-arkets #141416. topp: design (standard) | pille */
     render() {
       const c = this.config;
-      this._designHead = !(c.header === false || c.embedded || c.topp === 'pille');
+      /* Standard: ingen egen topp og gjennomsiktig bakgrunn – popupen (bubble-card) har toppen.
+         topp: design gir designets «Lys»-topp, topp: pille KD-arkets topp-pille. */
+      this._designMode = !(c.header === false || c.embedded) && (c.topp === 'design' || c.topp === 'pille');
+      this._designHead = this._designMode && c.topp === 'design';
+      if (!this._designMode && c.kant == null) this.style.setProperty('--kd-kant', '0px');
       const body = this.body() + this._layHTML();
-      if (c.header === false || c.embedded) return body;
+      if (!this._designMode) return body;
       if (c.topp === 'pille') {
         const [icon, title, sub] = this.sheetHead();
         return `<div style="background:${BG};min-height:100%">${KD.sheetTopHTML(icon, c.tittel || title, c.undertittel || sub)}<div class="kd-sheet-body" style="margin-top:-8px">${body}</div></div>`;
@@ -57688,7 +57695,7 @@ a:hover{color:oklch(0.86 0.12 95)}
       return `<div style="background:${BG};min-height:100%"><div class="kd-sheet-body">${body}</div></div>`;
     }
     /** «Tilpass oppsett» med v3-flater */
-    _layHTML() { return super._layHTML().replace(/#1c1c1f/g, SURF); }
+    _layHTML() { return super._layHTML().replace(/#1c1c1f/g, 'var(--gray200, #323235)'); }
 
     /** registeret (områder/enheter) kan komme eller endres uten at noen state endres */
     set hass(h) { const old = this._hass; super.hass = h; if (old && h && (old.entities !== h.entities || old.devices !== h.devices || old.areas !== h.areas)) this._queue(); }
@@ -57830,7 +57837,8 @@ a:hover{color:oklch(0.86 0.12 95)}
     <button data-on-click="closeSheet" title="Lukk" style="width:36px;height:36px;border-radius:18px;background:#232326;display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
   </div>` : '';
 
-      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:${BG};padding:20px var(--kd-kant,14px) 40px;display:flex;flex-direction:column;gap:12px">${head}
+      const rot = this._designMode ? `min-height:100vh;background:${BG};padding:20px var(--kd-kant,14px) 40px` : `background:${c.bakgrunn || 'transparent'};padding:0 var(--kd-kant,0px) 8px`;
+      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;margin:0 auto;${rot};display:flex;flex-direction:column;gap:12px">${head}
   <div data-lay-skip="1" style="display:flex;justify-content:center">
     <div style="display:flex;gap:2px;padding:4px;border-radius:22px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);max-width:100%;overflow-x:auto;scrollbar-width:none" data-hscroll="1">${TABS.map(tabBtn).join('')}</div>
   </div>
