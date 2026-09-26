@@ -591,7 +591,10 @@ class FamilyStatusCard extends LitElement {
 
   /* Får ikke navnet og pila plass ved siden av bildene, fjernes pila – navnet er viktigere
      enn hintet om servermenyen (trykk på navnet åpner den fortsatt). */
-  updated() { this._sjekkPil(); }
+  updated(endret) {
+    if (this._popupEl && endret && endret.has && endret.has("hass")) this._popupEl.hass = this.hass;
+    this._sjekkPil();
+  }
   _sjekkPil() {
     const r = this.shadowRoot; if (!r) return;
     for (const g of r.querySelectorAll(".greeting")) {
@@ -775,6 +778,8 @@ class FamilyStatusCard extends LitElement {
   }
 
   _openDialog(index) {
+    /* Personkortet (ki-person-card) når det finnes, ellers den gamle popupen. */
+    this._popupEl = this._lagPersonPopup(this.cfg.persons[index]);
     this._dialogIndex = index;
     this._openedAt = Date.now();
     window.addEventListener("keydown", this._onKeyDown);
@@ -800,9 +805,64 @@ class FamilyStatusCard extends LitElement {
     this._lukker = true;
     window.setTimeout(() => {
       this._dialogIndex = null;
+      this._popupEl = null;
       this._lukker = false;
       this._opt = {};
     }, 170);
+  }
+
+  /* ── personkortet som popup ──────────────────────────────────────────────
+   *
+   * Finnes ki-person-card, åpner et trykk på en person det kortet i et bunnark i stedet
+   * for den gamle hjemme/borte-popupen. Elementet lages én gang per åpning og får hass
+   * så lenge arket er oppe (se updated). Per person kan sovn, mobil og farge sendes
+   * videre, og alt under popup: legges oppå:
+   *
+   *   persons:
+   *     - person: person.ola
+   *       sovn: sensor.ola_sovn
+   *       popup: { bilde: /local/ola.jpg }
+   *   person_popup: false          # tving den gamle popupen
+   */
+  _lagPersonPopup(pc) {
+    const cfg = this.cfg;
+    if (!pc || !pc.person) return null;
+    const av = cfg.person_popup;
+    if (av === false || ["false", "av", "off", "nei"].includes(String(av).toLowerCase())) return null;
+    if (!customElements.get("ki-person-card")) return null;
+    try {
+      const el = document.createElement("ki-person-card");
+      const st = this.hass.states[pc.person];
+      const navn = pc.display_name || (st && st.attributes && st.attributes.friendly_name) || pc.person;
+      const ekstra = {};
+      for (const k of ["sovn", "mobil", "farge"]) if (pc[k] !== undefined && pc[k] !== null && pc[k] !== "") ekstra[k] = pc[k];
+      const popup = pc.popup && typeof pc.popup === "object" ? pc.popup : {};
+      el.setConfig({ person: pc.person, navn, ...ekstra, ...popup });
+      el.hass = this.hass;
+      /* Åpner kortet mer-info eller navigerer, lukkes arket så det ikke ligger over.
+         ki-lukk er en vei for kortet selv å be om å bli lukket. */
+      const lukk = () => this._closeDialog();
+      el.addEventListener("hass-more-info", lukk);
+      el.addEventListener("location-changed", lukk);
+      el.addEventListener("ki-lukk", lukk);
+      return el;
+    } catch (e) {
+      console.warn("family-status-card: ki-person-card feilet, bruker den gamle popupen", e);
+      return null;
+    }
+  }
+
+  _renderPersonArk(navn) {
+    const ut = this._lukker ? "ut" : "";
+    return html`
+      <div class="backdrop ark-bak ${ut}" @click=${(e) => this._onBackdropClick(e)}>
+        <div class="person-ark ${ut}" role="dialog" aria-modal="true" aria-label=${navn}
+          @click=${(e) => e.stopPropagation()}>
+          <button type="button" class="ark-hank" aria-label="Lukk"
+            @click=${() => { this._haptic(this.cfg.haptic_tap); this._closeDialog(); }}><span></span></button>
+          ${this._popupEl}
+        </div>
+      </div>`;
   }
 
   /* Hvilken side av bryteren som står aktiv.
@@ -947,12 +1007,14 @@ class FamilyStatusCard extends LitElement {
       window.clearTimeout(this._pressTimer);
       this._pressTimer = null;
       this._haptic(this.cfg.haptic_tap);
-      if (this.cfg.tap_behavior === "toggle") {
-        this._togglePresence(personConfig);
-      } else {
-        this._openDialog(index);
-      }
+      this._trykkPerson(personConfig, index);
     }
+  }
+
+  /* Et vanlig trykk på en person: veksle direkte, eller åpne personkortet/popupen. */
+  _trykkPerson(personConfig, index) {
+    if (this.cfg.tap_behavior === "toggle") this._togglePresence(personConfig);
+    else this._openDialog(index);
   }
 
   _onPointerCancel() {
@@ -1140,6 +1202,136 @@ class FamilyStatusCard extends LitElement {
               <ha-icon icon="mdi:tune-variant"></ha-icon></button>` : ""}
         </div>
       </div>`;
+  }
+
+  /* ── Hjem-oppsettet ──────────────────────────────────────────────────────
+   *
+   * Som toppen på Hjem-dashbordet (stdHead i kd-hjem-card):
+   *   rad 1 – stedet som stor tittel (med servermenyen og pila som i «Sted»), været
+   *           under, og ditt eget bilde til høyre med et stedsmerke
+   *   rad 2 – resten av familien i en rad som brytes: bilde med stedsmerke, navn og sted
+   * Værentiteten er vaer: (eller weather_entity:); uten den brukes første weather.*. */
+  _vaerId() {
+    const c = this.cfg;
+    const satt = c.vaer || c.weather_entity;
+    if (satt) return satt;
+    const s = (this.hass && this.hass.states) || {};
+    return Object.keys(s).find((id) => id.startsWith("weather.")) || "";
+  }
+
+  /* «12 °C · Delvis skyet» */
+  _vaerLinje() {
+    const id = this._vaerId();
+    const st = id && this.hass.states[id];
+    if (!st || st.state === "unavailable" || st.state === "unknown") return "";
+    const a = st.attributes || {};
+    const t = a.temperature;
+    const temp = t !== undefined && t !== null && t !== "" && Number.isFinite(Number(t))
+      ? `${Math.round(Number(t))} ${a.temperature_unit || "°C"}` : "–";
+    return [temp, VAER_NB[st.state] || st.state].filter(Boolean).join(" · ");
+  }
+
+  /* Hvor personen er: navn, ikon og farge til merket, og om personen er hjemme.
+     Hjemme (eller Sover), en sone med sonens eget navn og ikon, eller Borte. */
+  _stedInfo(pc) {
+    const cfg = this.cfg;
+    const st = this.hass.states[pc.person];
+    const v = st ? st.state : "";
+    const hjemme = pc.presence_switch ? this._isOn(pc.presence_switch) : v === "home";
+    if (hjemme) {
+      if (cfg.show_sleep_badge !== false && pc.sleep_switch && this._isOn(pc.sleep_switch))
+        return { navn: cfg.asleep_label || "Sover", ikon: cfg.sleep_icon || "mdi:sleep",
+          farge: "var(--purple, #bf5af2)", hjemme: true };
+      const hz = this.hass.states["zone.home"];
+      return { navn: cfg.home_label || "Hjemme", ikon: (hz && hz.attributes && hz.attributes.icon) || "mdi:home",
+        farge: "var(--green, #34c759)", hjemme: true };
+    }
+    if (!v || v === "home" || v === "not_home" || v === "unknown" || v === "unavailable")
+      return { navn: cfg.away_label || "Borte", ikon: cfg.default_icon || "mdi:airplane",
+        farge: "var(--purple, #bf5af2)", hjemme: false };
+    const s = this.hass.states;
+    const sone = Object.keys(s).find((id) => id.startsWith("zone.")
+      && (id === "zone." + v || (s[id].attributes && s[id].attributes.friendly_name === v)));
+    const za = (sone && s[sone].attributes) || {};
+    const satt = (cfg.locations || []).find((l) => l && ((sone && l.zone === sone) || (l.name && l.name === v))) || {};
+    return { navn: za.friendly_name || v, ikon: satt.icon || za.icon || "mdi:map-marker",
+      farge: satt.color || cfg.zone_color || "var(--blue, #0a84ff)", hjemme: false };
+  }
+
+  /* Ett bilde med stedsmerke. stor = ditt eget bilde øverst til høyre. */
+  _hjemBilde(pc, i, stor, forhand) {
+    const cfg = this.cfg;
+    const st = this.hass.states[pc.person];
+    const bilde = (st && st.attributes && st.attributes.entity_picture) || "";
+    const navn = pc.display_name || (st && st.attributes && st.attributes.friendly_name) || pc.person || "?";
+    const sted = this._stedInfo(pc);
+    const merke = String(cfg.badge_style || "ikon").toLowerCase();
+    const ring = stor && cfg.ring_me;
+    return html`<div class="hj-bilde ${stor ? "stor" : ""} ${sted.hjemme ? "hjemme" : "borte"} ${ring ? "ring-meg" : ""} merke-${merke}"
+        role="button" tabindex=${forhand ? "-1" : "0"} aria-label=${`${navn} · ${sted.navn}`} title=${`${navn} · ${sted.navn}`}
+        style="--hj-sted:${sted.farge};--fsc-status:${sted.farge}"
+        @pointerdown=${() => !forhand && this._onPointerDown(pc)}
+        @pointerup=${() => !forhand && this._onPointerUp(pc, i)}
+        @pointerleave=${() => !forhand && this._onPointerCancel()}
+        @pointercancel=${() => !forhand && this._onPointerCancel()}
+        @keydown=${(e) => { if (!forhand && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); this._trykkPerson(pc, i); } }}
+        @contextmenu=${(e) => e.preventDefault()}>
+      <div class="avatar" style=${bilde ? `background-image:url(${bilde})` : ""}>${bilde ? "" : String(navn).trim().charAt(0).toUpperCase()}</div>
+      ${merke === "ingen" || merke === "ring" ? ""
+        : merke === "prikk" ? html`<span class="hj-prikk"></span>`
+        : html`<span class="hj-merke"><ha-icon icon=${sted.ikon}></ha-icon></span>`}
+    </div>`;
+  }
+
+  _renderHjem(cfg, forhand, knapp) {
+    const personer = cfg.persons || [];
+    let megI = personer.findIndex((p) => p && p.person && this._erMeg(p));
+    if (megI < 0) megI = 0;
+    const meg = personer[megI];
+    const vaer = this._vaerLinje();
+    const vaerId = this._vaerId();
+    const visNavn = cfg.show_names !== false;
+    const visSted = !!cfg.show_location;
+    const andre = personer.map((p, i) => [p, i]).filter(([p, i]) => p && p.person && i !== megI);
+    return html`
+      <div class="row oppsett-hjem ${forhand ? "forhand" : ""}">
+        <div class="hilsen">
+          <div
+            class="greeting"
+            @pointerdown=${() => !forhand && this._onGreetingPointerDown()}
+            @pointerup=${() => !forhand && this._onGreetingPointerUp()}
+            @pointerleave=${() => !forhand && this._onGreetingPointerCancel()}
+            @pointercancel=${() => !forhand && this._onGreetingPointerCancel()}
+            @click=${(e) => !forhand && this._onGreetingClick(e)}
+            @contextmenu=${(e) => e.preventDefault()}
+          >
+            <span class="hilsentekst">${this._greetingText()}</span>${this._storLinjeErMeny()
+              ? html`<ha-icon class="serverpil ${this._serverApen && !forhand ? "apen" : ""}" icon="mdi:menu-down"></ha-icon>`
+              : ""}
+          </div>
+          ${vaer ? html`<button type="button" class="hj-vaer" tabindex=${forhand ? "-1" : "0"}
+              @click=${(e) => { e.stopPropagation(); if (forhand) return; this._haptic(this.cfg.haptic_tap); this._fire("hass-more-info", { entityId: vaerId }); }}
+            >${vaer}</button>` : ""}
+          ${this._serverApen && !forhand ? this._renderServerMeny() : ""}
+        </div>
+        <div class="persons hj-meg">
+          ${meg && meg.person ? html`<div class="person">${this._hjemBilde(meg, megI, true, forhand)}</div>` : ""}
+        </div>
+      </div>
+      ${andre.length || knapp ? html`<div class="hj-andre ${forhand ? "forhand" : ""}">
+        ${andre.map(([p, i]) => {
+          const st = this.hass.states[p.person];
+          const navn = p.display_name || (st && st.attributes && st.attributes.friendly_name) || p.person;
+          return html`<div class="hj-person">
+            ${this._hjemBilde(p, i, false, forhand)}
+            ${visNavn ? html`<span class="hj-navn">${navn}</span>` : ""}
+            ${visSted ? html`<span class="hj-sted">${this._stedInfo(p).navn}</span>` : ""}
+          </div>`;
+        })}
+        ${knapp ? html`<button class="tilpassknapp" aria-label="Tilpass" title="Tilpass"
+            @click=${(e) => { e.stopPropagation(); this._haptic(this.cfg.haptic_tap); this._apneTilpass(); }}>
+            <ha-icon icon="mdi:tune-variant"></ha-icon></button>` : ""}
+      </div>` : ""}`;
   }
 
   render() {
@@ -1456,6 +1648,7 @@ class FamilyStatusCard extends LitElement {
       state?.attributes?.friendly_name ||
       personConfig.person ||
       "Ukjent";
+    if (this._popupEl) return this._renderPersonArk(name);
 
     const isHome = this._isOn(personConfig.presence_switch);
     const isAsleep = this._isOn(personConfig.sleep_switch);
@@ -2131,6 +2324,234 @@ class FamilyStatusCard extends LitElement {
       }
       @media (prefers-reduced-motion: reduce) {
         .tpark {
+          animation: none;
+        }
+      }
+
+      /* ----------------------------- HJEM ----------------------------- */
+      /* Rad 1: stedet (36 px) med været under til venstre, ditt bilde (60 px) til høyre. */
+      .row.oppsett-hjem {
+        align-items: flex-start;
+        padding-bottom: 0;
+      }
+      .oppsett-hjem .greeting {
+        font-size: 36px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+      }
+      .oppsett-hjem .hilsen {
+        gap: 6px;
+      }
+      .hj-vaer {
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 400;
+        color: var(--gray800, var(--secondary-text-color));
+        white-space: nowrap;
+        text-align: left;
+        cursor: pointer;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .hj-meg {
+        --fsc-avatar-size: 60px;
+        flex: none;
+      }
+      .hj-bilde {
+        position: relative;
+        width: 46px;
+        height: 46px;
+        flex: none;
+        cursor: pointer;
+        user-select: none;
+        touch-action: manipulation;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        border-radius: 50%;
+        outline: none;
+      }
+      .hj-bilde.stor {
+        width: var(--fsc-avatar-size, 60px);
+        height: var(--fsc-avatar-size, 60px);
+      }
+      .hj-bilde .avatar {
+        font-size: 18px;
+        transition: opacity 0.2s ease;
+      }
+      .hj-bilde.stor .avatar {
+        font-size: 22px;
+      }
+      /* Andre som er borte, dempes. */
+      .hj-bilde.borte:not(.stor) .avatar {
+        opacity: 0.6;
+      }
+      /* Ring rundt meg: grønn hjemme, lilla borte. */
+      .hj-bilde.ring-meg .avatar {
+        outline: 2px solid var(--green, #34c759);
+        outline-offset: 2px;
+      }
+      .hj-bilde.ring-meg.borte .avatar {
+        outline-color: var(--purple, #bf5af2);
+      }
+      .hj-bilde.merke-ring.ring-meg .avatar {
+        outline-offset: 5px;
+      }
+      .hj-bilde:focus-visible .avatar {
+        outline: 2px solid var(--active-big, #ee95ff);
+        outline-offset: 2px;
+      }
+      /* Stedsmerket: 24 px sirkel oppe til høyre, ikonet i stedets farge. */
+      .hj-merke {
+        position: absolute;
+        top: -5px;
+        right: -8px;
+        width: 24px;
+        height: 24px;
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 2px solid var(--gray000, var(--primary-background-color, #0e0e10));
+        background: var(--gray200, #26262a);
+        color: var(--hj-sted, var(--blue));
+        display: grid;
+        place-items: center;
+        --mdc-icon-size: 14px;
+      }
+      .hj-bilde.stor .hj-merke {
+        top: -4px;
+        right: -6px;
+      }
+      .hj-merke ha-icon {
+        display: flex;
+      }
+      .hj-prikk {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--hj-sted);
+        border: 2px solid var(--gray000, var(--primary-background-color, #0e0e10));
+      }
+      /* Rad 2: resten av familien. */
+      .hj-andre {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 18px 8px 12px;
+      }
+      .hj-andre.forhand,
+      .hj-andre.forhand * {
+        pointer-events: none;
+      }
+      .hj-person {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        max-width: 72px;
+        min-width: 46px;
+      }
+      .hj-navn {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--gray1000, var(--primary-text-color));
+        max-width: 72px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hj-sted {
+        margin-top: -3px;
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--gray800, var(--secondary-text-color));
+        max-width: 72px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hj-andre .tilpassknapp {
+        align-self: flex-start;
+        margin-top: 8px;
+      }
+
+      /* ------------------------ PERSONKORTET ------------------------ */
+      /* Bunnark for ki-person-card: flat --gray100, 28 px topp, over navigasjonslinja. */
+      .backdrop.ark-bak {
+        align-items: flex-end;
+        padding: 24px 0 0;
+      }
+      .person-ark {
+        position: relative;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 480px;
+        margin-bottom: var(--kd-dokk-h, 0px);
+        max-height: calc(100vh - var(--kd-dokk-h, 0px) - 24px);
+        max-height: calc(100dvh - var(--kd-dokk-h, 0px) - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+        padding: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-radius: 28px 28px 0 0;
+        background: var(--gray100, #1c1c1f);
+        color: var(--gray1000, var(--primary-text-color));
+        font-size: 14px;
+        font-weight: 500;
+        animation: fsc-ark 280ms cubic-bezier(0.2, 0.9, 0.25, 1);
+      }
+      .person-ark::-webkit-scrollbar {
+        display: none;
+      }
+      .person-ark.ut {
+        animation: fsc-ark-ut 160ms ease-in forwards;
+      }
+      .ark-hank {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        padding: 8px 0 8px;
+        border: 0;
+        background: var(--gray100, #1c1c1f);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .ark-hank span {
+        width: 36px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--gray400, rgba(250, 251, 252, 0.3));
+      }
+      .person-ark > ki-person-card {
+        display: block;
+      }
+      @keyframes fsc-ark {
+        from {
+          transform: translateY(40px);
+          opacity: 0;
+        }
+      }
+      @keyframes fsc-ark-ut {
+        to {
+          transform: translateY(40px);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .person-ark,
+        .person-ark.ut {
           animation: none;
         }
       }
@@ -2927,6 +3348,10 @@ class FamilyStatusCardEditor extends LitElement {
               .includeDomains=${["weather"]}
               @value-changed=${(e) => this._update("vaer", e.detail.value)}
             ></ha-entity-picker>
+            <div class="hint">
+              Oppsettet «Hjem» viser været under stedsnavnet fra denne entiteten (ellers
+              den første weather-entiteten). Trykk på været åpner den.
+            </div>
           </div>
         </ha-expansion-panel>
 
@@ -3144,6 +3569,11 @@ class FamilyStatusCardEditor extends LitElement {
               ],
               "dialog"
             )}
+            ${this._switch("Trykk åpner personkortet (ki-person-card) når det finnes", "person_popup")}
+            <div class="hint">
+              Av gir den gamle popupen med hjemme/borte og våken/sover. Per person kan
+              sovn, mobil, farge og popup: sendes videre til personkortet (i YAML).
+            </div>
             ${this._text("Naviger til ved langt trykk på en person", "navigation_path")}
             ${this._select("Tilpass (brukerens egne valg)", "tilpass", [
               { value: "hold", label: "Langt trykk på hilsenen og i stedsmenyen" },
