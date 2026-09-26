@@ -1,3 +1,11 @@
+# ki-cards 9.2.0
+
+- **Ny: ki-person-card** – popupen for en person, samme type som rom-toppkortet: status (Hjemme / Sover / Borte / sone), stedet stort, «siden 15:40», mobilbatteri som søyle, og under det «Soner i dag», «Mobil» (batteri, Wi-Fi/mobildata, skritt, distanse, sted) og «Søvn».
+- **family-status-card**: trykk på en person åpner ki-person-card i et ark nederst (`person_popup: false` gir den gamle dialogen). Per person: `popup: {…}`, `sovn`, `mobil`, `farge`.
+- **family-status-card**: ny profil **«Hjem»** (`layout: hjem`) – stedet som tittel med vær under, deg selv til høyre med stedsmerke og de andre personene under med navn og sted, som i det andre dashbordet. Velges i Tilpass.
+- **ki-rom-hero-card**: grå bakgrunn og temperaturgraf for siste døgn i kortet. Fargen følger varme/lys, eller velg den selv under «Farge på grafen» i «Tilpass rommet» (`farge`, `graf: false`).
+- **ki-rom-card**: «Tilpass rommet»-knappen nederst er fjernet – tannhjulet i toppkortet åpner redigeringen (`tilpass_knapp: true` gir knappen tilbake).
+
 # ki-cards 9.1.0
 
 - **Ny: ki-rom-hero-card** – toppkortet for et rom: romnavn, statuspille (varmer / lys på / holder / rolig), stor temperatur, fukt, spennet siste døgn, fuktsøyle og levende bakgrunn. Finner sensorer, termostat og lys selv ut fra området (`omrade: stue`).

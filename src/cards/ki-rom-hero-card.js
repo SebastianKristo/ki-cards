@@ -23,6 +23,9 @@
  *   tap_action:      { action: more-info }                 # trykk på kortet (standard: temperaturen)
  *   ikon_tap_action: { action: navigate, navigation_path: "#stue" }   # overstyrer tannhjulet
  *   fukt_tap_action: { action: more-info }                 # standard: fuktsensoren
+ *   farge: "#80c3ff"                                       # grafens farge (ellers følger den varme/lys)
+ *   graf: false                                            # skjul temperaturgrafen
+ *   bakgrunn: "var(--gray200)"                             # kortets bakgrunn
  *   tannhjul: false                                        # vis romikonet i stedet for tannhjulet
  *   rom_nokkel: stue+kjokken                               # nøkkelen i ki_rom (standard: omrade)
  *
@@ -33,7 +36,7 @@
  * kortet ikke har fått temperatur/fukt i config.
  */
 (() => {
-  const VERSJON = "1.1.0";
+  const VERSJON = "1.2.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 1) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const ok = (s) => s && !["unavailable", "unknown", ""].includes(s.state);
@@ -41,21 +44,21 @@
 
   // fargene fra designet (oklch), med hex for eldre nettlesere
   const F = { rod: "#f47b74", gul: "#ead070", bla: "#80c3ff", rav: "#f2b966" };
-  const BAK = {
-    varmer: "linear-gradient(180deg, #2a1a1c, #3a2226 70%, #472a2c)",
-    lys: "linear-gradient(180deg, #25221a, #312c1f 70%, #3c3524)",
-    rolig: "linear-gradient(180deg, #1a1f2a, #212838 70%, #283147)",
-  };
+  /* Flat grå bakgrunn som resten av ki-cards; fargen ligger i grafen, pilla og ikonet. */
+  const BAK = "var(--gray200, #1c1c1f)";
   // partiklene: [venstre %, forsinkelse s]
   const STOV = [[12, 0], [24, 1.4], [36, 0.6], [48, 2.2], [60, 0.9], [70, 1.8], [80, 0.3], [30, 2.8], [54, 3.3], [18, 2]];
 
   const CSS = `
     :host { display: block; }
     * { box-sizing: border-box; }
-    .kort { position: relative; height: var(--h, 184px); border-radius: 28px; overflow: hidden; color: #f2f1ee;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); transition: background .8s; cursor: pointer;
+    .kort { position: relative; height: var(--h, 184px); border-radius: 24px; overflow: hidden; color: var(--gray1000, #f2f1ee);
+      transition: background .8s; cursor: pointer;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
     .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
+    .graf { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; pointer-events: none; display: block; }
+    .graf .linje { fill: none; stroke: var(--f); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+    .graf .flate { fill: url(#kiHeroFyll); }
     .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--f); box-shadow: 0 0 6px var(--f);
       animation: drift var(--t, 6s) linear var(--d, 0s) infinite; pointer-events: none; }
     @keyframes drift { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translate(18px, -110px); opacity: 0; } }
@@ -63,25 +66,25 @@
       filter: drop-shadow(0 0 14px color-mix(in srgb, var(--f) 70%, transparent)); animation: puste 3s ease-in-out infinite; }
     .glyf ha-icon { --mdc-icon-size: 36px; display: block; }
     @keyframes puste { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-    .ikon { position: absolute; right: 16px; top: 16px; width: 48px; height: 48px; border-radius: 24px; background: rgba(255,255,255,.1);
-      display: grid; place-items: center; border: 0; padding: 0; color: #f2f1ee; cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .ikon { position: absolute; right: 16px; top: 16px; width: 48px; height: 48px; border-radius: 24px; background: var(--gray100, rgba(255,255,255,.08));
+      display: grid; place-items: center; border: 0; padding: 0; color: var(--gray1000, #f2f1ee); cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
     .ikon:active { transform: scale(.92); }
     .ikon ha-icon { --mdc-icon-size: 24px; }
     .topp { position: absolute; left: 18px; top: 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-    .navn { font-size: 13px; color: #c9c7c2; }
+    .navn { font-size: 14px; font-weight: 500; color: var(--gray800, #c9c7c2); }
     .pille { height: 26px; padding: 0 10px 0 8px; border-radius: 13px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
       white-space: nowrap; background: color-mix(in srgb, var(--f) 18%, transparent); color: var(--f); }
     .pille ha-icon { --mdc-icon-size: 14px; }
     .bunn { position: absolute; left: 18px; right: 84px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
     .temp { display: flex; align-items: baseline; gap: 2px; white-space: nowrap; }
     .temp b { font-size: 40px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-    .temp span { font-size: 18px; color: #8e8d89; }
-    .sub { font-size: 12px; color: #8e8d89; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .temp span { font-size: 18px; color: var(--gray600, #8e8d89); }
+    .sub { font-size: 12px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
     .fukt { position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
-      background: rgba(255,255,255,.08); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+      background: var(--gray100, rgba(255,255,255,.08)); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
       border: 0; padding: 0; cursor: pointer; }
     .fukt i { display: block; height: 0; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
-    .fukt ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: #f2f1ee; }
+    .fukt ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
@@ -108,11 +111,15 @@
             { name: "fukt_tap_action", selector: { ui_action: {} } },
             { name: "tannhjul", selector: { boolean: {} } },
           ] },
+          { type: "expandable", name: "", title: "Utseende", schema: [
+            { name: "farge", selector: { text: {} } },
+            { name: "graf", selector: { boolean: {} } },
+          ] },
           { name: "hoyde", selector: { number: { min: 140, max: 320, step: 4, unit_of_measurement: "px", mode: "box" } } },
         ],
         computeLabel: (s) => ({ omrade: "Rom (område)", navn: "Navn", ikon: "Ikon", temperatur: "Temperatur", fukt: "Luftfuktighet",
           klima: "Termostat", lys: "Lys i rommet", tap_action: "Trykk på kortet", ikon_tap_action: "Trykk på ikonet",
-          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", hoyde: "Høyde" }[s.name] || s.name),
+          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", farge: "Farge på grafen (f.eks. #80c3ff)", graf: "Vis temperaturgraf", hoyde: "Høyde" }[s.name] || s.name),
       };
     }
 
@@ -169,6 +176,7 @@
       if (U && typeof U === "object") {
         if (!ut.temperatur && U.temp && h.states[U.temp]) ut.temperatur = U.temp;
         if (!ut.fukt && U.fukt && h.states[U.fukt]) ut.fukt = U.fukt;
+        if (U.farge) ut.farge = U.farge;
       }
       if (!omr || !h.entities) return ut;
       const E = h.entities, D = h.devices || {};
@@ -224,10 +232,14 @@
           entity_ids: [id], minimal_response: !erKlima, no_attributes: !erKlima, significant_changes_only: false,
         });
         const rader = (svar && svar[id]) || [];
-        const v = rader.map((r) => parseFloat(erKlima ? (r.a && r.a.current_temperature) : r.s)).filter((x) => !isNaN(x));
+        const pkt = rader.map((r) => ({ t: Number(r.lu || r.lc) * 1000, v: parseFloat(erKlima ? (r.a && r.a.current_temperature) : r.s) }))
+          .filter((x) => !isNaN(x.v) && !isNaN(x.t));
+        const v = pkt.map((x) => x.v);
         this._spenn = v.length ? [Math.min(...v), Math.max(...v)] : null;
+        this._punkter = pkt;
       } catch (e) {
         this._spenn = null;
+        this._punkter = null;
       }
       this._siste = null;
       this._oppdater();
@@ -267,6 +279,12 @@
             const st = i % 3 ? 2 : 3;
             return `<span class="stov" data-i="${i}" style="left:${x}%;width:${st}px;height:${st}px;--d:${d}s"></span>`;
           }).join("")}</div>
+          <svg class="graf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="kiHeroFyll" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style="stop-color:var(--f);stop-opacity:.22"></stop><stop offset="1" style="stop-color:var(--f);stop-opacity:0"></stop>
+            </linearGradient></defs>
+            <path class="flate"></path><path class="linje"></path>
+          </svg>
           <span class="glyf"><ha-icon></ha-icon></span>
           <button class="ikon" aria-label="${this._c.tannhjul === false ? "Åpne rommet" : "Tilpass rommet"}"><ha-icon></ha-icon></button>
           <div class="topp"><span class="navn"></span><span class="pille"><ha-icon></ha-icon><span class="pt"></span></span></div>
@@ -314,10 +332,10 @@
       const lysPa = this._lysIds().filter((id) => (S(id) || {}).state === "on").length;
       // som i designet: fargen følger varme, så lys; teksten følger varme, så mål, så lys
       const modus = varmer ? "varmer" : lysPa > 0 ? "lys" : "rolig";
-      const f = modus === "varmer" ? F.rod : modus === "lys" ? F.gul : F.bla;
+      const f = c.farge || a.farge || (modus === "varmer" ? F.rod : modus === "lys" ? F.gul : F.bla);
 
       const kort = $(".kort");
-      kort.style.background = BAK[modus];
+      kort.style.background = c.bakgrunn || BAK;
       kort.style.setProperty("--f", f);
       kort.style.setProperty("--h", `${Number(c.hoyde) || 184}px`);
       this.shadowRoot.querySelectorAll(".stov").forEach((el) => {
@@ -351,10 +369,45 @@
       $(".fukt i").style.height = `${Math.max(0, Math.min(100, isNaN(fukt) ? 0 : fukt))}%`;
       fs.setAttribute("aria-label", `Luftfuktighet ${komma(fukt, 0)} %`);
       $(".bunn").style.right = isNaN(fukt) ? "18px" : "84px";
+      this._tegnGraf(temp, !isNaN(fukt));
 
       kort.setAttribute("aria-label", `${a.navn || ""}: ${komma(temp)} grader. ${pt}. ${$(".sub").textContent}`);
     }
   }
+
+  /* Temperaturgrafen siste døgn: tidsakse fra 24 t siden til nå, trinnvis som historikken,
+     med dagens verdi som siste punkt. */
+  KiRomHeroCard.prototype._tegnGraf = function (naa, harFukt) {
+    const svg = this.shadowRoot.querySelector(".graf");
+    const pkt = (this._punkter || []).slice();
+    if (this._c.graf === false || pkt.length < 2 && isNaN(naa)) { svg.style.display = "none"; return; }
+    const slutt = Date.now(), start = slutt - 24 * 3600 * 1000;
+    if (!isNaN(naa)) pkt.push({ t: slutt, v: naa });
+    if (pkt.length < 2) { svg.style.display = "none"; return; }
+    svg.style.display = "";
+    svg.style.right = harFukt ? "76px" : "0";
+    /* Snitt per halvtime (siste verdi bæres videre), så en glatt kurve gjennom punktene. */
+    const N = 48, spor = [];
+    let j = 0, sist = pkt[0].v;
+    for (let i = 0; i <= N; i++) {
+      const t = start + (i / N) * (slutt - start);
+      const del = [];
+      while (j < pkt.length && pkt[j].t <= t) { del.push(pkt[j].v); sist = pkt[j].v; j++; }
+      spor.push(del.length ? del.reduce((x, y) => x + y, 0) / del.length : sist);
+    }
+    let lo = Math.min(...spor), hi = Math.max(...spor);
+    if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+    const P = spor.map((x, i) => [(i / N) * 100, 38 - ((x - lo) / (hi - lo)) * 26]);
+    let d = "M" + P[0][0].toFixed(2) + " " + P[0][1].toFixed(2);
+    for (let i = 0; i < P.length - 1; i++) {
+      const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += " C" + c1.map((x) => x.toFixed(2)).join(" ") + " " + c2.map((x) => x.toFixed(2)).join(" ") + " " + p2.map((x) => x.toFixed(2)).join(" ");
+    }
+    svg.querySelector(".linje").setAttribute("d", d);
+    svg.querySelector(".flate").setAttribute("d", d + " L100 40 L0 40 Z");
+  };
 
   if (!customElements.get("ki-rom-hero-card")) customElements.define("ki-rom-hero-card", KiRomHeroCard);
   window.customCards = window.customCards || [];
