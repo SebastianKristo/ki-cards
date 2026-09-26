@@ -29,6 +29,8 @@
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
  *  tilpass: false                 # skru av «Tilpass rommet» (tannhjulet i toppen)
  *  tilpass_knapp: true            # vis også «Tilpass rommet»-knappen nederst
+ *  topp_stil: enkel               # toppkortets stil: levende (standard) | enkel (grå og minimalistisk)
+ *  topp_animasjon: false          # uten animasjon i toppkortet
  *  farge_topp: '#80c3ff'          # grafens/aksentens farge i toppkortet (brukeren kan velge selv i Tilpass)
  *  topp: klassisk                 # gammel topp i stedet for ki-rom-hero-card
  *  topp_hoyde: 184                # høyden på toppkortet (px)
@@ -179,6 +181,9 @@
       if (clim) hero.klima = clim;
       if (cfg.topp_hoyde) hero.hoyde = cfg.topp_hoyde;
       if (cfg.farge_topp) hero.farge = cfg.farge_topp;
+      if (cfg.topp_stil) hero.stil = cfg.topp_stil;
+      if (cfg.topp_animasjon === false) hero.animasjon = false;
+      hero.rom_nokkel = romKey(cfg);
       return hero;
     }
     const custom = {};
@@ -903,6 +908,7 @@
    *             fliser: { skjul, vis, rekkefolge, navn: {seksjon: tekst} } } }
    * <rom> er area_id (flere rom: «stue+kjokken»). ki-rom-tile-card leser temp/fukt herfra. */
   const UD_KEY = 'ki_rom';
+  const cfg0Stil = (cfg) => cfg.topp_stil || 'levende';
   /* Fargene brukeren kan velge for grafen i toppkortet. '' = automatisk (følger varme/lys). */
   const FARGER = [['Auto', ''], ['Blå', '#80c3ff'], ['Grønn', '#8fd6a0'], ['Gul', '#ead070'], ['Oransje', '#f2b966'],
     ['Rød', '#f47b74'], ['Lilla', '#c7a6ff'], ['Rosa', '#f3a6c8'], ['Hvit', '#e8e6e1']];
@@ -928,6 +934,9 @@
     if (U.temp && hass.states[U.temp]) ut.temperatur = U.temp;
     if (U.fukt && hass.states[U.fukt]) ut.fuktighet = U.fukt;
     if (U.farge) ut.farge_topp = U.farge;
+    if (U.stil) ut.topp_stil = U.stil;
+    if (U.animasjon === false) ut.topp_animasjon = false;
+    else if (U.animasjon === true) ut.topp_animasjon = true;
     return ut;
   }
   /* Seksjonene i brukerens rekkefølge, med skjult-flagg og eget navn. */
@@ -1748,6 +1757,10 @@
         + '<div class="sens"><div class="sh"><ha-icon icon="mdi:palette-outline"></ha-icon><span class="t">Farge på grafen</span></div><div class="chips">'
         + FARGER.map(([navn, f]) => '<button type="button" class="chip press' + ((U.farge || '') === f ? ' sel' : '') + '" data-act="farge" data-id="' + esc(f) + '">'
           + (f ? '<span class="dot" style="background:' + esc(f) + '"></span>' : '<ha-icon icon="mdi:auto-fix"></ha-icon>') + '<span class="l">' + navn + '</span></button>').join('')
+        + '</div></div>'
+        + '<div class="sens"><div class="sh"><ha-icon icon="mdi:card-outline"></ha-icon><span class="t">Toppkort</span></div><div class="chips">'
+        + [['levende', 'Levende', 'mdi:creation'], ['enkel', 'Enkel', 'mdi:chart-areaspline-variant']].map(([v, t, ic]) => '<button type="button" class="chip press' + ((U.stil || cfg.topp_stil || 'levende') === v ? ' sel' : '') + '" data-act="stil" data-id="' + v + '"><ha-icon icon="' + ic + '"></ha-icon><span class="l">' + t + '</span></button>').join('')
+        + '<button type="button" class="chip press' + (U.animasjon === false || (U.animasjon === undefined && cfg.topp_animasjon === false) ? '' : ' sel') + '" data-act="anim"><ha-icon icon="mdi:motion-play-outline"></ha-icon><span class="l">Animasjon</span></button>'
         + '</div></div></section>';
 
       // --- seksjoner (de store flisene/kategoriene i popupen)
@@ -1810,6 +1823,8 @@
           switch (d.act) {
             case 'sens': this._sensPick(d.k, d.id); break;
             case 'farge': this._lagre((r) => { if (d.id) r.farge = d.id; else delete r.farge; }); break;
+            case 'stil': this._lagre((r) => { if (d.id === (cfg0Stil(this._config))) delete r.stil; else r.stil = d.id; }); break;
+            case 'anim': this._lagre((r) => { const av = r.animasjon === false || (r.animasjon === undefined && this._config.topp_animasjon === false); if (av) { if (this._config.topp_animasjon === false) r.animasjon = true; else delete r.animasjon; } else r.animasjon = false; }); break;
             case 'sensall': this._st.sensAll = this._st.sensAll === d.k ? null : d.k; this._st.sensQ = ''; haptic(); this._renderEdit(); break;
             case 'sekhide': this._sekHide(d.key); break;
             case 'schide': this._scHide(d.key); break;
