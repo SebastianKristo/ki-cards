@@ -24,6 +24,8 @@
  *   ikon_tap_action: { action: navigate, navigation_path: "#stue" }   # overstyrer tannhjulet
  *   fukt_tap_action: { action: more-info }                 # standard: fuktsensoren
  *   farge: "#80c3ff"                                       # grafens farge (ellers følger den varme/lys)
+ *   stil: enkel                                            # levende (standard) | enkel: grå og minimalistisk (temp, fukt og en grå graf)
+ *   animasjon: false                                       # uten partikler og pusting
  *   graf: false                                            # skjul temperaturgrafen
  *   bakgrunn: "var(--gray200)"                             # kortets bakgrunn
  *   tannhjul: false                                        # vis romikonet i stedet for tannhjulet
@@ -36,7 +38,7 @@
  * kortet ikke har fått temperatur/fukt i config.
  */
 (() => {
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 1) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const ok = (s) => s && !["unavailable", "unknown", ""].includes(s.state);
@@ -56,7 +58,7 @@
       transition: background .8s; cursor: pointer;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
     .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
-    .graf { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; pointer-events: none; display: block; }
+    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 58%; pointer-events: none; display: block; }
     .graf .linje { fill: none; stroke: var(--f); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
     .graf .flate { fill: url(#kiHeroFyll); }
     .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--f); box-shadow: 0 0 6px var(--f);
@@ -85,6 +87,18 @@
       border: 0; padding: 0; cursor: pointer; }
     .fukt i { display: block; height: 0; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
     .fukt ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
+    .kort.rolig .stov { display: none; }
+    .kort.rolig .glyf { animation: none; }
+    /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
+    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .fukt, .kort.enkel .sub { display: none; }
+    .kort.enkel .graf { height: 62%; right: 0 !important; }
+    .kort.enkel .graf .linje { display: none; }
+    .kort.enkel .graf .flate { fill: var(--graf-enkel, rgba(250,251,252,.16)); }
+    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; right: 18px !important; left: 22px; }
+    .kort.enkel .temp b { font-size: 44px; }
+    .kort.enkel .temp span { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
+    .kort.enkel .ikon { background: transparent; width: 40px; height: 40px; right: 10px; top: 10px; opacity: .55; }
+    .kort.enkel .ikon ha-icon { --mdc-icon-size: 20px; }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
@@ -114,12 +128,14 @@
           { type: "expandable", name: "", title: "Utseende", schema: [
             { name: "farge", selector: { text: {} } },
             { name: "graf", selector: { boolean: {} } },
+            { name: "stil", selector: { select: { mode: "dropdown", options: [{ value: "levende", label: "Levende" }, { value: "enkel", label: "Enkel (grå)" }] } } },
+            { name: "animasjon", selector: { boolean: {} } },
           ] },
           { name: "hoyde", selector: { number: { min: 140, max: 320, step: 4, unit_of_measurement: "px", mode: "box" } } },
         ],
         computeLabel: (s) => ({ omrade: "Rom (område)", navn: "Navn", ikon: "Ikon", temperatur: "Temperatur", fukt: "Luftfuktighet",
           klima: "Termostat", lys: "Lys i rommet", tap_action: "Trykk på kortet", ikon_tap_action: "Trykk på ikonet",
-          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", farge: "Farge på grafen (f.eks. #80c3ff)", graf: "Vis temperaturgraf", hoyde: "Høyde" }[s.name] || s.name),
+          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", farge: "Farge på grafen (f.eks. #80c3ff)", graf: "Vis temperaturgraf", stil: "Stil", animasjon: "Animasjon", hoyde: "Høyde" }[s.name] || s.name),
       };
     }
 
@@ -177,6 +193,8 @@
         if (!ut.temperatur && U.temp && h.states[U.temp]) ut.temperatur = U.temp;
         if (!ut.fukt && U.fukt && h.states[U.fukt]) ut.fukt = U.fukt;
         if (U.farge) ut.farge = U.farge;
+        if (U.stil) ut.stil = U.stil;
+        if (U.animasjon === false) ut.animasjon = false;
       }
       if (!omr || !h.entities) return ut;
       const E = h.entities, D = h.devices || {};
@@ -353,7 +371,11 @@
       $(".pille ha-icon").setAttribute("icon", pi);
       $(".pt").textContent = pt;
 
-      $(".temp b").textContent = komma(temp);
+      const enkel = c.stil === "enkel" || a.stil === "enkel";
+      kort.classList.toggle("enkel", enkel);
+      kort.classList.toggle("rolig", c.animasjon === false || a.animasjon === false);
+      $(".temp b").textContent = enkel ? `${komma(temp)}°` : komma(temp);
+      $(".temp span").textContent = enkel ? (isNaN(fukt) ? "" : `${komma(fukt, 0)}%`) : "°";
       const deler = [];
       if (!isNaN(fukt)) deler.push(`${komma(fukt, 0)} % fukt`);
       if (this._spenn) {
@@ -385,7 +407,7 @@
     if (!isNaN(naa)) pkt.push({ t: slutt, v: naa });
     if (pkt.length < 2) { svg.style.display = "none"; return; }
     svg.style.display = "";
-    svg.style.right = harFukt ? "76px" : "0";
+    svg.style.right = "0";
     /* Snitt per halvtime (siste verdi bæres videre), så en glatt kurve gjennom punktene. */
     const N = 48, spor = [];
     let j = 0, sist = pkt[0].v;

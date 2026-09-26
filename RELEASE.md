@@ -1,3 +1,10 @@
+# ki-cards 9.5.0
+
+- **ki-kamera-card 2.0**: funksjonene fra kamerakortet i Hjem-dashbordet i mysmart Home-designet – velg kameraer, ni oppsett (mosaikk, hovedkamera, rutenett, liste, masonry, oversikt, fokus, 2×2, 3 kolonner), «Tilpass kameraer» per bruker (skjul, sorter, bytt, legg til), deteksjon (person/bil/dyr/pakke), direktestrøm, lys/snakk/sirene/ta bilde og en «Hendelser»-fane.
+- **ki-strompris-card 4.0**: grafen fra Hjem-dashbordet – Totalpris / Spotpris / Norgespris, i dag og i morgen i én graf (48 t), dra for å se hver time, stiplet spotlinje i Norgespris.
+- **ki-rom-hero-card**: ny stil **«Enkel»** (grå og minimalistisk: temperatur, fukt og grå graf), animasjonen kan slås av, og grafen går helt ut til høyre kant. Velges i «Tilpass rommet» → Toppkort (`topp_stil`, `topp_animasjon`).
+- **ki-hjem-card**: «Avstand under» i Tilpass Hjem (`bunn`) – trekker kortet under (f.eks. søppel) opp.
+
 # ki-cards 9.4.0
 
 - **Personpopupene i ki-design**: hurtigpopupen (trykk på et bilde) og personarket bruker nå ki-flatene, temafonten og --active-big. Tomme verdier (skritt, søvn …) skjules i stedet for å vise streker.

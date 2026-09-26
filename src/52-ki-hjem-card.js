@@ -46,6 +46,7 @@
  *  i HA per bruker (frontend user data «ki_hjem»). Verdiene under er standardene brukeren starter fra:
  *    romkort: stor | middels | liten      # størrelsen på romflisene i etasjefanene
  *    klimaknapp: false                    # uten +/– for settpunkt på de store flisene
+ *    bunn: -120                           # avstand under kortet i px (negativ trekker neste kort opp); kan settes i Tilpass Hjem
  *    fane_bredde: standard | kompakt | full
  *    fane_hoyde: standard | lav | middels | hoy | ekstra
  *    fane_rekkefolge: [hjem, 'etg:forste', aktuelt]   # nøkler: hjem, etg:<etasje_id>, aktuelt, batterier, fane:<tittel>
@@ -86,6 +87,8 @@
       klima: u.klimaknapp != null ? u.klimaknapp !== false : cfg.klimaknapp !== false,
       hoyde: String(f.hoyde || cfg.fane_hoyde || 'standard').toLowerCase(),
       bredde: String(f.bredde || cfg.fane_bredde || 'standard').toLowerCase(),
+      /* Avstand under hele kortet (px, kan være negativ): trekker neste kort (f.eks. søppel) opp. */
+      bunn: Number(u.bunn != null ? u.bunn : (cfg.bunn || 0)) || 0,
     };
   }
   /* Skjulte faner og seksjoner. Har brukeren valgt noe, er det brukerens liste som gjelder
@@ -1338,6 +1341,7 @@
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
+      if (this._config) { const b = prefs(this._effCfg()).bunn; const v = b ? b + 'px' : ''; if (this.style.marginBottom !== v) this.style.marginBottom = v; }
       /* Venter på brukerens valg før første oppbygging (maks 1,5 s), ellers ble kortet
          bygget to ganger ved åpning og hoppet fra standardoppsettet til brukerens. */
       const K = window.KI;
@@ -1584,6 +1588,13 @@
         ${fl}
         <div class="hd">Faner og etasjer</div><div class="liste">${fRader}</div>
         ${utenHint}
+        <div class="hd">Avstand under</div>
+        <div class="gruppe"><div class="chips">
+          ${[0, -40, -80, -120, -160, -200, -260, -320].map((v) => chip(p.bunn === v, 'bunn', '', String(v), v === 0 ? 'Ingen' : String(v).replace('-', '−') + ' px')).join('')}
+        </div><div class="chips">
+          ${chip(false, 'bunn-fin', '-10', '', '−10', 'mdi:arrow-up')}${chip(false, 'bunn-fin', '10', '', '+10', 'mdi:arrow-down')}
+          <span class="etikett" style="align-self:center;padding:0 6px">Nå: ${p.bunn} px</span>
+        </div></div>
         <div class="hd">Romkort</div>
         <div class="gruppe"><div class="chips">
           ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
@@ -1634,6 +1645,8 @@
         u.seksjoner = [...rek, ...SEK_V.filter((s) => !rek.includes(s))];
       } else if (op === 'sek-skjul') skjul('sek:' + k);
       else if (op === 'romkort') u.romkort = x;
+      else if (op === 'bunn') u.bunn = Number(x) || 0;
+      else if (op === 'bunn-fin') u.bunn = Math.max(-600, Math.min(200, prefs(cfg).bunn + Number(k)));
       else if (op === 'klima') u.klimaknapp = !prefs(cfg).klima;
       else if (op === 'fane') u.fane = { ...(u.fane || {}), [k]: x };
       else return;
