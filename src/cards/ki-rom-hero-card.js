@@ -38,7 +38,7 @@
  * kortet ikke har fått temperatur/fukt i config.
  */
 (() => {
-  const VERSJON = "1.3.0";
+  const VERSJON = "1.4.0"
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 1) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const ok = (s) => s && !["unavailable", "unknown", ""].includes(s.state);
@@ -54,36 +54,43 @@
   const CSS = `
     :host { display: block; }
     * { box-sizing: border-box; }
-    .kort { position: relative; height: var(--h, 184px); border-radius: 24px; overflow: hidden; color: var(--gray1000, #f2f1ee);
+    /* «Levende» (standard): navn og statuspille øverst, stor temperatur med fukt ved siden av,
+       spennet siste døgn under, og temperaturgrafen langs bunnen med en prikk for «nå».
+       --m er tilstandsfargen (pille og ikon), --f grafens farge (rav som standard). */
+    .kort { position: relative; height: var(--h, 184px); border-radius: 28px; overflow: hidden; color: var(--gray1000, #f2f1ee);
       transition: background .8s; cursor: pointer;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
-    .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
-    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 58%; pointer-events: none; display: block; }
-    .graf .linje { fill: none; stroke: var(--f); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-    .graf .flate { fill: url(#kiHeroFyll); }
-    .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--f); box-shadow: 0 0 6px var(--f);
-      animation: drift var(--t, 6s) linear var(--d, 0s) infinite; pointer-events: none; }
-    @keyframes drift { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translate(18px, -110px); opacity: 0; } }
-    .glyf { position: absolute; right: 86px; top: 36px; color: var(--f); pointer-events: none;
-      filter: drop-shadow(0 0 14px color-mix(in srgb, var(--f) 70%, transparent)); animation: puste 3s ease-in-out infinite; }
+    .kort:focus-visible { outline: 2px solid var(--m); outline-offset: 2px; }
+    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 32%; pointer-events: none; display: block; overflow: visible; }
+    .graf .linje { fill: none; stroke: var(--f); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+    .graf .flate { fill: color-mix(in srgb, var(--f) 26%, transparent); }
+    .prikk { position: absolute; right: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--gray1000, #f2f1ee);
+      box-shadow: 0 0 0 3px var(--f); pointer-events: none; transform: translateY(-50%); display: none; }
+    .stovlag { display: none; }
+    .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--m); pointer-events: none; }
+    .glyf { position: absolute; right: 88px; top: 24px; color: var(--m); pointer-events: none;
+      filter: drop-shadow(0 0 14px color-mix(in srgb, var(--m) 60%, transparent)); animation: puste 3s ease-in-out infinite; }
     .glyf ha-icon { --mdc-icon-size: 36px; display: block; }
     @keyframes puste { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-    .ikon { position: absolute; right: 16px; top: 16px; width: 48px; height: 48px; border-radius: 24px; background: var(--gray100, rgba(255,255,255,.08));
+    .ikon { position: absolute; right: 16px; top: 16px; width: 56px; height: 56px; border-radius: 50%; background: rgba(250,251,252,.08);
       display: grid; place-items: center; border: 0; padding: 0; color: var(--gray1000, #f2f1ee); cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
     .ikon:active { transform: scale(.92); }
-    .ikon ha-icon { --mdc-icon-size: 24px; }
-    .topp { position: absolute; left: 18px; top: 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-    .navn { font-size: 14px; font-weight: 500; color: var(--gray800, #c9c7c2); }
-    .pille { height: 26px; padding: 0 10px 0 8px; border-radius: 13px; display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
-      white-space: nowrap; background: color-mix(in srgb, var(--f) 18%, transparent); color: var(--f); }
-    .pille ha-icon { --mdc-icon-size: 14px; }
-    .bunn { position: absolute; left: 18px; right: 84px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .ikon ha-icon { --mdc-icon-size: 26px; }
+    .topp { position: absolute; left: 20px; top: 18px; right: 128px; display: flex; flex-direction: row; gap: 12px; align-items: center; min-width: 0; }
+    .navn { font-size: 16px; font-weight: 500; color: var(--gray800, #c9c7c2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 2.5em; }
+    .pille { height: 32px; padding: 0 14px 0 12px; border-radius: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+      white-space: nowrap; background: color-mix(in srgb, var(--m) 22%, transparent); color: var(--m); flex: 0 1 auto; min-width: 0; overflow: hidden; }
+    .pille .pt { overflow: hidden; text-overflow: ellipsis; }
+    .pille ha-icon { --mdc-icon-size: 16px; }
+    .bunn { position: absolute; left: 20px; right: 18px; top: 54px; display: flex; flex-direction: column; gap: 8px; }
     .temp { display: flex; align-items: baseline; gap: 2px; white-space: nowrap; }
-    .temp b { font-size: 40px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-    .temp span { font-size: 18px; color: var(--gray600, #8e8d89); }
-    .sub { font-size: 12px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-    .fukt { position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
-      background: var(--gray100, rgba(255,255,255,.08)); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+    .temp b { font-size: 60px; font-weight: 300; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .temp .grad { display: none; }
+    .fuktv { margin-left: 20px; font-size: 26px; font-weight: 400; color: var(--gray600, #8e8d89); font-variant-numeric: tabular-nums; cursor: pointer; }
+    .fuktv small { font-size: 18px; margin-left: 1px; }
+    .sub { font-size: 15px; color: var(--gray600, #8e8d89); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .fukt { display: none; position: absolute; right: 16px; bottom: 16px; width: 48px; height: calc(var(--h, 184px) - 92px); border-radius: 24px;
+      background: var(--gray100, rgba(255,255,255,.08)); overflow: hidden; flex-direction: column; justify-content: flex-end;
       border: 0; padding: 0; cursor: pointer; }
     .fukt i { display: block; height: 0; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
     .fukt ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
@@ -91,13 +98,18 @@
     .kort.rolig .glyf { animation: none; }
     /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
     /* Tannhjulet og fuktsøylen står i begge stilene. */
-    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub { display: none; }
-    .kort.enkel .graf { height: 62%; right: 0 !important; }
+    .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub, .kort.enkel .fuktv, .kort.enkel .prikk { display: none !important; }
+    .kort.enkel { border-radius: 24px; }
+    .kort.enkel .fukt { display: flex; }
+    .kort.enkel .ikon { width: 48px; height: 48px; }
+    .kort.enkel .ikon ha-icon { --mdc-icon-size: 24px; }
+    .kort.enkel .temp .grad { display: inline; }
+    .kort.enkel .graf { height: 62%; }
     .kort.enkel .graf .linje { display: none; }
     .kort.enkel .graf .flate { fill: var(--graf-enkel, rgba(250,251,252,.16)); }
-    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; left: 22px; }
+    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; left: 22px; right: 84px; }
     .kort.enkel .temp b { font-size: 44px; }
-    .kort.enkel .temp span { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
+    .kort.enkel .temp .grad { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
@@ -297,15 +309,13 @@
             return `<span class="stov" data-i="${i}" style="left:${x}%;width:${st}px;height:${st}px;--d:${d}s"></span>`;
           }).join("")}</div>
           <svg class="graf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-            <defs><linearGradient id="kiHeroFyll" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" style="stop-color:var(--f);stop-opacity:.22"></stop><stop offset="1" style="stop-color:var(--f);stop-opacity:0"></stop>
-            </linearGradient></defs>
             <path class="flate"></path><path class="linje"></path>
           </svg>
+          <span class="prikk"></span>
           <span class="glyf"><ha-icon></ha-icon></span>
           <button class="ikon" aria-label="${this._c.tannhjul === false ? "Åpne rommet" : "Tilpass rommet"}"><ha-icon></ha-icon></button>
           <div class="topp"><span class="navn"></span><span class="pille"><ha-icon></ha-icon><span class="pt"></span></span></div>
-          <div class="bunn"><div class="temp"><b></b><span>°</span></div><span class="sub"></span></div>
+          <div class="bunn"><div class="temp"><b></b><span class="grad">°</span><span class="fuktv"></span></div><span class="sub"></span></div>
           <button class="fukt" aria-label="Luftfuktighet"><i></i><ha-icon icon="mdi:water"></ha-icon></button>
         </div>`;
       const r = this.shadowRoot;
@@ -322,6 +332,11 @@
           if (ev.defaultPrevented) { if (navigator.vibrate) { try { navigator.vibrate(8); } catch (x) { /* blokkert */ } } return; }
         }
         this._handling(this._c.ikon_tap_action || (a.klima ? { action: "more-info" } : { action: "none" }), a.klima);
+      });
+      r.querySelector(".fuktv").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const a = this._auto || {};
+        this._handling(this._c.fukt_tap_action, a.fukt || a.klima);
       });
       r.querySelector(".fukt").addEventListener("click", (e) => {
         e.stopPropagation();
@@ -349,11 +364,13 @@
       const lysPa = this._lysIds().filter((id) => (S(id) || {}).state === "on").length;
       // som i designet: fargen følger varme, så lys; teksten følger varme, så mål, så lys
       const modus = varmer ? "varmer" : lysPa > 0 ? "lys" : "rolig";
-      const f = c.farge || a.farge || (modus === "varmer" ? F.rod : modus === "lys" ? F.gul : F.bla);
+      const m = modus === "varmer" ? F.rod : modus === "lys" ? F.gul : F.bla;   // tilstandsfargen: pille og ikon
+      const f = c.farge || a.farge || F.rav;                                       // grafen: rav, eller brukerens farge
 
       const kort = $(".kort");
       kort.style.background = c.bakgrunn || BAK;
       kort.style.setProperty("--f", f);
+      kort.style.setProperty("--m", m);
       kort.style.setProperty("--h", `${Number(c.hoyde) || 184}px`);
       this.shadowRoot.querySelectorAll(".stov").forEach((el) => {
         const i = Number(el.dataset.i);
@@ -373,23 +390,22 @@
       const enkel = c.stil === "enkel" || a.stil === "enkel";
       kort.classList.toggle("enkel", enkel);
       kort.classList.toggle("rolig", c.animasjon === false || a.animasjon === false);
-      $(".temp b").textContent = enkel ? `${komma(temp)}°` : komma(temp);
-      $(".temp span").textContent = enkel ? (isNaN(fukt) ? "" : `${komma(fukt, 0)}%`) : "°";
-      const deler = [];
-      if (!isNaN(fukt)) deler.push(`${komma(fukt, 0)} % fukt`);
+      $(".temp b").textContent = `${komma(temp)}°`;
+      $(".temp .grad").textContent = enkel ? (isNaN(fukt) ? "" : `${komma(fukt, 0)}%`) : "";
+      $(".fuktv").innerHTML = isNaN(fukt) ? "" : `${komma(fukt, 0)}<small>%</small>`;
+      const deler = ["Nå"];
       if (this._spenn) {
         // dagens verdi skal alltid være innenfor spennet
         const lo = Math.min(this._spenn[0], isNaN(temp) ? Infinity : temp), hi = Math.max(this._spenn[1], isNaN(temp) ? -Infinity : temp);
         deler.push(`${komma(lo)}–${komma(hi)}° siste døgn`);
       }
-      $(".sub").textContent = deler.join(" · ");
+      $(".sub").textContent = deler.length > 1 ? deler.join(" · ") : "";
 
       const fs = $(".fukt");
       fs.style.display = isNaN(fukt) ? "none" : "";
       fs.style.setProperty("--fb", fukt > 60 ? F.rav : F.bla);
       $(".fukt i").style.height = `${Math.max(0, Math.min(100, isNaN(fukt) ? 0 : fukt))}%`;
       fs.setAttribute("aria-label", `Luftfuktighet ${komma(fukt, 0)} %`);
-      $(".bunn").style.right = isNaN(fukt) ? "18px" : "84px";
       this._tegnGraf(temp, !isNaN(fukt));
 
       kort.setAttribute("aria-label", `${a.navn || ""}: ${komma(temp)} grader. ${pt}. ${$(".sub").textContent}`);
@@ -401,10 +417,11 @@
   KiRomHeroCard.prototype._tegnGraf = function (naa, harFukt) {
     const svg = this.shadowRoot.querySelector(".graf");
     const pkt = (this._punkter || []).slice();
-    if (this._c.graf === false || pkt.length < 2 && isNaN(naa)) { svg.style.display = "none"; return; }
+    const prk = this.shadowRoot.querySelector(".prikk");
+    if (this._c.graf === false || pkt.length < 2 && isNaN(naa)) { svg.style.display = "none"; if (prk) prk.style.display = "none"; return; }
     const slutt = Date.now(), start = slutt - 24 * 3600 * 1000;
     if (!isNaN(naa)) pkt.push({ t: slutt, v: naa });
-    if (pkt.length < 2) { svg.style.display = "none"; return; }
+    if (pkt.length < 2) { svg.style.display = "none"; if (prk) prk.style.display = "none"; return; }
     svg.style.display = "";
     svg.style.right = "0";
     /* Snitt per halvtime (siste verdi bæres videre), så en glatt kurve gjennom punktene. */
@@ -418,16 +435,30 @@
     }
     let lo = Math.min(...spor), hi = Math.max(...spor);
     if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
-    const P = spor.map((x, i) => [(i / N) * 100, 38 - ((x - lo) / (hi - lo)) * 26]);
+    const enkel = this.shadowRoot.querySelector(".kort").classList.contains("enkel");
+    const P = spor.map((x, i) => [(i / N) * 100, (enkel ? 38 : 36) - ((x - lo) / (hi - lo)) * (enkel ? 26 : 30)]);
     let d = "M" + P[0][0].toFixed(2) + " " + P[0][1].toFixed(2);
-    for (let i = 0; i < P.length - 1; i++) {
-      const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
-      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-      d += " C" + c1.map((x) => x.toFixed(2)).join(" ") + " " + c2.map((x) => x.toFixed(2)).join(" ") + " " + p2.map((x) => x.toFixed(2)).join(" ");
+    if (enkel) {
+      /* «Enkel»: glatt kurve */
+      for (let i = 0; i < P.length - 1; i++) {
+        const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+        const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+        const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+        d += " C" + c1.map((x) => x.toFixed(2)).join(" ") + " " + c2.map((x) => x.toFixed(2)).join(" ") + " " + p2.map((x) => x.toFixed(2)).join(" ");
+      }
+    } else {
+      /* «Levende»: rette streker mellom halvtimene, som i designet */
+      for (let i = 1; i < P.length; i++) d += " L" + P[i][0].toFixed(2) + " " + P[i][1].toFixed(2);
     }
     svg.querySelector(".linje").setAttribute("d", d);
     svg.querySelector(".flate").setAttribute("d", d + " L100 40 L0 40 Z");
+    /* Prikken for «nå» på høyre kant: grafen fyller de nederste 32 % av kortet. */
+    const prikk = this.shadowRoot.querySelector(".prikk");
+    if (prikk) {
+      const y = P[P.length - 1][1] / 40;
+      prikk.style.top = `calc(68% + ${(y * 32).toFixed(2)}%)`;
+      prikk.style.display = enkel ? "none" : "block";
+    }
   };
 
   if (!customElements.get("ki-rom-hero-card")) customElements.define("ki-rom-hero-card", KiRomHeroCard);
