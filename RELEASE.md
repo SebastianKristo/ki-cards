@@ -1,6 +1,7 @@
-# ki-cards 9.8.0
+# ki-cards 9.21.9
 
-Bygget oppå 9.7.0 fra GitHub.
+Samme innhold som 9.8.0, med et versjonsnummer over de eldre `v9.16`–`v9.19`-taggene i repoet, så HACS ser den
+som nyeste. Bygget oppå 9.8.0 fra GitHub.
 
 ## Nytt kort: `ki-post-bursdag-card` — «Bursdager og post»
 

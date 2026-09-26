@@ -1,4 +1,4 @@
-/* ki-cards v9.8.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.21.9 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.8.0";
+  KI.VERSION = "9.21.9";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
