@@ -64,6 +64,28 @@
     static head = ['person', 'Tilstedeværelse', 'Mobil, sone og søvn'];
     static defaults = { person: 'sebastian', personer: null, soner: null, bilde: true, sovn_rom: 'Soverom' };
     static getStubConfig() { return { person: 'sebastian' }; }
+    /* ki-designet oppå KD-arket: temaets skrift og --gray*-flater i stedet for KD-paletten.
+       Topp-pillen (KD.sheetTopHTML) får flat --gray200 med ikonsirkel i --active-big. */
+    static get sheetCss() {
+      return `
+:host{font-family:inherit;color:var(--gray1000,#f2f1ee)}
+.kd-sheet-top{background:linear-gradient(180deg,var(--gray000,#141416) 0,var(--gray000,#141416) 72%,transparent 100%)!important}
+.kd-sheet-top .kd-grip{background:var(--gray400,rgba(250,251,252,0.3))!important}
+[data-bh="pill"]{background:var(--gray200,#262629)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:999px!important;padding:0 7px!important}
+[data-bh="sheen"],[data-bh="glow"]{display:none!important}
+[data-bh="iconwrap"],[data-bh="icon"]{width:52px!important;height:52px!important}
+[data-bh="icon"]{border-radius:50%!important;background:var(--active-big,#ee95ff)!important;color:var(--black,#000)!important}
+[data-bh="glyph"]{font-size:26px!important}
+[data-bh="title"]{font-size:16px!important;font-weight:500!important}
+[data-bh="sub"]{font-size:14px!important;font-weight:500!important;color:var(--gray1000,#f2f1ee)!important;opacity:.7}
+[data-bh="close"]{width:52px!important;height:52px!important;border-radius:50%!important;background:var(--gray100,#1c1c1f)!important}
+[data-key="kd-lay-btn"] button{background:var(--gray200,#262629)!important;box-shadow:none!important;color:var(--gray1000,#f2f1ee)!important;font-size:14px!important;height:52px!important;border-radius:999px!important}
+`;
+    }
+    render() {
+      // KD-rammen har #141416 hardkodet; bytt til temaets popup-flate
+      return super.render().replace('<div style="background:#141416;min-height:100%">', '<div style="background:var(--gray000,#141416);min-height:100%">');
+    }
     getCardSize() { return 14; }
 
     /* ---------- oppslag ---------- */
@@ -126,7 +148,7 @@
       const useSwitch = (!pst || KD.BAD.has(pst.state)) && this.ok(p.posisjon);
       const state = useSwitch ? (this.v(p.posisjon) === 'on' ? 'home' : 'not_home') : pst ? pst.state : '';
       const zkey = this.zoneKey(state);
-      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', '#8e8d89', ''];
+      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', 'var(--gray600, #8e8d89)', ''];
       const since = useSwitch ? (this.st(p.posisjon) || {}).last_changed : pst && pst.last_changed;
       const geo = this.at(px + 'geocoded_location', 'Locality') ? this.st(px + 'geocoded_location').attributes : {};
       const place = zkey === 'home' ? (geo.Locality || this.fname('zone.home', '')) : zkey === 'not_home' ? (geo['Sub Locality'] || geo.Locality || '') : zkey ? this.zoneName(zkey) : '';
@@ -215,104 +237,114 @@
       const vals = {
         name: p.navn, initial: String(p.navn).trim()[0] || '?',
         halo: { position: 'absolute', inset: -8, borderRadius: '50%', boxShadow: `0 0 0 2px ${a(zc, 0.55)}, 0 0 40px ${a(zc, 0.25)}` },
-        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 600, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
-        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: '#232326', color: zc, boxShadow: '0 0 0 3px #141416' },
+        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 500, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
+        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: 'var(--gray200, #262629)', color: zc, boxShadow: '0 0 0 3px var(--gray000, #141416)' },
         zone: { label: [zl, place && place !== zl ? place : ''].filter(Boolean).join(' · '), icon: zi, since: sinceTxt },
-        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: '#e6e4df' },
+        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: 'var(--gray1000, #f2f1ee)' },
         zoneDot: { width: 8, height: 8, borderRadius: 4, background: zc, boxShadow: `0 0 10px ${zc}` },
-        stats: [['directions_walk', steps != null ? Math.round(steps).toLocaleString('nb-NO') : '–', 'skritt', C.green, px + 'steps'],
-          ['route', dist != null ? `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km` : '–', 'reist i dag', C.blue, distId],
-          ['bedtime', score != null ? `${score}` : '–', 'søvnscore', 'oklch(0.72 0.1 275)', scoreId]].map(([icon, v, label, col, id]) => ({ icon, v, label, id, iconStyle: { fontSize: 20, color: col, fontVariationSettings: "'FILL' 1" } })),
+        // tomme verdier vises ikke (ingen «–»-fliser)
+        stats: [steps != null ? ['directions_walk', Math.round(steps).toLocaleString('nb-NO'), 'skritt', px + 'steps'] : null,
+          dist != null ? ['route', `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km`, 'reist i dag', distId] : null,
+          score != null && !isNaN(score) ? ['bedtime', `${score}`, 'søvnscore', scoreId] : null].filter(Boolean).map(([icon, v, label, id]) => ({ icon, v, label, id })),
         sleep: {
           h: totMin != null ? Math.floor(totMin / 60) : '–', m: totMin != null ? totMin % 60 : '–',
           window: win ? `${KD.hm(win[0])}–${win[1] ? KD.hm(win[1]) : 'nå'}` : '–',
           score: good ? 'God natt' : ok ? 'Grei natt' : 'Urolig natt', hasScore: score != null || dur != null,
-          scoreStyle: { fontSize: 12, fontWeight: 600, padding: '5px 10px', borderRadius: 10, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
+          // ingen søvndata i det hele tatt → seksjonen skjules
+          has: totMin != null || haveStages || !!win, hasTot: totMin != null,
+          scoreStyle: { fontSize: 14, fontWeight: 500, padding: '6px 12px', borderRadius: 999, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
           blocks: seq.map((k, i) => ({ flex: 1 + (i % 3) * 0.5, background: STAGES[k][1], opacity: k === 0 ? 0.5 : 1, alignSelf: 'flex-end', height: `${[35, 60, 100, 80][k]}%`, borderRadius: 4 })),
-          legend: STAGES.map(([label, c], k) => ({ label, v: stMin[k] != null ? `${Math.round(stMin[k])} min` : '–', dot: { width: 8, height: 8, borderRadius: 4, background: c } })),
-          week: wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
+          legend: STAGES.map(([label, c], k) => stMin[k] != null ? { label, v: `${Math.round(stMin[k])} min`, dot: { width: 8, height: 8, borderRadius: 4, background: c } } : null).filter(Boolean),
+          week: !wk.some(w => w.v > 0) ? [] : wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
         },
         phone: { model: model || 'Mobil', bat: bat != null ? Math.round(bat) : '–', sub: net || '–', id: px + 'battery_level',
-          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'oklch(0.72 0.15 25)' : charging ? C.green : '#f2f1ee' }, chips },
-        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(255,255,255,0.1)' : 'transparent', marginTop: 4 } })),
+          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'var(--red, oklch(0.72 0.15 25))' : charging ? 'var(--green, ' + C.green + ')' : 'var(--gray1000, #f2f1ee)' }, chips },
+        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(250,251,252,0.1)' : 'transparent', marginTop: 4 } })),
       };
       const pic = cfg.bilde && this.at(p.entity, 'entity_picture');
       if (pic) Object.assign(vals.avatar, { backgroundImage: `url('${KD.e(String(this._hass.hassUrl ? this._hass.hassUrl(pic) : pic).replace(/'/g, '%27'))}')`, backgroundSize: 'cover', backgroundPosition: 'center', color: 'transparent' });
       const v = vals;
 
-      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;padding:20px var(--kd-kant,10px) 40px;display:flex;flex-direction:column;gap:22px">
+      // ki-designet: flater fra temaets --gray*, fliser 22 px / paneler 24 px, tekst 14 px/500, store tall vekt 300
+      const G1 = 'var(--gray100, #1c1c1f)', G2 = 'var(--gray200, #262629)';
+      const TX = 'var(--gray1000, #f2f1ee)', DIM = 'var(--gray600, #8e8d89)';
+      const HS = `font-size:16px;font-weight:500;color:${TX};padding:0 4px`;
+      const IC = n => `width:${n}px;height:${n}px;border-radius:50%;flex:none;display:grid;place-items:center;box-sizing:border-box;background:rgba(250,251,252,0.1);border:1px solid rgba(250,251,252,0.1);color:${TX}`;
+      const nStat = v.stats.length;
+
+      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;color:${TX};padding:20px var(--kd-kant,12px) 40px;display:flex;flex-direction:column;gap:12px">
   <header style="display:flex;align-items:center;justify-content:space-between">
-    <div style="font-size:13px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Tilstedeværelse</div>
-    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:#232326;display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
+    <div style="font-size:14px;font-weight:500;color:${DIM}">Tilstedeværelse</div>
+    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:${G2};display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
   </header>
 
-  <section style="display:flex;flex-direction:column;align-items:center;gap:14px">
+  <section style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:4px 0 10px">
     <div data-on-click="info" data-arg="${e(p.entity)}" style="position:relative;width:132px;height:132px;cursor:pointer">
       <div style="${S(v.halo)}"></div>
       <div style="${S(v.avatar)}">${pic ? '' : t(v.initial)}</div>
       <span style="${S(v.zoneBadge)}"><span class="ms" style="font-size:18px;font-variation-settings:'FILL' 1">${t(v.zone.icon)}</span></span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center">
-      <div style="font-size:26px;font-weight:500;letter-spacing:-0.015em">${t(v.name)}</div>
+      <div style="font-size:30px;font-weight:500;line-height:1.1">${t(v.name)}</div>
       <div style="${S(v.zoneLine)}"><span style="${S(v.zoneDot)}"></span>${t(v.zone.label)}</div>
-      <div style="font-size:13px;color:#8e8d89">${t(v.zone.since)}</div>
+      ${v.zone.since ? `<div style="font-size:14px;font-weight:500;opacity:0.7">${t(v.zone.since)}</div>` : ''}
     </div>
   </section>
 
-  <section style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:18px;background:#1c1c1f">
-        <span class="ms" style="${S(x.iconStyle)}">${t(x.icon)}</span>
-        <div style="display:flex;flex-direction:column;gap:1px">
-          <span style="font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap">${t(x.v)}</span>
-          <span style="font-size:11px;color:#8e8d89;white-space:nowrap">${t(x.label)}</span>
+  ${nStat ? `<section style="display:grid;grid-template-columns:repeat(${nStat},minmax(0,1fr));gap:8px">
+    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:22px;background:${G2};cursor:pointer;min-width:0">
+        <span style="${IC(40)}"><span class="ms" style="font-size:22px">${t(x.icon)}</span></span>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;padding-left:2px">
+          <span style="font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.v)}</span>
+          <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.label)}</span>
         </div>
       </div>`).join('')}
-  </section>
-
-  <section style="display:flex;flex-direction:column;gap:12px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
-      <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89">Søvn i natt</div>
-      <div style="font-size:12px;color:#6d6c69;font-variant-numeric:tabular-nums">${t(v.sleep.window)}</div>
-    </div>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:0 4px">
-      <div style="font-size:44px;font-weight:300;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:15px;color:#8e8d89"> t </span>${t(v.sleep.m)}<span style="font-size:15px;color:#8e8d89"> min</span></div>
-      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
-    </div>
-    <div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
-      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
-    </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;padding:0 4px">
-      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#a9a7a2;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="color:#6d6c69;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:6px">
-      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
-          <div style="${S(w.bar)}"></div>
-          <span style="font-size:10px;color:#6d6c69">${t(w.d)}</span>
-        </div>`).join('')}
-    </div>
-  </section>
-
-  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
-    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Mobil</div>
-    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:22px;background:#1c1c1f;cursor:pointer">
-      <span style="width:40px;height:40px;border-radius:20px;background:#232326;display:grid;place-items:center;flex:none"><span class="ms" style="font-size:22px">smartphone</span></span>
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;justify-content:space-between;gap:10px">
-          <span style="font-size:14px;font-weight:500;white-space:nowrap">${t(v.phone.model)}</span>
-          <span style="font-size:13px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
-        </div>
-        <div style="height:5px;border-radius:3px;background:#2a2a2d;overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
-        <span style="font-size:12px;color:#8e8d89">${t(v.phone.sub)}</span>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${v.phone.chips.map(c => `<span style="height:30px;padding:0 11px 0 8px;border-radius:15px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;background:#1c1c1f;color:#c9c7c2;white-space:nowrap"><span class="ms" style="font-size:16px;color:#8e8d89">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
-    </div>
   </section>` : ''}
 
-  <section style="display:flex;flex-direction:column;gap:8px">
-    <div style="font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#8e8d89;padding:0 4px">Soner i dag</div>
-    <div style="display:flex;flex-direction:column;padding-left:4px">
+  ${v.sleep.has ? `<section style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:24px;background:${G2}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+      <div style="font-size:16px;font-weight:500">Søvn i natt</div>
+      <div style="font-size:14px;font-weight:500;color:${DIM};font-variant-numeric:tabular-nums">${win ? t(v.sleep.window) : ''}</div>
+    </div>
+    ${v.sleep.hasTot ? `<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+      <div style="font-size:44px;font-weight:300;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:14px;font-weight:500;opacity:0.7"> t </span>${t(v.sleep.m)}<span style="font-size:14px;font-weight:500;opacity:0.7"> min</span></div>
+      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
+    </div>` : ''}
+    ${v.sleep.blocks.length ? `<div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
+      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
+    </div>` : ''}
+    ${v.sleep.legend.length ? `<div style="display:flex;gap:6px 14px;flex-wrap:wrap">
+      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="opacity:0.7;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
+    </div>` : ''}
+    ${v.sleep.week.length ? `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:4px">
+      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="${S(w.bar)}"></div>
+          <span style="font-size:12px;font-weight:500;color:${DIM}">${t(w.d)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+  </section>` : ''}
+
+  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
+    <div style="${HS};padding-top:6px">Mobil</div>
+    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:12px;min-height:66px;padding:7px 18px 7px 7px;box-sizing:border-box;border-radius:22px;background:${G2};cursor:pointer">
+      <span style="${IC(52)}"><span class="ms" style="font-size:26px">smartphone</span></span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.model)}</span>
+          <span style="font-size:14px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:${G1};overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
+        <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.sub)}</span>
+      </div>
+    </div>
+    ${v.phone.chips.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${v.phone.chips.map(c => `<span style="height:36px;padding:0 14px 0 10px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;background:${G2};white-space:nowrap"><span class="ms" style="font-size:18px;opacity:0.7">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
+    </div>` : ''}
+  </section>` : ''}
+
+  ${v.log.length || this._logH ? `<section style="display:flex;flex-direction:column;gap:8px">
+    <div style="${HS};padding-top:6px">Soner i dag</div>
+    <div style="display:flex;flex-direction:column;padding:16px 16px 4px;border-radius:24px;background:${G2}">
       ${v.log.map(x => `<div style="display:flex;gap:14px;align-items:stretch">
           <div style="display:flex;flex-direction:column;align-items:center;width:10px;flex:none">
             <span style="${S(x.dot)}"></span>
@@ -320,15 +352,15 @@
           </div>
           <div style="flex:1;display:flex;justify-content:space-between;gap:12px;padding-bottom:14px">
             <div style="display:flex;flex-direction:column;gap:2px">
-              <div style="font-size:14px">${t(x.text)}</div>
-              <div style="font-size:12px;color:#8e8d89">${t(x.sub)}</div>
+              <div style="font-size:14px;font-weight:500">${t(x.text)}</div>
+              <div style="font-size:14px;font-weight:500;opacity:0.7">${t(x.sub)}</div>
             </div>
-            <div style="font-size:12px;color:#8e8d89;font-variant-numeric:tabular-nums">${t(x.time)}</div>
+            <div style="font-size:14px;font-weight:500;opacity:0.7;font-variant-numeric:tabular-nums">${t(x.time)}</div>
           </div>
         </div>`).join('')}
-      ${!v.log.length && this._logH ? `<div style="padding:4px 0 8px;font-size:13px;color:#6d6c69">Ingen soneendringer i dag</div>` : ''}
+      ${!v.log.length ? `<div style="padding:0 0 12px;font-size:14px;font-weight:500;opacity:0.7">Ingen soneendringer i dag</div>` : ''}
     </div>
-  </section>
+  </section>` : ''}
 </div>`;
     }
     info(ev, id) { if (id) this.more(id); }

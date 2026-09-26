@@ -51,7 +51,11 @@
  *    fane_rekkefolge: [hjem, 'etg:forste', aktuelt]   # nøkler: hjem, etg:<etasje_id>, aktuelt, batterier, fane:<tittel>
  *    skjul: ['etg:kjeller', 'sek:alarm']  # skjulte faner og seksjoner (sek:topp|rom|alarm|hoyre|stov)
  *    seksjoner: [rom, topp, alarm]        # rekkefølgen i venstre kolonne på Hjem-fanen
+ *    alle_rom: false                      # fanen «Alle rom» (alle rommene samlet) – av som standard
  *    tilpass: false                       # slår av panelet
+ *  Panelet åpnes også fra ki-floating-navbar: «…» → «Tilpass Hjem» sender window-hendelsen
+ *  `ki-hjem-tilpass` ({detail:{apen:true|false}}). Kortet teller seg i window.__kiHjem og sender
+ *  `ki-hjem-registrert` når det kobles til/fra, så navbaren vet om valget skal vises.
  *  Elementer i lister: {rom: x} / {kind: ...} = ki-rom-tile-card, {swipe: {...}} = css-swipe-card
  *  (type: plain = custom:swipe-card), {card: {...}} eller alt med `type:` = kortet som det er.
  * ========================================================================== */
@@ -66,7 +70,8 @@
   /* ---- «Tilpass Hjem»: brukerens valg. Konfigurasjonen er standarden; det brukeren velger
      i panelet ligger i `cfg.__u` (fra KI.ud(hass, 'ki_hjem')) og vinner.
      Formen på det som lagres:
-       { rekkefolge: [nøkkel …], skjul: [nøkkel | 'sek:<del>' …], etasjer: { <etasje_id|hjem>: [area_id …] },
+       { rekkefolge: [nøkkel …], skjul: [nøkkel | 'sek:<del>' | 'flis:<id>' …], etasjer: { <etasje_id|hjem>: [area_id …] },
+         hjem_hoyre: [area_id …] (rommene i Hjem-fanens høyre swipe), alle_rom: bool,
          seksjoner: ['topp','rom','alarm'], romkort: 'stor'|'middels'|'liten', klimaknapp: bool,
          fane: { bredde: 'standard'|'kompakt'|'full', hoyde: 'standard'|'lav'|'middels'|'hoy'|'ekstra' } } */
   const FANE_H = { lav: 30, middels: 38, hoy: 46, 'høy': 46, ekstra: 56 };
@@ -87,11 +92,15 @@
      (den ble fylt med konfigurasjonens skjulte da panelet ble brukt første gang). */
   function skjulte(cfg) {
     const u = bruker(cfg);
-    if (Array.isArray(u.skjul)) return new Set(u.skjul);
+    if (Array.isArray(u.skjul)) return medAlle(new Set(u.skjul), cfg);
     const s = new Set(cfg.skjul || []);
     Object.entries(cfg.etasje_innstillinger || {}).forEach(([k, v]) => { if (v && v.vis === false) s.add('etg:' + k); });
-    return s;
+    return medAlle(s, cfg);
   }
+  /* «Alle rom»-fanen er av til brukeren (eller alle_rom: true) slår den på – også for brukere som
+     alt har en skjul-liste fra før fanen fantes. */
+  function visAlle(cfg) { const u = bruker(cfg); return u.alle_rom != null ? !!u.alle_rom : !!cfg.alle_rom; }
+  function medAlle(s, cfg) { if (visAlle(cfg)) s.delete('alle'); else s.add('alle'); return s; }
   /* Flisstørrelsen etter valgene: brukerens romkort gjelder alle rom, konfigurasjonens bare
      rom uten egen størrelse. Klimaknappen av gjør «stor» til «stor uten». */
   function flisStr(size, cfg, egen) {
@@ -277,6 +286,26 @@
     return r;
   }
 
+  /* Flisene i Hjem-fanens «stov»-kolonne, hver med en fast nøkkel (flis:<…>) som brukeren kan
+     skjule i «Tilpass Hjem». Nøkkelen bygges av innholdet, ikke plassen, så den tåler omsortering. */
+  const KIND_NAVN = { navigate: 'Flis', gjoremal: 'Gjøremål', kalender: 'Kalender', las: 'Dørlås', garasje: 'Garasjeport', alarm: 'Alarm', rom: 'Rom' };
+  const KIND_IKON = { gjoremal: 'mdi:checkbox-marked-circle-outline', kalender: 'mdi:calendar-month-outline', las: 'mdi:lock-outline', garasje: 'mdi:garage', alarm: 'mdi:shield-home-outline', rom: 'mdi:sofa-outline' };
+  function stovFliser(h) {
+    const brukt = new Set();
+    return ((h && Array.isArray(h.stov)) ? h.stov : []).map((t, i) => {
+      t = t || {};
+      const sw = t.swipe ? (t.swipe.cards || []) : null;
+      const x = sw ? (sw[0] || {}) : t;
+      let key = 'flis:' + String(t.id || x.main_text || x.navn || x.rom || x.entity || x.path || x.kind || x.type || i).toLowerCase();
+      while (brukt.has(key)) key += '+';
+      brukt.add(key);
+      const st = x.entity && curHass && curHass.states[x.entity];
+      let navn = String(x.main_text || x.navn || x.rom || (x.kind && x.kind !== 'navigate' && KIND_NAVN[x.kind]) || (st && st.attributes.friendly_name) || x.entity || 'Flis').replace(/<br>|\\n|\n/g, ' ');
+      if (sw && sw.length > 1) navn += ' + ' + (sw.length - 1) + ' til';
+      return { key, navn, ikon: x.ikon || x.icon || KIND_IKON[x.kind] || 'mdi:card-outline', sveip: !!sw, t };
+    });
+  }
+
   // ---- auto: Hjem-fanen med samme layout som før ("stue kjokken" / "stue stov")
   //  hjem: { las: lock.x, garasje: cover.x, alarm: { entity, script }, kalender: sensor.x,
   //          rom: [stue, inngang, ute] (venstre swipe), rom_hoyre: [pult, kjokken], stov: [ ...fliser ] }
@@ -288,11 +317,13 @@
     let venstreRom = (h.rom || alle.slice(0, Math.max(2, Math.ceil(alle.length * 0.6)))).filter(finnes);
     let hoyreRom = (h.rom_hoyre || alle.filter((r) => !venstreRom.includes(r))).filter(finnes);
     /* Rommene brukeren har valgt for Hjem-fanen: fordelt som standarden, ~60 % til venstre. */
-    const valgtHjem = (bruker(cfg).etasjer || {}).hjem;
+    const valgtHjem = (bruker(cfg).etasjer || {}).hjem, valgtH = bruker(cfg).hjem_hoyre;
     if (Array.isArray(valgtHjem)) {
       const l = valgtHjem.filter(finnes);
-      const n = Math.max(2, Math.ceil(l.length * 0.6));
-      venstreRom = l.slice(0, n); hoyreRom = l.slice(n);
+      /* Har brukeren valgt side for rommene (Tilpass Hjem → Hjem → Venstre/Høyre), gjelder det;
+         ellers som standarden, ~60 % til venstre. */
+      if (Array.isArray(valgtH)) { venstreRom = l.filter((r) => !valgtH.includes(r)); hoyreRom = l.filter((r) => valgtH.includes(r)); }
+      else { const n = Math.max(2, Math.ceil(l.length * 0.6)); venstreRom = l.slice(0, n); hoyreRom = l.slice(n); }
     }
     const skj = skjulte(cfg);
     const tile = (r, i) => ({ rom: r, size: flisStr('big', { ...cfg, romkort: null, __u: { ...bruker(cfg), romkort: null } }, true), farge: (romCfg[r] || {}).farge || FARGER[i % FARGER.length] });
@@ -315,12 +346,15 @@
 
     const omrader = { stue };
     if (hoyreRom.length && !skj.has('sek:hoyre')) omrader.kjokken = [{ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
-    if (h.stov && h.stov.length && !skj.has('sek:stov')) omrader.stov = h.stov;
+    const fliser = stovFliser(h), synlige = fliser.filter((f) => !skj.has(f.key)).map((f) => f.t);
+    if (synlige.length && !skj.has('sek:stov')) omrader.stov = synlige;
 
     const areas = omrader.stov ? '"stue kjokken"\n"stue stov"\n"stue stov"\n' : (omrader.kjokken ? '"stue kjokken"\n' : '"stue"\n');
     return {
       title: h.title || 'Hjem',
       _rom: [...venstreRom, ...hoyreRom],
+      _hoyre: hoyreRom.slice(),
+      _fliser: fliser,
       _deler: [...SEK_V.filter((k) => k !== 'topp' || topp.length).filter((k) => k !== 'alarm' || h.alarm), 'hoyre', ...(h.stov && h.stov.length ? ['stov'] : [])],
       layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(160px, 1fr))', 'grid-template-rows': 'auto', 'grid-template-areas': areas, ...(h.layout || {}) },
       omrader,
@@ -429,8 +463,9 @@
     // Hjem-fanen er standard på (hjem: false skrur av); egen «Hjem» i tabs vinner
     if (cfg.hjem !== false && !hasHjem) {
       const h = autoHjemTab(hass, cfg);
-      tabs = [{ key: 'hjem', navn: h.title, auto: true, rom: h._rom, deler: h._deler, tab: buildTab(h, romCfg) }, ...explicit];
+      tabs = [{ key: 'hjem', navn: h.title, auto: true, rom: h._rom, hoyre: h._hoyre, fliser: h._fliser, deler: h._deler, tab: buildTab(h, romCfg) }, ...explicit];
     }
+    let etter = tabs.findIndex((t) => t.key === 'hjem') + 1;
     if (cfg.etasjer !== false && cfg.etasjer !== 'manuell') {
       const fc = cfg.etasje_innstillinger || {};
       const auto = floorList(hass, cfg).map((f) => {
@@ -441,6 +476,15 @@
       const idx = tabs.findIndex((t) => t.key === 'hjem');
       const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : idx + 1);
       tabs = [...tabs.slice(0, pos), ...auto, ...tabs.slice(pos)];
+      etter = pos + auto.length;
+    }
+    /* «Alle rom»: alle rommene samlet i én fane (som kd-dokkens «Alle»). Av til brukeren slår den på;
+       en skjult fane bygges ikke (generate filtrerer den bort før kortene lages). */
+    const alleR = rooms(hass, cfg);
+    if (alleR.length && !tabs.some((t) => t.key === 'alle')) {
+      const title = cfg.alle_rom_navn || 'Alle rom';
+      tabs.splice(Math.max(0, Math.min(etter, tabs.length)), 0, { key: 'alle', navn: title, rom: alleR.map((a) => a.area_id), alle: true,
+        tab: visAlle(cfg) ? buildTab({ title, kolonner: columnsFor(alleR, cfg) }, romCfg) : null });
     }
     const keys = tabs.map((t) => t.key);
     if (cfg.aktuelt && !keys.includes('aktuelt')) { const t = aktueltTab(cfg); if (t) tabs.push({ key: 'aktuelt', navn: t.title, tab: t }); }
@@ -694,6 +738,8 @@
           { value: 'monster', label: 'Etter flismønsteret' }, { value: 'stor', label: 'Stor' },
           { value: 'middels', label: 'Middels' }, { value: 'liten', label: 'Liten' }], 'monster'),
         F.bryter('klimaknapp', 'Klimaknapp på de store romflisene'),
+        { vei: 'alle_rom', etikett: 'Fanen «Alle rom» (alle rommene samlet)', selector: { boolean: {} },
+          les: (c) => !!c.alle_rom, skriv: (c, v) => skriv(c, 'alle_rom', v ? true : undefined) },
         F.valg('fane_bredde', 'Fanebredde', [
           { value: 'standard', label: 'Standard' }, { value: 'kompakt', label: 'Kompakt' },
           { value: 'full', label: 'Full bredde' }], 'standard'),
@@ -1174,10 +1220,13 @@
     *, *::before, *::after { box-sizing:border-box; }
     .bak { position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.35);
       animation:tp-inn .18s ease-out; }
+    /* Rett over navigasjonslinja (--kd-dokk-h settes av ki-floating-navbar / kd-dokka og måles fra
+       bunnen av vinduet, altså medregnet safe-area nederst). Toppen holder seg under statuslinja. */
     .panel { position:fixed; z-index:9999; left:50%; transform:translateX(-50%);
-      bottom:calc(var(--kd-dokk-h, 90px) + 6px + env(safe-area-inset-bottom));
+      bottom:calc(var(--kd-dokk-h, 90px) + 6px);
       width:min(440px, calc(100vw - 24px));
-      max-height:calc(100vh - var(--kd-dokk-h, 90px) - 40px - env(safe-area-inset-bottom) - env(safe-area-inset-top));
+      max-height:calc(100vh - var(--kd-dokk-h, 90px) - 24px - env(safe-area-inset-top, 0px));
+      max-height:calc(100dvh - var(--kd-dokk-h, 90px) - 24px - env(safe-area-inset-top, 0px));
       display:flex; flex-direction:column; border-radius:24px; overflow:hidden;
       background:var(--gray200, #1f1f22); color:var(--gray1000, #f2f2f2);
       font-family:var(--ki-font, inherit); font-size:14px; font-weight:500;
@@ -1219,6 +1268,8 @@
     .gruppe .chip { background:var(--gray200, #1f1f22); }
     .gruppe .chip.pa { background:var(--active-big, #ee95ff); }
     .etikett { padding:0 14px 8px; opacity:.7; }
+    .rad-wrap > .etikett { padding:2px 14px 6px; font-size:12px; }
+    .hint { padding:8px 8px 0; font-size:12px; opacity:.7; }
     @media (prefers-reduced-motion: reduce) { .bak, .panel { animation:none; } }
   `;
   const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1235,6 +1286,27 @@
       if (this._hass) this.hass = this._hass;
     }
     connectedCallback() {
+      /* Meld fra til navbaren (ki-floating-navbar) at «Tilpass Hjem» finnes på siden, og lytt på
+         «…» → «Tilpass Hjem» derfra. */
+      if (!this._reg) {
+        this._reg = true;
+        const W = window;
+        W.__kiHjem = (W.__kiHjem || 0) + 1;
+        (W.__kiHjemKort = W.__kiHjemKort || new Set()).add(this);
+        W.dispatchEvent(new CustomEvent('ki-hjem-registrert', { detail: { antall: W.__kiHjem } }));
+      }
+      if (!this._tpLytter) {
+        this._tpLytter = (e) => {
+          const apen = !e.detail || e.detail.apen !== false;
+          if (!apen) { this._lukkTilpass(); return; }
+          /* Flere Hjem-kort på siden: bare det første synlige svarer. */
+          const alle = [...(window.__kiHjemKort || [])];
+          const meg = alle.find((k) => k.isConnected && k.getClientRects().length) || alle[0];
+          if (meg !== this) return;
+          if (!this._tpApen) this._apneTilpass();
+        };
+      }
+      window.addEventListener('ki-hjem-tilpass', this._tpLytter);
       if (!this._udLytter) {
         this._udLytter = (e) => {
           if (!e.detail || e.detail.key !== 'ki_hjem') return;
@@ -1251,6 +1323,14 @@
     }
     disconnectedCallback() {
       if (this._udLytter) window.removeEventListener('ki-ud', this._udLytter);
+      if (this._tpLytter) window.removeEventListener('ki-hjem-tilpass', this._tpLytter);
+      if (this._reg) {
+        this._reg = false;
+        const W = window;
+        W.__kiHjem = Math.max(0, (W.__kiHjem || 1) - 1);
+        if (W.__kiHjemKort) W.__kiHjemKort.delete(this);
+        W.dispatchEvent(new CustomEvent('ki-hjem-registrert', { detail: { antall: W.__kiHjem } }));
+      }
       this._lukkTilpass();
     }
     _u() { const K = window.KI; return (K && K.ud && this._hass) ? (K.ud(this._hass, 'ki_hjem') || {}) : {}; }
@@ -1429,14 +1509,23 @@
       const navn = (id) => { const a = alleRom.find((x) => x.area_id === id); return (a && a.rom) || id; };
       const ib = (op, k, ikon, tittel, av, pa) => `<button class="ib ${pa ? 'pa' : ''}" data-op="${op}" data-k="${esc(k)}" title="${tittel}" aria-label="${tittel}" ${av ? 'disabled' : ''}><ha-icon icon="${ikon}"></ha-icon></button>`;
       const chip = (on, op, k, x, tekst, ikon) => `<button class="chip ${on ? 'pa' : ''}" data-op="${op}" data-k="${esc(k)}" data-x="${esc(x)}" aria-pressed="${on}">${ikon ? `<ha-icon icon="${ikon}"></ha-icon>` : ''}${esc(tekst)}</button>`;
-      const ikonFor = (f) => (f.key === 'hjem' ? 'mdi:home-outline' : f.etg !== undefined ? 'mdi:stairs' : f.key === 'aktuelt' ? 'mdi:lightning-bolt-outline' : f.key === 'batterier' ? 'mdi:battery-low' : 'mdi:tab');
+      const ikonFor = (f) => (f.key === 'hjem' ? 'mdi:home-outline' : f.alle ? 'mdi:view-grid-outline' : f.etg !== undefined ? 'mdi:stairs' : f.key === 'aktuelt' ? 'mdi:lightning-bolt-outline' : f.key === 'batterier' ? 'mdi:battery-low' : 'mdi:tab');
+      const romChips = (on, op, k) => alleRom.map((a) => chip(on(a.area_id), op, k, a.area_id, a.rom || a.area_id)).join('');
 
+      /* Faner og etasjer (kd: «Etasjer»): rekkefølge, vis/skjul og hvilke rom som ligger i hver
+         etasje. Hjem-fanen velger i tillegg side (venstre/høyre swipe) for rommene. */
       const fRader = faner.map((f, i) => {
         const av = skj.has(f.key);
         const kanRom = f.etg !== undefined || (f.key === 'hjem' && f.auto);
         const apen = kanRom && this._tpRom === f.key;
         const under = kanRom ? (f.rom.length ? f.rom.map(navn).join(', ') : 'Ingen rom')
-          : f.key === 'aktuelt' ? 'Vises når noe er i gang' : f.key === 'batterier' ? 'Vises ved lavt batteri' : '';
+          : f.alle ? 'Alle rommene samlet' : f.key === 'aktuelt' ? 'Vises når noe er i gang' : f.key === 'batterier' ? 'Vises ved lavt batteri' : '';
+        let valg = '';
+        if (apen && f.key === 'hjem') {
+          const H = f.hoyre || [], V = f.rom.filter((r) => !H.includes(r));
+          valg = `<div class="etikett">Venstre swipe</div><div class="chips">${romChips((id) => V.includes(id), 'hjemrom', 'venstre')}</div>
+            <div class="etikett">Høyre swipe</div><div class="chips">${romChips((id) => H.includes(id), 'hjemrom', 'hoyre')}</div>`;
+        } else if (apen) valg = `<div class="chips">${romChips((id) => f.rom.includes(id), 'rom', f.key)}</div>`;
         return `<div class="rad-wrap"><div class="rad ${av ? 'av' : ''}">
             <ha-icon class="ri" icon="${ikonFor(f)}"></ha-icon>
             <span class="rt"><span class="rn">${esc(f.navn)}</span>${under ? `<span class="ru">${esc(under)}</span>` : ''}</span>
@@ -1444,40 +1533,62 @@
             ${ib('opp', f.key, 'mdi:arrow-up', 'Flytt opp', i === 0)}
             ${ib('ned', f.key, 'mdi:arrow-down', 'Flytt ned', i === faner.length - 1)}
             ${ib('skjul', f.key, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
-          </div>${apen ? `<div class="chips">${alleRom.map((a) => chip(f.rom.includes(a.area_id), 'rom', f.key, a.area_id, a.rom || a.area_id)).join('')}</div>` : ''}</div>`;
+          </div>${valg}</div>`;
       }).join('');
+      /* Rom som ikke ligger i noen etasjefane (fjernet fra alle) – så de ikke blir borte ubemerket. */
+      const iEtg = new Set();
+      faner.forEach((f) => { if (f.etg !== undefined) f.rom.forEach((r) => iEtg.add(r)); });
+      const uten = faner.some((f) => f.etg !== undefined) ? alleRom.filter((a) => !iEtg.has(a.area_id)) : [];
+      const utenHint = uten.length ? `<div class="hint">Ikke i noen etasje: ${esc(uten.map((a) => a.rom || a.area_id).join(', '))}. Trykk blyanten på en etasje for å legge dem til.</div>` : '';
 
+      /* Hjem-fanen (kd: «Seksjoner» og «Fliser – venstre/høyre kolonne»). */
       let sek = '';
       const hj = faner.find((f) => f.key === 'hjem' && f.auto);
       if (hj && hj.deler && hj.deler.length > 1) {
+        const SEK_IKON = { topp: 'mdi:lock-outline', rom: 'mdi:sofa-outline', alarm: 'mdi:shield-home-outline', hoyre: 'mdi:view-column-outline', stov: 'mdi:view-grid-outline' };
         const rek = seksjonsRekke(cfg).filter((k) => hj.deler.includes(k));
         const rader = [...rek, ...hj.deler.filter((k) => !SEK_V.includes(k))].map((k) => {
           const av = skj.has('sek:' + k), i = rek.indexOf(k), flytt = i >= 0 && rek.length > 1;
           return `<div class="rad-wrap"><div class="rad ${av ? 'av' : ''}">
-            <span class="rt"><span class="rn">${esc(SEK_NAVN[k] || k)}</span>${SEK_V.includes(k) ? '' : '<span class="ru">Egen kolonne</span>'}</span>
+            <ha-icon class="ri" icon="${SEK_IKON[k] || 'mdi:card-outline'}"></ha-icon>
+            <span class="rt"><span class="rn">${esc(SEK_NAVN[k] || k)}</span><span class="ru">${SEK_V.includes(k) ? 'Venstre kolonne' : 'Høyre kolonne'}</span></span>
             ${flytt ? ib('sek-opp', k, 'mdi:arrow-up', 'Flytt opp', i === 0) + ib('sek-ned', k, 'mdi:arrow-down', 'Flytt ned', i === rek.length - 1) : ''}
             ${ib('sek-skjul', k, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
           </div></div>`;
         }).join('');
         sek = `<div class="hd">Seksjoner i ${esc(hj.navn)}</div><div class="liste">${rader}</div>`;
       }
+      let fl = '';
+      if (hj && hj.fliser && hj.fliser.length) {
+        const stovAv = skj.has('sek:stov');
+        fl = `<div class="hd">Fliser i ${esc(hj.navn)}</div><div class="liste">${hj.fliser.map((x) => {
+          const av = skj.has(x.key);
+          return `<div class="rad-wrap"><div class="rad ${av || stovAv ? 'av' : ''}">
+            <ha-icon class="ri" icon="${esc(x.ikon)}"></ha-icon>
+            <span class="rt"><span class="rn">${esc(x.navn)}</span>${x.sveip ? '<span class="ru">Sveipbar</span>' : ''}</span>
+            ${ib('skjul', x.key, av ? 'mdi:eye-off-outline' : 'mdi:eye-outline', av ? 'Vis' : 'Skjul', false, !av)}
+          </div></div>`;
+        }).join('')}</div>`;
+      }
 
       const romkort = u.romkort || cfg.romkort || 'monster';
       boks.innerHTML = `
-        <div class="hd">Faner</div><div class="liste">${fRader}</div>
-        ${sek}
-        <div class="hd">Romfliser</div>
-        <div class="gruppe"><div class="chips">
-          ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
-          ${chip(p.klima, 'klima', '', '', 'Klimaknapp', 'mdi:thermostat')}
-        </div></div>
         <div class="hd">Fanerada</div>
         <div class="gruppe">
           <div class="etikett">Bredde</div><div class="chips">
             ${[['standard', 'Standard'], ['kompakt', 'Kompakt'], ['full', 'Full']].map(([v, t]) => chip(p.bredde === v, 'fane', 'bredde', v, t)).join('')}</div>
           <div class="etikett">Høyde</div><div class="chips">
             ${[['standard', 'Standard'], ['lav', 'Lav'], ['middels', 'Middels'], ['hoy', 'Høy'], ['ekstra', 'Ekstra']].map(([v, t]) => chip(p.hoyde === v || (v === 'hoy' && p.hoyde === 'høy'), 'fane', 'hoyde', v, t)).join('')}</div>
-        </div>`;
+        </div>
+        ${sek}
+        ${fl}
+        <div class="hd">Faner og etasjer</div><div class="liste">${fRader}</div>
+        ${utenHint}
+        <div class="hd">Romkort</div>
+        <div class="gruppe"><div class="chips">
+          ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
+          ${chip(p.klima, 'klima', '', '', 'Klimaknapp', 'mdi:thermostat')}
+        </div></div>`;
       boks.scrollTop = rull;
     }
 
@@ -1494,8 +1605,22 @@
         const keys = (this._faner || []).map((f) => f.key);
         if (!bytt(keys, k, op === 'opp' ? -1 : 1)) return;
         u.rekkefolge = keys;
-      } else if (op === 'skjul') skjul(k);
-      else if (op === 'rom') {
+      } else if (op === 'skjul') {
+        if (k === 'alle') u.alle_rom = !visAlle(cfg);
+        else skjul(k);
+      } else if (op === 'hjemrom') {
+        /* Hjem-fanens rom: x legges i (eller tas ut av) venstre/høyre swipe. Dagens fordeling
+           skrives ut, så resten blir stående der de er. */
+        const f = (this._faner || []).find((y) => y.key === 'hjem');
+        if (!f) return;
+        const H = (f.hoyre || []).slice(), V = f.rom.filter((r) => !H.includes(r));
+        const [inn, ut] = k === 'hoyre' ? [H, V] : [V, H];
+        const i = inn.indexOf(x);
+        if (i >= 0) inn.splice(i, 1);
+        else { const j = ut.indexOf(x); if (j >= 0) ut.splice(j, 1); inn.push(x); }
+        u.etasjer = { ...(u.etasjer || {}), hjem: [...V, ...H] };
+        u.hjem_hoyre = H;
+      } else if (op === 'rom') {
         const f = (this._faner || []).find((y) => y.key === k);
         if (!f) return;
         const etg = k === 'hjem' ? 'hjem' : f.etg;
