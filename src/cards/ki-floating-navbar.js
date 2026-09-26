@@ -28,11 +28,23 @@
  *   shrink_on_scroll: false    # standard for «Krymp ved scrolling» (brukeren kan overstyre)
  *   nav_id: default            # egen nøkkel hvis du har flere ulike navbarer
  *
+ * «Menyen» (de tre prikkene): den første config-knappen med sub_items (helst en med
+ * mdi:dots-horizontal). Innholdet kan brukeren endre i «Tilpass navbar»: flytte knapper inn
+ * og ut, endre rekkefølge, skjule og legge til egne. Uten en slik knapp lages en «Mer» først
+ * når noe flyttes dit.
+ *
  * Brukerens valg lagres per bruker i HA (KI.udSave, nøkkel "ki_navbar"):
- *   { <nav_id>: { order:[id], hidden:[id], more:[id], custom:[{id,name,icon,tap_action}],
+ *   { <nav_id>: { order:[id]          rekkefølgen i linjen
+ *                 menu:[id]           rekkefølgen i menyen
+ *                 hidden:[id]         skjult (også underknapper)
+ *                 more:[id]           linjeknapper flyttet inn i menyen
+ *                 out:[id]            menyknapper flyttet ut i linjen
+ *                 custom:[{id,name,icon,tap_action,place:"bar"|"menu"}],
  *                 names:"show"|"hide", shrink:bool, width:"auto"|"full"|"fixed", width_px:num,
- *                 size:"s"|"m"|"l" } }
+ *                 storrelse:"s"|"m"|"l"|"xl" } }
+ * Id-er: item.id, ellers "n:"+navn, (underknapper) "p:"+navigation_path, ellers "i:"+ikon.
  * Config er standarden; det som står her overstyrer. «Nullstill» sletter <nav_id>.
+ * (Den gamle nøkkelen `size` ignoreres – størrelsene var mindre enn config og krympet linjen.)
  * Setter --kd-dokk-h på <html> (avstand fra bunnen av vinduet til toppen av linjen), så
  * andre paneler kan legge seg rett over den.
  */
@@ -94,13 +106,20 @@
     try { if (navigator.vibrate) navigator.vibrate(t === "selection" ? 6 : t === "heavy" ? 22 : 12); } catch (e) { /* ikke støttet */ }
   };
 
+  const without = (arr, id) => (Array.isArray(arr) ? arr : []).filter((x) => x !== id);
   const clone = (o) => JSON.parse(JSON.stringify(o === undefined ? null : o));
 
-  const SIZES = { s: { pad: "4px", icon: "20px" }, m: { pad: "6px", icon: "24px" }, l: { pad: "10px", icon: "28px" } };
+  /* «Middels» er det klassiske mysmart-utseendet (12 px polstring, 24 px ikon). «Standard» er config. */
+  const SIZES = {
+    s: { pad: "8px", icon: "20px", l: "Liten" },
+    m: { pad: "12px", icon: "24px", l: "Middels" },
+    l: { pad: "16px", icon: "28px", l: "Stor" },
+    xl: { pad: "20px", icon: "32px", l: "Ekstra stor" },
+  };
 
   const ADD_TYPES = [
-    { v: "navigate", l: "Side", ph: "/lovelace/hjem" },
     { v: "popup", l: "Popup", ph: "#strom" },
+    { v: "navigate", l: "Side", ph: "/lovelace/hjem" },
     { v: "url", l: "Lenke", ph: "https://…" },
     { v: "toggle", l: "Bryter", ph: "light.stue" },
     { v: "more-info", l: "Info", ph: "sensor.temperatur" },
@@ -202,11 +221,20 @@
         if (!config || !Array.isArray(config.items)) throw new Error("You need to define a list of items");
         this._config = config;
         const seen = {};
-        this._navItems = config.items.map((item, index) => {
-          let id = item.id || (item.name ? "n:" + item.name : item.icon ? "i:" + item.icon : "x:" + index);
-          if (seen[id]) id += "#" + (++seen[id]); else seen[id] = 1;
-          return { ...item, id };
-        });
+        const uniq = (id) => { if (seen[id]) return id + "#" + (++seen[id]); seen[id] = 1; return id; };
+        this._navItems = config.items.map((item, index) =>
+          ({ ...item, id: uniq(item.id || (item.name ? "n:" + item.name : item.icon ? "i:" + item.icon : "x:" + index)) }));
+        // Menyen bak de tre prikkene: helst prikkeknappen med sub_items, ellers første med sub_items,
+        // ellers en prikkeknapp uten egen handling.
+        const dots = (it) => it.icon === "mdi:dots-horizontal";
+        const menu = this._navItems.find((it) => Array.isArray(it.sub_items) && dots(it))
+          || this._navItems.find((it) => Array.isArray(it.sub_items))
+          || this._navItems.find((it) => dots(it) && !it.sub_items && (!it.tap_action || it.tap_action.action === "none"));
+        this._menuId = menu ? menu.id : null;
+        this._subs = menu ? (menu.sub_items || []).filter((s) => s && typeof s === "object").map((s, j) => {
+          const path = s.tap_action && s.tap_action.navigation_path;
+          return { ...s, id: uniq(s.id || (s.name ? "n:" + s.name : path ? "p:" + path : s.icon ? "i:" + s.icon : "s:" + j)) };
+        }) : [];
       }
 
       getCardSize() { return 1; }
@@ -372,6 +400,7 @@
       _prefs() { const all = ud.get(this.hass); return (all && all[this._navId()]) || {}; }
       _savePrefs(p) {
         const all = { ...(ud.get(this.hass) || {}) };
+        if (p) { p = { ...p }; delete p.size; } // gammel størrelsesnøkkel (ga for liten linje)
         if (p && Object.keys(p).length) all[this._navId()] = p; else delete all[this._navId()];
         ud.save(this.hass, all);
         this._udRev++;
@@ -382,36 +411,58 @@
         this._savePrefs(p);
       }
 
-      /* Alle knapper (config + egne) i brukerens rekkefølge, uten dem brukeren ikke skal se. */
-      _allItems() {
+      /* Hvor hver knapp havner: { bar:[…], menu:[…], hidden:[…], menuItem }.
+         bar er linjen i brukerens rekkefølge (med config-menyknappen), menu innholdet bak prikkene. */
+      _model() {
         const p = this._prefs();
-        const own = (Array.isArray(p.custom) ? p.custom : []).map((c) => ({ ...c, _own: true }));
-        let all = [...(this._navItems || []), ...own].filter((it) => this._checkUserVisibility(it));
-        if (Array.isArray(p.order) && p.order.length) {
-          const pos = new Map(p.order.map((id, i) => [id, i]));
-          all = all.map((it, i) => ({ it, k: pos.has(it.id) ? pos.get(it.id) : 1e4 + i }))
-            .sort((a, b) => a.k - b.k).map((o) => o.it);
-        }
-        return all;
+        const hidden = new Set(p.hidden || []), more = new Set(p.more || []), out = new Set(p.out || []);
+        const own = (Array.isArray(p.custom) ? p.custom : []).map((c) => ({ ...c, _own: true, _def: c.place === "menu" ? "menu" : "bar" }));
+        const entries = [
+          ...(this._navItems || []).map((it) => ({ ...it, _def: "bar" })),
+          ...(this._subs || []).map((it) => ({ ...it, _def: "menu", _sub: true })),
+          ...own,
+        ].filter((it) => this._checkUserVisibility(it));
+        const menuId = this._menuId;
+        const place = (it) => {
+          if (it.id === menuId) return "bar";
+          if (hidden.has(it.id)) return "hidden";
+          if (it.sub_items) return "bar"; // undermenyer kan ikke ligge inne i menyen
+          if (more.has(it.id)) return "menu";
+          if (out.has(it.id)) return "bar";
+          return it._def;
+        };
+        const sortBy = (list, ids, base) => {
+          const pos = new Map((Array.isArray(ids) ? ids : []).map((id, i) => [id, i]));
+          const keyed = list.map((it, i) => ({ it, i, k: pos.has(it.id) ? pos.get(it.id) : 1e4 + base(it) + i }));
+          // Menyknapper flyttet ut uten egen plass i rekkefølgen havner rett før prikkene.
+          const mk = keyed.find((o) => o.it.id === menuId);
+          keyed.forEach((o) => { if (mk && !pos.has(o.it.id) && o.it._def === "menu") o.k = mk.k - 0.5 + o.i * 1e-6; });
+          return keyed.sort((x, y) => x.k - y.k).map((o) => o.it);
+        };
+        const bar = sortBy(entries.filter((it) => place(it) === "bar"), p.order, () => 0);
+        // Standardrekkefølge i menyen: config-underknappene først, så det som er flyttet inn.
+        const menu = sortBy(entries.filter((it) => place(it) === "menu"), p.menu, (it) => (it._def === "menu" ? 0 : 5000));
+        const hid = entries.filter((it) => place(it) === "hidden");
+        return { bar, menu, hidden: hid, menuItem: menuId ? bar.find((it) => it.id === menuId) || null : null };
       }
 
       _barItems() {
-        const p = this._prefs();
-        const hidden = new Set(p.hidden || []);
-        const more = new Set(p.more || []);
-        const all = this._allItems().filter((it) => !hidden.has(it.id));
-        const inMore = (it) => more.has(it.id) && !it.sub_items;
-        const bar = all.filter((it) => !inMore(it));
-        const subs = all.filter(inMore);
+        const m = this._model();
+        const subs = [...m.menu];
         if (this._config.edit_entry) subs.push({ id: "__edit", name: "Tilpass navbar", icon: "mdi:tune-variant", tap_action: { action: "ki-navbar-edit" } });
-        if (subs.length) bar.push({ id: "__more", name: "Mer", icon: "mdi:dots-horizontal", sub_items: subs, _more: true });
+        const bar = [];
+        m.bar.forEach((it) => {
+          if (it.id !== this._menuId) { bar.push(it); return; }
+          if (subs.length) bar.push({ ...it, sub_items: subs, _more: true });
+        });
+        if (!this._menuId && subs.length) bar.push({ id: "__more", name: "Mer", icon: "mdi:dots-horizontal", sub_items: subs, _more: true });
         return bar;
       }
 
       _effStyles() {
         const s = this._config.styles || {};
         const p = this._prefs();
-        const size = SIZES[p.size];
+        const size = SIZES[p.storrelse];
         return {
           bg: s.background || "#ffffff",
           blur: s.blur || "10px",
@@ -736,47 +787,79 @@
       }
       _closeEditor() { this._editOpen = false; this._form = null; haptic("light"); }
 
-      _move(id, dir) {
-        const ids = this._allItems().map((i) => i.id);
+      /* ---- flytting: where = "bar" (linjen) | "menu" (bak prikkene) */
+      _editPrefs(fn) {
+        const p = { ...this._prefs() };
+        fn(p);
+        ["order", "menu", "hidden", "more", "out", "custom"].forEach((k) => { if (Array.isArray(p[k]) && !p[k].length) delete p[k]; });
+        this._savePrefs(p);
+      }
+      _move(where, id, dir) {
+        const ids = this._model()[where].map((i) => i.id);
         const i = ids.indexOf(id), j = i + dir;
         if (i < 0 || j < 0 || j >= ids.length) return;
         [ids[i], ids[j]] = [ids[j], ids[i]];
         haptic("selection");
-        this._setPref("order", ids);
+        this._setPref(where === "bar" ? "order" : "menu", ids);
       }
-      _toggleList(key, id) {
-        const p = { ...this._prefs() };
-        const s = new Set(p[key] || []);
-        if (s.has(id)) s.delete(id); else s.add(id);
-        if (s.size) p[key] = [...s]; else delete p[key];
+      /* Linjens rekkefølge med id lagt til: rett før prikkene når de står sist, ellers til slutt. */
+      _barOrderWith(m, id) {
+        const ids = m.bar.map((i) => i.id).filter((x) => x !== id);
+        const k = this._menuId ? ids.indexOf(this._menuId) : -1;
+        if (k >= 0 && k === ids.length - 1) ids.splice(k, 0, id); else ids.push(id);
+        return ids;
+      }
+      _toMenu(id) {
+        const m = this._model();
+        const it = m.bar.find((i) => i.id === id);
+        if (!it || it.id === this._menuId || it.sub_items) return;
         haptic("light");
-        this._savePrefs(p);
+        this._editPrefs((p) => {
+          p.out = without(p.out, id);
+          if (it._def !== "menu") p.more = [...without(p.more, id), id];
+          p.menu = [...m.menu.map((i) => i.id), id];
+          if (p.order) p.order = without(p.order, id);
+        });
+      }
+      _toBar(id) {
+        const m = this._model();
+        const it = m.menu.find((i) => i.id === id);
+        if (!it) return;
+        haptic("light");
+        this._editPrefs((p) => {
+          p.more = without(p.more, id);
+          if (it._def !== "bar") p.out = [...without(p.out, id), id];
+          p.order = this._barOrderWith(m, id);
+          if (p.menu) p.menu = without(p.menu, id);
+        });
+      }
+      _hide(id, on) {
+        haptic("light");
+        this._editPrefs((p) => { p.hidden = on ? [...without(p.hidden, id), id] : without(p.hidden, id); });
       }
       _delete(id) {
-        const p = { ...this._prefs() };
-        p.custom = (p.custom || []).filter((c) => c.id !== id);
-        if (!p.custom.length) delete p.custom;
-        ["order", "hidden", "more"].forEach((k) => {
-          if (!p[k]) return;
-          p[k] = p[k].filter((x) => x !== id);
-          if (!p[k].length) delete p[k];
-        });
         haptic("medium");
-        this._savePrefs(p);
+        this._editPrefs((p) => {
+          p.custom = (p.custom || []).filter((c) => c.id !== id);
+          ["order", "menu", "hidden", "more", "out"].forEach((k) => { if (p[k]) p[k] = without(p[k], id); });
+        });
       }
       _addItem() {
         const f = this._form || {};
         const target = String(f.target || "").trim();
         if (!target) { this._form = { ...f, err: "Fyll inn mål" }; return; }
-        const p = { ...this._prefs() };
+        const m = this._model();
         const id = "u:" + Date.now().toString(36);
-        const item = { id, name: String(f.name || "").trim() || undefined, icon: String(f.icon || "").trim() || "mdi:star-outline", tap_action: tapFor(f.type || "navigate", target) };
+        const place = f.place === "menu" ? "menu" : "bar";
+        const item = { id, name: String(f.name || "").trim() || undefined, icon: String(f.icon || "").trim() || "mdi:star-outline", tap_action: tapFor(f.type || "popup", target), place };
         if (!item.name) delete item.name;
-        p.custom = [...(p.custom || []), item];
-        if (Array.isArray(p.order) && p.order.length) p.order = [...p.order, id];
         haptic("success");
         this._form = null;
-        this._savePrefs(p);
+        this._editPrefs((p) => {
+          p.custom = [...(p.custom || []), item];
+          if (place === "bar" && (this._menuId || (p.order && p.order.length))) p.order = this._barOrderWith(m, id);
+          if (place === "menu" && p.menu && p.menu.length) p.menu = [...m.menu.map((i) => i.id), id];
+        });
       }
       _reset() {
         haptic("warning");
@@ -784,15 +867,40 @@
         this._savePrefs({});
       }
 
+      _label(it) {
+        if (it.name) return it.name;
+        if (it.id === this._menuId) return "Tre prikker";
+        const a = it.tap_action || {};
+        return a.navigation_path || a.entity || it.entity || a.url_path || it.icon || "Uten navn";
+      }
+
       _renderPanel() {
         const p = this._prefs();
-        const hidden = new Set(p.hidden || []);
-        const more = new Set(p.more || []);
-        const all = this._allItems();
+        const m = this._model();
         const namesOn = this._namesMode() ? this._namesMode() === "show" : this._items && this._items.some((i) => this._showName(i));
         const pill = (cur, v, l, fn) => html`<button class="pill ${cur === v ? "on" : ""}" @click=${() => { haptic("selection"); fn(v); }}>${l}</button>`;
         const sw = (on, fn, label) => html`<button class="sw ${on ? "on" : ""}" role="switch" aria-checked=${on ? "true" : "false"} aria-label=${label} @click=${() => { haptic("light"); fn(!on); }}></button>`;
         const dock = this._dockH || 100;
+        const row = (it, i, where, n) => {
+          const isMenu = it.id === this._menuId;
+          const tag = isMenu ? "Menyen · " + m.menu.length : it._own ? "Egen" : it.sub_items ? "Undermeny" : "";
+          return html`
+            <div class="p-row ${where === "hidden" ? "dim" : ""}" data-id=${it.id}>
+              <ha-icon class="p-ico" icon=${it.icon || "mdi:circle-outline"}></ha-icon>
+              <div class="p-name"><span>${this._label(it)}</span>${tag ? html`<em>${tag}</em>` : ""}</div>
+              ${where === "hidden" ? "" : html`
+                <button class="ib" aria-label="Flytt opp" ?disabled=${i === 0} @click=${() => this._move(where, it.id, -1)}><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+                <button class="ib" aria-label="Flytt ned" ?disabled=${i === n - 1} @click=${() => this._move(where, it.id, 1)}><ha-icon icon="mdi:chevron-down"></ha-icon></button>
+                ${where === "bar"
+                  ? html`<button class="ib rem" aria-label="Flytt bak de tre prikkene" ?disabled=${isMenu || !!it.sub_items} @click=${() => this._toMenu(it.id)}><ha-icon icon="mdi:minus-circle"></ha-icon></button>`
+                  : html`<button class="ib addc" aria-label="Legg i navbaren" @click=${() => this._toBar(it.id)}><ha-icon icon="mdi:plus-circle"></ha-icon></button>`}`}
+              ${it._own
+                ? html`<button class="ib" aria-label="Slett" @click=${() => this._delete(it.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`
+                : where === "hidden"
+                  ? html`<button class="ib on" aria-label="Vis igjen" @click=${() => this._hide(it.id, false)}><ha-icon icon="mdi:eye-outline"></ha-icon></button>`
+                  : html`<button class="ib" aria-label="Skjul" ?disabled=${isMenu} @click=${() => this._hide(it.id, true)}><ha-icon icon="mdi:eye-off-outline"></ha-icon></button>`}
+            </div>`;
+        };
         return html`
           <div class="ki-backdrop" @click=${() => this._closeEditor()}></div>
           <div class="ki-panel" style="--dock:${dock}px" @click=${(e) => e.stopPropagation()}
@@ -802,28 +910,22 @@
               <button class="ib" aria-label="Lukk" @click=${() => this._closeEditor()}><ha-icon icon="mdi:close"></ha-icon></button>
             </div>
 
-            <div class="p-sec">Knapper</div>
-            <div class="p-list">
-              ${all.map((it, i) => {
-                const hid = hidden.has(it.id), inMore = more.has(it.id) && !it.sub_items;
-                return html`
-                  <div class="p-row ${hid ? "dim" : ""}">
-                    <ha-icon class="p-ico" icon=${it.icon || "mdi:circle-outline"}></ha-icon>
-                    <div class="p-name">
-                      <span>${it.name || it.icon || "Uten navn"}</span>
-                      ${hid ? html`<em>Skjult</em>` : inMore ? html`<em>I «Mer»</em>` : it._own ? html`<em>Egen</em>` : ""}
-                    </div>
-                    <button class="ib" aria-label="Flytt opp" ?disabled=${i === 0} @click=${() => this._move(it.id, -1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-                    <button class="ib" aria-label="Flytt ned" ?disabled=${i === all.length - 1} @click=${() => this._move(it.id, 1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-                    <button class="ib ${inMore ? "on" : ""}" aria-label="Flytt til Mer" ?disabled=${!!it.sub_items || hid} @click=${() => this._toggleList("more", it.id)}><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>
-                    ${it._own
-                      ? html`<button class="ib" aria-label="Slett" @click=${() => this._delete(it.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`
-                      : html`<button class="ib" aria-label=${hid ? "Vis" : "Skjul"} @click=${() => this._toggleList("hidden", it.id)}><ha-icon icon=${hid ? "mdi:eye-off-outline" : "mdi:eye-outline"}></ha-icon></button>`}
-                  </div>`;
-              })}
+            <div class="p-sec">I navbaren</div>
+            <div class="p-list sec-bar">
+              ${m.bar.length ? m.bar.map((it, i) => row(it, i, "bar", m.bar.length)) : html`<div class="p-empty">Ingen – alt ligger bak de tre prikkene</div>`}
             </div>
+            <div class="p-sec">Bak de tre prikkene</div>
+            <div class="p-list sec-menu">
+              ${m.menu.length ? m.menu.map((it, i) => row(it, i, "menu", m.menu.length))
+                : html`<div class="p-empty">Tom – trykk <ha-icon icon="mdi:minus-circle"></ha-icon> på en knapp for å flytte den hit</div>`}
+            </div>
+            ${m.hidden.length ? html`
+              <div class="p-sec">Skjult</div>
+              <div class="p-list sec-hidden">${m.hidden.map((it, i) => row(it, i, "hidden", m.hidden.length))}</div>` : ""}
+
+            <div class="p-sec">Ny knapp</div>
             ${this._form ? this._renderAdd() : html`
-              <button class="btn add" @click=${() => { haptic("light"); this._form = { type: "navigate", name: "", icon: "", target: "" }; }}>
+              <button class="btn add" @click=${() => { haptic("light"); this._form = { type: "popup", name: "", icon: "", target: "", place: "bar" }; }}>
                 <ha-icon icon="mdi:plus"></ha-icon> Legg til knapp
               </button>`}
 
@@ -845,11 +947,9 @@
                 <span class="ki-fixed-w-val">${Number(p.width_px) || 420} px</span>
               </div>` : ""}
             <div class="p-lbl">Størrelse</div>
-            <div class="pills">
-              ${pill(p.size || "", "", "Standard", (v) => this._setPref("size", v || undefined))}
-              ${pill(p.size || "", "s", "Liten", (v) => this._setPref("size", v))}
-              ${pill(p.size || "", "m", "Middels", (v) => this._setPref("size", v))}
-              ${pill(p.size || "", "l", "Stor", (v) => this._setPref("size", v))}
+            <div class="pills wrap">
+              ${pill(SIZES[p.storrelse] ? p.storrelse : "", "", "Standard", () => this._setPref("storrelse", undefined))}
+              ${Object.keys(SIZES).map((k) => pill(p.storrelse, k, SIZES[k].l, (v) => this._setPref("storrelse", v)))}
             </div>
 
             <div class="p-foot">
@@ -870,17 +970,21 @@
         return html`
           <div class="p-add">
             <div class="pills">
-              ${ADD_TYPES.map((t) => html`<button class="pill ${f.type === t.v ? "on" : ""}" @click=${() => { haptic("selection"); set("type", t.v); }}>${t.l}</button>`)}
+              ${ADD_TYPES.map((t) => html`<button class="pill ${type.v === t.v ? "on" : ""}" @click=${() => { haptic("selection"); set("type", t.v); }}>${t.l}</button>`)}
             </div>
-            <input class="txt" placeholder="Navn" .value=${f.name || ""} @input=${(e) => { this._form.name = e.target.value; }}>
+            ${hasEntityPicker
+              ? html`<ha-entity-picker .hass=${this.hass} .value=${f.target || ""} allow-custom-entity @value-changed=${(e) => set("target", e.detail.value)}></ha-entity-picker>`
+              : html`<input class="txt tgt" list="ki-nav-ent" placeholder=${type.ph} .value=${f.target || ""} @input=${(e) => { this._form.target = e.target.value; }}>
+                  ${ids.length ? html`<datalist id="ki-nav-ent">${ids.map((i) => html`<option value=${i}></option>`)}</datalist>` : ""}`}
+            <input class="txt nm" placeholder="Navn (valgfritt)" .value=${f.name || ""} @input=${(e) => { this._form.name = e.target.value; }}>
             ${hasIconPicker
               ? html`<ha-icon-picker .hass=${this.hass} .value=${f.icon || ""} label="Ikon" @value-changed=${(e) => set("icon", e.detail.value)}></ha-icon-picker>`
               : html`<div class="ico-in"><ha-icon icon=${f.icon || "mdi:star-outline"}></ha-icon>
-                  <input class="txt" placeholder="Ikon, f.eks. mdi:lightbulb" .value=${f.icon || ""} @change=${(e) => set("icon", e.target.value)}></div>`}
-            ${hasEntityPicker
-              ? html`<ha-entity-picker .hass=${this.hass} .value=${f.target || ""} allow-custom-entity @value-changed=${(e) => set("target", e.detail.value)}></ha-entity-picker>`
-              : html`<input class="txt" list="ki-nav-ent" placeholder=${type.ph} .value=${f.target || ""} @input=${(e) => { this._form.target = e.target.value; }}>
-                  ${ids.length ? html`<datalist id="ki-nav-ent">${ids.map((i) => html`<option value=${i}></option>`)}</datalist>` : ""}`}
+                  <input class="txt ic" placeholder="Ikon, f.eks. mdi:lightbulb" .value=${f.icon || ""} @change=${(e) => set("icon", e.target.value)}></div>`}
+            <div class="pills place">
+              <button class="pill ${f.place !== "menu" ? "on" : ""}" @click=${() => { haptic("selection"); set("place", "bar"); }}>I navbaren</button>
+              <button class="pill ${f.place === "menu" ? "on" : ""}" @click=${() => { haptic("selection"); set("place", "menu"); }}>Bak de tre prikkene</button>
+            </div>
             ${f.err ? html`<div class="err">${f.err}</div>` : ""}
             <div class="p-foot">
               <button class="btn" @click=${() => { this._form = null; }}>Avbryt</button>
@@ -1124,6 +1228,9 @@
           .ib ha-icon { --mdc-icon-size: 18px; }
           .ib:active { transform: scale(.92); }
           .ib.on { background: var(--active-big, #ee95ff); color: var(--black, #000); }
+          .ib.rem { color: var(--red, #e5484d); }
+          .ib.addc { color: var(--green, #30a46c); }
+          .ib.rem ha-icon, .ib.addc ha-icon { --mdc-icon-size: 22px; }
           .ib:disabled { opacity: .3; cursor: default; }
           .p-head .ib { background: var(--gray200, rgba(127,127,127,.14)); }
           .btn {
@@ -1147,6 +1254,9 @@
             white-space: nowrap; cursor: pointer;
             transition: background .2s ease;
           }
+          .pills.wrap .pill { flex: 1 1 auto; padding: 8px 6px; }
+          .p-empty { font-size: 13px; opacity: .6; padding: 10px 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+          .p-empty ha-icon { --mdc-icon-size: 16px; color: var(--red, #e5484d); }
           .pill.on { background: var(--active-big, #ee95ff); color: var(--black, #000); }
           .sw {
             flex: none; position: relative; width: 48px; height: 28px; padding: 0;

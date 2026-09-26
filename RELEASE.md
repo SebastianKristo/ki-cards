@@ -1,3 +1,9 @@
+# ki-cards 9.0.1
+
+- **ki-floating-navbar**: samme størrelse som den gamle navbaren. «Standard» bruker config; størrelsene er nå Liten 8/20, Middels 12/24 (klassisk), Stor 16/28 og Ekstra stor 20/32. Gamle størrelsesvalg ignoreres, så navbaren går tilbake til config-utseendet.
+- **ki-floating-navbar**: «...»-menyen kan redigeres i «Tilpass navbar» – «I navbaren», «Bak de tre prikkene», «Skjult» og «Ny knapp» (til navbaren eller menyen). Virker på dots-knappen fra config.
+- **family-status-card**: serverpila skjules når navnet ikke får plass, så navnet vises i full lengde.
+
 # ki-cards 9.0.0
 
 Bygget oppå 8.99.8. Alt kan nå tilpasses fra dashbordet, per bruker. Valgene lagres i Home Assistant
