@@ -9323,6 +9323,8 @@ try {
  *  farger: [var(--active-big), var(--blue), var(--purple), var(--green)]
  *  tilpass: false                 # skru av «Tilpass rommet» (tannhjulet i toppen)
  *  tilpass_knapp: true            # vis også «Tilpass rommet»-knappen nederst
+ *  topp_stil: enkel               # toppkortets stil: levende (standard) | enkel (grå og minimalistisk)
+ *  topp_animasjon: false          # uten animasjon i toppkortet
  *  farge_topp: '#80c3ff'          # grafens/aksentens farge i toppkortet (brukeren kan velge selv i Tilpass)
  *  topp: klassisk                 # gammel topp i stedet for ki-rom-hero-card
  *  topp_hoyde: 184                # høyden på toppkortet (px)
@@ -9473,6 +9475,9 @@ try {
       if (clim) hero.klima = clim;
       if (cfg.topp_hoyde) hero.hoyde = cfg.topp_hoyde;
       if (cfg.farge_topp) hero.farge = cfg.farge_topp;
+      if (cfg.topp_stil) hero.stil = cfg.topp_stil;
+      if (cfg.topp_animasjon === false) hero.animasjon = false;
+      hero.rom_nokkel = romKey(cfg);
       return hero;
     }
     const custom = {};
@@ -10197,6 +10202,7 @@ try {
    *             fliser: { skjul, vis, rekkefolge, navn: {seksjon: tekst} } } }
    * <rom> er area_id (flere rom: «stue+kjokken»). ki-rom-tile-card leser temp/fukt herfra. */
   const UD_KEY = 'ki_rom';
+  const cfg0Stil = (cfg) => cfg.topp_stil || 'levende';
   /* Fargene brukeren kan velge for grafen i toppkortet. '' = automatisk (følger varme/lys). */
   const FARGER = [['Auto', ''], ['Blå', '#80c3ff'], ['Grønn', '#8fd6a0'], ['Gul', '#ead070'], ['Oransje', '#f2b966'],
     ['Rød', '#f47b74'], ['Lilla', '#c7a6ff'], ['Rosa', '#f3a6c8'], ['Hvit', '#e8e6e1']];
@@ -10222,6 +10228,9 @@ try {
     if (U.temp && hass.states[U.temp]) ut.temperatur = U.temp;
     if (U.fukt && hass.states[U.fukt]) ut.fuktighet = U.fukt;
     if (U.farge) ut.farge_topp = U.farge;
+    if (U.stil) ut.topp_stil = U.stil;
+    if (U.animasjon === false) ut.topp_animasjon = false;
+    else if (U.animasjon === true) ut.topp_animasjon = true;
     return ut;
   }
   /* Seksjonene i brukerens rekkefølge, med skjult-flagg og eget navn. */
@@ -11042,6 +11051,10 @@ try {
         + '<div class="sens"><div class="sh"><ha-icon icon="mdi:palette-outline"></ha-icon><span class="t">Farge på grafen</span></div><div class="chips">'
         + FARGER.map(([navn, f]) => '<button type="button" class="chip press' + ((U.farge || '') === f ? ' sel' : '') + '" data-act="farge" data-id="' + esc(f) + '">'
           + (f ? '<span class="dot" style="background:' + esc(f) + '"></span>' : '<ha-icon icon="mdi:auto-fix"></ha-icon>') + '<span class="l">' + navn + '</span></button>').join('')
+        + '</div></div>'
+        + '<div class="sens"><div class="sh"><ha-icon icon="mdi:card-outline"></ha-icon><span class="t">Toppkort</span></div><div class="chips">'
+        + [['levende', 'Levende', 'mdi:creation'], ['enkel', 'Enkel', 'mdi:chart-areaspline-variant']].map(([v, t, ic]) => '<button type="button" class="chip press' + ((U.stil || cfg.topp_stil || 'levende') === v ? ' sel' : '') + '" data-act="stil" data-id="' + v + '"><ha-icon icon="' + ic + '"></ha-icon><span class="l">' + t + '</span></button>').join('')
+        + '<button type="button" class="chip press' + (U.animasjon === false || (U.animasjon === undefined && cfg.topp_animasjon === false) ? '' : ' sel') + '" data-act="anim"><ha-icon icon="mdi:motion-play-outline"></ha-icon><span class="l">Animasjon</span></button>'
         + '</div></div></section>';
 
       // --- seksjoner (de store flisene/kategoriene i popupen)
@@ -11104,6 +11117,8 @@ try {
           switch (d.act) {
             case 'sens': this._sensPick(d.k, d.id); break;
             case 'farge': this._lagre((r) => { if (d.id) r.farge = d.id; else delete r.farge; }); break;
+            case 'stil': this._lagre((r) => { if (d.id === (cfg0Stil(this._config))) delete r.stil; else r.stil = d.id; }); break;
+            case 'anim': this._lagre((r) => { const av = r.animasjon === false || (r.animasjon === undefined && this._config.topp_animasjon === false); if (av) { if (this._config.topp_animasjon === false) r.animasjon = true; else delete r.animasjon; } else r.animasjon = false; }); break;
             case 'sensall': this._st.sensAll = this._st.sensAll === d.k ? null : d.k; this._st.sensQ = ''; haptic(); this._renderEdit(); break;
             case 'sekhide': this._sekHide(d.key); break;
             case 'schide': this._scHide(d.key); break;
@@ -11774,6 +11789,7 @@ try {
  *  i HA per bruker (frontend user data «ki_hjem»). Verdiene under er standardene brukeren starter fra:
  *    romkort: stor | middels | liten      # størrelsen på romflisene i etasjefanene
  *    klimaknapp: false                    # uten +/– for settpunkt på de store flisene
+ *    bunn: -120                           # avstand under kortet i px (negativ trekker neste kort opp); kan settes i Tilpass Hjem
  *    fane_bredde: standard | kompakt | full
  *    fane_hoyde: standard | lav | middels | hoy | ekstra
  *    fane_rekkefolge: [hjem, 'etg:forste', aktuelt]   # nøkler: hjem, etg:<etasje_id>, aktuelt, batterier, fane:<tittel>
@@ -11814,6 +11830,8 @@ try {
       klima: u.klimaknapp != null ? u.klimaknapp !== false : cfg.klimaknapp !== false,
       hoyde: String(f.hoyde || cfg.fane_hoyde || 'standard').toLowerCase(),
       bredde: String(f.bredde || cfg.fane_bredde || 'standard').toLowerCase(),
+      /* Avstand under hele kortet (px, kan være negativ): trekker neste kort (f.eks. søppel) opp. */
+      bunn: Number(u.bunn != null ? u.bunn : (cfg.bunn || 0)) || 0,
     };
   }
   /* Skjulte faner og seksjoner. Har brukeren valgt noe, er det brukerens liste som gjelder
@@ -13066,6 +13084,7 @@ try {
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
+      if (this._config) { const b = prefs(this._effCfg()).bunn; const v = b ? b + 'px' : ''; if (this.style.marginBottom !== v) this.style.marginBottom = v; }
       /* Venter på brukerens valg før første oppbygging (maks 1,5 s), ellers ble kortet
          bygget to ganger ved åpning og hoppet fra standardoppsettet til brukerens. */
       const K = window.KI;
@@ -13312,6 +13331,13 @@ try {
         ${fl}
         <div class="hd">Faner og etasjer</div><div class="liste">${fRader}</div>
         ${utenHint}
+        <div class="hd">Avstand under</div>
+        <div class="gruppe"><div class="chips">
+          ${[0, -40, -80, -120, -160, -200, -260, -320].map((v) => chip(p.bunn === v, 'bunn', '', String(v), v === 0 ? 'Ingen' : String(v).replace('-', '−') + ' px')).join('')}
+        </div><div class="chips">
+          ${chip(false, 'bunn-fin', '-10', '', '−10', 'mdi:arrow-up')}${chip(false, 'bunn-fin', '10', '', '+10', 'mdi:arrow-down')}
+          <span class="etikett" style="align-self:center;padding:0 6px">Nå: ${p.bunn} px</span>
+        </div></div>
         <div class="hd">Romkort</div>
         <div class="gruppe"><div class="chips">
           ${[['monster', 'Blandet'], ['stor', 'Stor'], ['middels', 'Middels'], ['liten', 'Liten']].map(([v, t]) => chip(romkort === v, 'romkort', '', v, t)).join('')}
@@ -13362,6 +13388,8 @@ try {
         u.seksjoner = [...rek, ...SEK_V.filter((s) => !rek.includes(s))];
       } else if (op === 'sek-skjul') skjul('sek:' + k);
       else if (op === 'romkort') u.romkort = x;
+      else if (op === 'bunn') u.bunn = Number(x) || 0;
+      else if (op === 'bunn-fin') u.bunn = Math.max(-600, Math.min(200, prefs(cfg).bunn + Number(k)));
       else if (op === 'klima') u.klimaknapp = !prefs(cfg).klima;
       else if (op === 'fane') u.fane = { ...(u.fane || {}), [k]: x };
       else return;
@@ -58461,6 +58489,8 @@ try {
  *   ikon_tap_action: { action: navigate, navigation_path: "#stue" }   # overstyrer tannhjulet
  *   fukt_tap_action: { action: more-info }                 # standard: fuktsensoren
  *   farge: "#80c3ff"                                       # grafens farge (ellers følger den varme/lys)
+ *   stil: enkel                                            # levende (standard) | enkel: grå og minimalistisk (temp, fukt og en grå graf)
+ *   animasjon: false                                       # uten partikler og pusting
  *   graf: false                                            # skjul temperaturgrafen
  *   bakgrunn: "var(--gray200)"                             # kortets bakgrunn
  *   tannhjul: false                                        # vis romikonet i stedet for tannhjulet
@@ -58473,7 +58503,7 @@ try {
  * kortet ikke har fått temperatur/fukt i config.
  */
 (() => {
-  const VERSJON = "1.2.0";
+  const VERSJON = "1.3.0";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const komma = (v, d = 1) => (isNaN(v) ? "–" : Number(v).toLocaleString("nb-NO", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const ok = (s) => s && !["unavailable", "unknown", ""].includes(s.state);
@@ -58493,7 +58523,7 @@ try {
       transition: background .8s; cursor: pointer;
       -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; font-family: inherit; }
     .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
-    .graf { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; pointer-events: none; display: block; }
+    .graf { position: absolute; left: 0; right: 0; width: 100%; bottom: 0; height: 58%; pointer-events: none; display: block; }
     .graf .linje { fill: none; stroke: var(--f); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
     .graf .flate { fill: url(#kiHeroFyll); }
     .stov { position: absolute; bottom: -4px; border-radius: 2px; background: var(--f); box-shadow: 0 0 6px var(--f);
@@ -58522,6 +58552,18 @@ try {
       border: 0; padding: 0; cursor: pointer; }
     .fukt i { display: block; height: 0; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
     .fukt ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
+    .kort.rolig .stov { display: none; }
+    .kort.rolig .glyf { animation: none; }
+    /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
+    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .fukt, .kort.enkel .sub { display: none; }
+    .kort.enkel .graf { height: 62%; right: 0 !important; }
+    .kort.enkel .graf .linje { display: none; }
+    .kort.enkel .graf .flate { fill: var(--graf-enkel, rgba(250,251,252,.16)); }
+    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; right: 18px !important; left: 22px; }
+    .kort.enkel .temp b { font-size: 44px; }
+    .kort.enkel .temp span { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
+    .kort.enkel .ikon { background: transparent; width: 40px; height: 40px; right: 10px; top: 10px; opacity: .55; }
+    .kort.enkel .ikon ha-icon { --mdc-icon-size: 20px; }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
@@ -58551,12 +58593,14 @@ try {
           { type: "expandable", name: "", title: "Utseende", schema: [
             { name: "farge", selector: { text: {} } },
             { name: "graf", selector: { boolean: {} } },
+            { name: "stil", selector: { select: { mode: "dropdown", options: [{ value: "levende", label: "Levende" }, { value: "enkel", label: "Enkel (grå)" }] } } },
+            { name: "animasjon", selector: { boolean: {} } },
           ] },
           { name: "hoyde", selector: { number: { min: 140, max: 320, step: 4, unit_of_measurement: "px", mode: "box" } } },
         ],
         computeLabel: (s) => ({ omrade: "Rom (område)", navn: "Navn", ikon: "Ikon", temperatur: "Temperatur", fukt: "Luftfuktighet",
           klima: "Termostat", lys: "Lys i rommet", tap_action: "Trykk på kortet", ikon_tap_action: "Trykk på ikonet",
-          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", farge: "Farge på grafen (f.eks. #80c3ff)", graf: "Vis temperaturgraf", hoyde: "Høyde" }[s.name] || s.name),
+          fukt_tap_action: "Trykk på fuktsøylen", tannhjul: "Tannhjul som åpner «Tilpass rommet»", farge: "Farge på grafen (f.eks. #80c3ff)", graf: "Vis temperaturgraf", stil: "Stil", animasjon: "Animasjon", hoyde: "Høyde" }[s.name] || s.name),
       };
     }
 
@@ -58614,6 +58658,8 @@ try {
         if (!ut.temperatur && U.temp && h.states[U.temp]) ut.temperatur = U.temp;
         if (!ut.fukt && U.fukt && h.states[U.fukt]) ut.fukt = U.fukt;
         if (U.farge) ut.farge = U.farge;
+        if (U.stil) ut.stil = U.stil;
+        if (U.animasjon === false) ut.animasjon = false;
       }
       if (!omr || !h.entities) return ut;
       const E = h.entities, D = h.devices || {};
@@ -58790,7 +58836,11 @@ try {
       $(".pille ha-icon").setAttribute("icon", pi);
       $(".pt").textContent = pt;
 
-      $(".temp b").textContent = komma(temp);
+      const enkel = c.stil === "enkel" || a.stil === "enkel";
+      kort.classList.toggle("enkel", enkel);
+      kort.classList.toggle("rolig", c.animasjon === false || a.animasjon === false);
+      $(".temp b").textContent = enkel ? `${komma(temp)}°` : komma(temp);
+      $(".temp span").textContent = enkel ? (isNaN(fukt) ? "" : `${komma(fukt, 0)}%`) : "°";
       const deler = [];
       if (!isNaN(fukt)) deler.push(`${komma(fukt, 0)} % fukt`);
       if (this._spenn) {
@@ -58822,7 +58872,7 @@ try {
     if (!isNaN(naa)) pkt.push({ t: slutt, v: naa });
     if (pkt.length < 2) { svg.style.display = "none"; return; }
     svg.style.display = "";
-    svg.style.right = harFukt ? "76px" : "0";
+    svg.style.right = "0";
     /* Snitt per halvtime (siste verdi bæres videre), så en glatt kurve gjennom punktene. */
     const N = 48, spor = [];
     let j = 0, sist = pkt[0].v;
