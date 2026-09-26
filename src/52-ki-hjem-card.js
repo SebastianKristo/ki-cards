@@ -42,6 +42,16 @@
  *    - title: Batterier
  *      conditions: [...]
  *      cards: [...]
+ *  Tilpass Hjem (langt trykk på fanerada, eller tilpass_knapp: true) – hver bruker velger selv, lagret
+ *  i HA per bruker (frontend user data «ki_hjem»). Verdiene under er standardene brukeren starter fra:
+ *    romkort: stor | middels | liten      # størrelsen på romflisene i etasjefanene
+ *    klimaknapp: false                    # uten +/– for settpunkt på de store flisene
+ *    fane_bredde: standard | kompakt | full
+ *    fane_hoyde: standard | lav | middels | hoy | ekstra
+ *    fane_rekkefolge: [hjem, 'etg:forste', aktuelt]   # nøkler: hjem, etg:<etasje_id>, aktuelt, batterier, fane:<tittel>
+ *    skjul: ['etg:kjeller', 'sek:alarm']  # skjulte faner og seksjoner (sek:topp|rom|alarm|hoyre|stov)
+ *    seksjoner: [rom, topp, alarm]        # rekkefølgen i venstre kolonne på Hjem-fanen
+ *    tilpass: false                       # slår av panelet
  *  Elementer i lister: {rom: x} / {kind: ...} = ki-rom-tile-card, {swipe: {...}} = css-swipe-card
  *  (type: plain = custom:swipe-card), {card: {...}} eller alt med `type:` = kortet som det er.
  * ========================================================================== */
@@ -53,6 +63,57 @@
     '--pagination-bullet-distance': '0px',
   };
   const TABS_STYLE = '.tabs-container {\n  padding: 2px !important;\n}\n.tabs {\n  box-sizing: border-box;\n  max-width: 100% !important;\n  padding: 2px !important;\n  border: 1px solid rgba(255, 255, 255, 0.3);\n  border-radius: 999px !important;\n}\n.tab-button {\n  border-radius: 999px !important;\n  font-weight: 500;\n}\n.tab-button.active {\n  background: var(--active-big) !important;\n  color: rgba(70, 58, 64, 0.95) !important;\n  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);\n}\n';
+  /* ---- «Tilpass Hjem»: brukerens valg. Konfigurasjonen er standarden; det brukeren velger
+     i panelet ligger i `cfg.__u` (fra KI.ud(hass, 'ki_hjem')) og vinner.
+     Formen på det som lagres:
+       { rekkefolge: [nøkkel …], skjul: [nøkkel | 'sek:<del>' …], etasjer: { <etasje_id|hjem>: [area_id …] },
+         seksjoner: ['topp','rom','alarm'], romkort: 'stor'|'middels'|'liten', klimaknapp: bool,
+         fane: { bredde: 'standard'|'kompakt'|'full', hoyde: 'standard'|'lav'|'middels'|'hoy'|'ekstra' } } */
+  const FANE_H = { lav: 30, middels: 38, hoy: 46, 'høy': 46, ekstra: 56 };
+  const ROMKORT = { stor: 'big', middels: 'small', liten: 'row' };
+  const SEK_V = ['topp', 'rom', 'alarm'];
+  const SEK_NAVN = { topp: 'Lås og garasje', rom: 'Rom', alarm: 'Alarm', hoyre: 'Rom til høyre', stov: 'Fliser' };
+  const bruker = (cfg) => (cfg && cfg.__u) || {};
+  function prefs(cfg) {
+    const u = bruker(cfg), f = u.fane || {};
+    return {
+      romkort: u.romkort || cfg.romkort || null,
+      klima: u.klimaknapp != null ? u.klimaknapp !== false : cfg.klimaknapp !== false,
+      hoyde: String(f.hoyde || cfg.fane_hoyde || 'standard').toLowerCase(),
+      bredde: String(f.bredde || cfg.fane_bredde || 'standard').toLowerCase(),
+    };
+  }
+  /* Skjulte faner og seksjoner. Har brukeren valgt noe, er det brukerens liste som gjelder
+     (den ble fylt med konfigurasjonens skjulte da panelet ble brukt første gang). */
+  function skjulte(cfg) {
+    const u = bruker(cfg);
+    if (Array.isArray(u.skjul)) return new Set(u.skjul);
+    const s = new Set(cfg.skjul || []);
+    Object.entries(cfg.etasje_innstillinger || {}).forEach(([k, v]) => { if (v && v.vis === false) s.add('etg:' + k); });
+    return s;
+  }
+  /* Flisstørrelsen etter valgene: brukerens romkort gjelder alle rom, konfigurasjonens bare
+     rom uten egen størrelse. Klimaknappen av gjør «stor» til «stor uten». */
+  function flisStr(size, cfg, egen) {
+    const u = bruker(cfg), p = prefs(cfg);
+    let s = size;
+    if (u.romkort && ROMKORT[u.romkort]) s = ROMKORT[u.romkort];
+    else if (!egen && cfg.romkort && ROMKORT[cfg.romkort]) s = ROMKORT[cfg.romkort];
+    s = { medium: 'small', stor: 'big', stor_uten: 'big_plain', liten: 'row' }[s] || s || 'big';
+    if (!p.klima && s === 'big') s = 'big_plain';
+    return s;
+  }
+  /* Fanerada i simple-tabs: høyde og bredde. Legges i en egen stil i shadowRoot ved siden
+     av TABS_STYLE, så den kan byttes uten å bygge kortet på nytt. */
+  function faneCss(cfg) {
+    const p = prefs(cfg), h = FANE_H[p.hoyde];
+    let css = '';
+    if (h) css += '.tab-button { height:' + h + 'px !important; min-height:' + h + 'px !important; padding-top:0 !important; padding-bottom:0 !important; line-height:1 !important; }\n';
+    if (p.bredde === 'kompakt') css += '.tab-button { padding-left:12px !important; padding-right:12px !important; }\n';
+    if (p.bredde === 'full') css += '.tabs { width:100% !important; display:flex !important; } .tab-button { flex:1 1 0 !important; min-width:0 !important; justify-content:center; text-align:center; }\n';
+    return css;
+  }
+
   const FARGER = ['var(--green)', 'var(--blue)', 'var(--yellow)', 'var(--purple)', 'var(--orange)', 'var(--red)', 'var(--pink)'];
 
   function allOversikt(hass) {
@@ -158,7 +219,7 @@
       const o = romCfg[a.area_id] || {};
       const side = o.kolonne || (i % 2 ? 'hoyre' : 'venstre');
       const pat = monster[side] || ['big'];
-      const size = o.size || pat[kol[side].length % pat.length];
+      const size = flisStr(o.size || pat[kol[side].length % pat.length], cfg, !!o.size);
       kol[side].push({ rom: a.area_id, size, farge: o.farge || FARGER[i % FARGER.length] });
       i++;
     });
@@ -178,6 +239,16 @@
 
   // ---- auto: én fane per etasje
   function autoFloorTabs(hass, cfg) {
+    const fc = cfg.etasje_innstillinger || {};
+    const skj = skjulte(cfg);
+    return floorList(hass, cfg)
+      .filter((f) => f.rom.length && !skj.has('etg:' + f.key))
+      .map((f) => ({ title: (fc[f.key] || {}).navn || f.navn, kolonner: columnsFor(f.rom, cfg) }));
+  }
+
+  /* Alle etasjene, også skjulte og tomme, i rekkefølge. Rommene brukeren har valgt for en
+     etasje i «Tilpass Hjem» vinner over etasjen i Home Assistant (og står i valgt rekkefølge). */
+  function floorList(hass, cfg) {
     const floors = new Map();
     const alle = rooms(hass, cfg);
     /* navnene på etasjene vi kjenner, slik at en flyttet etasje får riktig fanetittel */
@@ -192,12 +263,24 @@
       });
       floors.get(key).rom.push(a);
     });
+    const E = bruker(cfg).etasjer || {};
+    const byId = new Map(alle.map((a) => [a.area_id, a]));
+    const valgt = new Set();
+    Object.keys(E).forEach((k) => { if (k !== 'hjem' && Array.isArray(E[k]) && floors.has(k)) E[k].forEach((id) => valgt.add(id)); });
+    floors.forEach((f, k) => {
+      f.rom = Array.isArray(E[k]) ? E[k].map((id) => byId.get(id)).filter(Boolean)
+        : f.rom.filter((a) => !valgt.has(a.area_id));
+    });
     const fc = cfg.etasje_innstillinger || {};
-    const list = [...floors.entries()]
-      .filter(([k]) => (fc[k] || {}).vis !== false)
+    return [...floors.entries()]
       .map(([k, f]) => ({ ...f, key: k, ord: (fc[k] || {}).rekkefolge ?? (f.niva === 999 ? 999 : f.niva) }))
       .sort((x, y) => (x.ord - y.ord) || x.navn.localeCompare(y.navn, 'nb'));
-    return list.map((f) => ({ title: (fc[f.key] || {}).navn || f.navn, kolonner: columnsFor(f.rom, cfg) }));
+  }
+
+  function seksjonsRekke(cfg) {
+    const r = (bruker(cfg).seksjoner || cfg.seksjoner || SEK_V).filter((k, i, a) => SEK_V.includes(k) && a.indexOf(k) === i);
+    SEK_V.forEach((k) => { if (!r.includes(k)) r.push(k); });
+    return r;
   }
 
   // ---- auto: Hjem-fanen med samme layout som før ("stue kjokken" / "stue stov")
@@ -208,9 +291,17 @@
     const romCfg = cfg.rom || {};
     const alle = rooms(hass, cfg).map((a) => a.area_id);
     const finnes = (r) => hass.states['sensor.' + r + '_oversikt'] || alle.includes(r);
-    const venstreRom = (h.rom || alle.slice(0, Math.max(2, Math.ceil(alle.length * 0.6)))).filter(finnes);
-    const hoyreRom = (h.rom_hoyre || alle.filter((r) => !venstreRom.includes(r))).filter(finnes);
-    const tile = (r, i) => ({ rom: r, size: 'big', farge: (romCfg[r] || {}).farge || FARGER[i % FARGER.length] });
+    let venstreRom = (h.rom || alle.slice(0, Math.max(2, Math.ceil(alle.length * 0.6)))).filter(finnes);
+    let hoyreRom = (h.rom_hoyre || alle.filter((r) => !venstreRom.includes(r))).filter(finnes);
+    /* Rommene brukeren har valgt for Hjem-fanen: fordelt som standarden, ~60 % til venstre. */
+    const valgtHjem = (bruker(cfg).etasjer || {}).hjem;
+    if (Array.isArray(valgtHjem)) {
+      const l = valgtHjem.filter(finnes);
+      const n = Math.max(2, Math.ceil(l.length * 0.6));
+      venstreRom = l.slice(0, n); hoyreRom = l.slice(n);
+    }
+    const skj = skjulte(cfg);
+    const tile = (r, i) => ({ rom: r, size: flisStr('big', { ...cfg, romkort: null, __u: { ...bruker(cfg), romkort: null } }, true), farge: (romCfg[r] || {}).farge || FARGER[i % FARGER.length] });
 
     const topp = [];
     if (h.las) topp.push({ kind: 'las', entity: h.las, path: h.las_path || '#dor' });
@@ -219,18 +310,24 @@
     const store = venstreRom.map(tile);
     if (h.kalender) store.push({ kind: 'kalender', entity: h.kalender, path: h.kalender_path || '#kalender' });
 
+    /* Venstre kolonne i den rekkefølgen brukeren (eller `seksjoner:`) har valgt. */
+    const deler = {
+      topp: () => (topp.length ? { swipe: { type: 'plain', cards: topp } } : null),
+      rom: () => (store.length ? { swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: store } } : null),
+      alarm: () => (h.alarm ? { kind: 'alarm', ...(typeof h.alarm === 'string' ? { entity: h.alarm } : h.alarm), path: (h.alarm && h.alarm.path) || '#alarm' } : null),
+    };
     const stue = [];
-    if (topp.length) stue.push({ swipe: { type: 'plain', cards: topp } });
-    if (store.length) stue.push({ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: store } });
-    if (h.alarm) stue.push({ kind: 'alarm', ...(typeof h.alarm === 'string' ? { entity: h.alarm } : h.alarm), path: (h.alarm && h.alarm.path) || '#alarm' });
+    seksjonsRekke(cfg).forEach((k) => { if (skj.has('sek:' + k)) return; const d = deler[k](); if (d) stue.push(d); });
 
     const omrader = { stue };
-    if (hoyreRom.length) omrader.kjokken = [{ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
-    if (h.stov && h.stov.length) omrader.stov = h.stov;
+    if (hoyreRom.length && !skj.has('sek:hoyre')) omrader.kjokken = [{ swipe: { type: h.swipe_type || 'css', height: '266px', pagination: true, cards: hoyreRom.map((r, i) => tile(r, i + venstreRom.length)) } }];
+    if (h.stov && h.stov.length && !skj.has('sek:stov')) omrader.stov = h.stov;
 
     const areas = omrader.stov ? '"stue kjokken"\n"stue stov"\n"stue stov"\n' : (omrader.kjokken ? '"stue kjokken"\n' : '"stue"\n');
     return {
       title: h.title || 'Hjem',
+      _rom: [...venstreRom, ...hoyreRom],
+      _deler: [...SEK_V.filter((k) => k !== 'topp' || topp.length).filter((k) => k !== 'alarm' || h.alarm), 'hoyre', ...(h.stov && h.stov.length ? ['stov'] : [])],
       layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(160px, 1fr))', 'grid-template-rows': 'auto', 'grid-template-areas': areas, ...(h.layout || {}) },
       omrader,
     };
@@ -318,24 +415,61 @@
     };
   }
 
-  function generate(hass, cfg) {
+  /* Alle fanene kortet kan vise, med en fast nøkkel hver: hjem, etg:<etasje_id>, aktuelt,
+     batterier, fane:<tittel>. Nøkkelen er det brukerens rekkefølge og skjulte faner peker på. */
+  function alleFaner(hass, cfg) {
     swipeSeq = 0;
     curHass = hass;
     const romCfg = cfg.rom || {};
-    const explicit = (cfg.tabs || []).map((t) => buildTab(t, romCfg));
-    const hasHjem = explicit.some((t) => (t.title || '').toLowerCase() === 'hjem');
+    const brukt = new Set();
+    const nokkel = (tittel) => {
+      const n = String(tittel || '').toLowerCase();
+      let k = ['hjem', 'aktuelt', 'batterier'].includes(n) ? n : 'fane:' + n;
+      while (brukt.has(k)) k += '+';
+      brukt.add(k);
+      return k;
+    };
+    const explicit = (cfg.tabs || []).map((t) => ({ key: nokkel(t.title), navn: t.title || 'Fane', tab: buildTab(t, romCfg) }));
+    const hasHjem = explicit.some((t) => t.key === 'hjem');
     let tabs = explicit;
     // Hjem-fanen er standard på (hjem: false skrur av); egen «Hjem» i tabs vinner
-    if (cfg.hjem !== false && !hasHjem) tabs = [buildTab(autoHjemTab(hass, cfg), romCfg), ...explicit];
+    if (cfg.hjem !== false && !hasHjem) {
+      const h = autoHjemTab(hass, cfg);
+      tabs = [{ key: 'hjem', navn: h.title, auto: true, rom: h._rom, deler: h._deler, tab: buildTab(h, romCfg) }, ...explicit];
+    }
     if (cfg.etasjer !== false && cfg.etasjer !== 'manuell') {
-      const auto = autoFloorTabs(hass, cfg).map((t) => buildTab(t, romCfg));
-      const idx = tabs.findIndex((t) => (t.title || '').toLowerCase() === 'hjem');
+      const fc = cfg.etasje_innstillinger || {};
+      const auto = floorList(hass, cfg).map((f) => {
+        const title = (fc[f.key] || {}).navn || f.navn;
+        return { key: 'etg:' + f.key, etg: f.key, navn: title, rom: f.rom.map((a) => a.area_id),
+          tab: f.rom.length ? buildTab({ title, kolonner: columnsFor(f.rom, cfg) }, romCfg) : null };
+      });
+      const idx = tabs.findIndex((t) => t.key === 'hjem');
       const pos = cfg.plasser === 'foran' ? 0 : (typeof cfg.plasser === 'number' ? cfg.plasser : idx + 1);
       tabs = [...tabs.slice(0, pos), ...auto, ...tabs.slice(pos)];
     }
-    const titles = tabs.map((t) => (t.title || '').toLowerCase());
-    if (cfg.aktuelt && !titles.includes('aktuelt')) { const t = aktueltTab(cfg); if (t) tabs.push(t); }
-    if (cfg.batterier && !titles.includes('batterier')) tabs.push(batterierTab(cfg));
+    const keys = tabs.map((t) => t.key);
+    if (cfg.aktuelt && !keys.includes('aktuelt')) { const t = aktueltTab(cfg); if (t) tabs.push({ key: 'aktuelt', navn: t.title, tab: t }); }
+    if (cfg.batterier && !keys.includes('batterier')) { const t = batterierTab(cfg); tabs.push({ key: 'batterier', navn: t.title, tab: t }); }
+    return tabs;
+  }
+
+  /* Brukerens rekkefølge. Faner den ikke kjenner (en ny etasje) blir stående der de er. */
+  function ordne(faner, cfg) {
+    const rek = bruker(cfg).rekkefolge || cfg.fane_rekkefolge;
+    if (!Array.isArray(rek) || !rek.length) return faner;
+    const kjent = faner.filter((f) => rek.includes(f.key)).sort((a, b) => rek.indexOf(a.key) - rek.indexOf(b.key));
+    let i = 0;
+    return faner.map((f) => (rek.includes(f.key) ? kjent[i++] : f));
+  }
+
+  function generate(hass, cfg, ut) {
+    const faner = ordne(alleFaner(hass, cfg), cfg);
+    const skj = skjulte(cfg);
+    let vis = faner.filter((f) => f.tab && !skj.has(f.key));
+    if (!vis.length) vis = faner.filter((f) => f.tab).slice(0, 1);
+    if (ut) ut.faner = faner;
+    const tabs = vis.map((f) => f.tab);
     return {
       type: 'custom:simple-tabs',
       'pre-load': true, alignment: cfg.alignment || 'start',
@@ -348,17 +482,29 @@
   }
 
   // card_mod virker ikke på kort laget via card-helpers -> legg stilen rett i simple-tabs sin shadowRoot
-  function injectTabsStyle(el, tries = 0) {
+  function injectTabsStyle(el, tries = 0, cfg = null) {
     const sr = el && el.shadowRoot;
     if (sr) {
       if (!sr.querySelector('style[data-ki-hjem]')) { const st = document.createElement('style'); st.dataset.kiHjem = '1'; st.textContent = TABS_STYLE; sr.appendChild(st); }
+      if (cfg) settFaneMal(el, cfg);
       /* Samme glidende pille og dra-funksjon som i ki-tabs-card. Den settes inn i
          simple-tabs sin shadowRoot, ikke i fila — en lapp i den minifiserte koden
          ville forsvunnet ved neste oppdatering av kortet. */
       if (KI.pillefaner) KI.pillefaner(el);
       return;
     }
-    if (tries < 40) setTimeout(() => injectTabsStyle(el, tries + 1), 50);
+    if (tries < 40) setTimeout(() => injectTabsStyle(el, tries + 1, cfg), 50);
+  }
+  /* Høyde og bredde på fanerada (Tilpass Hjem → Faner). Egen stil etter TABS_STYLE, så den
+     vinner, og kan byttes uten ny oppbygging. Pilla (KI.pillefaner) måler knappene med
+     ResizeObserver og følger etter av seg selv. */
+  function settFaneMal(el, cfg) {
+    const sr = el && el.shadowRoot;
+    if (!sr) return;
+    let st = sr.querySelector('style[data-ki-hjem-mal]');
+    if (!st) { st = document.createElement('style'); st.dataset.kiHjemMal = '1'; sr.appendChild(st); }
+    const css = faneCss(cfg);
+    if (st.textContent !== css) st.textContent = css;
   }
 
   // swipe-card (plain): prikker under kortet i samme stil som css-swipe-card

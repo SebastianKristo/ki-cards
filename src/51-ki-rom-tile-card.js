@@ -27,6 +27,19 @@
   const FALLBACK_HUM = 'sensor.hus_fuktighet';
   const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
 
+  /* Temperatur-/fuktsensoren brukeren har valgt i «Tilpass rommet» (ki-rom-card), lagret
+     per bruker i HA under ki_rom: { <area_id>: { temp, fukt, … } }. Går foran alt annet. */
+  function brukerValg(hass, rom) {
+    const K = window.KI || {};
+    const alle = K.ud && hass ? K.ud(hass, 'ki_rom') : null;
+    const r = alle && typeof alle === 'object' ? alle[rom] : null;
+    if (!r || typeof r !== 'object') return {};
+    return {
+      temp: r.temp && hass.states[r.temp] ? r.temp : null,
+      fukt: r.fukt && hass.states[r.fukt] ? r.fukt : null,
+    };
+  }
+
   const findOne = (hass, rom) => (window.KI && window.KI.romFindOne) ? window.KI.romFindOne(hass, rom) : (hass.states['sensor.' + rom + '_oversikt'] || null);
   function allOversikt(hass) {
     const ids = (window.KI && window.KI.romOversiktIds) ? window.KI.romOversiktIds(hass)
@@ -127,9 +140,9 @@
         type: 'custom:paper-buttons-row',
         styles: { display: 'flex', 'flex-direction': 'column', 'flex-wrap': 'wrap' },
         buttons: [
-          { icon: 'mdi:chevron-up', ripple: 'none', name: false, tap_action: act(1), styles: { icon: { color: 'var(--gray1000)' }, button: btn('40px 40px 0 0', '30px', '1px 1px 0 1px') } },
-          { name, ripple: 'none', icon: false, styles: { name: { color: 'var(--gray1000)' }, button: btn(0, '22px', '0 1px 0 1px') } },
-          { icon: 'mdi:chevron-down', ripple: 'none', name: false, tap_action: act(-1), styles: { icon: { color: 'var(--gray1000)' }, button: btn('0 0 40px 40px', '30px', '0 1px 1px 1px') } },
+          { icon: 'mdi:chevron-up', ripple: 'none', name: false, entity: clim, hold_action: { action: 'more-info' }, tap_action: act(1), styles: { icon: { color: 'var(--gray1000)' }, button: btn('40px 40px 0 0', '30px', '1px 1px 0 1px') } },
+          { name, ripple: 'none', icon: false, entity: clim, tap_action: { action: 'none' }, hold_action: { action: 'more-info' }, styles: { name: { color: 'var(--gray1000)' }, button: btn(0, '22px', '0 1px 0 1px') } },
+          { icon: 'mdi:chevron-down', ripple: 'none', name: false, entity: clim, hold_action: { action: 'more-info' }, tap_action: act(-1), styles: { icon: { color: 'var(--gray1000)' }, button: btn('0 0 40px 40px', '30px', '0 1px 1px 1px') } },
         ],
       },
     };
@@ -141,8 +154,9 @@
     if (!ov) return null;
     const a = ov.attributes;
     const has = (e) => e && hass.states[e];
-    const temp = cfg.temperatur || a.temperatur[0] || (has(FALLBACK_TEMP) ? FALLBACK_TEMP : null);
-    const hum = cfg.fuktighet || a.fuktighet[0] || (has(FALLBACK_HUM) ? FALLBACK_HUM : null);
+    const U = brukerValg(hass, cfg.rom);
+    const temp = U.temp || cfg.temperatur || (a.temperatur || [])[0] || (has(FALLBACK_TEMP) ? FALLBACK_TEMP : null);
+    const hum = U.fukt || cfg.fuktighet || (a.fuktighet || [])[0] || (has(FALLBACK_HUM) ? FALLBACK_HUM : null);
     const clim = cfg.klima || (a.klima[0] && a.klima[0].entity);
     const teller = cfg.teller || (clim ? 'input_number.' + clim.split('.')[1] + (cfg.teller_suffix || '_teller') : null);
     const name = cfg.navn || a.rom || cap(cfg.rom);
@@ -161,6 +175,7 @@
         type: 'custom:button-card', icon, label: name,
         trigger_update: [temp, hum].filter(Boolean),
         tap_action: { action: 'navigate', navigation_path: path },
+        ...(temp ? { hold_action: { action: 'more-info', entity: temp } } : {}),
         name: T('const t = states["' + temp + '"]; const h = ' + (hum ? 'states["' + hum + '"]' : 'null') + '; return (t ? parseFloat(t.state).toFixed(1) : "-") + "°" + (h ? " · " + parseFloat(h.state).toFixed(0) + "%" : "");'),
         show_label: true,
         styles: {
@@ -184,6 +199,8 @@
       entity: cfg.entity || ov.entity_id,
       triggers_update: [ov.entity_id, temp, hum, teller, varsel].filter(Boolean),
       tap_action: { action: 'navigate', navigation_path: path },
+      /* Langt trykk: temperatursensoren bak tallet (brukerens valg om det finnes). */
+      hold_action: { action: 'more-info', entity: temp || ov.entity_id },
       state: varsel
         ? [{ operator: 'template', value: T('return states["' + varsel + '"] && states["' + varsel + '"].state === "on"'), styles: { custom_fields: { error: [{ display: 'block' }] } } }]
         : null,
@@ -208,6 +225,7 @@
   const iconBtn = (entity, icon, onState, tap) => ({
     card: {
       type: 'custom:button-card', entity, icon, show_name: false, show_state: false, show_label: false, tap_action: tap,
+      hold_action: { action: 'more-info' },
       styles: {
         card: [{ width: '58px' }, { height: '58px' }, { 'border-radius': '50%' }, { background: T('return entity.state === "' + onState + '" ? "rgba(0, 0, 0, 0.1)" : "rgba(255, 255, 255, 0.1)";') }, { border: '1px solid rgba(250, 251, 252, 0.1)' }, { 'box-shadow': 'none' }, { padding: 0 }, { margin: 0 }],
         icon: [{ width: '30px' }, { height: '30px' }, { color: T('return entity.state === "' + onState + '" ? "var(--black)" : "var(--gray1000)";') }],
@@ -224,6 +242,7 @@
     return {
       type: 'custom:button-card', template: 'universal_navigate', entity: e, show_icon: false,
       tap_action: { action: 'navigate', navigation_path: cfg.path || '#dor' },
+      hold_action: { action: 'more-info' },
       variables: { size: 'small', icon: 'mdi:key', sub_text: cfg.sub_text || 'Dørlås', main_text: 'Låst', state_rule_1_value: 'unlocked', state_rule_1_main_text: 'Ulåst', state_rule_1_background_color: cfg.farge || 'var(--green)', state_rule_1_text_color: 'var(--black)' },
       custom_fields: { icon_btn: iconBtn(e, cfg.ikon || 'mdi:key', 'unlocked', { action: 'toggle' }) },
       styles: navStyles(true),
@@ -236,6 +255,7 @@
     return {
       type: 'custom:button-card', template: 'universal_navigate', entity: e,
       tap_action: { action: 'navigate', navigation_path: cfg.path || '#alarm' },
+      hold_action: { action: 'more-info' },
       variables: { size: 'small', icon: 'mdi:shield', sub_text: cfg.sub_text || 'Alarm', main_text: cfg.off_text || 'Dearmert', state_rule_1_value: cfg.on_state || 'armed', state_rule_1_icon: 'mdi:shield-off', state_rule_1_main_text: cfg.on_text || 'Armert', state_rule_1_background_color: cfg.farge || 'var(--active-big)', state_rule_1_text_color: 'var(--black)' },
       custom_fields: { icon_btn: iconBtn(e, cfg.ikon || 'mdi:shield', cfg.on_state || 'armed', tap) },
       styles: navStyles(true),
@@ -266,6 +286,7 @@
     return {
       type: 'custom:button-card', entity: cfg.entity, show_icon: false, show_name: false,
       tap_action: { action: 'navigate', navigation_path: cfg.path || '#kalender' },
+      hold_action: { action: 'more-info' },
       state: [{
         operator: 'template', value: T('return entity.attributes.events && entity.attributes.events[0] && new Date(entity.attributes.events[0].start).toDateString() === new Date().toDateString()'),
         styles: { card: [{ background: 'var(--active-big)' }], custom_fields: { arrow: [{ 'border-top': '2px solid var(--gray000)' }], day: c('var(--gray000)'), time: c('var(--gray000)'), date: c('var(--gray000)'), event: c('var(--gray000)') } },
@@ -295,6 +316,7 @@
     return {
       type: 'custom:button-card', entity: cfg.entity, template: 'universal_sensor',
       tap_action: { action: 'navigate', navigation_path: cfg.path || '#gjoremal' },
+      hold_action: { action: 'more-info' },
       variables: {
         size: 'small', img_cell_background: 'rgba(250, 251, 252, 0.1)',
         sub_text: cfg.sub_text || '', icon: cfg.ikon || 'mdi:hammer-screwdriver',
@@ -307,7 +329,7 @@
   function navigateTile(cfg) {
     return {
       type: 'custom:button-card', template: 'universal_navigate',
-      ...(cfg.entity ? { entity: cfg.entity } : {}),
+      ...(cfg.entity ? { entity: cfg.entity, hold_action: { action: 'more-info' } } : {}),
       tap_action: { action: 'navigate', navigation_path: cfg.path || '#' },
       variables: { size: 'small', icon: cfg.ikon || 'mdi:arrow-right', sub_text: cfg.sub_text || null, main_text: cfg.main_text || cfg.navn || '' },
       styles: navStyles(false),
@@ -413,9 +435,12 @@
       if ((cfg.kind || 'rom') === 'rom') {
         const ov = findOne(hass, cfg.rom);
         if (!ov) { this._error('KI Rom: fant ikke sensor.<rom>_oversikt for «' + cfg.rom + '»'); return; }
-        if (ov === this._lastOv && this._card) { this._card.hass = hass; return; } // samme state-objekt -> ingenting nytt
+        const U = brukerValg(hass, cfg.rom);
+        const uSig = (U.temp || '') + '|' + (U.fukt || '');
+        if (ov === this._lastOv && uSig === this._uSig && this._card) { this._card.hass = hass; return; } // samme state-objekt -> ingenting nytt
         this._lastOv = ov;
-        extra = JSON.stringify(ov.attributes);
+        this._uSig = uSig;
+        extra = JSON.stringify(ov.attributes) + '|' + uSig;
         const clim = cfg.klima || (ov.attributes.klima[0] && ov.attributes.klima[0].entity);
         const teller = cfg.teller || (clim ? 'input_number.' + clim.split('.')[1] + (cfg.teller_suffix || '_teller') : null);
         extra += '|' + (teller && hass.states[teller] ? 1 : 0);
@@ -423,6 +448,21 @@
       const sig = this._cfgStr + '|' + extra;
       if (sig !== this._sig) { this._sig = sig; this._rebuild(); return; }
       if (this._card) this._card.hass = hass;
+    }
+
+    /* Brukeren valgte en annen temperatur-/fuktsensor i rom-popupen: tegn flisa på nytt. */
+    connectedCallback() {
+      if (this._udLytter) return;
+      this._udLytter = (ev) => {
+        if (!ev.detail || ev.detail.key !== 'ki_rom' || !this._hass || !this._config) return;
+        if ((this._config.kind || 'rom') !== 'rom') return;
+        this._lastOv = null;
+        this.hass = this._hass;
+      };
+      window.addEventListener('ki-ud', this._udLytter);
+    }
+    disconnectedCallback() {
+      if (this._udLytter) { window.removeEventListener('ki-ud', this._udLytter); this._udLytter = null; }
     }
 
     _error(msg) {
