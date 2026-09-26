@@ -1,3 +1,8 @@
+# ki-cards 9.6.1
+
+- **Dra i fanene virker nå med fingeren** (ikke bare med mus): på mobil eier knappen fingeren fra start, og når rada tok den over, trodde den at draget var slutt. Gjelder alle fanerader (KI.pillefaner) og ki-tabs-card.
+- **ki-rom-card**: gap-card øverst (`topp_gap`, standard 0) og nederst (`bunn_gap`, standard 50) i hvert rom. Begge kan også velges per bruker i «Tilpass rommet» → Avstand øverst/nederst. Den gamle automatiske 200 px-avstanden nederst er erstattet av dette.
+
 # ki-cards 9.6.0
 
 - **Dra-animasjonen fra Liquid Glass** (uten glasseffekt) i alle fanerader: pillen følger fingeren, strekkes i fart, gir etter i endene og smetter på plass med fjær når du slipper. Gjelder etasjevelgeren i Hjem, ki-tabs-card, Hytta (Kalender/Opphold/Statistikk), Vanning (Nå/Soner/Programmer/Forbruk/Historikk), Fremover, Vær, Kamera, Klima pro, Server, Media, Strøm og flere. Felles hjelper: `KI.pillefaner` / `KI.segDrag`.

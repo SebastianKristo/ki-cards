@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.6.0";
+  KI.VERSION = "9.6.1";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -797,7 +797,10 @@ window.KI = window.KI || {};
       };
       r.addEventListener("pointerup", slipp);
       r.addEventListener("pointercancel", slipp);
-      r.addEventListener("lostpointercapture", slipp);
+      /* Bare når rada selv mister fingeren. På mobil eier knappen fingeren fra start (implisitt
+         capture); når rada tar den over i setPointerCapture, får knappen lostpointercapture, som
+         bobler hit – den må ikke avslutte draget, ellers virker dra bare med mus. */
+      r.addEventListener("lostpointercapture", (e) => { if (e.target === r) slipp(e); });
       /* Klikket nettleseren sender etter et drag skal ikke velge noe; bare vårt eget. */
       r.addEventListener("click", (e) => {
         if (r._kiSlipper) return;

@@ -863,7 +863,8 @@
       };
       rad.addEventListener("pointerup", slipp);
       rad.addEventListener("pointercancel", slipp);
-      rad.addEventListener("lostpointercapture", slipp);
+      /* Bare når rada selv mister fingeren – knappens implisitte capture på mobil bobler hit. */
+      rad.addEventListener("lostpointercapture", (e) => { if (e.target === rad) slipp(e); });
       /* Klikket nettleseren sender etter et drag skal ikke også velge en fane. */
       rad.addEventListener("click", (e) => {
         if (na() - (this._draSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
