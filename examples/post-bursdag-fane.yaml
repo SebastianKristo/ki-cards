@@ -1,0 +1,19 @@
+# Fanen «Post og bursdager» i kalenderpopupen – bytt ut cards: under mdi:gift-outline med dette.
+# (ikon_naar og kort_naar for Kalender-fanen står som før.)
+              - icon: mdi:gift-outline
+                aria: Post og bursdager
+                utenfor: true
+                ikon_naar:
+                  Kalender: mdi:calendar-month
+                kort_naar:
+                  Kalender:
+                    # … kalenderkortet ditt som før …
+                cards:
+                  - type: custom:ki-post-bursdag-card
+                    post: sensor.nar_kommer_posten_posten_sensor_next
+                    kalender: calendar.birthdays
+                    # postnummer: '0000'      # vises som «Posten · 0000 Sted»
+                    # sted: Oslo
+                    pakker: true              # pakker fra Norwegian Parcel Tracker
+                  - type: custom:gap-card
+                    height: 48
