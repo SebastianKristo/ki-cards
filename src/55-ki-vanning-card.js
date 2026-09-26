@@ -1193,6 +1193,9 @@ class KiVanningCard extends HTMLElement {
       if (this._fane !== b.dataset.f) this._haptikk("selection");
       this._fane = b.dataset.f; this._tegn();
     }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "valgt",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 

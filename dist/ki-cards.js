@@ -1,4 +1,4 @@
-/* ki-cards v9.5.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
+/* ki-cards v9.6.0 – https://github.com/SebastianKristo/ki-cards – bygget 2026-09-26 */
 window.KI = window.KI || {};
 window.KI.define = (n, c) => { if (customElements.get(n)) console.warn("ki-cards: " + n + " er allerede definert – hopper over"); else customElements.define(n, c); };
 window.KI.lit = (kjor) => {
@@ -31,7 +31,7 @@ try {
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.5.0";
+  KI.VERSION = "9.6.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -316,6 +316,9 @@ window.KI = window.KI || {};
     root.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => {
       card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
     KI.wireSteppers(card, root);
+    /* Enkel/Avansert- og Søvn/Vekking-bryterne: glidende pille som kan dras. */
+    if (root === card.shadowRoot && root.querySelector(".switch .switch-valg") && KI.pillefaner)
+      KI.pillefaner(card, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv", farge: "var(--active-small, var(--active-big))" });
   };
 
   KI.fire = (el, type, detail) =>
@@ -510,91 +513,93 @@ window.KI = window.KI || {};
   };
 
   console.info(`%c KI-CARDS %c v${KI.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
+  /* ------------------------------------------------------------------ haptikk
+   * Samme «haptic»-hendelse som HA-appen lytter på. Brukes av fanevelgerne når pilla
+   * krysser et valg mens den dras. */
+  KI.haptic = (type = "selection") => {
+    try { window.dispatchEvent(new CustomEvent("haptic", { detail: type, bubbles: true, composed: true })); }
+    catch (e) { /* eldre nettlesere */ }
+    /* navigator.vibrate finnes ikke i Safari; der er det appen som vibrerer. */
+    const ms = { selection: 5, light: 8, medium: 14, heavy: 22 }[type] || 8;
+    if (typeof navigator !== "undefined" && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* blokkert */ } }
+  };
+
   /* ------------------------------------------------------------------ pillefaner
    *
-   * Legger den glidende pilla, dra-funksjonen og trykkeffekten fra ki-tabs-card på en
-   * fanerad som ikke er vår egen — `simple-tabs` bruker `.tabs` og `.tab-button`.
+   * Glidende pille med dra-animasjonen fra fanevelgeren i Liquid Glass-dashbordet (kd),
+   * uten glasset: bare bevegelsen. Pilla er en flat --active-big-flate bak den aktive knappen.
    *
-   * Vi rører ikke tredjepartsfila: elementet og stilen settes inn i dens shadowRoot, slik
-   * ki-hjem-card alt gjør med CSS. En lapp i den minifiserte fila ville forsvunnet ved
-   * neste oppdatering av kortet.
+   *   KI.pillefaner(vert, { rad, knapp, aktiv, av, sprett, farge, haptikk })
+   *   KI.segDrag(...)  – samme funksjon, alias
+   *
+   *   vert     elementet som eier shadowRoot-en rada ligger i (kortet selv, eller et
+   *            tredjepartskort som simple-tabs)
+   *   rad      velger for rada (standard ".tabs"). ALLE rader som matcher får hver sin pille.
+   *   knapp    velger for knappene (standard ".tab-button")
+   *   aktiv    klassen kortet setter på valgt knapp (standard "active")
+   *   av       klasse for sperrede valg som ikke kan dras til (standard "tom"; false = ingen)
+   *   sprett   true: formen ligger på ::before med en landingssprett (klem ved trykk)
+   *   farge    bakgrunn på pilla hvis kortets aktive knapp ikke er --active-big
+   *   haptikk  false slår av vibrasjonen når pilla krysser et valg
+   *
+   * Bevegelsen:
+   *   - bytte (trykk, sveip, kode): pilla glir med fjær (overskyter litt) og strekkes i
+   *     fartsretningen, mer jo lenger den går
+   *   - dra: etter 6 px sidelengs følger pilla fingeren, løftes litt og strekkes etter
+   *     farten; bredden glir mellom knappene den passerer; gummistrikk i endene;
+   *     vibrasjon når den krysser et valg
+   *   - slipp: fjærer inn på nærmeste valg (cubic-bezier(.34,1.56,.64,1)) og klikker den
+   *     knappen — kortets egen klikklogikk gjør valget, så minne, deep-link og haptikk
+   *     virker som før. Klikket nettleseren selv sender etter et drag blir slukt.
+   *   - loddrett bevegelse overlates til siden (touch-action: pan-y), så man kan rulle.
+   *
+   * Kortet eier valget; vi følger med på klassen. Idempotent: kall den gjerne etter hver
+   * tegning. Rader som tegnes på nytt (innerHTML, Lit) får pilla tilbake av vakta, og pilla
+   * starter der den forrige sto, så overgangen glir også da.
    */
   KI.pillefaner = (vert, valg = {}) => {
-    const rad = valg.rad || "\.tabs";
-    const knapp = valg.knapp || "\.tab-button";
+    if (!vert) return;
+    const ren = (s) => String(s).replace(/\\/g, "");
+    const rad = ren(valg.rad || ".tabs");
+    const kn = ren(valg.knapp || ".tab-button");
     const aktiv = valg.aktiv || "active";
+    const sprett = !!valg.sprett;
+    const avKlasse = valg.av === undefined ? "tom" : valg.av;
+    const haptikk = valg.haptikk !== false;
+    const nokkel = rad + "|" + kn;
+    /* Bare knappens egen del av velgeren. «.skinne .fane» ville krevd en .skinne INNE i
+       rada, og da slo regelen som skjuler kortets egen bakgrunn aldri til. */
+    const knEgen = kn.trim().split(/\s+/).pop();
+    const redusert = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const sist = vert._kiPilleSist || (vert._kiPilleSist = {});
+    const na = () => (window.performance ? performance.now() : Date.now());
 
-    /* Velgeren uten escaping, brukt både i stilen og i oppslagene under. */
-    const kn = knapp.replace(/\\/g, "");
-    const start = (sr) => {
-      const r = sr.querySelector(rad.replace(/\\/g, ""));
-      if (!r) return false;
-
-      /* Flagget hindrer dobbel oppsett på SAMME rad. Men noen kort beholder rada og
-         bytter bare innmaten — da er pilla slettet mens flagget står igjen, og uten
-         denne sjekken ble den aldri satt inn på nytt. Resultatet var en fanerad helt
-         uten markering, siden stilen slår av kortets egen bakgrunn. */
-      if (r.dataset.kiPille && r.querySelector(".ki-pille")) return false;
-      r.dataset.kiPille = "1";
-
-      if (!sr.querySelector("style[data-ki-pille]")) {
+    const stil = (sr) => {
+      if (!sr.querySelector("style[data-ki-pille-felles]")) {
         const st = document.createElement("style");
-        st.dataset.kiPille = "1";
+        st.dataset.kiPilleFelles = "1";
+        /* INGEN backticks her — dette er inne i en mal-streng.
+           Plassering med translate og form med scale, to egne egenskaper: med begge i
+           transform ville skaleringen også skalert forflytningen. */
         st.textContent = `
-          ${rad.replace(/\\/g, "")} { position:relative; }
-          /* Pilla er usynlig til første ekte måling er gjort.
-             Måles den før skrifta er byttet fra reservefonten, er fanen en annen
-             bredde, og pilla sto et øyeblikk for bred og uten innrykk før den rettet
-             seg. Å vise ingenting i det halve sekundet er bedre enn å vise noe feil.
-             Kortets egen aktivbakgrunn står så lenge, siden ki-pille-klar settes
-             samtidig. INGEN backticks her — dette er inne i en mal-streng. */
-          .ki-pille { opacity:0; }
+          .ki-pille { position:absolute; left:0; top:0; z-index:0; pointer-events:none; opacity:0;
+            width:var(--w,0px); height:var(--h,0px); border-radius:999px;
+            background:var(--ki-pille-bg, var(--active-big, #ee95ff)); box-shadow:0 1px 6px rgba(0,0,0,.35);
+            translate:var(--x,0px) var(--y,0px); scale:var(--sx,1) var(--sy,1);
+            transition:translate .5s cubic-bezier(.34,1.35,.64,1), width .5s cubic-bezier(.34,1.35,.64,1),
+              height .3s ease, scale .35s cubic-bezier(.34,1.8,.64,1), opacity .2s; }
           .ki-pille.klar { opacity:1; }
-          .ki-pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
-            background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
-            transform:translateX(var(--x,0px)); width:var(--w,0px);
-            transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
-            pointer-events:none; z-index:0; }
-          .ki-pille.drar { transition:none; }
-          /* touch-action none på knappene: rada er ofte rullbar sidelengs
-             (simple-tabs har overflow-x:auto), og da tolker nettleseren et horisontalt
-             drag som en rulling, tar over gesten og sender oss pointercancel.
-             Det var grunnen til at dra ikke virket i etasjevelgeren.
-             Bare knappene, ikke hele rada — rulling med finger utenfor en fane skal
-             fortsatt virke når det er flere faner enn det er plass til. */
-          ${kn} { position:relative; z-index:1; touch-action:none;
-            transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
-          ${kn}:active { transform:scale(.94); }
-          /* Kortets egen aktivbakgrunn slås av — men FØRST når pilla faktisk har
-             fått bredde. Uten den betingelsen sto alt umerket hvis pilla av en eller
-             annen grunn ikke ble plassert: vi hadde skrudd av det gamle uten å sette
-             noe i stedet. */
-          .ki-pille-klar ${kn}.${aktiv} { background:transparent !important;
-            box-shadow:none !important; }
-          @media (prefers-reduced-motion: reduce) {
-            .ki-pille { transition:none; }
-            ${kn}:active { transform:none; }
-          }`;
-        sr.appendChild(st);
-      }
-
-      /* Sprett: opt-in med sprett: true.
-       *
-       * Formen ligger på ::before, ALDRI på pilla selv. Pilla eier transform til
-       * plasseringen (translateX(var(--x))), og en skalering på samme element ville
-       * overskrevet den og dratt pilla til venstre kant midt i glidningen.
-       * Fargen har reserve her, så en rad i et dashbord der --active-big ikke når
-       * inn får en fylt pille i stedet for bare skyggen. */
-      const sprett = !!valg.sprett;
-      if (sprett && !sr.querySelector("style[data-ki-sprett]")) {
-        const st2 = document.createElement("style");
-        st2.dataset.kiSprett = "1";
-        st2.textContent = `
-          .ki-pille.sprett { background:transparent; box-shadow:none; }
-          .ki-pille.sprett::before { content:""; position:absolute; inset:0; border-radius:999px;
-            background:var(--active-big, #ee95ff); box-shadow:0 1px 6px rgba(0,0,0,.35);
+          .ki-pille.stille { transition:opacity .2s; }
+          .ki-pille.drar { transition:translate .12s cubic-bezier(.3,1.3,.6,1), width .12s ease-out,
+              height .12s ease-out, scale .18s cubic-bezier(.2,.8,.3,1); }
+          .ki-pille.snapp { transition:translate .55s cubic-bezier(.34,1.56,.64,1), width .55s cubic-bezier(.34,1.56,.64,1),
+              height .3s ease, scale .45s cubic-bezier(.34,1.8,.64,1); }
+          .ki-pille.sprett { background:transparent; box-shadow:none; scale:none; }
+          .ki-pille.sprett::before { content:""; position:absolute; inset:0; border-radius:inherit;
+            background:var(--ki-pille-bg, var(--active-big, #ee95ff)); box-shadow:0 1px 6px rgba(0,0,0,.35);
             transform:scale(var(--sx,1), var(--sy,1)); transform-origin:center;
             transition:transform .34s cubic-bezier(.2,1.35,.35,1); }
+          .ki-pille.sprett.drar::before { transition:transform .18s cubic-bezier(.2,.8,.3,1); }
           .ki-pille.sprett.land::before { animation:ki-sprett .42s cubic-bezier(.2,.9,.25,1); }
           @keyframes ki-sprett {
             0%   { transform:scale(1.10,.90); }
@@ -602,228 +607,312 @@ window.KI = window.KI || {};
             75%  { transform:scale(1.02,.99); }
             100% { transform:scale(1,1); } }
           @media (prefers-reduced-motion: reduce) {
+            .ki-pille, .ki-pille.drar, .ki-pille.snapp { transition:opacity .2s; }
             .ki-pille.sprett::before { transition:none; }
             .ki-pille.sprett.land::before { animation:none; } }`;
-        sr.appendChild(st2);
+        sr.appendChild(st);
       }
-
-      const pille = document.createElement("span");
-      pille.className = "ki-pille" + (sprett ? " sprett" : "");
-      r.insertBefore(pille, r.firstChild);
-
-      /* Kort som tegner hele markupen på nytt ved klikk får en HELT NY rad, og pilla
-         ville da stått ferdig i endeposisjonen uten å gli — nettopp det animasjonen
-         skal vise.
-         Vi husker forrige plassering på vertselementet og starter derfra, så
-         overgangen blir den samme som når rada overlever. */
-      const husk = vert._kiPilleSist;
-      if (husk) {
-        /* Sett forrige plass UTEN overgang, så pilla står der den sto før tegningen.
-           Klassen fjernes ikke her — det gjør `flytt(false)` under, i neste bilde, og
-           da glir den derfra til den nye fanen. */
-        pille.classList.add("drar");
-        pille.style.setProperty("--x", husk.x);
-        pille.style.setProperty("--w", husk.w);
+      if (![...sr.querySelectorAll("style[data-ki-pille]")].some((s) => s.dataset.kiPille === nokkel)) {
+        const st = document.createElement("style");
+        st.dataset.kiPille = nokkel;
+        /* touch-action pan-y på knappene: sidelengs drag er vårt, loddrett ruller siden.
+           Uten det tar nettleseren over et sidelengs drag i en rullbar rad og sender
+           pointercancel midt i. */
+        st.textContent = `
+          ${rad} { position:relative; }
+          ${kn} { position:relative; z-index:1; touch-action:pan-y; -webkit-tap-highlight-color:transparent;
+            -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+            transition:transform .12s cubic-bezier(.2,.8,.2,1), color .2s; }
+          ${kn}:active { transform:scale(.94); }
+          .ki-pille-klar ${knEgen}.${aktiv} { background:transparent !important; box-shadow:none !important; }
+          @media (prefers-reduced-motion: reduce) { ${kn}:active { transform:none; } }`;
+        sr.appendChild(st);
       }
+    };
 
-      /* Animerer BARE når den aktive fanen faktisk har endret seg.
-       *
-       * De sene målingene på 120 og 400 ms retter bredden når skrifta er ferdig lastet.
-       * Gjøres de animert, ser en ren korreksjon ut som en bevegelse — pilla var for
-       * bred et øyeblikk og krympet synlig etterpå. Det skal skje stille.
-       * Et fanebytte skal derimot gli, og det kjennes på at målet er et annet. */
-      /* Etter en ny tegning står pilla på forrige plass fra `husk`. Da ER det et
-         bytte, selv om vi ikke har sett den forrige fanen i DENNE oppkoblingen —
-         derfor starter vi på et tomt objekt og ikke på fanen selv. */
-      let sisteFane = vert._kiPilleSist ? {} : null;
-      /* Skrifta avgjør fanebredden, og den lastes etter at kortet er tegnet.
-         Viser vi pilla på første måling, er den målt mot reservefonten — for bred og
-         uten innrykk — og retter seg et halvt sekund senere. Det er nettopp blinket
-         man ser. Derfor venter vi på at skrifta er ferdig.
-         Finnes ikke API-et, viser vi med en gang: bedre enn aldri. */
-      let fontKlar = !(document.fonts && document.fonts.ready);
-      if (!fontKlar) document.fonts.ready.then(() => { fontKlar = true; flytt(true); });
+    /* Knappene i rada, i rekkefølge. Skjulte knapper (display:none) teller ikke. */
+    const knapper = (r) => [...r.querySelectorAll(kn)].filter((b) => b.offsetWidth > 0);
+    const sperret = (b) => b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse));
 
-      const flytt = (uten) => {
-        const a = r.querySelector(kn + "." + aktiv);
-        if (!a) { pille.style.setProperty("--w", "0px"); return; }
-        const bytte = sisteFane !== null && sisteFane !== a;
-        sisteFane = a;
-        pille.classList.toggle("drar", !!uten || !bytte);
-        /* offsetLeft/offsetWidth, IKKE getBoundingClientRect.
-         *
-         * Rektangelet regner med transformer. En popup som glir inn med scale gir
-         * derfor en skalert bredde, og pilla ble målt mot et mellomstadium — for bred
-         * og uten innrykk — før den rettet seg når animasjonen var ferdig. Det var
-         * blinket, ikke fontlastingen.
-         *
-         * offsetLeft er avstanden til forelderens KANT, mens `left:0` måles fra
-         * innsiden av ramma. `clientLeft` er nøyaktig den rammebredden. */
-        const kant = r.clientLeft || 0;
-        pille.style.setProperty("--x", (a.offsetLeft - kant) + "px");
-        pille.style.setProperty("--w", a.offsetWidth + "px");
-        vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
-                              w: pille.style.getPropertyValue("--w") };
-        /* Først nå tør vi slå av kortets egen bakgrunn. */
-        /* Først når vi har en ekte bredde tør vi vise pilla og slå av kortets egen
-           bakgrunn. De to henger sammen: skjer det ene uten det andre, står enten
-           ingenting merket, eller begge deler samtidig. */
-        const harMaal = a.offsetWidth > 0 && fontKlar;
-        r.classList.toggle("ki-pille-klar", harMaal);
-        pille.classList.toggle("klar", harMaal);
-        /* Landingen spilles bare når pilla faktisk flytter seg til en annen fane, og
-           bare når den glir dit - ikke på de stille breddekorreksjonene. Klassen må
-           fjernes og layouten leses før den settes igjen, ellers ser nettleseren
-           ingen endring og et raskt dobbeltbytte gir bare én sprett. */
-        if (sprett && bytte && !uten && harMaal) {
-          pille.classList.remove("land");
-          void pille.offsetWidth;
-          pille.classList.add("land");
+    /* Plassering i radas koordinater (fra innsiden av ramma, der left:0 på pilla ligger).
+       offsetLeft/offsetWidth, ikke getBoundingClientRect: rektangelet regner med
+       transformer, og en popup som glir inn med scale ga pilla en skalert bredde. */
+    const maal = (b, r) => {
+      let x = 0, y = 0, e = b;
+      while (e && e !== r) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+      if (e !== r) {
+        const a = b.getBoundingClientRect(), q = r.getBoundingClientRect();
+        x = a.left - q.left - (r.clientLeft || 0) + r.scrollLeft; y = a.top - q.top - (r.clientTop || 0) + r.scrollTop;
+      }
+      return { x, y, w: b.offsetWidth, h: b.offsetHeight };
+    };
+    const hjorne = (b) => {
+      const v = parseFloat(getComputedStyle(b).borderTopLeftRadius);
+      return v > 0 ? v + "px" : "999px";
+    };
+
+    const settVar = (p, g) => {
+      p.style.setProperty("--x", g.x + "px"); p.style.setProperty("--y", g.y + "px");
+      p.style.setProperty("--w", g.w + "px"); p.style.setProperty("--h", g.h + "px");
+    };
+    const form = (p, sx, sy) => { p.style.setProperty("--sx", sx); p.style.setProperty("--sy", sy); };
+
+    let fontKlar = !(document.fonts && document.fonts.ready);
+
+    /* Flytter pilla til den aktive knappen.
+       modus: "stille" (måling/korreksjon, ingen animasjon), "glid" (bytte), "snapp" (etter dra). */
+    const flytt = (r, modus) => {
+      const p = r._kiPille;
+      if (!p || p.parentNode !== r) return;
+      const a = r.querySelector(kn + "." + aktiv);
+      if (!a || !a.offsetWidth) {
+        p.classList.toggle("klar", false); r.classList.toggle("ki-pille-klar", false);
+        return;
+      }
+      if (r._kiDra && r._kiDra.drar) return;          // fingeren styrer
+      const alle = knapper(r), idx = alle.indexOf(a);
+      const forrige = r._kiSisteI;
+      const bytte = forrige != null && forrige !== idx;
+      r._kiSisteI = idx;
+      const t = na();
+      let m = modus;
+      /* Et nytt valg glir alltid, også når det er en måling (ResizeObserver, skrift) som
+         oppdager det først — ellers ble byttet brukt opp uten animasjon. */
+      if (m === "stille" && bytte) m = "glid";
+      if (m === "glid" && !bytte) m = "stille";
+      if (m === "glid" && t < (r._kiSnappTil || 0)) m = "snapp";   // bytte som følge av et slipp
+      const g = maal(a, r);
+      const gammel = [p.style.getPropertyValue("--x"), p.style.getPropertyValue("--w"), p.style.getPropertyValue("--y"), p.style.getPropertyValue("--h")].join();
+      const ny = [g.x + "px", g.w + "px", g.y + "px", g.h + "px"].join();
+      if (m === "stille") {
+        /* En korreksjon midt i en glidning skal ikke slå av overgangen (da hopper pilla
+           resten av veien) — den retter bare målet. */
+        if (t >= (r._kiAnimTil || 0)) { p.classList.toggle("stille", true); p.classList.toggle("snapp", false); }
+      } else {
+        p.classList.toggle("stille", false);
+        p.classList.toggle("snapp", m === "snapp");
+        r._kiAnimTil = t + 650;
+        clearTimeout(r._kiSnappT);
+        if (m === "snapp") r._kiSnappT = setTimeout(() => p.classList.toggle("snapp", false), 650);
+      }
+      p.classList.toggle("drar", false);
+      if (gammel !== ny) settVar(p, g);
+      const hj = hjorne(a);
+      if (p.style.borderRadius !== hj) p.style.borderRadius = hj;
+      sist[r._kiHusk] = { x: g.x, y: g.y, w: g.w, h: g.h, i: idx, snappTil: (sist[r._kiHusk] || {}).snappTil || 0 };
+      const harMaal = g.w > 0 && fontKlar;
+      r.classList.toggle("ki-pille-klar", harMaal);
+      p.classList.toggle("klar", harMaal);
+      /* Strekk i fartsretningen når pilla går til et annet valg. */
+      if (bytte && m !== "stille" && harMaal && !redusert()) {
+        if (sprett) { p.classList.remove("land"); void p.offsetWidth; p.classList.add("land"); }
+        else if (m === "glid" && p.animate) {
+          const d = Math.min(3, Math.abs(idx - (forrige == null ? idx : forrige)));
+          try {
+            p.animate([{ scale: "1 1" }, { scale: `${1 + 0.14 * d} ${1 - 0.06 * d}`, offset: 0.35 },
+              { scale: "0.98 1.02", offset: 0.7 }, { scale: "1 1" }], { duration: 520, easing: "ease-out" });
+          } catch (e) { /* uten individuelle transformer: bare glidningen */ }
         }
+      }
+    };
+
+    /* Dra og trykk. Kobles én gang per rad; pilla hentes fra r._kiPille, så den kan byttes. */
+    const koble = (r) => {
+      if (r._kiPilleKoblet) return;
+      r._kiPilleKoblet = true;
+      const knappFra = (e) => e.composedPath().find((x) => x && x.matches && x !== r && r.contains(x) && x.matches(kn));
+      const iRad = (e, d) => {
+        const q = r.getBoundingClientRect(), f = r.offsetWidth ? q.width / r.offsetWidth || 1 : 1;
+        return (e.clientX - q.left) / f - (r.clientLeft || 0) + r.scrollLeft - (d ? d.off : 0);
+      };
+      /* Teksten følger pilla: knappen under den får den aktive tekstfargen mens man drar,
+         så den er lesbar på pilla, og den forrige får den vanlige. Fjernes ved slipp. */
+      const farg = (d, j) => {
+        if (!d.g) return;
+        d.g.forEach((q, i) => {
+          /* important: noen kort (simple-tabs i ki-hjem) setter fanefargen med !important */
+          const s = q.b.style, sett = (k, v) => (v ? s.setProperty(k, v, "important") : s.removeProperty(k));
+          if (i === j) { sett("color", d.farge.paa); sett("opacity", d.farge.paaOp); }
+          else if (q.b === d.aktivKnapp) { sett("color", d.farge.av); sett("opacity", d.farge.avOp); }
+          else { sett("color", ""); sett("opacity", ""); }
+        });
+      };
+      const avfarg = (d) => { if (d && d.g) d.g.forEach((q) => { q.b.style.removeProperty("color"); q.b.style.removeProperty("opacity"); }); };
+      const avslutt = () => {
+        const d = r._kiDra; r._kiDra = null;
+        if (d) clearTimeout(d.ro);
+        const p = r._kiPille; if (p) { form(p, 1, 1); p.classList.toggle("drar", false); }
+        return d;
       };
 
-      /* Klem og strekk på fingeren. Basen flytter pilla; her legges bare formen oppå,
-         som variabler ::before leser. */
-      if (sprett) {
-        const klem = (sx, sy) => {
-          pille.style.setProperty("--sx", sx);
-          pille.style.setProperty("--sy", sy);
-        };
-        let nedX = null;
-        r.addEventListener("pointerdown", (e) => {
-          if (!e.composedPath().some((x) => x.matches && x.matches(kn))) return;
-          nedX = e.clientX;
-          klem(0.94, 0.86);
-        }, { passive: true });
-        r.addEventListener("pointermove", (e) => {
-          if (nedX === null) return;
-          const s2 = Math.min(0.13, Math.abs(e.clientX - nedX) / 420);
-          klem(1 + s2, 1 - s2 * 0.7);
-        }, { passive: true });
-        const slipp = () => { if (nedX === null) return; nedX = null; klem(1, 1); };
-        r.addEventListener("pointerup", slipp, { passive: true });
-        r.addEventListener("pointercancel", slipp, { passive: true });
-      }
+      r.addEventListener("pointerdown", (e) => {
+        if (e.button > 0 || !r._kiPille) return;
+        const b = knappFra(e);
+        if (!b) return;
+        const a = r.querySelector(kn + "." + aktiv);
+        r._kiDra = { id: e.pointerId, x0: e.clientX, y0: e.clientY, fraAktiv: b === a, drar: false,
+          lx: e.clientX, lt: na(), s: 0, j: -1, off: 0 };
+        if (sprett && !redusert()) form(r._kiPille, 0.94, 0.86);
+      });
 
-      /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
-      const mo = new MutationObserver(() => flytt(false));
-      mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"] });
-      r.addEventListener("scroll", () => flytt(true), { passive: true });
+      r.addEventListener("pointermove", (e) => {
+        const d = r._kiDra, p = r._kiPille;
+        if (!d || e.pointerId !== d.id || !p) return;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (!d.drar) {
+          if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { avslutt(); return; }   // siden rulles
+          if (Math.abs(dx) < 6) return;                                                   // skjelv er et trykk
+          /* Geometrien måles én gang: valgene pilla kan lande på, med midtpunkt og mål. */
+          d.g = knapper(r).filter((b) => !sperret(b)).map((b) => { const m = maal(b, r); return { b, c: m.x + m.w / 2, ...m }; });
+          if (!d.g.length) { avslutt(); return; }
+          d.drar = true;
+          try { r.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+          /* Tar man i pilla, holder den grepet der fingeren tok; ellers hopper den til fingeren. */
+          if (d.fraAktiv) {
+            const x = parseFloat(p.style.getPropertyValue("--x")) || 0, w = parseFloat(p.style.getPropertyValue("--w")) || 0;
+            d.off = iRad({ clientX: d.x0 }) - (x + w / 2);
+          }
+          p.classList.remove("stille", "snapp", "land");
+          p.classList.add("drar");
+          d.j = d.g.findIndex((o) => o.b.classList.contains(aktiv));
+          d.aktivKnapp = d.j >= 0 ? d.g[d.j].b : null;
+          const annen = d.g.find((o) => o.b !== d.aktivKnapp);
+          const ca = d.aktivKnapp ? getComputedStyle(d.aktivKnapp) : null, cb = annen ? getComputedStyle(annen.b) : null;
+          d.farge = { paa: ca ? ca.color : "", paaOp: ca ? ca.opacity : "", av: cb ? cb.color : "", avOp: cb ? cb.opacity : "" };
+        }
+        const g = d.g, n = g.length;
+        const raa = iRad(e, d);
+        const c = Math.max(g[0].c, Math.min(g[n - 1].c, raa));
+        const o = raa - c;
+        const gummi = o / (1 + Math.abs(o) / 40) * 0.35;           // gummistrikk i endene (maks ~14 px)
+        /* Mellom to knapper: bredde, høyde og topp glir fra den ene til den andre. */
+        let k = 0;
+        while (k < n - 2 && c > g[k + 1].c) k++;
+        const A = g[k], B = g[Math.min(n - 1, k + 1)];
+        const tt = B.c === A.c ? 0 : (c - A.c) / (B.c - A.c);
+        const w = A.w + (B.w - A.w) * tt, h = A.h + (B.h - A.h) * tt, y = A.y + (B.y - A.y) * tt;
+        const x = c + gummi - w / 2;
+        settVar(p, { x, y, w, h });
+        /* Strekk etter farten, løftet litt mens den holdes. */
+        const t = na(), v = Math.abs(e.clientX - d.lx) / Math.max(8, t - d.lt);
+        d.lx = e.clientX; d.lt = t;
+        d.s = d.s * 0.6 + Math.min(0.18, v * 0.12) * 0.4;
+        const ekstra = Math.min(0.12, Math.abs(gummi) / Math.max(20, w) * 0.8);
+        if (!redusert()) form(p, (1.04 + d.s + ekstra).toFixed(3), (1.06 - d.s * 0.55 - ekstra * 0.5).toFixed(3));
+        clearTimeout(d.ro);
+        d.ro = setTimeout(() => { if (r._kiDra === d) { d.s = 0; if (!redusert()) form(p, 1.04, 1.06); } }, 90);
+        sist[r._kiHusk] = { x, y, w, h, i: (sist[r._kiHusk] || {}).i, snappTil: 0 };
+        /* Nærmeste valg; vibrasjon når pilla krysser et nytt. */
+        let j = 0, best = Infinity;
+        g.forEach((q, i) => { const dd = Math.abs(q.c - c); if (dd < best) { best = dd; j = i; } });
+        if (j !== d.j) { d.j = j; farg(d, j); if (haptikk) KI.haptic("selection"); }
+      });
+
+      const slipp = (e) => {
+        const d = r._kiDra;
+        if (!d || e.pointerId !== d.id) return;
+        avslutt();
+        if (!d.drar) return;                  // vanlig trykk: nettleserens klikk gjør jobben
+        const t = na();
+        r._kiDraSlutt = t;
+        r._kiSnappTil = t + 450;
+        sist[r._kiHusk] = { ...(sist[r._kiHusk] || {}), snappTil: t + 450 };
+        const landPaa = e.type === "pointerup" && d.g[d.j] ? d.g[d.j].b : null;
+        if (landPaa && !landPaa.classList.contains(aktiv)) {
+          r._kiSlipper = true;
+          try { landPaa.click(); } finally { r._kiSlipper = false; }
+        }
+        avfarg(d);
+        flytt(r, "snapp");
+      };
+      r.addEventListener("pointerup", slipp);
+      r.addEventListener("pointercancel", slipp);
+      r.addEventListener("lostpointercapture", slipp);
+      /* Klikket nettleseren sender etter et drag skal ikke velge noe; bare vårt eget. */
+      r.addEventListener("click", (e) => {
+        if (r._kiSlipper) return;
+        if (na() - (r._kiDraSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+
+      /* Kortet bytter aktiv klasse selv; vi følger med. Pillas egne endringer overses. */
+      const mo = new MutationObserver((liste) => {
+        if (liste.some((m) => m.target !== r._kiPille && !(m.type === "childList" && [...m.addedNodes, ...m.removedNodes].every((x) => x === r._kiPille))))
+          flytt(r, "glid");
+      });
+      mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"], childList: true });
+      r.addEventListener("scroll", () => flytt(r, "stille"), { passive: true });
       if (window.ResizeObserver) {
-        const ro = new ResizeObserver(() => flytt(true));
+        const ro = new ResizeObserver(() => flytt(r, "stille"));
         ro.observe(r);
         /* Også hver knapp: rada kan ha samme bredde mens en fane inni vokser når
            skrifta byttes fra reservefonten. */
         for (const b of r.querySelectorAll(kn)) ro.observe(b);
       }
+    };
 
-      /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
-         ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble
-         pilla riktig først etter et fanebytte.
-         `uten` styrer om overgangen er av: FØRSTE gang skal pilla bare stå på plass,
-         men etter en ny tegning har vi en forrige posisjon å gli FRA — og da var
-         `flytt(true)` grunnen til at den hoppet i stedet. */
-      const stille = !husk;
-      requestAnimationFrame(() => {
-        /* Ett bilde etter at forrige plass er satt: nå glir den dit den skal.
-           Første gang finnes ingen forrige plass, og da settes den stille. */
-        flytt(stille);
-        requestAnimationFrame(() => flytt(stille));
-      });
-      /* De sene målingene retter bredden når skrifta er byttet. De MÅ animeres — med
-         `flytt(true)` slo 120 ms-målingen av overgangen midt i glidningen, og pilla
-         hoppet resten av veien. */
-      setTimeout(() => flytt(false), 120);
-      setTimeout(() => flytt(false), 400);
-
-      /* `av: false` betyr ingen sperret fane; utelates den, er det `tom` som før. */
-      const avKlasse = valg.av === undefined ? "tom" : valg.av;
-
-      /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
-         egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
-         haptikk som før. */
-      let ned = 0, startX = 0, drar = false;
-      r.addEventListener("pointerdown", (e) => {
-        const b = e.target.closest && e.target.closest(kn);
-        if (!b) return;
-        ned = e.clientX;
-        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
-        drar = false;
-        /* Fang pekeren med en gang. Gjorde vi det først ved bevegelse, rakk rada å
-           starte sin egen rulling, og vi mistet resten av gesten. */
-        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
-      });
-      const flyttMed = (e) => {
-        if (!ned) return;
-        const dx = e.clientX - ned;
-        if (!drar && Math.abs(dx) < 6) return;
-        drar = true;
-        pille.classList.add("drar");
-        const maks = r.scrollWidth - pille.offsetWidth - 4;
-        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
-      };
-      r.addEventListener("pointermove", flyttMed);
-      const slipp = (e) => {
-        if (!ned) return;
-        const vardrar = drar;
-        ned = 0; drar = false;
-        pille.classList.remove("drar");
-        if (!vardrar) return;
-        const rk = r.getBoundingClientRect();
-        const x = e.clientX - rk.left + r.scrollLeft;
-        let best = null, av = Infinity;
-        for (const b of r.querySelectorAll(kn)) {
-          /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
-             morgendagens priser er klare, for eksempel. Uten dette ville dra landet
-             på den, og klikket blitt avvist uten at brukeren forsto hvorfor.
-             `av: false` slår sperren av: da er den dempede fanen trykkbar, og da skal
-             den kunne dras til også — ellers gjør de to gestene ulike ting. */
-          if (b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse))) continue;
-          const m = b.offsetLeft + b.offsetWidth / 2;
-          if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
-        }
-        if (best && !best.classList.contains(aktiv)) best.click();
-        else flytt(false);
-      };
-      /* Med pekerfangst går move/up til KNAPPEN, ikke til rada — derfor må lytterne
-         ligge der også. Uten dette kom bevegelsen aldri fram. */
-      for (const b of r.querySelectorAll(kn)) {
-        b.addEventListener("pointermove", flyttMed);
-        b.addEventListener("pointerup", slipp);
-        b.addEventListener("pointercancel", slipp);
+    const oppsett = (r, i) => {
+      if (r._kiPille && r._kiPille.parentNode === r) return false;
+      r.dataset.kiPille = "1";
+      r._kiHusk = nokkel + "#" + i;
+      const p = document.createElement("span");
+      p.className = "ki-pille" + (sprett ? " sprett" : "");
+      if (valg.farge) p.style.setProperty("--ki-pille-bg", valg.farge);
+      r.insertBefore(p, r.firstChild);
+      r._kiPille = p;
+      /* En rad som er tegnet på nytt starter der den forrige pilla sto, og glir derfra. */
+      const husk = sist[r._kiHusk];
+      r._kiSisteI = undefined;
+      if (husk && husk.w) {
+        p.classList.add("stille");
+        settVar(p, husk);
+        r._kiSisteI = husk.i;
+        if (na() < (husk.snappTil || 0)) r._kiSnappTil = husk.snappTil;
       }
-      r.addEventListener("pointerup", slipp);
-      r.addEventListener("pointercancel", slipp);
+      koble(r);
+      const modus = husk && husk.w ? "glid" : "stille";
+      requestAnimationFrame(() => { flytt(r, modus); requestAnimationFrame(() => flytt(r, modus)); });
+      setTimeout(() => flytt(r, "stille"), 120);
+      setTimeout(() => flytt(r, "stille"), 400);
       return true;
+    };
+
+    const start = (sr) => {
+      const rader = [...sr.querySelectorAll(rad)];
+      if (!rader.length) return false;
+      stil(sr);
+      rader.forEach((r, i) => oppsett(r, i));
+      return true;
+    };
+
+    if (!fontKlar) document.fonts.ready.then(() => {
+      fontKlar = true;
+      const sr = vert.shadowRoot;
+      if (sr) for (const r of sr.querySelectorAll(rad)) flytt(r, "stille");
+    });
+
+    /* Kortet kan tegne rada på nytt når som helst (Lit-kort som simple-tabs gjør det ved
+       hver oppdatering, andre bruker innerHTML). Vakta setter pilla inn igjen når den
+       mangler; start() gjør ingenting når alt er på plass. */
+    const vakt = (sr) => {
+      const v = vert._kiPilleVakter || (vert._kiPilleVakter = {});
+      if (v[nokkel] || !window.MutationObserver) return;
+      v[nokkel] = new MutationObserver(() => {
+        if ([...sr.querySelectorAll(rad)].some((r) => !r._kiPille || r._kiPille.parentNode !== r)) start(sr);
+      });
+      v[nokkel].observe(sr, { childList: true, subtree: true });
     };
 
     /* Kortet bygger shadowRoot asynkront, så vi prøver til det er der. */
     let n = 0;
     const prov = () => {
-      const sr = vert && vert.shadowRoot;
+      const sr = vert.shadowRoot;
       if (sr && start(sr)) { vakt(sr); return; }
+      if (sr) vakt(sr);
       if (n++ < 60) setTimeout(prov, 50);
     };
-
-    /* Kortet kan tegne fanerada på nytt når som helst — Lit-baserte kort som
-     * simple-tabs gjør det ved hver oppdatering. Da er både pilla og lytterne våre
-     * borte, og uten dette ble de aldri satt tilbake: pilla hoppet mellom fanene i
-     * stedet for å gli, og dra virket ikke i det hele tatt.
-     *
-     * Vakta ser på hele shadowRoot og kobler på igjen når pilla mangler. `start()`
-     * gjør ingenting når alt er på plass, så det koster ikke noe å spørre.
-     */
-    const vakt = (sr) => {
-      if (vert._kiPilleVakt || !window.MutationObserver) return;
-      vert._kiPilleVakt = new MutationObserver(() => {
-        const r = sr.querySelector(rad.replace(/\\/g, ""));
-        if (r && !r.querySelector(".ki-pille")) start(sr);
-      });
-      vert._kiPilleVakt.observe(sr, { childList: true, subtree: true });
-    };
-
     prov();
   };
+  KI.segDrag = KI.pillefaner;
 })(window.KI);
 } catch (e) { console.error("ki-cards: 00-ki-base feilet", e); }
 
@@ -1169,21 +1258,28 @@ try {
         .pille.klar { opacity:1; }
         .pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
           background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
-          transform:translateX(var(--x, 0px)); width:var(--w, 0px);
+          translate:var(--x, 0px) 0; width:var(--w, 0px);
           scale:var(--sx, 1) var(--sy, 1);
-          transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1),
-            scale .24s cubic-bezier(.2,.8,.2,1);
+          transition:translate .5s cubic-bezier(.34,1.35,.64,1), width .5s cubic-bezier(.34,1.35,.64,1),
+            scale .35s cubic-bezier(.34,1.8,.64,1), opacity .2s;
           pointer-events:none; z-index:0; }
-        /* Under dra følger plasseringen fingeren uten forsinkelse, men strekken
-           (scale, en egen egenskap ved siden av transform) glattes litt — ellers
-           ville den flimret med hver pekerhendelse. */
-        .pille.drar { transition:scale .12s ease-out; }
-        /* Flytende glass: pilla strekkes i fartsretningen mens den glir, og
-           spretter lett tilbake når den lander. */
-        .pille.glid { animation:ki-pille-glid .34s cubic-bezier(.2,.8,.2,1); }
+        /* Plassering og form er to egne egenskaper (translate og scale). Lå plasseringen
+           i transform, ville strekken også skalert forflytningen, og pilla drev av sted
+           mens den ble strukket. Bevegelsen er den fra fanevelgeren i Liquid Glass (kd):
+           fjær som overskyter litt ved bytte, fingeren styrer under dra, og en stivere
+           fjær når den snapper inn etter slipp. */
+        .pille.stille { transition:opacity .2s; }
+        .pille.drar { transition:translate .12s cubic-bezier(.3,1.3,.6,1), width .12s ease-out,
+            scale .18s cubic-bezier(.2,.8,.3,1); }
+        .pille.snapp { transition:translate .55s cubic-bezier(.34,1.56,.64,1), width .55s cubic-bezier(.34,1.56,.64,1),
+            scale .45s cubic-bezier(.34,1.8,.64,1), opacity .2s; }
+        /* Strekk i fartsretningen når pilla glir til en ny fane (mer jo lenger den går),
+           og en liten landing når den ble dratt dit med fingeren. */
+        .pille.glid { animation:ki-pille-glid .52s ease-out; }
         .pille.land { animation:ki-pille-land .42s cubic-bezier(.2,.9,.25,1); }
         @keyframes ki-pille-glid {
-          0% { scale:1 1; } 40% { scale:1.12 .9; } 75% { scale:.98 1.03; } 100% { scale:1 1; } }
+          0% { scale:1 1; } 35% { scale:calc(1 + .14 * var(--d, 1)) calc(1 - .06 * var(--d, 1)); }
+          70% { scale:.98 1.02; } 100% { scale:1 1; } }
         @keyframes ki-pille-land {
           0% { scale:1.1 .9; } 45% { scale:.97 1.04; } 75% { scale:1.02 .99; } 100% { scale:1 1; } }
         .tab, .dd { position:relative; z-index:1; }
@@ -1194,9 +1290,8 @@ try {
            i øyeblikket man trykker — bare et resultat et kvart sekund senere. */
         .tab { transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
         .tab:active { transform:scale(.94); }
-        .pille.trykk { transform:translateX(var(--x, 0px)) scaleX(.97); }
         @media (prefers-reduced-motion: reduce) {
-          .pille { transition:none; scale:none; }
+          .pille, .pille.drar, .pille.snapp { transition:opacity .2s; scale:none; }
           .pille.glid, .pille.land { animation:none; }
           .tab:active { transform:none; }
         }
@@ -1640,9 +1735,20 @@ try {
         if (this._esc) document.removeEventListener("keydown", this._esc);
       }
     }
-    /* Flytter pilla til en fane. Kalles etter hver tegning og ved hvert valg. */
+    /* Flytter pilla til en fane. Kalles etter hver tegning og ved hvert valg.
+     * `uten`: en måling eller korreksjon, ingen animasjon. Et bytte glir med fjær og
+     * strekk; rett etter et slipp snapper den inn med en stivere fjær og en landing. */
     _flyttPille(i, uten = false) {
       const r = this.shadowRoot;
+      /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut som
+         en bevegelse. Vi animerer bare når målet er en annen fane — eller når pilla
+         skal snappe inn etter et slipp. */
+      const fra = this._sistePille;
+      const bytte = fra !== undefined && fra !== i;
+      this._sistePille = i;
+      const na = performance.now();
+      const snapp = na < (this._snappTil || 0);
+      if (!bytte && !snapp) uten = true;
       for (const rad of r.querySelectorAll(".tabs.pills, .spor")) {
         const pille = rad.querySelector(".pille");
         const knapp = rad.querySelector(`.tab[data-i="${i}"]`);
@@ -1651,28 +1757,24 @@ try {
            pilla. Ellers ville den blitt stående på fanen man kom fra, som om to var
            valgt samtidig. */
         if (!knapp) { pille.style.setProperty("--w", "0px"); continue; }
-        pille.classList.toggle("drar", uten);
-
-        /* Målt med getBoundingClientRect, ikke offsetLeft.
-         *
-         * `offsetLeft` måles fra forelderens KANT, mens `position:absolute; left:0`
-         * måles fra innsiden av padding-en. Rada har 1 px ramme og 2 px padding, så
-         * pilla lå tre piksler for langt til venstre — nok til at «Kalender» stakk ut
-         * på høyre side.
-         *
-         * Rektangelet tar med ramme, padding og eventuell skalering, så det stemmer
-         * uansett hva stilen gjør. */
-        /* Samme regel som i KI.pillefaner: en korreksjon av bredden skal ikke se ut
-           som en bevegelse. Vi animerer bare når målet er en annen fane. */
-        const bytte = this._sistePille !== undefined && this._sistePille !== i;
-        this._sistePille = i;
-        if (!bytte) uten = true;
-        /* Flytende glass: strekk mens den glir til en ny fane, eller en liten
-           landing når den ble dratt dit med fingeren. */
-        if (bytte && pille.animate) {
-          const klasse = this._fraDra ? "land" : (uten ? "" : "glid");
+        if (rad._dra && rad._dra.drar) continue;      // fingeren styrer
+        if (uten) {
+          /* En korreksjon midt i en glidning skal ikke slå av overgangen — da hopper
+             pilla resten av veien. Den retter bare målet. */
+          if (na >= (this._animTil || 0)) { pille.classList.add("stille"); pille.classList.remove("snapp"); }
+        } else {
+          pille.classList.remove("stille");
+          pille.classList.toggle("snapp", snapp);
+          this._animTil = na + 650;
+          clearTimeout(pille._snappT);
+          if (snapp) pille._snappT = setTimeout(() => pille.classList.remove("snapp"), 650);
+        }
+        pille.classList.remove("drar");
+        if (bytte && !uten && pille.animate) {
+          pille.style.setProperty("--d", String(Math.min(3, Math.abs(i - fra))));
           pille.classList.remove("glid", "land");
-          if (klasse) { void pille.offsetWidth; pille.classList.add(klasse); }
+          void pille.offsetWidth;
+          pille.classList.add(snapp ? "land" : "glid");
         }
 
         /* offsetLeft/offsetWidth, ikke rektangelet: det regner med transformer, og en
@@ -1685,102 +1787,135 @@ try {
       }
     }
 
-    /* Dra: pilla følger fingeren, og fanen under den blir valgt når du slipper.
+    /* Dra: bevegelsen fra fanevelgeren i Liquid Glass (kd), uten glasset.
      *
-     * Vi flytter pilla fritt mens du drar — ikke fane for fane — fordi det er det som
-     * gjør at den føles festet til fingeren. Den snapper til nærmeste fane først ved
-     * slipp. Et lite utslag teller som trykk, ikke som dra, ellers ville et vanlig
-     * trykk med litt skjelv blitt tolket som en dratt bevegelse. */
+     * Etter 6 px sidelengs følger pilla fingeren fritt — ikke fane for fane — løftet
+     * litt og strukket etter farten. Bredden glir mellom fanene den passerer, endene
+     * gir etter som en gummistrikk, og det vibrerer når den krysser en fane. Ved slipp
+     * snapper den med fjær inn på nærmeste fane, som blir valgt. Et lite utslag teller
+     * som trykk; loddrett bevegelse overlates til siden. Langt trykk åpner «Tilpass
+     * faner». */
     _koblDra(rad) {
       const pille = rad.querySelector(".pille");
-      if (!pille) return;
-      let drar = false, start = 0, startX = 0, bredde = 0;
-
-      const fanen = (klientX) => {
-        const kasse = rad.getBoundingClientRect();
-        const x = klientX - kasse.left + rad.scrollLeft;
-        let best = null, avstand = Infinity;
-        for (const b of rad.querySelectorAll(".tab[data-i]")) {
-          const midt = b.offsetLeft + b.offsetWidth / 2;
-          const d = Math.abs(midt - x);
-          if (d < avstand) { avstand = d; best = +b.dataset.i; }
-        }
-        return best;
+      if (!pille || rad._draKoblet) return;
+      rad._draKoblet = true;
+      const na = () => performance.now();
+      const redusert = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      const form = (sx, sy) => { pille.style.setProperty("--sx", sx); pille.style.setProperty("--sy", sy); };
+      /* Pekeren i radas koordinater (samme som --x), også når rada er skalert eller rullet. */
+      const iRad = (x) => {
+        const q = rad.getBoundingClientRect(), f = rad.offsetWidth ? (q.width / rad.offsetWidth) || 1 : 1;
+        return (x - q.left) / f - (rad.clientLeft || 0) + rad.scrollLeft;
       };
-
-      /* Strekken mens man drar: pilla blir bredere og lavere jo fortere fingeren går,
-         og slapper av når fingeren står stille. */
-      let sistX = 0, sistT = 0, roT = null, holdT = null;
-      const strekk = (sx, sy) => {
-        pille.style.setProperty("--sx", sx);
-        pille.style.setProperty("--sy", sy);
+      let holdT = null;
+      const avslutt = () => {
+        const d = rad._dra; rad._dra = null;
+        if (d) clearTimeout(d.ro);
+        form(1, 1); pille.classList.remove("drar");
+        return d;
       };
+      /* Teksten følger pilla mens man drar: fanen under den får den aktive fargen. */
+      const farg = (d, j) => {
+        d.g.forEach((q, idx) => {
+          q.b.style.color = idx === j ? d.paa : (q.i === this._active ? d.av : "");
+        });
+      };
+      const avfarg = (d) => { if (d && d.g) d.g.forEach((q) => { q.b.style.color = ""; }); };
 
       rad.addEventListener("pointerdown", (e) => {
+        if (e.button > 0) return;
         const b = e.target.closest && e.target.closest(".tab[data-i]");
         if (!b) return;
-        start = e.clientX;
-        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
-        bredde = pille.offsetWidth;
-        drar = false;
-        sistX = e.clientX; sistT = performance.now();
-        pille.classList.add("trykk");
+        rad._dra = { id: e.pointerId, x0: e.clientX, y0: e.clientY, fraAktiv: +b.dataset.i === this._active,
+          drar: false, lx: e.clientX, lt: na(), s: 0, j: -1, off: 0 };
+        /* Trykk: pilla synker litt med fanen, så noe skjer i det øyeblikket man trykker. */
+        if (!redusert()) form(0.97, 1);
         /* Langt trykk (uten dra) åpner «Tilpass faner». */
         clearTimeout(holdT);
         this._holdt = false;
         if (this._config.tilpass !== false) {
           holdT = setTimeout(() => {
-            if (drar || !start) return;
-            start = 0;
+            const d = rad._dra;
+            if (!d || d.drar) return;
+            avslutt();
             this._holdt = true;
-            pille.classList.remove("trykk");
             this._apneTilpass();
           }, 600);
         }
       });
 
       rad.addEventListener("pointermove", (e) => {
-        if (!start) return;
-        const dx = e.clientX - start;
-        if (!drar && Math.abs(dx) < 6) return;      // skjelv er ikke en dra
-        if (!drar) clearTimeout(holdT);
-        drar = true;
-        pille.classList.remove("trykk", "glid", "land");
-        pille.classList.add("drar");
-        const maks = rad.scrollWidth - bredde - 4;
-        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
-        const na = performance.now();
-        const fart = Math.abs(e.clientX - sistX) / Math.max(8, na - sistT);   // px per ms
-        sistX = e.clientX; sistT = na;
-        const s = Math.min(0.16, fart * 0.1);
-        strekk((1 + s).toFixed(3), (1 - s * 0.55).toFixed(3));
-        clearTimeout(roT);
-        roT = setTimeout(() => strekk(1, 1), 90);
-        rad.setPointerCapture && e.pointerId !== undefined
-          && rad.setPointerCapture(e.pointerId);
+        const d = rad._dra;
+        if (!d || e.pointerId !== d.id) return;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (!d.drar) {
+          if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { clearTimeout(holdT); avslutt(); return; }
+          if (Math.abs(dx) < 6) return;                 // skjelv er ikke en dra
+          clearTimeout(holdT);
+          const kant = rad.clientLeft || 0;
+          d.g = [...rad.querySelectorAll(".tab[data-i]")].filter((b) => b.offsetWidth > 0)
+            .map((b) => ({ b, i: +b.dataset.i, w: b.offsetWidth, c: b.offsetLeft - kant + b.offsetWidth / 2 }));
+          if (!d.g.length) { avslutt(); return; }
+          d.drar = true;
+          try { rad.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+          /* Tar man i pilla, holder den grepet der fingeren tok; ellers hopper den til fingeren. */
+          if (d.fraAktiv) {
+            const x = parseFloat(pille.style.getPropertyValue("--x")) || 0;
+            d.off = iRad(d.x0) - (x + pille.offsetWidth / 2);
+          }
+          pille.classList.remove("stille", "snapp", "glid", "land");
+          pille.classList.add("drar");
+          d.j = d.g.findIndex((o) => o.i === this._active);
+          const a = d.g[d.j], annen = d.g.find((o) => o.i !== this._active);
+          d.paa = a ? getComputedStyle(a.b).color : "";
+          d.av = annen ? getComputedStyle(annen.b).color : "";
+        }
+        const g = d.g, n = g.length;
+        const raa = iRad(e.clientX) - d.off;
+        const c = Math.max(g[0].c, Math.min(g[n - 1].c, raa));
+        const o = raa - c;
+        const gummi = o / (1 + Math.abs(o) / 40) * 0.35;      // gummistrikk i endene (maks ~14 px)
+        let k = 0;
+        while (k < n - 2 && c > g[k + 1].c) k++;
+        const A = g[k], B = g[Math.min(n - 1, k + 1)];
+        const t = B.c === A.c ? 0 : (c - A.c) / (B.c - A.c);
+        const w = A.w + (B.w - A.w) * t;
+        pille.style.setProperty("--x", (c + gummi - w / 2) + "px");
+        pille.style.setProperty("--w", w + "px");
+        /* Strekk etter farten, løftet litt mens den holdes; slapper av når fingeren står stille. */
+        const tid = na(), v = Math.abs(e.clientX - d.lx) / Math.max(8, tid - d.lt);
+        d.lx = e.clientX; d.lt = tid;
+        d.s = d.s * 0.6 + Math.min(0.18, v * 0.12) * 0.4;
+        const ekstra = Math.min(0.12, Math.abs(gummi) / Math.max(20, w) * 0.8);
+        if (!redusert()) form((1.04 + d.s + ekstra).toFixed(3), (1.06 - d.s * 0.55 - ekstra * 0.5).toFixed(3));
+        clearTimeout(d.ro);
+        d.ro = setTimeout(() => { if (rad._dra === d) { d.s = 0; if (!redusert()) form(1.04, 1.06); } }, 90);
+        /* Nærmeste fane; vibrasjon når pilla krysser en ny. */
+        let j = 0, best = Infinity;
+        g.forEach((q, idx) => { const dd = Math.abs(q.c - c); if (dd < best) { best = dd; j = idx; } });
+        if (j !== d.j) { d.j = j; farg(d, j); if (window.KI && window.KI.haptic) window.KI.haptic("selection"); }
       });
 
       const slipp = (e) => {
         clearTimeout(holdT);
-        if (!start) return;
-        clearTimeout(roT);
-        strekk(1, 1);
-        pille.classList.remove("trykk", "drar");
-        const valgt = drar ? fanen(e.clientX) : null;
-        start = 0;
-        this._fraDra = drar;
-        if (valgt !== null && valgt !== undefined && valgt !== this._active) {
-          this._select(valgt);
-        } else {
-          /* snapp tilbake — med en landing når den faktisk ble dratt */
-          this._flyttPille(this._active);
-          if (drar) { pille.classList.remove("glid", "land"); void pille.offsetWidth; pille.classList.add("land"); }
-        }
-        this._fraDra = false;
-        drar = false;
+        const d = rad._dra;
+        if (!d || e.pointerId !== d.id) return;
+        avslutt();
+        if (!d.drar) return;                          // vanlig trykk: klikket gjør jobben
+        this._draSlutt = na();
+        this._snappTil = na() + 450;
+        const valgt = e.type === "pointerup" && d.g[d.j] ? d.g[d.j].i : null;
+        if (valgt !== null && valgt !== this._active) this._select(valgt);
+        else this._flyttPille(this._active);           // fjærer tilbake
+        avfarg(d);
       };
       rad.addEventListener("pointerup", slipp);
       rad.addEventListener("pointercancel", slipp);
+      rad.addEventListener("lostpointercapture", slipp);
+      /* Klikket nettleseren sender etter et drag skal ikke også velge en fane. */
+      rad.addEventListener("click", (e) => {
+        if (na() - (this._draSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
       rad.addEventListener("scroll", () => this._flyttPille(this._active, true));
     }
 
@@ -3607,6 +3742,9 @@ class KiMediaCard extends HTMLElement {
       this._spillere = [this._valgt];
       this._bygg(); this._oppdater();
     }));
+    /* Spillervelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".vskinne"))
+      window.KI.pillefaner(this, { rad: ".vskinne", knapp: ".vskinne .vknapp2", aktiv: "valgt", av: false });
     r.querySelectorAll("[data-kilde]").forEach((b) => b.addEventListener("click", () => this._settKilde(b.dataset.kilde)));
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5094,6 +5232,10 @@ class KiVaerCard extends HTMLElement {
       </div>`;
     this.shadowRoot.querySelectorAll(".fane").forEach((b) =>
       b.addEventListener("click", () => { this._fane = b.dataset.f; this._bygget = false; this._oppdater(); }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass).
+       Kortet tegnes på nytt ved fanebytte; pilla starter der den sto og glir videre. */
+    if (window.KI && window.KI.pillefaner && faner.length > 1)
+      window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "valgt", farge: "var(--gray100)" });
     this._bygget = true;
   }
   _oppdater() {
@@ -8585,10 +8727,16 @@ try {
  * spart_dag: sensor.norgespris_besparelse_dag        spart_ar: sensor.norgespris_besparelse_ar
  * effekt: sensor.strommaler_effekt                   # «… W nå» til høyre for overskriften
  *
+ * I dag / I morgen: dag_faner: true    # to faner til høyre for overskriften; grafen viser 24 timer for valgt dag.
+ *                   dag_faner: false   # én graf med 48 timer (i dag og i morgen), uten dagvelger
+ * dag: i_dag              # dagen som vises først: i_dag | i_morgen
+ *
  * Fanerada: fane_hoyde: 40   fane_tekst: 13   haptikk: false   sprett: false (glass: false)
+ * Begge velgerne kan dras: pilla følger fingeren, strekkes i fartsretningen og fjærer inn
+ * på valget du slipper på. sprett: false = pilla glir uten strekk.
  * Uten virkning nå (godtas fortsatt): graf_forhold, bakgrunn_glod.
  */
-const KI_SP_VERSJON = "4.0.0";
+const KI_SP_VERSJON = "4.1.0";
 const KI_SP_TIME = 3600000;
 const KI_SP_ORANSJE = "oklch(0.74 0.17 55)";
 const KI_SP_TURKIS = "oklch(0.78 0.13 175)";
@@ -8601,27 +8749,37 @@ const KI_SP_STIL = `
   .kort { position:relative; border-radius:var(--ha-card-border-radius,24px); background:var(--kort-bg, var(--gray200, var(--card-background-color)));
     color:var(--gray1000, var(--primary-text-color)); padding:16px 14px 12px; overflow:hidden; box-shadow:none;
     display:flex; flex-direction:column; gap:12px; }
-  .topp { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:0 4px; }
-  .tittel { font-size:var(--tittel-str,15px); font-weight:500; }
+  .topp { display:flex; align-items:center; gap:10px; padding:0 4px; min-height:28px; }
+  .tittel { font-size:var(--tittel-str,15px); font-weight:500; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Tittelen har forrang; effekten viker (klippes) før overskriften gjør det. */
+  .topp .effektnaa { flex:0 100 auto; overflow:hidden; text-overflow:ellipsis; }
+  .topp .seg.dag { margin-left:auto; }
   .effektnaa { font-size:14px; font-weight:500; color:var(--gray600, currentColor); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
-  /* Fanerada: fylt flate uten ramme, aktiv fane i --active-big med svart tekst (ki-tabs-card-formen). */
-  .valg { display:flex; gap:0; padding:var(--fane-kant,4px); border-radius:999px; background:var(--gray200,#262629);
-    width:100%; position:relative; }
-  .valg .v { flex:1 1 0; height:var(--fane-h,32px); padding:0 6px; border-radius:999px; gap:6px;
+  /* Fanevelgerne (Totalpris/Spotpris/Norgespris og I dag/I morgen): fylt spor uten ramme, og én pille
+     i --active-big som glir mellom valgene. Pilla kan dras med fingeren (strekkes i fartsretningen,
+     gummistrikk i endene) og fjærer inn på valget du slipper på – som fanevelgeren i kd, uten glass. */
+  .seg { position:relative; display:grid; grid-template-columns:repeat(var(--n,2),minmax(0,1fr)); padding:var(--fane-kant,4px);
+    border-radius:999px; background:var(--gray200,#262629); touch-action:pan-y; user-select:none; -webkit-user-select:none;
+    isolation:isolate; -webkit-tap-highlight-color:transparent; }
+  .seg-pille { position:absolute; z-index:0; top:var(--fane-kant,4px); bottom:var(--fane-kant,4px); border-radius:999px;
+    left:calc(var(--fane-kant,4px) + var(--i,0) * (100% - 2 * var(--fane-kant,4px)) / var(--n,2));
+    width:calc((100% - 2 * var(--fane-kant,4px)) / var(--n,2)); background:var(--active-big,#ee95ff);
+    transition:left .5s cubic-bezier(.34,1.35,.64,1), transform .35s cubic-bezier(.34,1.8,.64,1); pointer-events:none; }
+  .seg.drar .seg-pille { transition:left .12s cubic-bezier(.3,1.3,.6,1), transform .18s cubic-bezier(.2,.8,.3,1); }
+  .flatt .seg-pille, .flatt .seg.drar .seg-pille { transform:none !important; }
+  .seg .v { position:relative; z-index:1; height:var(--fane-h,32px); min-width:0; padding:0 6px; border-radius:999px; gap:6px;
     font-size:var(--fane-tekst,13px); font-weight:500; line-height:1; cursor:pointer; white-space:nowrap;
-    display:flex; align-items:center; justify-content:center; color:var(--gray600,#8e8d89);
-    transition:background .18s, color .18s; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
-  .valg .v span { overflow:hidden; text-overflow:ellipsis; }
-  .valg .v ha-icon { --mdc-icon-size:var(--fane-ikon,16px); flex:none; }
-  .valg .v:hover { color:var(--gray1000,#f2f1ee); }
-  .valg .v.aktiv { background:var(--active-big,#ee95ff); color:var(--black,#000); }
-  .ramme:not(.flatt) .valg .ki-pille { background:transparent; box-shadow:none; }
-  .ramme:not(.flatt) .valg .ki-pille::before { content:""; position:absolute; inset:0; border-radius:999px;
-    background:var(--active-big,#ee95ff); transform:scale(var(--sx,1), var(--sy,1)); transform-origin:center;
-    transition:transform .34s cubic-bezier(.2,1.35,.35,1); }
-  .ramme:not(.flatt) .valg .ki-pille.land::before { animation:sp-sprett .42s cubic-bezier(.2,.9,.25,1); }
-  @keyframes sp-sprett { 0% { transform:scale(1.10,.90); } 45% { transform:scale(.97,1.04); } 75% { transform:scale(1.02,.99); } 100% { transform:scale(1,1); } }
+    display:flex; align-items:center; justify-content:center; color:var(--gray600,#8e8d89); transition:color .25s, opacity .25s; }
+  .seg .v span { overflow:hidden; text-overflow:ellipsis; }
+  .seg .v ha-icon { --mdc-icon-size:var(--fane-ikon,16px); flex:none; }
+  .seg .v:hover { color:var(--gray1000,#f2f1ee); }
+  .seg .v.aktiv { color:var(--black,#000); }
+  .seg .v.tom:not(.aktiv) { opacity:.4; }
+  .seg:focus-within .v:focus-visible { outline:2px solid var(--gray600,#8e8d89); outline-offset:-2px; }
+  /* I dag / I morgen i tittelraden: kompakt, like brede faner, like høy som tittellinja. */
+  .seg.dag { --fane-kant:3px; --fane-h:22px; --fane-tekst:12.5px; display:inline-grid; grid-template-columns:repeat(2,1fr); flex:none; }
+  .seg.dag .v { padding:0 11px; }
 
   .prisdel { display:flex; flex-direction:column; gap:14px; }
   /* Prisen nå / valgt time */
@@ -8658,9 +8816,9 @@ const KI_SP_STIL = `
 
   /* Under grafen */
   .stat { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-  .stat > div { background:var(--gray100,#1c1c1f); border-radius:16px; padding:9px 12px; }
+  .stat > div { background:var(--gray100,#1c1c1f); border-radius:16px; padding:9px 11px; }
   .stat b { display:block; font-size:16px; font-weight:500; font-variant-numeric:tabular-nums; }
-  .stat span { font-size:12px; font-weight:500; color:var(--gray600,#8e8d89); }
+  .stat span { display:block; font-size:12px; font-weight:500; color:var(--gray600,#8e8d89); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .vindu { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:400; padding:10px 12px; border-radius:16px; background:var(--gray100,#1c1c1f); }
   .vindu b { font-weight:500; }
   .vindu ha-icon { --mdc-icon-size:19px; color:${KI_SP_TURKIS}; flex:none; }
@@ -8703,7 +8861,7 @@ class KiStromprisCard extends HTMLElement {
     const el = this.shadowRoot && this.shadowRoot.querySelector(".effektnaa");
     const v = this._num(this._c.effekt);
     if (!el) return;
-    el.textContent = v === null ? "" : `${kiSpNf(v, 0)} W nå`;
+    el.textContent = v === null ? "" : `${kiSpNf(v, 0)} W${this._dagFaner() ? "" : " nå"}`;
   }
 
   _st(id) { return (this._h && id && typeof id === "string" && this._h.states[id]) || null; }
@@ -8890,6 +9048,16 @@ class KiStromprisCard extends HTMLElement {
     return { ser, MODI, modus, tot, spot, norges, alle, nn, kilde: tk };
   }
 
+  /* Dagvelgeren: på som standard. `dag_faner: false` gir den gamle grafen med 48 timer. */
+  _dagFaner() { return !this._c || this._c.dag_faner !== false; }
+  _dagNaa() { return this._dag || (this._c && this._c.dag === "i_morgen" ? "i_morgen" : "i_dag"); }
+  /* Utsnittet grafen viser: 24 timer for valgt dag, eller alle 48. */
+  _vindu() {
+    if (!this._dagFaner()) return { off: 0, N: 48, morgen: false };
+    const morgen = this._dagNaa() === "i_morgen";
+    return { off: morgen ? 24 : 0, N: 24, morgen };
+  }
+
   /* Hode + graf. Tegnes på nytt ved dra, men da byttes bare tekst og posisjoner (se _oppdaterGraf). */
   _prisdel(m) {
     const c = this._c, H = kiSpKlamp(Number(c.hoyde) || 150, 80, 400);
@@ -8897,8 +9065,15 @@ class KiStromprisCard extends HTMLElement {
     const { modus, tot, spot, norges, alle } = m;
     const nf = (v) => kiSpNf(v, 2);
     const enhet = c.enhet || "kr/kWh";
+    const { off, N, morgen } = this._vindu(); this._N = N;
+    const dagvis = N === 24;
+    const utsnitt = (arr) => arr.slice(off, off + N);
+    const vAlle = utsnitt(alle), vTot = utsnitt(tot), vNorges = utsnitt(norges);
+    const naaI = morgen ? -1 : NOW_H;        /* «nå» i utsnittet; -1 = ikke i denne dagen */
+    const snittAv = (arr) => { const g = kiSpGyldig(arr); return g.length ? g.reduce((x, y) => x + y, 0) / g.length : null; };
 
-    /* Skala i øre, som på Hjem: rund opp til nærmeste 100 og legg på 100 for luft. */
+    /* Skala i øre, som på Hjem: rund opp til nærmeste 100 og legg på 100 for luft.
+       Regnes over begge dagene, så skalaen står stille når du bytter dag. */
     const ref = kiSpGyldig(modus === "norges" ? tot.concat(norges) : alle).map((v) => v * 100);
     const top = Math.ceil(Math.max(0, ...ref) / 100) * 100 + 100;
     const bunn = Math.min(0, Math.floor(Math.min(0, ...ref) / 50) * 50);
@@ -8911,37 +9086,54 @@ class KiStromprisCard extends HTMLElement {
       if (start !== null) ut.push(d + `L${X(arr.length)},${b}L${X(start)},${b}Z`); return ut.join("") || `M0,${H}`; };
     const terskel = Number(modus === "spot" ? (c.terskel_spot ?? 1.2) : (c.terskel ?? 2.0));
     const thrA = kiSpKlamp((Y(terskel) - 8) / H, 0, 1), thrB = kiSpKlamp((Y(terskel) + 8) / H, 0, 1);
-    let sel = this._valgt ?? NOW_H; if (alle[sel] === null || alle[sel] === undefined) sel = NOW_H;
-    const selV = alle[sel];
+    const valgt = this._valgt !== null && this._valgt < N ? this._valgt : null;
+    let sel = valgt ?? naaI; if (sel >= 0 && (vAlle[sel] === null || vAlle[sel] === undefined)) sel = naaI;
+    const selV = sel >= 0 ? vAlle[sel] : null;
     const dyr = selV !== null && selV !== undefined && selV > terskel;
     const synlig = selV !== null && selV !== undefined;
     const selTop = ((synlig ? Y(selV) : H) / H) * 100;
-    const venstre = ((sel + 0.5) / 48) * 100;
+    const venstre = ((Math.max(0, sel) + 0.5) / N) * 100;
 
     /* Hodet */
     const slot = (i) => `${i >= 24 ? "I morgen" : "I dag"} kl. ${kiSpHh(i % 24)}–${kiSpHh((i + 1) % 24)}`;
+    const billigst = (arr, fra) => { let b = null; arr.forEach((v, h) => { if (v !== null && v !== undefined && h >= fra && (!b || v < b[0])) b = [v, h]; }); return b; };
+    const billigTekst = (b) => (b ? `Billigst kl. ${kiSpHh(b[1] % 24)} · ${nf(b[0])} kr` : "");
+    const sparTekst = (fra, til) => {
+      const par = tot.slice(fra, til).map((v, k) => [v, norges[fra + k]]).filter(([a, b]) => a !== null && b !== null);
+      const snitt = par.length ? par.reduce((s, [a, b]) => s + (a - b), 0) / par.length : null;
+      return snitt === null ? "" : `${snitt >= 0 ? "Sparer" : "Taper"} ca. ${nf(Math.abs(snitt))} kr/kWh mot spot`;
+    };
     let hode;
-    if (modus !== "total") {
-      const i = sel;
-      const tmrSpot = kiSpGyldig(spot.slice(24));
+    if (valgt !== null) {
+      /* Timen under fingeren */
+      const i = valgt, abs = off + i;
       let meta = "";
-      if (modus === "norges") {
-        const par = tot.slice(NOW_H).map((v, k) => [v, norges[NOW_H + k]]).filter(([a, b]) => a !== null && b !== null);
-        const snitt = par.length ? par.reduce((s, [a, b]) => s + (a - b), 0) / par.length : null;
-        if (snitt !== null) meta = `${snitt >= 0 ? "Sparer" : "Taper"} ca. ${nf(Math.abs(snitt))} kr/kWh mot spot`;
-      } else if (tmrSpot.length) meta = `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr`;
-      hode = { label: this._valgt !== null ? slot(i) : modus === "spot" ? "Spot nå" : `${m.nn} nå`, v: alle[i] !== null ? nf(alle[i]) : "–", meta };
-    } else if (this._valgt !== null) {
-      const i = this._valgt;
-      hode = { label: slot(i), v: tot[i] !== null ? nf(tot[i]) : "–",
-        meta: m.ser.norges && norges[i] !== null ? `${m.nn} ${nf(norges[i])} kr` : i < NOW_H ? "Tidligere i dag" : "" };
+      if (modus === "total") meta = m.ser.norges && vNorges[i] !== null ? `${m.nn} ${nf(vNorges[i])} kr` : abs < NOW_H ? "Tidligere i dag" : "";
+      else if (modus === "norges") meta = vTot[i] !== null && vTot[i] !== undefined ? `Spot totalpris ${nf(vTot[i])} kr` : "";
+      else meta = abs < NOW_H ? "Tidligere i dag" : "";
+      if (!dagvis && modus !== "total") {
+        /* 48-timersvisningen: samme tekst som før */
+        const tmrSpot = kiSpGyldig(spot.slice(24));
+        meta = modus === "norges" ? sparTekst(NOW_H, 48) : tmrSpot.length ? `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr` : "";
+      }
+      hode = { label: slot(abs), v: vAlle[i] !== null && vAlle[i] !== undefined ? nf(vAlle[i]) : "–", meta };
+    } else if (morgen) {
+      /* I morgen uten valgt time: snittet for dagen og billigste time */
+      const sn = snittAv(vAlle);
+      hode = { label: sn === null ? "I morgen" : "I morgen snitt", v: sn === null ? "–" : nf(sn),
+        meta: sn === null ? "" : modus === "norges" ? (sparTekst(24, 48) || billigTekst(billigst(vAlle, 0))) : billigTekst(billigst(vAlle, 0)) };
+    } else if (modus !== "total") {
+      let meta = "";
+      if (modus === "norges") meta = sparTekst(NOW_H, dagvis ? 24 : 48);
+      else if (dagvis) meta = billigTekst(billigst(vAlle, NOW_H + 1));
+      else { const tmrSpot = kiSpGyldig(spot.slice(24)); if (tmrSpot.length) meta = `Snitt i morgen ${nf(tmrSpot.reduce((x, y) => x + y, 0) / tmrSpot.length)} kr`; }
+      hode = { label: modus === "spot" ? "Spot nå" : `${m.nn} nå`, v: alle[NOW_H] !== null && alle[NOW_H] !== undefined ? nf(alle[NOW_H]) : "–", meta };
     } else {
-      let fut = tot.map((p, h) => [p, h]).filter(([p, h]) => p !== null && h > NOW_H && h < 24);
-      if (!fut.length) fut = tot.map((p, h) => [p, h]).filter(([p, h]) => p !== null && h > NOW_H);
-      const billig = fut.length ? fut.reduce((a, x) => (x[0] < a[0] ? x : a)) : null;
+      let b = billigst(tot.slice(0, 24), NOW_H + 1);
+      if (!b && !dagvis) b = billigst(tot, NOW_H + 1);
       const egen = this._num(c.spot_naa);
       const naa = egen !== null ? egen : tot[NOW_H];
-      hode = { label: "Nå", v: naa !== null && naa !== undefined ? nf(naa) : "–", meta: billig ? `Billigst kl. ${kiSpHh(billig[1] % 24)} · ${nf(billig[0])} kr` : "" };
+      hode = { label: "Nå", v: naa !== null && naa !== undefined ? nf(naa) : "–", meta: billigTekst(b) };
     }
 
     /* Forklaringen over grafen */
@@ -8956,8 +9148,11 @@ class KiStromprisCard extends HTMLElement {
 
     const yl = Array.from({ length: 5 }, (_, i) => Math.round(top - (i * (top - bunn)) / 4));
     const grid = Array.from({ length: 5 }, (_, i) => (i * H) / 4);
-    const timer = [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44];
-    const imorgenTom = !kiSpGyldig(alle.slice(24)).length;
+    const timer = dagvis ? [0, 4, 8, 12, 16, 20, 24] : [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44];
+    const W = N * 10;
+    let venter = "";
+    if (dagvis) { if (!kiSpGyldig(vAlle).length) venter = morgen ? "Kommer ca. kl. 13" : "Venter på priser"; }
+    else if (!kiSpGyldig(alle.slice(24)).length) venter = "Kommer ca. kl. 13";
     const g = this._gid;
     const bg = "var(--kort-bg, var(--gray200, #262629))";
 
@@ -8965,11 +9160,11 @@ class KiStromprisCard extends HTMLElement {
         <div><div class="etikett">${kiSpEsc(hode.label)}</div><div class="tall">${kiSpEsc(hode.v)}<small>${kiSpEsc(enhet)}</small></div></div>
         <div class="meta">${kiSpEsc(hode.meta)}</div></div>
       <div class="graf">${forkl}
-        <div class="dager"><span>I dag</span><span>I morgen</span></div>
+        ${dagvis ? "" : `<div class="dager"><span>I dag</span><span>I morgen</span></div>`}
         <div class="rad">
           <div class="yakse" style="height:${H}px">${yl.map((y) => `<span>${y}</span>`).join("")}</div>
           <div class="flate" style="height:${H}px">
-            <svg viewBox="0 0 480 ${H}" preserveAspectRatio="none" aria-label="Strømpris time for time">
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Strømpris time for time">
               <defs>
                 <linearGradient id="${g}-s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${H}">
                   <stop offset="0" stop-color="${KI_SP_ORANSJE}"/><stop offset="${thrA}" stop-color="${KI_SP_ORANSJE}"/>
@@ -8978,20 +9173,20 @@ class KiStromprisCard extends HTMLElement {
                   <stop offset="0" stop-color="${KI_SP_ORANSJE}" stop-opacity=".28"/><stop offset="${thrA}" stop-color="${KI_SP_ORANSJE}" stop-opacity=".12"/>
                   <stop offset="${thrB}" stop-color="${KI_SP_TURKIS}" stop-opacity=".14"/><stop offset="1" stop-color="${KI_SP_TURKIS}" stop-opacity="0"/></linearGradient>
               </defs>
-              ${grid.map((y) => `<line x1="0" x2="480" y1="${y}" y2="${y}" stroke="var(--gray1000,#fff)" stroke-opacity=".07" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("")}
-              <line x1="240" x2="240" y1="0" y2="${H}" stroke="var(--gray1000,#fff)" stroke-opacity=".22" stroke-width="1" vector-effect="non-scaling-stroke"/>
-              <path d="${flate(alle)}" fill="url(#${g}-f)"/>
-              ${modus === "norges" && m.ser.total ? `<path d="${trapp(tot)}" fill="none" stroke="var(--gray1000,#fff)" stroke-opacity=".4" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>` : ""}
-              <path d="${trapp(alle)}" fill="none" stroke="url(#${g}-s)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-              <rect x="0" y="0" width="${NOW_H * 10}" height="${H}" style="fill:${bg}" opacity=".5"/>
+              ${grid.map((y) => `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--gray1000,#fff)" stroke-opacity=".07" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join("")}
+              ${dagvis ? "" : `<line x1="240" x2="240" y1="0" y2="${H}" stroke="var(--gray1000,#fff)" stroke-opacity=".22" stroke-width="1" vector-effect="non-scaling-stroke"/>`}
+              <path d="${flate(vAlle)}" fill="url(#${g}-f)"/>
+              ${modus === "norges" && m.ser.total ? `<path d="${trapp(vTot)}" fill="none" stroke="var(--gray1000,#fff)" stroke-opacity=".4" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>` : ""}
+              <path d="${trapp(vAlle)}" fill="none" stroke="url(#${g}-s)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+              ${naaI > 0 ? `<rect x="0" y="0" width="${naaI * 10}" height="${H}" style="fill:${bg}" opacity=".5"/>` : ""}
             </svg>
-            ${imorgenTom ? `<div class="venter">Kommer ca. kl. 13</div>` : ""}
-            <span class="band" style="left:${((sel / 48) * 100).toFixed(3)}%;width:${(100 / 48).toFixed(3)}%"></span>
+            ${venter ? `<div class="venter" style="left:${dagvis ? 50 : 75}%">${kiSpEsc(venter)}</div>` : ""}
+            <span class="band" style="left:${((Math.max(0, sel) / N) * 100).toFixed(3)}%;width:${(100 / N).toFixed(3)}%;display:${synlig ? "block" : "none"}"></span>
             <span class="halo" style="left:${venstre.toFixed(3)}%;top:${selTop.toFixed(2)}%;background:color-mix(in oklch, ${dyr ? KI_SP_ORANSJE : KI_SP_TURKIS} 30%, transparent);display:${synlig ? "block" : "none"}"></span>
             <span class="prikk" style="left:${venstre.toFixed(3)}%;top:${selTop.toFixed(2)}%;background:${dyr ? KI_SP_ORANSJE : KI_SP_TURKIS};display:${synlig ? "block" : "none"}"></span>
           </div>
         </div>
-        <div class="xakse">${timer.map((h) => `<span class="${h === 24 ? "midnatt" : ""}" style="left:${((h / 48) * 100).toFixed(3)}%">${kiSpHh(h % 24)}</span>`).join("")}</div>
+        <div class="xakse">${timer.map((h) => `<span class="${!dagvis && h === 24 ? "midnatt" : ""}" style="left:${((h / N) * 100).toFixed(3)}%">${kiSpHh(dagvis ? h : h % 24)}</span>`).join("")}</div>
       </div>`;
   }
 
@@ -9000,7 +9195,7 @@ class KiStromprisCard extends HTMLElement {
   _skrubb() {
     const g = this.shadowRoot.querySelector(".flate"); if (!g || g._k) return; g._k = 1;
     const finn = (e) => { const b = g.getBoundingClientRect(); if (!b.width) return;
-      const i = kiSpKlamp(Math.floor(((e.clientX - b.left) / b.width) * 48), 0, 47);
+      const N = this._N || 48, i = kiSpKlamp(Math.floor(((e.clientX - b.left) / b.width) * N), 0, N - 1);
       if (i !== this._valgt) { this._valgt = i; this._oppdaterGraf(); } };
     const slutt = () => { if (this._valgt !== null) { this._valgt = null; this._oppdaterGraf(); } };
     let start = null, aktiv = false, tid = null;
@@ -9053,11 +9248,17 @@ class KiStromprisCard extends HTMLElement {
     const fhPille = Math.max(16, fhRa - fhKant * 2);
     const fhTekst = Number(c.fane_tekst) || Math.max(11, Math.min(15, Math.round(fhPille * 0.42)));
     const fhStil = `--fane-kant:${fhKant}px;--fane-h:${fhPille}px;--fane-tekst:${fhTekst}px;--fane-ikon:${Math.round(fhTekst * 1.25)}px`;
-    const valg = m.MODI.length > 1 ? `<div class="valg" style="${fhStil}">${m.MODI.map(([k, navn, ikon]) =>
-      `<span class="v ${m.modus === k ? "aktiv" : ""}" data-m="${k}" role="button" tabindex="0"><ha-icon icon="${ikon}"></ha-icon><span>${kiSpEsc(navn)}</span></span>`).join("")}</div>` : "";
+    const valg = m.MODI.length > 1 ? this._segHTML("modus", m.MODI.map(([k, navn, ikon]) => [k, navn, ikon]), m.modus, "valg", fhStil) : "";
 
-    const topp = c.vis_tittel === false ? "" : `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${
-      effekt !== null ? `<span class="effektnaa">${kiSpNf(effekt, 0)} W nå</span>` : ""}</div>`;
+    /* Tittelraden: overskriften til venstre, I dag / I morgen til høyre på samme linje. */
+    const dagFaner = this._dagFaner(), vin = this._vindu();
+    const harMorgen = kiSpGyldig(m.alle.slice(24)).length > 0;
+    const dager = dagFaner ? this._segHTML("dag", [["i_dag", "I dag"], ["i_morgen", "I morgen", null, !harMorgen]], this._dagNaa(), "dag", "") : "";
+    /* Med dagvelgeren i samme rad er det trangt: «1 155 W» uten «nå». */
+    const effektHtml = effekt !== null ? `<span class="effektnaa">${kiSpNf(effekt, 0)} W${dagFaner ? "" : " nå"}</span>` : "";
+    const topp = c.vis_tittel === false
+      ? (dager ? `<div class="topp" style="justify-content:flex-end">${dager}</div>` : "")
+      : `<div class="topp"><span class="tittel">${kiSpEsc(c.tittel)}</span>${effektHtml}${dager}</div>`;
     const kortStil = c.bakgrunn ? `--kort-bg:${kiSpEsc(c.bakgrunn)}` : "";
 
     if (!m.ser.total && !m.ser.spot && !m.ser.norges) {
@@ -9068,17 +9269,18 @@ class KiStromprisCard extends HTMLElement {
     let under = "";
     if (!c.enkel) {
       const NOW_H = new Date().getHours();
-      const idag = kiSpGyldig(m.alle.slice(0, 24));
+      const dagOff = vin.morgen ? 24 : 0;
+      const idag = kiSpGyldig(m.alle.slice(dagOff, dagOff + 24));
       if (c.vis_stat !== false && idag.length) {
         const snitt = idag.reduce((a, b) => a + b, 0) / idag.length;
-        under += `<div class="stat"><div><b>${kiSpNf(snitt)}</b><span>snitt i dag</span></div>
+        under += `<div class="stat"><div><b>${kiSpNf(snitt)}</b><span>snitt ${vin.morgen ? "i morgen" : "i dag"}</span></div>
           <div><b style="color:${KI_SP_TURKIS}">${kiSpNf(Math.min(...idag))}</b><span>lavest</span></div>
           <div><b style="color:${KI_SP_ORANSJE}">${kiSpNf(Math.max(...idag))}</b><span>høyest</span></div></div>`;
       }
       const n = Math.max(1, Number(c.vindu) || 3);
       if (c.vis_vindu !== false) {
         let best = -1, bestSum = Infinity;
-        for (let i = NOW_H; i + n <= 48; i++) {
+        for (let i = vin.morgen ? 24 : NOW_H; i + n <= 48; i++) {
           const bit = m.alle.slice(i, i + n); if (bit.some((v) => v === null || v === undefined)) continue;
           const s = bit.reduce((a, b) => a + b, 0); if (s < bestSum) { bestSum = s; best = i; }
         }
@@ -9107,26 +9309,116 @@ class KiStromprisCard extends HTMLElement {
   }
 
   /* Av-bryteren. `sprett: false` er navnet nå; `glass: false` godtas fortsatt. */
-  _stille() { const c = this._c || {}; return c.sprett === false || c.glass === false; }
+  _stille() { const c = this._c || {}; return c.sprett === false || c.glass === false ||
+    (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches); }
 
-  /* Klem og strekk. Settes som variabler på pilla, leses av ::before. */
-  _klem(sx, sy) {
-    if (this._stille()) return;
-    const p = this.shadowRoot.querySelector(".valg .ki-pille");
-    if (!p) return;
-    p.style.setProperty("--sx", sx);
-    p.style.setProperty("--sy", sy);
+  /* Fanevelger med glidende pille. items: [[verdi, tekst, ikon?, tom?]]. */
+  _segHTML(key, items, cur, klasse, stil) {
+    const n = Math.max(1, items.length), i = Math.max(0, items.findIndex((x) => x[0] === cur));
+    const attr = key === "modus" ? "m" : "d";
+    return `<div class="seg ${klasse}" data-seg="${key}" data-i="${i}" role="tablist" style="--n:${n};--i:${i};${stil}">
+      <span class="seg-pille" aria-hidden="true"></span>${items.map(([k, navn, ikon, tom], j) =>
+      `<span class="v${j === i ? " aktiv" : ""}${tom ? " tom" : ""}" data-${attr}="${k}" role="tab" aria-selected="${j === i}" tabindex="0">${
+        ikon ? `<ha-icon icon="${ikon}"></ha-icon>` : ""}<span>${kiSpEsc(navn)}</span></span>`).join("")}</div>`;
   }
 
-  _sprett() {
-    if (this._stille()) return;
-    const p = this.shadowRoot.querySelector(".valg .ki-pille");
-    if (!p) return;
-    p.style.removeProperty("--sx");
-    p.style.removeProperty("--sy");
-    p.classList.remove("land");
-    void p.offsetWidth;
-    p.classList.add("land");
+  /* Bytter fane eller dag og tegner på nytt. */
+  _velg(key, verdi, fraDrag) {
+    if (!verdi) return;
+    if (key === "modus") { if (this._m && verdi === this._m.modus) return; this._modus = verdi; }
+    else { if (verdi === this._dagNaa()) return; this._dag = verdi; }
+    if (!fraDrag) this._haptikk("selection");
+    this._valgt = null; this._tegn();
+  }
+
+  /* Dra i fanevelgeren, som i kd: pilla følger fingeren (gummistrikk forbi endene), strekkes i
+     fartsretningen mens den flyttes, og fjærer inn på valget du slipper på. Vibrerer hver gang
+     pilla passerer et nytt valg. Et vanlig trykk går via click. Kobles på hver ny rad. */
+  _segKoble(el) {
+    if (el._k) return; el._k = true;
+    const knapper = () => [...el.querySelectorAll(".v")];
+    const pille = el.querySelector(".seg-pille");
+    const idxAt = (x) => { let best = 0, bd = 1e9; knapper().forEach((b, j) => { const r = b.getBoundingClientRect(), dd = Math.abs(x - (r.left + r.width / 2)); if (dd < bd) { bd = dd; best = j; } }); return best; };
+    const merk = (j) => knapper().forEach((b, k) => b.classList.toggle("aktiv", k === j));
+    let d = null, hvile = null;
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button > 0) return;
+      d = { x0: e.clientX, y0: e.clientY, id: e.pointerId, moved: false, j: +el.dataset.i, lx: e.clientX, lt: e.timeStamp, v: 0 };
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!d || e.pointerId !== d.id || !pille) return;
+      if (!d.moved) {
+        const dx = Math.abs(e.clientX - d.x0), dy = Math.abs(e.clientY - d.y0);
+        if (dy > 10 && dy > dx) { d = null; return; }          /* loddrett: det er en scroll */
+        if (dx < 8) return;
+        d.moved = true; this._drar = true;
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* eldre nettlesere */ }
+        el.classList.add("drar");
+      }
+      const b = knapper(), w = pille.offsetWidth, r = el.getBoundingClientRect();
+      const min = b[0].offsetLeft, max = b[b.length - 1].offsetLeft;
+      let x = e.clientX - r.left - el.clientLeft - w / 2, over = 0;
+      if (x < min) over = x - min; else if (x > max) over = x - max;
+      if (over) x = (over < 0 ? min : max) + Math.sign(over) * Math.min(16, Math.abs(over) * 0.3);   /* gummistrikk */
+      const dt = Math.max(1, e.timeStamp - d.lt);
+      d.v = d.v * 0.6 + ((e.clientX - d.lx) / dt) * 0.4; d.lx = e.clientX; d.lt = e.timeStamp;
+      pille.style.left = x.toFixed(1) + "px";
+      if (!this._stille()) {
+        const st = Math.min(0.3, Math.abs(d.v) * 0.2 + Math.abs(over) * 0.004);
+        pille.style.transformOrigin = d.v >= 0 ? "35% 50%" : "65% 50%";
+        pille.style.transform = `scale(${(1.04 + st).toFixed(3)},${(1.06 - st * 0.55).toFixed(3)})`;
+        clearTimeout(hvile);
+        hvile = setTimeout(() => { if (d && d.moved) pille.style.transform = "scale(1.04,1.06)"; }, 90);
+      }
+      const j = idxAt(e.clientX);
+      if (j !== d.j) { d.j = j; this._haptikk("selection"); merk(j); }
+    });
+    const slutt = (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      const dd = d; d = null;
+      if (!dd.moved) return;
+      clearTimeout(hvile);
+      el._dragEnd = performance.now(); this._drar = false;
+      el.classList.remove("drar");
+      const i = +el.dataset.i, j = e.type === "pointercancel" ? i : idxAt(e.clientX), b = knapper()[j];
+      pille.style.transform = "";
+      if (j === i || !b) { pille.style.left = ""; merk(i); this._tegn(); return; }
+      this._segDratt = el.dataset.seg;
+      this._velg(el.dataset.seg, b.dataset.m || b.dataset.d, true);
+    };
+    el.addEventListener("pointerup", slutt);
+    el.addEventListener("pointercancel", slutt);
+  }
+
+  /* Før ny tegning: husk hvor hver pille står (også midt i en glidning eller et dra). */
+  _segHusk() {
+    this._segSist = this._segSist || {};
+    for (const el of this.shadowRoot.querySelectorAll(".seg")) {
+      const p = el.querySelector(".seg-pille"); if (!p) continue;
+      const tf = getComputedStyle(p).transform;
+      this._segSist[el.dataset.seg] = { i: +el.dataset.i, left: p.offsetLeft, tf: tf && tf !== "none" ? tf : "", dratt: this._segDratt === el.dataset.seg };
+    }
+    this._segDratt = null;
+  }
+
+  /* Etter ny tegning: raden er en ny node. Start pilla der den gamle sto og la den fjære over til
+     det nye valget; etter et trykk strekkes den i tillegg (etter dra er strekket alt vist). */
+  _segEtter() {
+    const sist = this._segSist || {};
+    for (const el of this.shadowRoot.querySelectorAll(".seg")) {
+      this._segKoble(el);
+      const s = sist[el.dataset.seg], i = +el.dataset.i, p = el.querySelector(".seg-pille");
+      if (!s || !p || s.i === i) continue;
+      p.style.transition = "none"; p.style.left = s.left + "px"; p.style.transform = s.tf;
+      void p.offsetWidth;
+      p.style.transition = ""; p.style.left = ""; p.style.transform = "";
+      if (!s.dratt && !this._stille() && p.animate) {
+        const d = Math.min(3, Math.abs(i - s.i));
+        p.animate([{ transform: "scale(1,1)" }, { transform: `scale(${1 + 0.14 * d},${1 - 0.06 * d})`, offset: 0.35 },
+          { transform: "scale(0.98,1.02)", offset: 0.7 }, { transform: "scale(1,1)" }], { duration: 520, easing: "ease-out" });
+      }
+    }
+    this._segSist = {};
   }
 
   /* Variabler som skal gjelde hele kortet. */
@@ -9140,42 +9432,19 @@ class KiStromprisCard extends HTMLElement {
 
   _koble() {
     const r = this.shadowRoot;
-    const bytt = (e) => { const el = e.composedPath().find((x) => x.dataset && x.dataset.m); if (!el) return;
-      const m = this._m ? this._m.modus : null;
-      if (el.dataset.m === m) return;
-      this._haptikk("selection");
-      this._modus = el.dataset.m; this._valgt = null; this._tegn(); this._sprett(); };
+    const bytt = (e) => {
+      const el = e.composedPath().find((x) => x.dataset && (x.dataset.m || x.dataset.d)); if (!el) return;
+      const seg = el.closest(".seg");
+      if (seg && performance.now() - (seg._dragEnd || 0) < 350) return;   /* klikket etter et dra */
+      if (el.dataset.m) this._velg("modus", el.dataset.m); else this._velg("dag", el.dataset.d);
+    };
     r.addEventListener("click", bytt);
     r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bytt(e); } });
-
-    /* Trykk og dra kjennes på pilla (klem ned, strekk under dra, sprett ved landing). */
-    let nedX = null;
-    r.addEventListener("pointerdown", (e) => {
-      if (!e.composedPath().some((x) => x.dataset && x.dataset.m)) return;
-      nedX = e.clientX;
-      this._klem(0.94, 0.86);
-    }, { passive: true });
-    r.addEventListener("pointermove", (e) => {
-      if (nedX === null) return;
-      const s2 = Math.min(0.13, Math.abs(e.clientX - nedX) / 420);
-      this._klem(1 + s2, 1 - s2 * 0.7);
-    }, { passive: true });
-    const slipp = () => { if (nedX === null) return; nedX = null; this._klem(1, 1); };
-    r.addEventListener("pointerup", slipp, { passive: true });
-    r.addEventListener("pointercancel", slipp, { passive: true });
   }
 
-  /* Glidende pille og dra på fanerada, som i faneradene ellers. MÅ kalles etter hver
-     tegning: .ramme byttes ut i sin helhet, så rada er en ny node. Slås opp på window,
-     siden kortet også skal virke alene fra /local/ uten KI. */
-  _pille() {
-    const ki = (typeof window !== "undefined" && window.KI) || null;
-    if (ki && ki.pillefaner && this.shadowRoot.querySelector(".valg")) {
-      ki.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv", av: false });
-    }
-  }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
+    if (this._drar) return;           /* ikke bytt ut rada under fingeren; tegnes når du slipper */
     let html;
     try {
       html = `<div class="ramme${this._stille() ? " flatt" : ""}" style="${this._ramStil()}">${this._innhold()}</div>`;
@@ -9189,12 +9458,13 @@ class KiStromprisCard extends HTMLElement {
       this._bygget = false; this._forrige = null;
       return;
     }
-    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; this._pille(); }
+    if (!this._bygget) { this.shadowRoot.innerHTML = `<style>${KI_SP_STIL}</style>${html}`; this._koble(); this._bygget = true; this._forrige = html; this._segSist = {}; this._segEtter(); }
     else if (html !== this._forrige) {
+      this._segHusk();
       const t = document.createElement("template"); t.innerHTML = html;
       this.shadowRoot.querySelector(".ramme").replaceWith(t.content);
       this._forrige = html;
-      this._pille();
+      this._segEtter();
     }
     this._skrubb();
   }
@@ -9213,6 +9483,7 @@ class KiStromprisCardEditor extends HTMLElement {
         modus: "Fanen som vises først", terskel: "Terskel for dyr time (kr/kWh)", terskel_spot: "Terskel for dyr spotpris (kr/kWh)",
         enhet: "Enhet bak tallet", bakgrunn: "Bakgrunnsfarge (f.eks. var(--gray100) eller #1e1e24)", maks_bredde: "Maks bredde på innholdet", spot: "Timespriser (eldre: raw_today)",
         spot_naa: "Pris nå i kr (med avgifter)", mva: "Moms på timesprisene (%)", paaslag: "Påslag (kr/kWh)", spart_dag: "Spart i dag", spart_ar: "Spart i år", effekt: "Effekt nå", tittel: "Tittel", tittel_storrelse: "Skriftstørrelse på tittelen (px)", vindu: "Timer i billigste vindu", hoyde: "Grafhøyde (px)",
+        dag_faner: "I dag / I morgen-faner (av = 48 timer i én graf)", dag: "Dagen som vises først",
         vis_tittel: "Vis tittel", enkel: "Bare faner og graf",
         fane_hoyde: "Høyde på fanerada (px)", fane_tekst: "Skriftstørrelse i fanene (px, tom = følger høyden)",
         haptikk: "Vibrasjon ved fanebytte", sprett: "Sprett i pilla ved trykk og dra",
@@ -9223,13 +9494,14 @@ class KiStromprisCardEditor extends HTMLElement {
       this.appendChild(this._f);
     }
     this._f.hass = this._h;
-    this._f.data = { vis_tittel: true, vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, haptikk: true, sprett: true, ...this._c };
+    this._f.data = { dag_faner: true, vis_tittel: true, vis_stat: true, vis_vindu: true, vis_spart: true, vis_forklaring: true, haptikk: true, sprett: true, ...this._c };
     const sensor = (name) => ({ name, selector: { entity: { domain: "sensor" } } });
     const tall = (name, o) => ({ name, selector: { number: { mode: "box", ...o } } });
     const bryter = (name) => ({ name, selector: { boolean: {} } });
     const tekst = (name) => ({ name, selector: { text: {} } });
     this._f.schema = [sensor("pris_total"), sensor("pris_spot"), sensor("pris_norges"), sensor("norgespris"), tekst("norgespris_navn"),
       { name: "modus", selector: { select: { mode: "dropdown", options: [{ value: "total", label: "Totalpris" }, { value: "spot", label: "Spotpris" }, { value: "norges", label: "Norgespris" }] } } },
+      bryter("dag_faner"), { name: "dag", selector: { select: { mode: "dropdown", options: [{ value: "i_dag", label: "I dag" }, { value: "i_morgen", label: "I morgen" }] } } },
       tall("terskel", { min: 0, max: 10, step: 0.05 }), tall("terskel_spot", { min: 0, max: 10, step: 0.05 }),
       tekst("tittel"), tall("tittel_storrelse", { min: 10, max: 40 }), bryter("vis_tittel"), bryter("enkel"),
       tekst("enhet"), tekst("bakgrunn"), tekst("maks_bredde"), tall("hoyde", { min: 80, max: 400 }),
@@ -13038,10 +13310,21 @@ try {
     }
     _u() { const K = window.KI; return (K && K.ud && this._hass) ? (K.ud(this._hass, 'ki_hjem') || {}) : {}; }
     _effCfg() { return { ...(this._config || {}), __u: this._u() }; }
+    /* «Avstand under»: margen må ligge på elementet HA legger rundt kortet (hui-card i nyere HA),
+       ellers blir den liggende inni innpakningen og flytter ingenting. */
+    _settBunn() {
+      const b = prefs(this._effCfg()).bunn;
+      const v = b ? b + 'px' : '';
+      const p = this.parentElement;
+      const mål = p && /^hui-card$|^hui-.*-card-wrapper$/.test(p.localName) ? p : this;
+      if (this._bunnMål && this._bunnMål !== mål) this._bunnMål.style.marginBottom = '';
+      this._bunnMål = mål;
+      if (mål.style.marginBottom !== v) mål.style.marginBottom = v;
+    }
     set hass(hass) {
       if (!hass || !hass.states) return; // css-swipe-card setter hass=undefined før den selv har fått hass
       this._hass = hass;
-      if (this._config) { const b = prefs(this._effCfg()).bunn; const v = b ? b + 'px' : ''; if (this.style.marginBottom !== v) this.style.marginBottom = v; }
+      if (this._config) this._settBunn();
       /* Venter på brukerens valg før første oppbygging (maks 1,5 s), ellers ble kortet
          bygget to ganger ved åpning og hoppet fra standardoppsettet til brukerens. */
       const K = window.KI;
@@ -14560,6 +14843,9 @@ class KiVanningCard extends HTMLElement {
       if (this._fane !== b.dataset.f) this._haptikk("selection");
       this._fane = b.dataset.f; this._tegn();
     }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "valgt",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 
@@ -16938,6 +17224,9 @@ class KiFremoverCard extends HTMLElement {
     r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
       this._valgt = b.dataset.f || null; this._forrige = null; this._tegn();
     }));
+    /* Kalenderfilteret: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".filtre"))
+      window.KI.pillefaner(this, { rad: ".filtre", knapp: ".filtre .filter", aktiv: "valgt" });
     r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", () => this._mer(el.dataset.e)));
   }
 }
@@ -18155,6 +18444,8 @@ try {
       firstUpdated() {
         const ki = window.KI;
         if (ki && ki.pillefaner) ki.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv", sprett: true });
+        /* Tidsvinduet på grafen (24 t / 3 d / 7 d): samme glidende pille som kan dras. */
+        if (ki && ki.pillefaner) ki.pillefaner(this, { rad: ".vindu", knapp: ".vindu button", aktiv: "aktiv", farge: "var(--kib-accent)" });
       }
 
       _faner(liste, aktiv) {
@@ -24123,6 +24414,9 @@ class KiJulCard extends HTMLElement {
     r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
       this._fane = b.dataset.f; this._forrige = null; this._tegn();
     }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".skinne"))
+      window.KI.pillefaner(this, { rad: ".skinne", knapp: ".skinne .fane", aktiv: "valgt" });
     r.querySelectorAll("[data-veksle]").forEach((el) => {
       const slaa = () => {
         /* snu med en gang – tilstanden kommer tilbake fra Home Assistant like etter */
@@ -26909,6 +27203,8 @@ class KiRuterCard extends HTMLElement {
       else if (el.dataset.a === "mer" && el.dataset.e) this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.e }, bubbles: true, composed: true })); };
     r.addEventListener("click", (e) => { const el = finn(e); if (el) { e.stopPropagation(); kjor(el); } });
     r.addEventListener("keydown", (e) => { if (e.key !== "Enter" && e.key !== " ") return; const el = finn(e); if (el) { e.preventDefault(); kjor(el); } });
+    /* Holdeplassvelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".valg", knapp: ".valg .v", aktiv: "aktiv" });
   }
   _tegn() {
     const c = this._c, h = this._h; if (!c || !h) return;
@@ -27279,6 +27575,9 @@ class KiSparingCard extends HTMLElement {
 
     for (const b of this.shadowRoot.querySelectorAll("[data-p]"))
       b.addEventListener("click", () => { this._p = b.dataset.p; this._tegn(); });
+    /* Periodevelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && this.shadowRoot.querySelector(".valg"))
+      window.KI.pillefaner(this, { rad: ".valg", knapp: ".valg button", aktiv: "aktiv" });
     for (const el of this.shadowRoot.querySelectorAll("[data-mer]"))
       el.addEventListener("click", () => this.dispatchEvent(new CustomEvent("hass-more-info",
         { detail: { entityId: el.dataset.mer }, bubbles: true, composed: true })));
@@ -28984,6 +29283,10 @@ class KiPveCard extends HTMLElement {
       <div class="kort"><div class="velg"></div><div class="innhold"></div></div>`;
     this._bygget = true;
     this._sistValgt = null;
+    /* Velgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass).
+       Knappene tegnes på nytt ved hver oppdatering; vakta i basen setter pilla inn igjen. */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".velg", knapp: ".velg button", aktiv: "valgt",
+      farge: "var(--active-small, var(--active-big))" });
   }
 
   _oppdater() {
@@ -29157,6 +29460,10 @@ class KiUnifiCard extends HTMLElement {
       <div class="kort"><div class="velg"></div><div class="innhold"></div></div>`;
     this._bygget = true;
     this._sistValgt = null;
+    /* Velgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass).
+       Knappene tegnes på nytt ved hver oppdatering; vakta i basen setter pilla inn igjen. */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".velg", knapp: ".velg button", aktiv: "valgt",
+      farge: "var(--active-small, var(--active-big))" });
   }
 
   _oppdater() {
@@ -31194,6 +31501,8 @@ class KiServerCard extends HTMLElement {
     for (const b of rot.querySelectorAll("[data-fane]")) {
       b.addEventListener("click", () => { this._fane = b.dataset.fane; this._tegn(); });
     }
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv" });
     for (const el of rot.querySelectorAll("[data-mer]")) {
       if (!el.dataset.mer) continue;
       el.addEventListener("click", (e) => {
@@ -37560,6 +37869,8 @@ try {
             `<button class="${Math.abs(snitt - v) <= 5 ? "valgt" : ""}" data-tap="preset" data-i="${i}" data-v="${v}">${v} %</button>`).join("")}</div>
         </div>`;
       }).join("");
+      /* Segmentet mellom dekkene: glidende pille som kan dras (bevegelsen fra Liquid Glass). */
+      if (seg && window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".seg", knapp: ".seg button", aktiv: "valgt" });
     }
   }
 
@@ -39898,6 +40209,7 @@ class FamilyStatusCard extends LitElement {
       <div class="backdrop ark-bak ${ut}" @click=${(e) => this._onBackdropClick(e)}>
         <div class="person-ark kd ${ut}" role="dialog" aria-modal="true" aria-label=${navn}
           @click=${(e) => e.stopPropagation()}>
+          <button class="ark-hank" aria-label="Lukk" @click=${() => this._closeDialog()}><span></span></button>
           ${this._popupEl}
         </div>
       </div>`;
@@ -41700,9 +42012,9 @@ class FamilyStatusCard extends LitElement {
       .person-ark > ki-person-card {
         display: block;
       }
-      /* KD-personarket i ki-stil: flat --gray000, 28 px topp, helt ned til bunnen av skjermen
+      /* Personarket (ki-person-card): flat --gray000, 28 px topp, helt ned til bunnen av skjermen
          (over navigasjonslinja – den skjules mens arket er oppe, se _kiPopupSignal).
-         Kortets egen topp-pille har grepet og lukkeknappen. */
+         Grepet øverst (ark-hank) lukker; kortet har ingen egen topp. */
       .backdrop.ark-bak {
         padding: calc(24px + env(safe-area-inset-top, 0px)) 0 0;
         z-index: 2147483000;
@@ -41713,11 +42025,19 @@ class FamilyStatusCard extends LitElement {
         height: calc(100vh - 52px - env(safe-area-inset-top, 0px));
         height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
         max-height: none;
-        padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 0 12px calc(16px + env(safe-area-inset-bottom, 0px));
         border-radius: 28px 28px 0 0;
         background: var(--gray000, #141416);
         color: var(--gray1000, #f2f1ee);
         box-shadow: none;
+      }
+      /* ki-person-card har ingen egen topp i arket: grepet over kortet lukker. */
+      .person-ark.kd > .ark-hank {
+        background: var(--gray000, #141416);
+        padding: 10px 0 12px;
+      }
+      .person-ark.kd > ki-person-card {
+        width: 100%;
       }
 
       /* ------------------- HURTIGPOPUPEN (ki-stil) ------------------- */
@@ -45782,6 +46102,9 @@ class KiEnergiCard extends HTMLElement {
       }
     });
 
+    /* Kroner/kWh og I dag/Måneden: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".brytere .pille", knapp: ".brytere .pille button", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 
@@ -47013,6 +47336,9 @@ class KiEnergiCard extends HTMLElement {
       </ha-card>`;
 
     this._root = this.shadowRoot;
+    /* Enkel/Avansert: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._root.addEventListener("click", (e) => this._onClick(e));
     this._root.addEventListener("change", (e) => this._onChange(e));
     this._built = true;
@@ -50961,6 +51287,11 @@ class KiK2Card extends HTMLElement {
       </ha-card>`;
 
     this._root = this.shadowRoot;
+    /* Enkel/Avansert: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".media-bytt", knapp: ".media-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._root.addEventListener("click", (e) => this._onClick(e));
     this._root.addEventListener("change", (e) => this._onChange(e));
     this._root.addEventListener("input", (e) => this._onInput(e));
@@ -52984,6 +53315,8 @@ class KiKameraCard extends HTMLElement {
         <button type="button" data-handling="kilde" data-verdi="frigate"
           class="${this._kilde === "frigate" ? "aktiv" : ""}"><ha-icon icon="mdi:history"></ha-icon>Frigate</button>
       </div>`;
+    /* Direkte/Frigate: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: "#kilde .pille", knapp: "#kilde .pille button", aktiv: "aktiv" });
 
     const faner = [];
     if (this._kilde === "frigate" && this._config.show_events !== false) {
@@ -55030,6 +55363,9 @@ class KiKlimaCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>${KiKlimaCard.styles}</style>${html}`;
     this._root = this.shadowRoot;
+    /* Enkel/Avansert: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._root.addEventListener("click", (e) => this._onClick(e));
     this._root.addEventListener("change", (e) => this._onChange(e));
     this._built = true;
@@ -56282,6 +56618,9 @@ class KiKlimaProCard extends HTMLElement {
     this._rot.addEventListener("focusout", () => {
       if (this._ventTegn) { this._ventTegn = false; setTimeout(() => this._tegn(), 250); }
     });
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygd = true;
   }
 
@@ -59039,104 +59378,261 @@ ${inner}
 /* ===== ki-person-card ===== */
 try {
 /*
- * ki-person-card — «Person» (Tilstedeværelse), samme ark som personarket i KD-dashbordet
- * (kd-person-card, fra Claude Design «Person.dc.html»), bygd på KD-basen (kd-base.js, window.KD).
- * Åpnes fra «Mobil, soner og søvn ›» i familiekortets hurtigpopup, eller alene i en bubble-card-popup.
+ * ki-person-card — «Person» (tilstedeværelse) i ki-designet: et toppkort som rom-popupens
+ * (ki-rom-hero-card), tre fliser (skritt, reist i dag, søvnscore), «Søvn i natt», «Soner i dag»
+ * og «Mobil» som ki-paneler. Åpnes fra «Mobil, soner og søvn ›» i familiekortets hurtigpopup
+ * (bunnarket gir rammen), eller alene i en bubble-card-popup.
  *
  * Sone og «siden» fra person.*, mobil og helse fra telefonens sensorer (prefiks funnet via personens
- * device_trackers, f.eks. sensor.sebastian_iphone_17_pro_*), søvnvindu og «Våknet/Sovnet» fra søvnbryteren
+ * device_trackers, f.eks. sensor.sebastian_iphone_17_pro_*), søvnvinduet fra søvnbryteren
  * (on = sover), «Soner i dag» fra personens historikk.
  *
  * type: custom:ki-person-card
- * person: sebastian            # sebastian | cybele | rune (designets personId) – eller en hvilken som helst person.*-ID
+ * person: sebastian            # sebastian | cybele | rune (tabellen under) – eller en hvilken som helst person.*-ID
  * personer: { sebastian: { navn, entity, posisjon, sovn, mobil, farge, sovn_rom } }   # overstyr/utvid tabellen
  * entity / posisjon / sovn / mobil / navn / farge / sovn_rom   # overstyr for valgt person direkte
  *   posisjon: switch/input_boolean (på = hjemme), brukes når person.* er utilgjengelig
  *   sovn:     switch/input_boolean (på = sover)
+ *   mobil:    prefikset til mobilsensorene (sensor.ola_iphone_), ellers funnet selv
  *   farge:    avatarens bakgrunn (CSS-farge) når bildet mangler
- * soner: { skole: { navn: Skole, ikon: school, farge: 'oklch(…)', bestemt: skolen } }   # nøkkel = zone-objekt-ID
- * bilde: true                  # true = bruk personens entity_picture i avataren i stedet for forbokstaven
- * header: false                # uten topp-pillen (når kortet står inne i et annet ark)
+ * soner: { skole: { navn: Skole, ikon: mdi:school, farge: '#f2b966', bestemt: skolen } }   # nøkkel = zone-objekt-ID
+ * bilde: true                  # personens entity_picture i avataren (ellers forbokstaven)
+ * header: false                # true = egen topprad med «Tilstedeværelse» og lukkeknapp
  * Mobil-sensorer (med prefiks): battery_level, battery_state, connection_type, ssid, geocoded_location, steps,
  * distance / walking_running_distance, sleep_duration, core_sleep, deep_sleep, rem_sleep, awake, sleep_score.
  */
 (() => {
-  const KD = window.KD;
-  if (!KD || customElements.get('ki-person-card')) return;
-  const { S, e, a } = KD;
-  const t = x => `<span>${e(x)}</span>`;
-  const C = { green: 'oklch(0.8 0.12 150)', blue: 'oklch(0.8 0.12 250)', purple: 'oklch(0.68 0.2 285)', amber: 'oklch(0.82 0.12 75)', pink: 'oklch(0.78 0.13 350)' };
+  if (customElements.get('ki-person-card')) return;
+  const VERSJON = '2.0.0';
+  const BAD = new Set(['unknown', 'unavailable', 'none', '', undefined, null]);
+  const esc = (v) => (v == null ? '' : String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+  const nf = (n, d = 0) => (n == null || isNaN(n) ? '–' : Number(n).toLocaleString('nb-NO', { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const hm = (d) => { d = d instanceof Date ? d : new Date(d); return isNaN(d) ? '–' : d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }); };
+  const varig = (min) => { min = Math.max(0, Math.round(min)); const h = Math.floor(min / 60), m = min % 60; return h ? (m ? `${h} t ${m} min` : `${h} t`) : `${m} min`; };
+
+  // statusfargene (hex som i ki-rom-hero-card, så de virker uten temaets variabler)
+  const C = { green: '#8fd6a0', blue: '#80c3ff', purple: '#b9a6ff', amber: '#f2b966', pink: '#f4a6c8', red: '#f47b74', gray: '#8e8d89' };
+  const SOVN_F = '#a9a4ff';
   const PERSONS = {
     sebastian: { navn: 'Sebastian', entity: 'person.sebastian_kristo_jemtland', posisjon: 'switch.sebastian_posisjon_hjemme_borte', sovn: 'switch.homey_logic_sebastian_sovn_vaken', farge: 'oklch(0.55 0.08 40)', mobil: 'sensor.sebastian_iphone_17_pro_' },
     cybele: { navn: 'Cybele', entity: 'person.cybele_kristo', posisjon: 'switch.cybele_posisjon_hjemme_borte', sovn: 'switch.homey_logic_cybele_sovn_vaken', farge: 'oklch(0.5 0.08 350)' },
     rune: { navn: 'Rune', entity: 'person.rune_jemtland', posisjon: 'switch.rune_posisjon_hjemme_borte', sovn: 'switch.homey_logic_rune_sovn_vaken', farge: 'oklch(0.5 0.05 250)' },
   };
-  // [navn, ikon, farge, bestemt form («Forlot skolen»)]
+  // [navn, ikon, farge, bestemt form]
   const ZONES = {
-    home: ['Hjemme', 'home', C.green, 'hjemmet'], not_home: ['Borte', 'logout', C.purple, 'borte'],
-    skole: ['Skole', 'school', C.amber, 'skolen'], stromstad: ['Strømstad', 'cottage', C.amber, 'Strømstad'], toten: ['Toten', 'cottage', C.amber, 'Toten'],
-    mormor: ['Mormor', 'family_home', C.pink, 'mormor'], oslo_revmatologipraksis: ['Revmatologen', 'medical_services', C.blue, 'revmatologen'], kor: ['Kor', 'music_note', C.blue, 'koret'],
+    home: ['Hjemme', 'mdi:home', C.green, 'hjemmet'], not_home: ['Borte', 'mdi:map-marker-outline', C.purple, 'borte'],
+    skole: ['Skole', 'mdi:school', C.amber, 'skolen'], stromstad: ['Strømstad', 'mdi:home-variant', C.amber, 'Strømstad'], toten: ['Toten', 'mdi:home-variant', C.amber, 'Toten'],
+    mormor: ['Mormor', 'mdi:home-heart', C.pink, 'mormor'], oslo_revmatologipraksis: ['Revmatologen', 'mdi:hospital-box-outline', C.blue, 'revmatologen'], kor: ['Kor', 'mdi:music-note', C.blue, 'koret'],
   };
+  // Material Symbols-navn fra eldre oppsett → mdi
+  const MS = { home: 'home', logout: 'map-marker-outline', school: 'school', cottage: 'home-variant', family_home: 'home-heart', medical_services: 'hospital-box-outline', music_note: 'music-note', location_on: 'map-marker', work: 'briefcase', sports_soccer: 'soccer', fitness_center: 'dumbbell', shopping_cart: 'cart' };
+  const mdi = (i) => { i = String(i || 'map-marker'); return i.includes(':') ? i : 'mdi:' + (MS[i] || i.replace(/_/g, '-')); };
   const STAGES = [['Våken', '#8e8d89'], ['Lett', 'oklch(0.72 0.1 250)'], ['Dyp', 'oklch(0.55 0.14 275)'], ['REM', 'oklch(0.75 0.13 330)']];
-  // Designets typiske natt – brukes som mal for rekkefølgen når bare fase-totalene er kjent.
+  // En typisk natt – mal for rekkefølgen når bare fase-totalene er kjent.
   const SEQ = [1, 2, 2, 1, 3, 1, 2, 1, 3, 0, 1, 3, 1, 3, 0];
   const WD = ['sø', 'ma', 'ti', 'on', 'to', 'fr', 'lø'];
   const WDL = ['søn.', 'man.', 'tir.', 'ons.', 'tor.', 'fre.', 'lør.'];
-  const slug = s => String(s || '').toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const isToday = d => new Date(d).toDateString() === new Date().toDateString();
+  const slug = (s) => String(s || '').toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const isToday = (d) => new Date(d).toDateString() === new Date().toDateString();
   const dayStart = (off = 0) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + off); return d; };
+  const CACHE = new Map();
 
-  /** Fordel N blokker på fasene etter minutter (største rest), i designets rekkefølge. */
+  /** Fordel N blokker på fasene etter minutter (største rest), i malens rekkefølge. */
   function hypnogram(mins, n = SEQ.length) {
     const tot = mins.reduce((p, q) => p + q, 0); if (!tot) return [];
-    const raw = mins.map(m => m / tot * n), cnt = raw.map(Math.floor);
+    const raw = mins.map((m) => (m / tot) * n), cnt = raw.map(Math.floor);
     let rest = n - cnt.reduce((p, q) => p + q, 0);
     raw.map((r, i) => [r - Math.floor(r), i]).sort((p, q) => q[0] - p[0]).forEach(([, i]) => { if (rest > 0) { cnt[i]++; rest--; } });
     const left = cnt.slice(), out = [];
-    for (const want of SEQ.slice(0, n)) {
-      let k = left[want] > 0 ? want : left.indexOf(Math.max(...left));
-      left[k]--; out.push(k);
-    }
+    for (const want of SEQ.slice(0, n)) { const k = left[want] > 0 ? want : left.indexOf(Math.max(...left)); left[k]--; out.push(k); }
     return out;
   }
 
-  class KiPersonCard extends KD.KDSheet {
-    static head = ['person', 'Tilstedeværelse', 'Mobil, sone og søvn'];
-    static defaults = { person: 'sebastian', personer: null, soner: null, bilde: true, sovn_rom: 'Soverom' };
-    static getStubConfig() { return { person: 'sebastian' }; }
-    /* ki-designet oppå KD-arket: temaets skrift og --gray*-flater i stedet for KD-paletten.
-       Topp-pillen (KD.sheetTopHTML) får flat --gray200 med ikonsirkel i --active-big. */
-    static get sheetCss() {
-      return `
-:host{font-family:inherit;color:var(--gray1000,#f2f1ee)}
-.kd-sheet-top{background:linear-gradient(180deg,var(--gray000,#141416) 0,var(--gray000,#141416) 72%,transparent 100%)!important}
-.kd-sheet-top .kd-grip{background:var(--gray400,rgba(250,251,252,0.3))!important}
-[data-bh="pill"]{background:var(--gray200,#262629)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:999px!important;padding:0 7px!important}
-[data-bh="sheen"],[data-bh="glow"]{display:none!important}
-[data-bh="iconwrap"],[data-bh="icon"]{width:52px!important;height:52px!important}
-[data-bh="icon"]{border-radius:50%!important;background:var(--active-big,#ee95ff)!important;color:var(--black,#000)!important}
-[data-bh="glyph"]{font-size:26px!important}
-[data-bh="title"]{font-size:16px!important;font-weight:500!important}
-[data-bh="sub"]{font-size:14px!important;font-weight:500!important;color:var(--gray1000,#f2f1ee)!important;opacity:.7}
-[data-bh="close"]{width:52px!important;height:52px!important;border-radius:50%!important;background:var(--gray100,#1c1c1f)!important}
-[data-key="kd-lay-btn"] button{background:var(--gray200,#262629)!important;box-shadow:none!important;color:var(--gray1000,#f2f1ee)!important;font-size:14px!important;height:52px!important;border-radius:999px!important}
-`;
+  const CSS = `
+    :host { display: block; font-family: inherit; color: var(--gray1000, #f2f1ee); -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; }
+    button { font: inherit; color: inherit; border: 0; padding: 0; margin: 0; background: none; cursor: pointer; }
+    ha-icon { display: inline-flex; flex: none; }
+    .wrap { display: flex; flex-direction: column; gap: 12px; }
+    .trykk { cursor: pointer; transition: transform .14s cubic-bezier(.2,1.3,.3,1); }
+    .trykk:active { transform: scale(.97); }
+    .num { font-variant-numeric: tabular-nums; }
+    .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+    /* topprad (header: true) */
+    .hode { display: flex; align-items: center; gap: 12px; padding: 4px 0 4px; }
+    .hode .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .hode .t b { font-size: 16px; font-weight: 500; }
+    .hode .t span { font-size: 14px; font-weight: 500; opacity: .7; }
+    .ring { width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      background: rgba(250,251,252,.1); border: 1px solid rgba(250,251,252,.1); color: var(--gray1000, #f2f1ee); }
+    .ring ha-icon { --mdc-icon-size: 26px; }
+    .ring.pa { background: var(--active-big, #ee95ff); border-color: transparent; color: var(--black, #000); }
+    .lukk { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--gray200, #262629); }
+    .lukk ha-icon { --mdc-icon-size: 24px; }
+
+    /* toppkortet – samme form som ki-rom-hero-card */
+    .kort { position: relative; height: 184px; border-radius: 24px; overflow: hidden; background: var(--gray200, #262629);
+      user-select: none; -webkit-user-select: none; }
+    .kort:focus-visible { outline: 2px solid var(--f); outline-offset: 2px; }
+    .topp { position: absolute; left: 18px; top: 18px; right: 84px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .navn { font-size: 14px; font-weight: 500; color: var(--gray800, #c9c7c2); max-width: 100%; }
+    .pille { height: 26px; max-width: 100%; padding: 0 10px 0 8px; border-radius: 13px; display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--f) 18%, transparent); color: var(--f); }
+    .pille ha-icon { --mdc-icon-size: 14px; }
+    .pille span { overflow: hidden; text-overflow: ellipsis; }
+    .bunn { position: absolute; left: 18px; right: 84px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .sted { font-size: 40px; font-weight: 300; letter-spacing: -.03em; line-height: 1.05; }
+    .sted.lang { font-size: 32px; }
+    .sub { font-size: 12px; color: var(--gray600, #8e8d89); }
+    .avatar { position: absolute; right: 16px; top: 16px; width: 48px; height: 48px; border-radius: 50%; }
+    .avatar .bilde { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; font-size: 20px; font-weight: 500;
+      color: var(--gray1000, #f2f1ee); background-size: cover; background-position: center; }
+    .avatar .merke { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--gray200, #262629); color: var(--f); box-shadow: 0 0 0 2px var(--gray200, #262629); }
+    .avatar .merke ha-icon { --mdc-icon-size: 13px; }
+    .bat { position: absolute; right: 16px; bottom: 16px; width: 48px; height: 92px; border-radius: 24px; background: var(--gray100, rgba(255,255,255,.08));
+      overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+    .bat i { display: block; background: color-mix(in srgb, var(--fb) 55%, transparent); transition: height .6s; }
+    .bat ha-icon { position: absolute; left: 0; right: 0; top: 10px; margin: auto; --mdc-icon-size: 16px; color: var(--gray1000, #f2f1ee); }
+
+    /* fliser */
+    .fliser { display: grid; gap: 8px; }
+    .flis { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 22px; background: var(--gray200, #262629); min-width: 0; text-align: left; }
+    .flis .v { font-size: 26px; font-weight: 300; line-height: 1; letter-spacing: -.02em; }
+    .flis .v small { font-size: 14px; font-weight: 500; opacity: .7; letter-spacing: 0; margin-left: 2px; }
+    .flis .l { font-size: 14px; font-weight: 500; opacity: .7; margin-top: 4px; }
+    /* én eller to fliser: liggende, som rom-popupens små fliser */
+    .fliser.ligg .flis { flex-direction: row; align-items: center; gap: 12px; min-height: 66px; padding: 7px 16px 7px 7px; }
+    .fliser.ligg .flis > div { min-width: 0; }
+    .fliser.ligg .flis .v { font-size: 16px; font-weight: 500; letter-spacing: 0; }
+    .fliser.ligg .flis .v small { font-size: 14px; }
+    .fliser.ligg .flis .l { margin-top: 2px; }
+
+    /* seksjoner */
+    .sek { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .sh { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 6px; }
+    .sh b { font-size: 16px; font-weight: 500; }
+    .sh span { font-size: 14px; font-weight: 500; color: var(--gray800, #c9c7c2); opacity: .9; }
+    .panel { border-radius: 24px; background: var(--gray200, #262629); }
+    .panel.pad { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* rader i paneler */
+    .rad { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 66px; padding: 7px 18px 7px 7px; text-align: left; position: relative; }
+    .rad + .rad::before { content: ""; position: absolute; top: 0; left: 71px; right: 18px; height: 1px; background: rgba(250,251,252,.06); }
+    .rad .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .rad .t b { font-size: 14px; font-weight: 500; }
+    .rad .t span { font-size: 14px; font-weight: 500; opacity: .7; }
+    .rad .h { font-size: 14px; font-weight: 500; opacity: .7; white-space: nowrap; }
+    .rad.na .h { opacity: 1; }
+    .tom { padding: 18px; font-size: 14px; font-weight: 500; opacity: .7; }
+
+    /* søvn */
+    .sov-topp { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+    .sov-tot { font-size: 40px; font-weight: 300; letter-spacing: -.03em; line-height: 1; white-space: nowrap; }
+    .sov-tot small { font-size: 14px; font-weight: 500; opacity: .7; letter-spacing: 0; }
+    .sov-pille { --f: ${C.green}; }
+    .faser { display: flex; height: 40px; gap: 2px; border-radius: 12px; overflow: hidden; }
+    .faser span { border-radius: 4px; align-self: flex-end; }
+    .forklaring { display: flex; gap: 6px 14px; flex-wrap: wrap; }
+    .forklaring span { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+    .forklaring i { width: 8px; height: 8px; border-radius: 50%; }
+    .forklaring em { font-style: normal; opacity: .7; }
+    .uke { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; height: 72px; align-items: end; }
+    .uke > div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; height: 100%; }
+    .uke .s { width: 100%; max-width: 26px; border-radius: 6px; background: rgba(250,251,252,.16); min-height: 3px; }
+    .uke .s.idag { background: var(--active-big, #ee95ff); }
+    .uke small { font-size: 12px; font-weight: 500; color: var(--gray600, #8e8d89); }
+    @media (prefers-reduced-motion: reduce) { .trykk, .bat i { transition: none; } }
+  `;
+
+  class KiPersonCard extends HTMLElement {
+    static getStubConfig(hass) {
+      const p = hass && Object.keys(hass.states).find((id) => id.startsWith('person.'));
+      return { person: p || 'sebastian' };
     }
-    render() {
-      // KD-rammen har #141416 hardkodet; bytt til temaets popup-flate
-      return super.render().replace('<div style="background:#141416;min-height:100%">', '<div style="background:var(--gray000,#141416);min-height:100%">');
+    static getConfigForm() {
+      return {
+        schema: [
+          { name: 'person', selector: { entity: { domain: 'person' } } },
+          { name: 'navn', selector: { text: {} } },
+          { type: 'expandable', name: '', title: 'Entiteter', schema: [
+            { name: 'posisjon', selector: { entity: { domain: ['switch', 'input_boolean', 'binary_sensor'] } } },
+            { name: 'sovn', selector: { entity: { domain: ['switch', 'input_boolean', 'binary_sensor'] } } },
+            { name: 'mobil', selector: { text: {} } },
+          ] },
+          { type: 'expandable', name: '', title: 'Utseende', schema: [
+            { name: 'bilde', selector: { boolean: {} } },
+            { name: 'farge', selector: { text: {} } },
+            { name: 'header', selector: { boolean: {} } },
+          ] },
+        ],
+        computeLabel: (s) => ({ person: 'Person', navn: 'Navn', posisjon: 'Hjemme/borte-bryter (reserve)', sovn: 'Søvnbryter (på = sover)',
+          mobil: 'Prefiks for mobilsensorer (f.eks. sensor.ola_iphone_)', bilde: 'Vis profilbilde', farge: 'Avatarfarge uten bilde', header: 'Egen topprad med lukkeknapp' }[s.name] || s.name),
+      };
     }
-    getCardSize() { return 14; }
+
+    setConfig(c) {
+      this.config = { person: 'sebastian', personer: null, soner: null, bilde: true, sovn_rom: 'Soverom', header: false, ...(c || {}) };
+      this._pfx = null; this._sig = null;
+      if (this._hass) this._render();
+    }
+    set hass(h) {
+      this._hass = h;
+      if (!this.config) return;
+      const sig = this._used ? [...this._used].map((id) => h.states[id]) : null;
+      if (sig && this._sig && sig.length === this._sig.length && sig.every((s, i) => s === this._sig[i])) return;
+      this._render();
+    }
+    get hass() { return this._hass; }
+    connectedCallback() {
+      clearInterval(this._timer);
+      this._timer = setInterval(() => { if (this._hass && this.config) this._render(); }, 60e3);
+      if (this._hass && this.config) this._render();
+    }
+    disconnectedCallback() { clearInterval(this._timer); }
+    getCardSize() { return 12; }
+    getGridOptions() { return { columns: 12, min_columns: 6 }; }
+
+    /* ---------- tilstand ---------- */
+    st(id) { if (!id) return undefined; if (this._used) this._used.add(id); return this._hass && this._hass.states[id]; }
+    v(id) { const s = this.st(id); return s ? s.state : ''; }
+    n(id) { const s = this.st(id); const x = s ? parseFloat(s.state) : NaN; return isNaN(x) ? null : x; }
+    at(id, attr, def) { const s = this.st(id); return s && s.attributes[attr] !== undefined ? s.attributes[attr] : def; }
+    ok(id) { const s = this.st(id); return !!s && !BAD.has(s.state); }
+    fname(id, def = '') { return this.at(id, 'friendly_name', def || id); }
+    unit(id) { return this.at(id, 'unit_of_measurement', ''); }
+    firstOk(ids) { return ids.find((id) => this.ok(id)) || null; }
+    hours(id) { const v = this.n(id); if (v == null) return null; const u = String(this.unit(id)).toLowerCase(); return u === 'min' ? v / 60 : u === 's' ? v / 3600 : u === 'h' || u === 't' ? v : v > 24 ? v / 60 : v; }
+    mins(id) { const h = this.hours(id); return h == null ? null : h * 60; }
+
+    /** Asynkrone data med hurtigbuffer: siste kjente verdi nå, nytt svar tegner kortet på nytt. */
+    cached(key, ttl, loader, def) {
+      const now = Date.now(), c = CACHE.get(key);
+      if (c && (c.pending || now - c.t < ttl)) { if (c.pending) c.waiters.add(this); return c.val !== undefined ? c.val : def; }
+      const entry = { t: now, pending: true, val: c ? c.val : undefined, waiters: new Set([this]) };
+      CACHE.set(key, entry);
+      Promise.resolve().then(loader).then((val) => { entry.val = val; }).catch((e) => { console.warn('ki-person-card', key, e); })
+        .finally(() => { entry.pending = false; entry.t = Date.now(); for (const w of entry.waiters) if (w.isConnected) w._render(); entry.waiters.clear(); });
+      return entry.val !== undefined ? entry.val : def;
+    }
+    history(ids, hours) {
+      if (!this._hass || !this._hass.callWS) return Promise.resolve({});
+      const end = new Date(), start = new Date(end - hours * 3600e3);
+      return this._hass.callWS({ type: 'history/history_during_period', start_time: start.toISOString(), end_time: end.toISOString(), entity_ids: ids, minimal_response: true, no_attributes: true, significant_changes_only: false })
+        .then((r) => { const out = {}; for (const id of ids) out[id] = ((r && r[id]) || []).map((p) => ({ t: new Date((p.lu || p.lc || 0) * 1000), v: isNaN(parseFloat(p.s)) ? p.s : parseFloat(p.s) })); return out; });
+    }
 
     /* ---------- oppslag ---------- */
     who() {
       const cfg = this.config, table = { ...PERSONS };
       for (const [k, v] of Object.entries(cfg.personer || {})) table[k] = { ...(table[k] || {}), ...(v || {}) };
-      let key = String(cfg.person || 'sebastian'), p;
-      if (key.startsWith('person.')) { p = Object.values(table).find(x => x.entity === key); if (!p) { const fn = this.fname(key, key); p = { navn: String(fn).split(' ')[0], entity: key }; } }
+      const key = String(cfg.person || 'sebastian');
+      let p;
+      if (key.startsWith('person.')) { p = Object.values(table).find((x) => x.entity === key); if (!p) p = { navn: String(this.fname(key, key)).split(' ')[0], entity: key }; }
       else p = table[key] || table.sebastian;
       p = { ...p };
-      for (const k of ['entity', 'posisjon', 'sovn', 'mobil', 'navn', 'farge']) if (cfg[k]) p[k] = cfg[k];
+      for (const k of ['entity', 'posisjon', 'sovn', 'mobil', 'navn', 'farge', 'sovn_rom']) if (cfg[k]) p[k] = cfg[k];
       p.key = slug(String(p.navn || '').split(' ')[0]) || 'person';
       p.navn = p.navn || this.fname(p.entity, p.key);
       p.farge = p.farge || 'oklch(0.5 0.05 250)';
@@ -59148,53 +59644,101 @@ try {
       const trs = this.at(p.entity, 'device_trackers', []) || [];
       for (const tr of trs) { const o = String(tr).split('.')[1]; if (o && this.st(`sensor.${o}_battery_level`)) return `sensor.${o}_`; }
       if (!this._pfx || this._pfx.k !== p.key) {
-        const id = Object.keys(this._hass ? this._hass.states : {}).find(x => x.startsWith(`sensor.${p.key}_`) && x.endsWith('_battery_level'));
+        const id = Object.keys(this._hass ? this._hass.states : {}).find((x) => x.startsWith(`sensor.${p.key}_`) && x.endsWith('_battery_level'));
         this._pfx = { k: p.key, v: id ? id.replace(/battery_level$/, '') : null };
       }
       return this._pfx.v;
     }
     zones() {
       const z = { ...ZONES };
-      for (const [k, v] of Object.entries(this.config.soner || {})) { const o = z[k] || [k, 'location_on', C.blue, k]; z[k] = [v.navn || o[0], v.ikon || o[1], v.farge || o[2], v.bestemt || v.navn || o[3]]; }
+      for (const [k, v] of Object.entries(this.config.soner || {})) { const o = z[k] || [k, 'mdi:map-marker', C.blue, k]; const w = v || {}; z[k] = [w.navn || o[0], mdi(w.ikon || o[1]), w.farge || o[2], w.bestemt || w.navn || o[3]]; }
       return z;
     }
     zoneKey(state) {
-      if (!state || KD.BAD.has(state)) return null;
+      if (!state || BAD.has(state)) return null;
       if (state === 'home' || state === 'not_home') return state;
       const states = this._hass ? this._hass.states : {};
-      const hit = Object.keys(states).find(id => id.startsWith('zone.') && (states[id].attributes.friendly_name === state || id === 'zone.' + slug(state)));
+      const hit = Object.keys(states).find((id) => id.startsWith('zone.') && (states[id].attributes.friendly_name === state || id === 'zone.' + slug(state)));
       return hit ? hit.split('.')[1] : slug(state);
     }
+    /** [navn, ikon, farge, bestemt form] */
     zoneInfo(key, state) {
       const z = this.zones();
-      if (z[key]) return z[key];
+      if (z[key]) return [z[key][0], mdi(z[key][1]), z[key][2], z[key][3]];
       const nm = this.fname('zone.' + key, state || key);
-      return [nm, 'location_on', C.blue, nm];
+      return [nm, mdi(this.at('zone.' + key, 'icon', 'mdi:map-marker')), C.blue, nm];
     }
     zoneName(key) {
       if (key === 'home') return this.fname('zone.home', 'Hjem');
       if (key === 'not_home') return '';
       return this.fname('zone.' + key, this.zoneInfo(key)[0]);
     }
-    /** tall i timer ut fra enheten */
-    hours(id) { const v = this.n(id); if (v == null) return null; const u = String(this.unit(id)).toLowerCase(); return u === 'min' ? v / 60 : u === 's' ? v / 3600 : u === 'h' || u === 't' ? v : v > 24 ? v / 60 : v; }
-    mins(id) { const h = this.hours(id); return h == null ? null : h * 60; }
-    firstOk(ids) { return ids.find(id => this.ok(id)) || null; }
 
-    /* ---------- innhold ---------- */
-    body() {
+    /* ---------- handlinger ---------- */
+    _haptic() {
+      this.dispatchEvent(new CustomEvent('haptic', { detail: 'light', bubbles: true, composed: true }));
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) { /* blokkert */ } }
+    }
+    more(id) { if (id) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); }
+    /** Lukk arket/popupen kortet står i (familiekortet overstyrer denne). */
+    closeSheet() {
+      this.dispatchEvent(new CustomEvent('kd-close', { detail: {}, bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('ki-lukk', { detail: {}, bubbles: true, composed: true }));
+      if (location.hash) history.back();
+    }
+    _klikk(ev) {
+      const el = ev.composedPath().find((x) => x instanceof HTMLElement && x.dataset && (x.dataset.more !== undefined || x.dataset.act));
+      if (!el) return;
+      ev.stopPropagation();
+      this._haptic();
+      if (el.dataset.act === 'lukk') { this.closeSheet(); return; }
+      this.more(el.dataset.more);
+    }
+
+    /* ---------- tegning ---------- */
+    _render() {
+      if (!this._hass || !this.config) return;
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: 'open' });
+        this.shadowRoot.addEventListener('click', (e) => this._klikk(e));
+        this.shadowRoot.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.more !== undefined && e.target.tagName !== 'BUTTON') { e.preventDefault(); this._klikk(e); } });
+      }
+      this._used = new Set();
+      let html;
+      try { html = this._body(); } catch (e) { console.error('ki-person-card', e); html = `<div class="panel tom">Personkortet feilet: ${esc(e.message)}</div>`; }
+      this._sig = [...this._used].map((id) => this._hass.states[id]);
+      if (html !== this._html) { this._html = html; this.shadowRoot.innerHTML = `<style>${CSS}</style>${html}`; }
+    }
+
+    _body() {
       const cfg = this.config, p = this.who(), px = p.prefix || 'sensor.__none_';
       const pst = this.st(p.entity);
-      const useSwitch = (!pst || KD.BAD.has(pst.state)) && this.ok(p.posisjon);
+      const useSwitch = (!pst || BAD.has(pst.state)) && this.ok(p.posisjon);
       const state = useSwitch ? (this.v(p.posisjon) === 'on' ? 'home' : 'not_home') : pst ? pst.state : '';
       const zkey = this.zoneKey(state);
-      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'location_off', 'var(--gray600, #8e8d89)', ''];
+      const [zl, zi, zc] = zkey ? this.zoneInfo(zkey, state) : ['Ukjent', 'mdi:map-marker-off', C.gray, ''];
       const since = useSwitch ? (this.st(p.posisjon) || {}).last_changed : pst && pst.last_changed;
       const geo = this.at(px + 'geocoded_location', 'Locality') ? this.st(px + 'geocoded_location').attributes : {};
-      const place = zkey === 'home' ? (geo.Locality || this.fname('zone.home', '')) : zkey === 'not_home' ? (geo['Sub Locality'] || geo.Locality || '') : zkey ? this.zoneName(zkey) : '';
       const sinceD = since ? new Date(since) : null;
-      const sinceTxt = sinceD && !isNaN(sinceD) ? `${zl} siden ${isToday(sinceD) ? '' : WDL[sinceD.getDay()] + ' '}${KD.hm(sinceD)}${zkey === 'not_home' && geo.Locality ? ` · ${geo.Locality}` : ''}` : '';
-      const away = zkey !== 'home';
+      const sinceTxt = sinceD && !isNaN(sinceD) ? `siden ${isToday(sinceD) ? '' : WDL[sinceD.getDay()] + ' '}${hm(sinceD)}` : '';
+      const sover = this.v(p.sovn) === 'on';
+
+      // hvor – stort sted nederst, status i pillen
+      let sted, pille;
+      if (zkey === 'home') {
+        const hn = this.fname('zone.home', '');
+        sted = geo.Locality || (hn && !/^(home|hjem)$/i.test(hn) ? hn : 'Hjemme');
+        pille = ['mdi:home', 'Hjemme', C.green];
+      } else if (zkey === 'not_home') {
+        const sub = geo['Sub Locality'], loc = geo.Locality;
+        sted = sub || loc || (this.ok(px + 'geocoded_location') ? String(this.v(px + 'geocoded_location')).split(/\n|,/)[0] : 'Ukjent sted');
+        pille = ['mdi:map-marker-outline', 'Borte' + (sub && loc && sub !== loc ? ' · ' + loc : ''), C.purple];
+      } else if (zkey) {
+        const zn = this.zoneName(zkey);
+        sted = zn && zn !== zl ? zn : (geo.Locality || zl);
+        pille = [zi, zl, zc];
+      } else { sted = '–'; pille = ['mdi:map-marker-off', 'Ukjent', C.gray]; }
+      if (sover) pille = ['mdi:sleep', zkey && zkey !== 'home' ? 'Sover · borte' : 'Sover', SOVN_F];
 
       // aktivitet
       const steps = this.n(px + 'steps');
@@ -59206,7 +59750,7 @@ try {
 
       // søvn
       const stIds = [px + 'awake', px + 'core_sleep', px + 'deep_sleep', px + 'rem_sleep'];
-      const stMin = stIds.map(id => this.mins(id));
+      const stMin = stIds.map((id) => this.mins(id));
       let dur = this.hours(px + 'sleep_duration');
       if (dur == null && stMin[1] != null && stMin[2] != null && stMin[3] != null) dur = (stMin[1] + stMin[2] + stMin[3]) / 60;
       const logH = this.cached(`ki-person-log|${p.entity}|${p.sovn}|${pst && pst.last_changed}|${(this.st(p.sovn) || {}).last_changed}|${dayStart().getTime()}`, 5 * 60e3,
@@ -59214,28 +59758,28 @@ try {
       if (logH) this._logH = logH;
       const H = this._logH || {};
       // søvnvinduet: siste periode bryteren var «on»
-      const sw = (H[p.sovn] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
+      const sw = (H[p.sovn] || []).filter((x) => typeof x.v === 'string' && !BAD.has(x.v));
       let win = null;
-      for (let i = 0; i < sw.length; i++) if (sw[i].v === 'on' && (i === 0 || sw[i - 1].v !== 'on')) { const end = sw.slice(i + 1).find(x => x.v !== 'on'); win = [sw[i].t, end ? end.t : null]; }
-      if (!win && this.v(p.sovn) === 'on') { const lc = (this.st(p.sovn) || {}).last_changed; if (lc) win = [new Date(lc), null]; }
+      for (let i = 0; i < sw.length; i++) if (sw[i].v === 'on' && (i === 0 || sw[i - 1].v !== 'on')) { const end = sw.slice(i + 1).find((x) => x.v !== 'on'); win = [sw[i].t, end ? end.t : null]; }
+      if (!win && sover) { const lc = (this.st(p.sovn) || {}).last_changed; if (lc) win = [new Date(lc), null]; }
       if (dur == null && win) dur = ((win[1] || new Date()) - win[0]) / 3600e3;
       const totMin = dur != null ? Math.round(dur * 60) : null;
-      const haveStages = stMin.every(x => x != null);
+      const haveStages = stMin.every((x) => x != null);
       const seq = haveStages ? hypnogram(stMin) : [];
       const good = score != null ? score >= 80 : dur != null && dur >= 7;
-      const ok = score != null ? score >= 70 : dur != null && dur >= 6;
+      const okNatt = score != null ? score >= 70 : dur != null && dur >= 6;
       const wkRaw = this.cached(`ki-person-wk|${px}sleep_duration|${dayStart().getTime()}|${(this.st(px + 'sleep_duration') || {}).last_changed}`, 30 * 60e3,
-        () => this.st(px + 'sleep_duration') ? this.history([px + 'sleep_duration'], (Date.now() - dayStart(-6).getTime()) / 3600e3) : Promise.resolve({}), null);
+        () => (this.st(px + 'sleep_duration') ? this.history([px + 'sleep_duration'], (Date.now() - dayStart(-6).getTime()) / 3600e3) : Promise.resolve({})), null);
       if (wkRaw) this._wk = wkRaw;
-      const wkPts = ((this._wk || {})[px + 'sleep_duration'] || []).filter(x => typeof x.v === 'number');
+      const wkPts = ((this._wk || {})[px + 'sleep_duration'] || []).filter((x) => typeof x.v === 'number');
       const uMul = (() => { const u = String(this.unit(px + 'sleep_duration')).toLowerCase(); return u === 'min' ? 1 / 60 : u === 's' ? 1 / 3600 : 1; })();
       const wk = this.st(px + 'sleep_duration') ? Array.from({ length: 7 }, (_, i) => {
         const d0 = dayStart(i - 6).getTime(), d1 = d0 + 864e5;
-        const vals = wkPts.filter(x => x.t >= d0 && x.t < d1).map(x => x.v * uMul);
+        const vals = wkPts.filter((x) => x.t >= d0 && x.t < d1).map((x) => x.v * uMul);
         const v = i === 6 && dur != null ? dur : vals.length ? Math.max(...vals) : 0;
-        return { v, d: i === 6 ? 'i n' : WD[new Date(d0).getDay()] };
+        return { v, d: i === 6 ? 'i natt' : WD[new Date(d0).getDay()] };
       }) : [];
-      const wmax = Math.max(0.01, ...wk.map(x => x.v));
+      const wmax = Math.max(0.01, ...wk.map((x) => x.v));
 
       // mobil
       const bat = this.n(px + 'battery_level');
@@ -59243,171 +59787,122 @@ try {
       const charging = ['charging', 'full', 'lader', 'fulladet'].includes(bst) || this.v(`binary_sensor.${px.slice(7)}is_charging`) === 'on';
       const conn = this.v(px + 'connection_type');
       const wifi = /wi-?fi/i.test(conn), cell = /cell|mobil/i.test(conn);
-      const netShort = wifi ? 'Wi-Fi' : cell ? 'Mobildata' : conn && !KD.BAD.has(conn) ? conn : '';
+      const netShort = wifi ? 'Wi-Fi' : cell ? 'Mobildata' : conn && !BAD.has(conn) ? conn : '';
       const ssid = this.ok(px + 'ssid') ? this.v(px + 'ssid') : '';
       const tech = this.at(px + 'connection_type', 'Cellular Technology', '') || this.at(px + 'connection_type', 'cellular_technology', '');
-      const net = charging ? ['Lader', netShort].filter(Boolean).join(' · ') : wifi ? ['Wi-Fi', ssid || zl].join(' · ') : cell ? ['Mobildata', tech].filter(Boolean).join(' · ') : netShort;
       const trackers = this.at(p.entity, 'device_trackers', []) || [];
-      const tracker = trackers.find(x => String(x).includes(px.slice(7, -1))) || trackers[0];
+      const tracker = trackers.find((x) => String(x).includes(px.slice(7, -1))) || trackers[0];
       const trName = tracker ? this.fname(tracker, '') : '';
       const first = String(p.navn).split(' ')[0];
       let model = trName && trName !== tracker ? trName.replace(new RegExp(`^${first}s?\\s+`, 'i'), '').replace(/\s*\(.*\)$/, '').trim() : '';
-      if (!model && p.prefix) model = p.prefix.slice(7, -1).replace(new RegExp(`^${p.key}_`), '').split('_').map(w => w === 'iphone' ? 'iPhone' : w === 'ipad' ? 'iPad' : /^\d/.test(w) ? w : w[0].toUpperCase() + w.slice(1)).join(' ');
+      if (!model && p.prefix) model = p.prefix.slice(7, -1).replace(new RegExp(`^${p.key}_`), '').split('_').filter(Boolean).map((w) => (w === 'iphone' ? 'iPhone' : w === 'ipad' ? 'iPad' : /^\d/.test(w) ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
       const focusId = `binary_sensor.${px.slice(7)}focus`;
-      const chips = [[charging ? 'battery_charging_full' : 'battery_5_bar', charging ? 'Lader' : 'På batteri'], netShort ? [wifi ? 'wifi' : 'signal_cellular_alt', netShort] : null,
-        this.st(focusId) ? ['do_not_disturb_on', this.v(focusId) === 'on' ? 'Fokus på' : 'Fokus av'] : null,
-        tracker ? ['location_on', this.ok(tracker) ? 'Posisjon deles' : 'Posisjon av'] : null].filter(Boolean).map(([icon, label]) => ({ icon, label }));
-      const hasPhone = bat != null || !!p.prefix && this.st(px + 'battery_level');
+      const hasPhone = bat != null || (!!p.prefix && !!this.st(px + 'battery_level'));
+      const lav = bat != null && bat < 20;
 
-      // soner i dag
-      const log = [];
-      const hist = (H[p.entity] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
-      const t0 = dayStart().getTime();
-      for (let i = 1; i < hist.length; i++) {
-        const prev = hist[i - 1].v, cur = hist[i].v, when = hist[i].t;
-        if (prev === cur || when < t0) continue;
-        const pk = this.zoneKey(prev), ck = this.zoneKey(cur);
-        if (pk && pk !== 'not_home') { const zi2 = this.zoneInfo(pk, prev); log.push([pk === 'home' ? 'Forlot hjemmet' : `Forlot ${zi2[3]}`, this.zoneName(pk), when, pk === 'home' ? 'not_home' : pk]); }
-        if (ck && ck !== 'not_home') { const zi2 = this.zoneInfo(ck, cur); log.push([ck === 'home' ? 'Kom hjem' : `Ankom ${zi2[3]}`, this.zoneName(ck), when, ck]); }
+      // soner i dag: opphold (sone, fra, til) fra historikken
+      const t0 = dayStart().getTime(), naa = Date.now();
+      const hist = (H[p.entity] || []).filter((x) => typeof x.v === 'string' && !BAD.has(x.v)).map((x) => ({ t: +x.t, k: this.zoneKey(x.v), s: x.v }));
+      let opph = [];
+      if (hist.length) {
+        const før = hist.filter((x) => x.t <= t0).pop();
+        let cur = før ? { k: før.k, s: før.s, fra: t0 } : { k: hist[0].k, s: hist[0].s, fra: hist[0].t };
+        for (const x of hist.filter((y) => y.t > t0 && y.t > cur.fra)) { if (x.k === cur.k) continue; opph.push({ ...cur, til: x.t }); cur = { k: x.k, s: x.s, fra: x.t }; }
+        if (zkey && cur.k !== zkey) { opph.push({ ...cur, til: sinceD && !isNaN(sinceD) ? Math.max(cur.fra, +sinceD) : naa }); cur = { k: zkey, s: state, fra: sinceD && !isNaN(sinceD) ? Math.max(t0, +sinceD) : naa }; }
+        opph.push({ ...cur, til: null });
+      } else if (zkey) {
+        opph.push({ k: zkey, s: state, fra: sinceD && !isNaN(sinceD) ? Math.max(t0, +sinceD) : t0, til: null });
       }
-      const sl = (H[p.sovn] || []).filter(x => typeof x.v === 'string' && !KD.BAD.has(x.v));
-      for (let i = 1; i < sl.length; i++) if (sl[i].v !== sl[i - 1].v && sl[i].t >= t0) log.push([sl[i].v === 'on' ? 'Sovnet' : 'Våknet', cfg.sovn_rom || 'Soverom', sl[i].t, 'home']);
-      log.sort((x, y) => y[2] - x[2]);
+      // svært korte opphold (GPS-hopp) tas bort, og like naboer slås sammen
+      opph = opph.filter((o, i, a) => i === a.length - 1 || (o.til - o.fra) >= 3 * 60e3);
+      opph = opph.reduce((a, o) => { const l = a[a.length - 1]; if (l && l.k === o.k) l.til = o.til; else a.push({ ...o }); return a; }, []);
+      opph = opph.filter((o) => o.til === null || o.til > t0);
 
-      const vals = {
-        name: p.navn, initial: String(p.navn).trim()[0] || '?',
-        halo: { position: 'absolute', inset: -8, borderRadius: '50%', boxShadow: `0 0 0 2px ${a(zc, 0.55)}, 0 0 40px ${a(zc, 0.25)}` },
-        avatar: { width: 132, height: 132, borderRadius: 66, display: 'grid', placeItems: 'center', fontSize: 48, fontWeight: 500, background: p.farge, opacity: zkey === 'not_home' ? 0.75 : 1 },
-        zoneBadge: { position: 'absolute', right: 0, bottom: 4, width: 38, height: 38, borderRadius: 19, display: 'grid', placeItems: 'center', background: 'var(--gray200, #262629)', color: zc, boxShadow: '0 0 0 3px var(--gray000, #141416)' },
-        zone: { label: [zl, place && place !== zl ? place : ''].filter(Boolean).join(' · '), icon: zi, since: sinceTxt },
-        zoneLine: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: 'var(--gray1000, #f2f1ee)' },
-        zoneDot: { width: 8, height: 8, borderRadius: 4, background: zc, boxShadow: `0 0 10px ${zc}` },
-        // tomme verdier vises ikke (ingen «–»-fliser)
-        stats: [steps != null ? ['directions_walk', Math.round(steps).toLocaleString('nb-NO'), 'skritt', px + 'steps'] : null,
-          dist != null ? ['route', `${dist < 10 && Math.round(dist * 10) % 10 ? KD.nf(dist, 1) : Math.round(dist)} km`, 'reist i dag', distId] : null,
-          score != null && !isNaN(score) ? ['bedtime', `${score}`, 'søvnscore', scoreId] : null].filter(Boolean).map(([icon, v, label, id]) => ({ icon, v, label, id })),
-        sleep: {
-          h: totMin != null ? Math.floor(totMin / 60) : '–', m: totMin != null ? totMin % 60 : '–',
-          window: win ? `${KD.hm(win[0])}–${win[1] ? KD.hm(win[1]) : 'nå'}` : '–',
-          score: good ? 'God natt' : ok ? 'Grei natt' : 'Urolig natt', hasScore: score != null || dur != null,
-          // ingen søvndata i det hele tatt → seksjonen skjules
-          has: totMin != null || haveStages || !!win, hasTot: totMin != null,
-          scoreStyle: { fontSize: 14, fontWeight: 500, padding: '6px 12px', borderRadius: 999, background: a(good ? C.green : C.amber, 0.16), color: good ? C.green : C.amber, whiteSpace: 'nowrap' },
-          blocks: seq.map((k, i) => ({ flex: 1 + (i % 3) * 0.5, background: STAGES[k][1], opacity: k === 0 ? 0.5 : 1, alignSelf: 'flex-end', height: `${[35, 60, 100, 80][k]}%`, borderRadius: 4 })),
-          legend: STAGES.map(([label, c], k) => stMin[k] != null ? { label, v: `${Math.round(stMin[k])} min`, dot: { width: 8, height: 8, borderRadius: 4, background: c } } : null).filter(Boolean),
-          week: !wk.some(w => w.v > 0) ? [] : wk.map((w, i) => ({ d: w.d, bar: { width: '100%', maxWidth: 26, height: `${w.v / wmax * 100}%`, borderRadius: 6, background: i === 6 ? 'oklch(0.72 0.1 275)' : a('oklch(0.72 0.1 275)', 0.35) } })),
-        },
-        phone: { model: model || 'Mobil', bat: bat != null ? Math.round(bat) : '–', sub: net || '–', id: px + 'battery_level',
-          bar: { width: `${bat != null ? bat : 0}%`, height: '100%', borderRadius: 3, background: bat != null && bat < 20 ? 'var(--red, oklch(0.72 0.15 25))' : charging ? 'var(--green, ' + C.green + ')' : 'var(--gray1000, #f2f1ee)' }, chips },
-        log: log.map(([text, sub, time, z], i, arr) => ({ text, sub, time: KD.hm(time), dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5, background: this.zoneInfo(z)[2], flex: 'none' }, line: { flex: 1, width: 1, background: i < arr.length - 1 ? 'rgba(250,251,252,0.1)' : 'transparent', marginTop: 4 } })),
-      };
-      const pic = cfg.bilde && this.at(p.entity, 'entity_picture');
-      if (pic) Object.assign(vals.avatar, { backgroundImage: `url('${KD.e(String(this._hass.hassUrl ? this._hass.hassUrl(pic) : pic).replace(/'/g, '%27'))}')`, backgroundSize: 'cover', backgroundPosition: 'center', color: 'transparent' });
-      const v = vals;
+      /* ---------- HTML ---------- */
+      const e = esc;
+      const ic = (i) => `<ha-icon icon="${e(i)}"></ha-icon>`;
+      const pic = cfg.bilde !== false && this.at(p.entity, 'entity_picture');
+      const picUrl = pic ? String(this._hass.hassUrl ? this._hass.hassUrl(pic) : pic).replace(/'/g, '%27') : '';
+      const batLabel = bat != null ? `${nf(bat)} % batteri${charging ? ' · lader' : ''}` : '';
+      const sub = [sinceTxt, batLabel].filter(Boolean).join(' · ');
+      const batF = lav ? `var(--red, ${C.red})` : charging ? `var(--green, ${C.green})` : 'var(--gray800, #c9c7c2)';
+      const batIc = charging ? 'mdi:battery-charging' : lav ? 'mdi:battery-alert-variant-outline' : 'mdi:battery';
 
-      // ki-designet: flater fra temaets --gray*, fliser 22 px / paneler 24 px, tekst 14 px/500, store tall vekt 300
-      const G1 = 'var(--gray100, #1c1c1f)', G2 = 'var(--gray200, #262629)';
-      const TX = 'var(--gray1000, #f2f1ee)', DIM = 'var(--gray600, #8e8d89)';
-      const HS = `font-size:16px;font-weight:500;color:${TX};padding:0 4px`;
-      const IC = n => `width:${n}px;height:${n}px;border-radius:50%;flex:none;display:grid;place-items:center;box-sizing:border-box;background:rgba(250,251,252,0.1);border:1px solid rgba(250,251,252,0.1);color:${TX}`;
-      const nStat = v.stats.length;
+      const hode = cfg.header ? `<div class="hode">
+          <span class="ring pa">${ic('mdi:account')}</span>
+          <div class="t"><b>Tilstedeværelse</b><span>Mobil, sone og søvn</span></div>
+          <button class="lukk trykk" data-act="lukk" aria-label="Lukk">${ic('mdi:close')}</button>
+        </div>` : '';
 
-      return `<div style="box-sizing:border-box;width:100%;max-width:var(--kd-bredde,100%);overflow-x:clip;min-height:100vh;margin:0 auto;background:transparent;color:${TX};padding:20px var(--kd-kant,12px) 40px;display:flex;flex-direction:column;gap:12px">
-  <header style="display:flex;align-items:center;justify-content:space-between">
-    <div style="font-size:14px;font-weight:500;color:${DIM}">Tilstedeværelse</div>
-    <button data-on-click="closeSheet" style="width:36px;height:36px;border-radius:18px;background:${G2};display:grid;place-items:center"><span class="ms" style="font-size:20px">close</span></button>
-  </header>
+      const kort = `<div class="kort trykk" style="--f:${e(pille[2])}" role="button" tabindex="0" data-more="${e(p.entity)}"
+          aria-label="${e(`${p.navn}: ${pille[1]}, ${sted}. ${sub}`)}">
+          <div class="topp"><span class="navn ell">${e(p.navn)}</span><span class="pille">${ic(pille[0])}<span>${e(pille[1])}</span></span></div>
+          <div class="bunn" style="right:${bat != null ? 84 : 18}px"><span class="sted ell${String(sted).length > 11 ? ' lang' : ''}">${e(sted)}</span><span class="sub ell num">${e(sub)}</span></div>
+          <div class="avatar" style="--f:${e(zkey ? zc : C.gray)}"><div class="bilde" style="${picUrl ? `background-image:url('${e(picUrl)}')` : `background-color:${e(p.farge)}`}">${picUrl ? '' : e(String(p.navn).trim()[0] || '?')}</div>
+            <span class="merke">${ic(zi)}</span></div>
+          ${bat != null ? `<button class="bat" style="--fb:${batF}" data-more="${e(px + 'battery_level')}" aria-label="Batteri ${nf(bat)} %"><i style="height:${Math.max(0, Math.min(100, bat))}%"></i>${ic(batIc)}</button>` : ''}
+        </div>`;
 
-  <section style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:4px 0 10px">
-    <div data-on-click="info" data-arg="${e(p.entity)}" style="position:relative;width:132px;height:132px;cursor:pointer">
-      <div style="${S(v.halo)}"></div>
-      <div style="${S(v.avatar)}">${pic ? '' : t(v.initial)}</div>
-      <span style="${S(v.zoneBadge)}"><span class="ms" style="font-size:18px;font-variation-settings:'FILL' 1">${t(v.zone.icon)}</span></span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center">
-      <div style="font-size:30px;font-weight:500;line-height:1.1">${t(v.name)}</div>
-      <div style="${S(v.zoneLine)}"><span style="${S(v.zoneDot)}"></span>${t(v.zone.label)}</div>
-      ${v.zone.since ? `<div style="font-size:14px;font-weight:500;opacity:0.7">${t(v.zone.since)}</div>` : ''}
-    </div>
-  </section>
+      const fliser = [steps != null ? ['mdi:walk', nf(Math.round(steps)), '', 'skritt', px + 'steps'] : null,
+        dist != null ? ['mdi:map-marker-distance', dist < 10 && Math.round(dist * 10) % 10 ? nf(dist, 1) : nf(Math.round(dist)), 'km', 'reist i dag', distId] : null,
+        score != null && !isNaN(score) ? ['mdi:sleep', String(score), '', 'søvnscore', scoreId] : null].filter(Boolean);
+      const flisHtml = fliser.length ? `<div class="fliser${fliser.length < 3 ? ' ligg' : ''}" style="grid-template-columns:repeat(${fliser.length},minmax(0,1fr))">${fliser.map(([i, v, u, l, id]) => `
+          <button class="flis trykk" data-more="${e(id)}"><span class="ring">${ic(i)}</span>
+            <div><div class="v num ell">${e(v)}${u ? `<small>${e(u)}</small>` : ''}</div><div class="l ell">${e(l)}</div></div></button>`).join('')}</div>` : '';
 
-  ${nStat ? `<section style="display:grid;grid-template-columns:repeat(${nStat},minmax(0,1fr));gap:8px">
-    ${v.stats.map(x => `<div data-on-click="info" data-arg="${e(x.id || '')}" style="display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:22px;background:${G2};cursor:pointer;min-width:0">
-        <span style="${IC(40)}"><span class="ms" style="font-size:22px">${t(x.icon)}</span></span>
-        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;padding-left:2px">
-          <span style="font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.v)}</span>
-          <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(x.label)}</span>
-        </div>
-      </div>`).join('')}
-  </section>` : ''}
-
-  ${v.sleep.has ? `<section style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:24px;background:${G2}">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
-      <div style="font-size:16px;font-weight:500">Søvn i natt</div>
-      <div style="font-size:14px;font-weight:500;color:${DIM};font-variant-numeric:tabular-nums">${win ? t(v.sleep.window) : ''}</div>
-    </div>
-    ${v.sleep.hasTot ? `<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
-      <div style="font-size:44px;font-weight:300;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap">${t(v.sleep.h)}<span style="font-size:14px;font-weight:500;opacity:0.7"> t </span>${t(v.sleep.m)}<span style="font-size:14px;font-weight:500;opacity:0.7"> min</span></div>
-      ${v.sleep.hasScore ? `<div style="${S(v.sleep.scoreStyle)}">${t(v.sleep.score)}</div>` : ''}
-    </div>` : ''}
-    ${v.sleep.blocks.length ? `<div style="display:flex;height:40px;border-radius:12px;overflow:hidden;gap:2px">
-      ${v.sleep.blocks.map(b => `<span style="${S(b)}"></span>`).join('')}
-    </div>` : ''}
-    ${v.sleep.legend.length ? `<div style="display:flex;gap:6px 14px;flex-wrap:wrap">
-      ${v.sleep.legend.map(l => `<span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;white-space:nowrap"><span style="${S(l.dot)}"></span>${t(l.label)}<span style="opacity:0.7;font-variant-numeric:tabular-nums">${t(l.v)}</span></span>`).join('')}
-    </div>` : ''}
-    ${v.sleep.week.length ? `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:64px;align-items:end;padding-top:4px">
-      ${v.sleep.week.map(w => `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
-          <div style="${S(w.bar)}"></div>
-          <span style="font-size:12px;font-weight:500;color:${DIM}">${t(w.d)}</span>
-        </div>`).join('')}
-    </div>` : ''}
-  </section>` : ''}
-
-  ${hasPhone ? `<section style="display:flex;flex-direction:column;gap:8px">
-    <div style="${HS};padding-top:6px">Mobil</div>
-    <div data-on-click="info" data-arg="${e(v.phone.id)}" style="display:flex;align-items:center;gap:12px;min-height:66px;padding:7px 18px 7px 7px;box-sizing:border-box;border-radius:22px;background:${G2};cursor:pointer">
-      <span style="${IC(52)}"><span class="ms" style="font-size:26px">smartphone</span></span>
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;justify-content:space-between;gap:10px">
-          <span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.model)}</span>
-          <span style="font-size:14px;font-weight:500;font-variant-numeric:tabular-nums">${t(v.phone.bat)} %</span>
-        </div>
-        <div style="height:5px;border-radius:3px;background:${G1};overflow:hidden"><div style="${S(v.phone.bar)}"></div></div>
-        <span style="font-size:14px;font-weight:500;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t(v.phone.sub)}</span>
-      </div>
-    </div>
-    ${v.phone.chips.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${v.phone.chips.map(c => `<span style="height:36px;padding:0 14px 0 10px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;background:${G2};white-space:nowrap"><span class="ms" style="font-size:18px;opacity:0.7">${t(c.icon)}</span>${t(c.label)}</span>`).join('')}
-    </div>` : ''}
-  </section>` : ''}
-
-  ${v.log.length || this._logH ? `<section style="display:flex;flex-direction:column;gap:8px">
-    <div style="${HS};padding-top:6px">Soner i dag</div>
-    <div style="display:flex;flex-direction:column;padding:16px 16px 4px;border-radius:24px;background:${G2}">
-      ${v.log.map(x => `<div style="display:flex;gap:14px;align-items:stretch">
-          <div style="display:flex;flex-direction:column;align-items:center;width:10px;flex:none">
-            <span style="${S(x.dot)}"></span>
-            <span style="${S(x.line)}"></span>
-          </div>
-          <div style="flex:1;display:flex;justify-content:space-between;gap:12px;padding-bottom:14px">
-            <div style="display:flex;flex-direction:column;gap:2px">
-              <div style="font-size:14px;font-weight:500">${t(x.text)}</div>
-              <div style="font-size:14px;font-weight:500;opacity:0.7">${t(x.sub)}</div>
+      const harSovn = totMin != null || haveStages || !!win;
+      const sovnPille = sover ? ['mdi:sleep', 'Sover nå', SOVN_F] : (score != null || dur != null) ? (good ? ['mdi:check', 'God natt', C.green] : okNatt ? ['mdi:minus', 'Grei natt', C.amber] : ['mdi:alert-outline', 'Urolig natt', C.amber]) : null;
+      const sovnHtml = harSovn ? `<section class="sek">
+          <div class="sh"><b>Søvn i natt</b><span class="num">${win ? `${hm(win[0])}–${win[1] ? hm(win[1]) : 'nå'}` : ''}</span></div>
+          <div class="panel pad trykk" data-more="${e(this.st(px + 'sleep_duration') ? px + 'sleep_duration' : p.sovn || '')}">
+            <div class="sov-topp">
+              ${totMin != null ? `<div class="sov-tot num">${Math.floor(totMin / 60)}<small> t </small>${totMin % 60}<small> min</small></div>` : '<div></div>'}
+              ${sovnPille ? `<span class="pille" style="--f:${sovnPille[2]}">${ic(sovnPille[0])}<span>${e(sovnPille[1])}</span></span>` : ''}
             </div>
-            <div style="font-size:14px;font-weight:500;opacity:0.7;font-variant-numeric:tabular-nums">${t(x.time)}</div>
-          </div>
-        </div>`).join('')}
-      ${!v.log.length ? `<div style="padding:0 0 12px;font-size:14px;font-weight:500;opacity:0.7">Ingen soneendringer i dag</div>` : ''}
-    </div>
-  </section>` : ''}
-</div>`;
+            ${seq.length ? `<div class="faser">${seq.map((k, i) => `<span style="flex:${1 + (i % 3) * 0.5};height:${[35, 60, 100, 80][k]}%;background:${STAGES[k][1]};opacity:${k === 0 ? 0.5 : 1}"></span>`).join('')}</div>` : ''}
+            ${stMin.some((x) => x != null) ? `<div class="forklaring">${STAGES.map(([l, c], k) => (stMin[k] != null ? `<span><i style="background:${c}"></i>${l}<em class="num">${varig(stMin[k])}</em></span>` : '')).join('')}</div>` : ''}
+            ${wk.some((w) => w.v > 0) ? `<div class="uke">${wk.map((w, i) => `<div><span class="s${i === 6 ? ' idag' : ''}" style="height:${Math.round((w.v / wmax) * 100)}%" title="${e(varig(w.v * 60))}"></span><small>${e(w.d)}</small></div>`).join('')}</div>` : ''}
+          </div></section>` : '';
+
+      const sonerHtml = opph.length ? `<section class="sek">
+          <div class="sh"><b>Soner i dag</b><span>${opph.length === 1 ? '' : `${opph.length} steder`}</span></div>
+          <div class="panel">${opph.slice().reverse().map((o) => {
+            const [n, i] = this.zoneInfo(o.k, o.s);
+            const navn = o.k === 'home' ? 'Hjemme' : o.k === 'not_home' ? 'Borte' : (this.zoneName(o.k) || n);
+            const aktiv = o.til === null;
+            const tid = o.fra <= t0 && aktiv ? 'hele dagen' : `kl ${o.fra <= t0 ? '00:00' : hm(o.fra)}–${aktiv ? 'nå' : hm(o.til)}`;
+            return `<div class="rad${aktiv ? ' na' : ''}"><span class="ring${aktiv ? ' pa' : ''}">${ic(i)}</span>
+              <div class="t"><b class="ell">${e(navn)}</b><span class="ell num">${e(tid)}</span></div>
+              <span class="h num">${e(varig(((aktiv ? naa : o.til) - Math.max(o.fra, t0)) / 60e3))}</span></div>`;
+          }).join('')}</div></section>` : '';
+
+      const rader = [];
+      if (hasPhone) {
+        rader.push([batIc, 'Batteri', charging ? 'Lader' : bst && !BAD.has(bst) && bst !== 'not charging' ? this.v(px + 'battery_state') : 'På batteri', bat != null ? `${nf(bat)} %` : '–', px + 'battery_level', lav || charging]);
+        if (netShort) rader.push([wifi ? 'mdi:wifi' : cell ? 'mdi:signal-cellular-3' : 'mdi:web', netShort, wifi ? (ssid || zl) : cell ? (tech || 'Mobilnett') : '', '', wifi && this.ok(px + 'ssid') ? px + 'ssid' : px + 'connection_type']);
+        if (this.ok(px + 'geocoded_location')) {
+          const g = this.st(px + 'geocoded_location').attributes;
+          const linje = [g['Sub Locality'], g.Locality].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ') || String(this.v(px + 'geocoded_location')).split('\n')[0];
+          rader.push(['mdi:map-marker-radius', 'Sted', linje, g.Country || '', px + 'geocoded_location']);
+        }
+        if (this.st(focusId)) rader.push(['mdi:minus-circle-outline', 'Fokus', this.v(focusId) === 'on' ? 'På' : 'Av', '', focusId, this.v(focusId) === 'on']);
+        if (tracker) rader.push(['mdi:crosshairs-gps', 'Posisjon', this.ok(tracker) ? 'Deles' : 'Deles ikke', '', tracker]);
+      }
+      const mobilHtml = rader.length ? `<section class="sek">
+          <div class="sh"><b>Mobil</b><span class="ell">${e(model || '')}</span></div>
+          <div class="panel">${rader.map(([i, t, s, h, id, pa]) => `<button class="rad trykk" data-more="${e(id)}"><span class="ring${pa ? ' pa' : ''}"${pa && lav && id === px + 'battery_level' ? ` style="background:var(--red, ${C.red})"` : ''}>${ic(i)}</span>
+              <div class="t"><b class="ell">${e(t)}</b>${s ? `<span class="ell">${e(s)}</span>` : ''}</div>${h ? `<span class="h num">${e(h)}</span>` : ''}</button>`).join('')}</div></section>` : '';
+
+      return `<div class="wrap">${hode}${kort}${flisHtml}${sovnHtml}${sonerHtml}${mobilHtml}</div>`;
     }
-    info(ev, id) { if (id) this.more(id); }
   }
 
-  KD.define('ki-person-card', KiPersonCard, 'KI Person', 'Tilstedeværelse: sone, aktivitet, søvn i natt, mobil og soner i dag for én person.');
-  if (KD.sheet && !(KD.SHEETS || {}).person) KD.sheet('person', 'ki-person-card');
+  window.KI.define('ki-person-card', KiPersonCard);
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((k) => k.type === 'ki-person-card'))
+    window.customCards.push({ type: 'ki-person-card', name: 'KI Person', preview: true,
+      description: 'Tilstedeværelse: sted, aktivitet, søvn i natt, soner i dag og mobil for én person.' });
+  console.info(`%c KI-PERSON %c ${VERSJON} `, 'color:#fff;background:#463a40', 'color:#463a40;background:#efc6c9');
 })();
 } catch (e) { console.error("ki-cards: ki-person-card feilet", e); }
 
@@ -59505,15 +60000,14 @@ try {
     .kort.rolig .stov { display: none; }
     .kort.rolig .glyf { animation: none; }
     /* «Enkel»: grå flate, temperatur og fukt, og en grå fylt graf langs bunnen. */
-    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .fukt, .kort.enkel .sub { display: none; }
+    /* Tannhjulet og fuktsøylen står i begge stilene. */
+    .kort.enkel .stovlag, .kort.enkel .glyf, .kort.enkel .topp, .kort.enkel .sub { display: none; }
     .kort.enkel .graf { height: 62%; right: 0 !important; }
     .kort.enkel .graf .linje { display: none; }
     .kort.enkel .graf .flate { fill: var(--graf-enkel, rgba(250,251,252,.16)); }
-    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; right: 18px !important; left: 22px; }
+    .kort.enkel .bunn { top: 0; bottom: auto; height: 60%; justify-content: center; left: 22px; }
     .kort.enkel .temp b { font-size: 44px; }
     .kort.enkel .temp span { font-size: 13px; color: var(--gray1000, #f2f1ee); margin-left: 4px; font-weight: 500; }
-    .kort.enkel .ikon { background: transparent; width: 40px; height: 40px; right: 10px; top: 10px; opacity: .55; }
-    .kort.enkel .ikon ha-icon { --mdc-icon-size: 20px; }
     @media (prefers-reduced-motion: reduce) { .stov, .glyf { animation: none; } .stov { display: none; } }
   `;
 
@@ -60429,6 +60923,9 @@ class KiStromregningCard extends HTMLElement {
     this._rot.className = "rot";
     this.shadowRoot.appendChild(this._rot);
     this._rot.addEventListener("click", (e) => this._klikk(e));
+    /* Periodevelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".pille", knapp: ".pille button", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 
@@ -61861,6 +62358,9 @@ class KiVekkealarmCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>${KiVekkealarmCard.styles}</style>${html}`;
     this._root = this.shadowRoot;
+    /* Enkel/Avansert: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._root.addEventListener("click", (e) => this._onClick(e));
     this._root.addEventListener("change", (e) => this._onChange(e));
     this._root.addEventListener("input", (e) => this._onInput(e));

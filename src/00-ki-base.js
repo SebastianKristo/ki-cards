@@ -1,7 +1,7 @@
 /* ki-cards – felles grunnlag. Lastes først i bundle. */
 window.KI = window.KI || {};
 (function (KI) {
-  KI.VERSION = "9.5.0";
+  KI.VERSION = "9.6.0";
 
   KI.css = `
     :host { display:block; min-width:0; max-width:100%; }
@@ -286,6 +286,9 @@ window.KI = window.KI || {};
     root.querySelectorAll("[data-view]").forEach(el => el.addEventListener("click", () => {
       card._view = el.dataset.view; card._lastKey = null; card._maybeRender(); }));
     KI.wireSteppers(card, root);
+    /* Enkel/Avansert- og Søvn/Vekking-bryterne: glidende pille som kan dras. */
+    if (root === card.shadowRoot && root.querySelector(".switch .switch-valg") && KI.pillefaner)
+      KI.pillefaner(card, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv", farge: "var(--active-small, var(--active-big))" });
   };
 
   KI.fire = (el, type, detail) =>
@@ -480,91 +483,93 @@ window.KI = window.KI || {};
   };
 
   console.info(`%c KI-CARDS %c v${KI.VERSION} `, "color:#fff;background:#463a40;font-weight:600", "color:#463a40;background:#f5c542");
+  /* ------------------------------------------------------------------ haptikk
+   * Samme «haptic»-hendelse som HA-appen lytter på. Brukes av fanevelgerne når pilla
+   * krysser et valg mens den dras. */
+  KI.haptic = (type = "selection") => {
+    try { window.dispatchEvent(new CustomEvent("haptic", { detail: type, bubbles: true, composed: true })); }
+    catch (e) { /* eldre nettlesere */ }
+    /* navigator.vibrate finnes ikke i Safari; der er det appen som vibrerer. */
+    const ms = { selection: 5, light: 8, medium: 14, heavy: 22 }[type] || 8;
+    if (typeof navigator !== "undefined" && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* blokkert */ } }
+  };
+
   /* ------------------------------------------------------------------ pillefaner
    *
-   * Legger den glidende pilla, dra-funksjonen og trykkeffekten fra ki-tabs-card på en
-   * fanerad som ikke er vår egen — `simple-tabs` bruker `.tabs` og `.tab-button`.
+   * Glidende pille med dra-animasjonen fra fanevelgeren i Liquid Glass-dashbordet (kd),
+   * uten glasset: bare bevegelsen. Pilla er en flat --active-big-flate bak den aktive knappen.
    *
-   * Vi rører ikke tredjepartsfila: elementet og stilen settes inn i dens shadowRoot, slik
-   * ki-hjem-card alt gjør med CSS. En lapp i den minifiserte fila ville forsvunnet ved
-   * neste oppdatering av kortet.
+   *   KI.pillefaner(vert, { rad, knapp, aktiv, av, sprett, farge, haptikk })
+   *   KI.segDrag(...)  – samme funksjon, alias
+   *
+   *   vert     elementet som eier shadowRoot-en rada ligger i (kortet selv, eller et
+   *            tredjepartskort som simple-tabs)
+   *   rad      velger for rada (standard ".tabs"). ALLE rader som matcher får hver sin pille.
+   *   knapp    velger for knappene (standard ".tab-button")
+   *   aktiv    klassen kortet setter på valgt knapp (standard "active")
+   *   av       klasse for sperrede valg som ikke kan dras til (standard "tom"; false = ingen)
+   *   sprett   true: formen ligger på ::before med en landingssprett (klem ved trykk)
+   *   farge    bakgrunn på pilla hvis kortets aktive knapp ikke er --active-big
+   *   haptikk  false slår av vibrasjonen når pilla krysser et valg
+   *
+   * Bevegelsen:
+   *   - bytte (trykk, sveip, kode): pilla glir med fjær (overskyter litt) og strekkes i
+   *     fartsretningen, mer jo lenger den går
+   *   - dra: etter 6 px sidelengs følger pilla fingeren, løftes litt og strekkes etter
+   *     farten; bredden glir mellom knappene den passerer; gummistrikk i endene;
+   *     vibrasjon når den krysser et valg
+   *   - slipp: fjærer inn på nærmeste valg (cubic-bezier(.34,1.56,.64,1)) og klikker den
+   *     knappen — kortets egen klikklogikk gjør valget, så minne, deep-link og haptikk
+   *     virker som før. Klikket nettleseren selv sender etter et drag blir slukt.
+   *   - loddrett bevegelse overlates til siden (touch-action: pan-y), så man kan rulle.
+   *
+   * Kortet eier valget; vi følger med på klassen. Idempotent: kall den gjerne etter hver
+   * tegning. Rader som tegnes på nytt (innerHTML, Lit) får pilla tilbake av vakta, og pilla
+   * starter der den forrige sto, så overgangen glir også da.
    */
   KI.pillefaner = (vert, valg = {}) => {
-    const rad = valg.rad || "\.tabs";
-    const knapp = valg.knapp || "\.tab-button";
+    if (!vert) return;
+    const ren = (s) => String(s).replace(/\\/g, "");
+    const rad = ren(valg.rad || ".tabs");
+    const kn = ren(valg.knapp || ".tab-button");
     const aktiv = valg.aktiv || "active";
+    const sprett = !!valg.sprett;
+    const avKlasse = valg.av === undefined ? "tom" : valg.av;
+    const haptikk = valg.haptikk !== false;
+    const nokkel = rad + "|" + kn;
+    /* Bare knappens egen del av velgeren. «.skinne .fane» ville krevd en .skinne INNE i
+       rada, og da slo regelen som skjuler kortets egen bakgrunn aldri til. */
+    const knEgen = kn.trim().split(/\s+/).pop();
+    const redusert = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const sist = vert._kiPilleSist || (vert._kiPilleSist = {});
+    const na = () => (window.performance ? performance.now() : Date.now());
 
-    /* Velgeren uten escaping, brukt både i stilen og i oppslagene under. */
-    const kn = knapp.replace(/\\/g, "");
-    const start = (sr) => {
-      const r = sr.querySelector(rad.replace(/\\/g, ""));
-      if (!r) return false;
-
-      /* Flagget hindrer dobbel oppsett på SAMME rad. Men noen kort beholder rada og
-         bytter bare innmaten — da er pilla slettet mens flagget står igjen, og uten
-         denne sjekken ble den aldri satt inn på nytt. Resultatet var en fanerad helt
-         uten markering, siden stilen slår av kortets egen bakgrunn. */
-      if (r.dataset.kiPille && r.querySelector(".ki-pille")) return false;
-      r.dataset.kiPille = "1";
-
-      if (!sr.querySelector("style[data-ki-pille]")) {
+    const stil = (sr) => {
+      if (!sr.querySelector("style[data-ki-pille-felles]")) {
         const st = document.createElement("style");
-        st.dataset.kiPille = "1";
+        st.dataset.kiPilleFelles = "1";
+        /* INGEN backticks her — dette er inne i en mal-streng.
+           Plassering med translate og form med scale, to egne egenskaper: med begge i
+           transform ville skaleringen også skalert forflytningen. */
         st.textContent = `
-          ${rad.replace(/\\/g, "")} { position:relative; }
-          /* Pilla er usynlig til første ekte måling er gjort.
-             Måles den før skrifta er byttet fra reservefonten, er fanen en annen
-             bredde, og pilla sto et øyeblikk for bred og uten innrykk før den rettet
-             seg. Å vise ingenting i det halve sekundet er bedre enn å vise noe feil.
-             Kortets egen aktivbakgrunn står så lenge, siden ki-pille-klar settes
-             samtidig. INGEN backticks her — dette er inne i en mal-streng. */
-          .ki-pille { opacity:0; }
+          .ki-pille { position:absolute; left:0; top:0; z-index:0; pointer-events:none; opacity:0;
+            width:var(--w,0px); height:var(--h,0px); border-radius:999px;
+            background:var(--ki-pille-bg, var(--active-big, #ee95ff)); box-shadow:0 1px 6px rgba(0,0,0,.35);
+            translate:var(--x,0px) var(--y,0px); scale:var(--sx,1) var(--sy,1);
+            transition:translate .5s cubic-bezier(.34,1.35,.64,1), width .5s cubic-bezier(.34,1.35,.64,1),
+              height .3s ease, scale .35s cubic-bezier(.34,1.8,.64,1), opacity .2s; }
           .ki-pille.klar { opacity:1; }
-          .ki-pille { position:absolute; top:2px; bottom:2px; left:0; border-radius:999px;
-            background:var(--active-big); box-shadow:0 1px 6px rgba(0,0,0,.35);
-            transform:translateX(var(--x,0px)); width:var(--w,0px);
-            transition:transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1);
-            pointer-events:none; z-index:0; }
-          .ki-pille.drar { transition:none; }
-          /* touch-action none på knappene: rada er ofte rullbar sidelengs
-             (simple-tabs har overflow-x:auto), og da tolker nettleseren et horisontalt
-             drag som en rulling, tar over gesten og sender oss pointercancel.
-             Det var grunnen til at dra ikke virket i etasjevelgeren.
-             Bare knappene, ikke hele rada — rulling med finger utenfor en fane skal
-             fortsatt virke når det er flere faner enn det er plass til. */
-          ${kn} { position:relative; z-index:1; touch-action:none;
-            transition:transform .12s cubic-bezier(.2,.8,.2,1), color .15s; }
-          ${kn}:active { transform:scale(.94); }
-          /* Kortets egen aktivbakgrunn slås av — men FØRST når pilla faktisk har
-             fått bredde. Uten den betingelsen sto alt umerket hvis pilla av en eller
-             annen grunn ikke ble plassert: vi hadde skrudd av det gamle uten å sette
-             noe i stedet. */
-          .ki-pille-klar ${kn}.${aktiv} { background:transparent !important;
-            box-shadow:none !important; }
-          @media (prefers-reduced-motion: reduce) {
-            .ki-pille { transition:none; }
-            ${kn}:active { transform:none; }
-          }`;
-        sr.appendChild(st);
-      }
-
-      /* Sprett: opt-in med sprett: true.
-       *
-       * Formen ligger på ::before, ALDRI på pilla selv. Pilla eier transform til
-       * plasseringen (translateX(var(--x))), og en skalering på samme element ville
-       * overskrevet den og dratt pilla til venstre kant midt i glidningen.
-       * Fargen har reserve her, så en rad i et dashbord der --active-big ikke når
-       * inn får en fylt pille i stedet for bare skyggen. */
-      const sprett = !!valg.sprett;
-      if (sprett && !sr.querySelector("style[data-ki-sprett]")) {
-        const st2 = document.createElement("style");
-        st2.dataset.kiSprett = "1";
-        st2.textContent = `
-          .ki-pille.sprett { background:transparent; box-shadow:none; }
-          .ki-pille.sprett::before { content:""; position:absolute; inset:0; border-radius:999px;
-            background:var(--active-big, #ee95ff); box-shadow:0 1px 6px rgba(0,0,0,.35);
+          .ki-pille.stille { transition:opacity .2s; }
+          .ki-pille.drar { transition:translate .12s cubic-bezier(.3,1.3,.6,1), width .12s ease-out,
+              height .12s ease-out, scale .18s cubic-bezier(.2,.8,.3,1); }
+          .ki-pille.snapp { transition:translate .55s cubic-bezier(.34,1.56,.64,1), width .55s cubic-bezier(.34,1.56,.64,1),
+              height .3s ease, scale .45s cubic-bezier(.34,1.8,.64,1); }
+          .ki-pille.sprett { background:transparent; box-shadow:none; scale:none; }
+          .ki-pille.sprett::before { content:""; position:absolute; inset:0; border-radius:inherit;
+            background:var(--ki-pille-bg, var(--active-big, #ee95ff)); box-shadow:0 1px 6px rgba(0,0,0,.35);
             transform:scale(var(--sx,1), var(--sy,1)); transform-origin:center;
             transition:transform .34s cubic-bezier(.2,1.35,.35,1); }
+          .ki-pille.sprett.drar::before { transition:transform .18s cubic-bezier(.2,.8,.3,1); }
           .ki-pille.sprett.land::before { animation:ki-sprett .42s cubic-bezier(.2,.9,.25,1); }
           @keyframes ki-sprett {
             0%   { transform:scale(1.10,.90); }
@@ -572,226 +577,310 @@ window.KI = window.KI || {};
             75%  { transform:scale(1.02,.99); }
             100% { transform:scale(1,1); } }
           @media (prefers-reduced-motion: reduce) {
+            .ki-pille, .ki-pille.drar, .ki-pille.snapp { transition:opacity .2s; }
             .ki-pille.sprett::before { transition:none; }
             .ki-pille.sprett.land::before { animation:none; } }`;
-        sr.appendChild(st2);
+        sr.appendChild(st);
       }
-
-      const pille = document.createElement("span");
-      pille.className = "ki-pille" + (sprett ? " sprett" : "");
-      r.insertBefore(pille, r.firstChild);
-
-      /* Kort som tegner hele markupen på nytt ved klikk får en HELT NY rad, og pilla
-         ville da stått ferdig i endeposisjonen uten å gli — nettopp det animasjonen
-         skal vise.
-         Vi husker forrige plassering på vertselementet og starter derfra, så
-         overgangen blir den samme som når rada overlever. */
-      const husk = vert._kiPilleSist;
-      if (husk) {
-        /* Sett forrige plass UTEN overgang, så pilla står der den sto før tegningen.
-           Klassen fjernes ikke her — det gjør `flytt(false)` under, i neste bilde, og
-           da glir den derfra til den nye fanen. */
-        pille.classList.add("drar");
-        pille.style.setProperty("--x", husk.x);
-        pille.style.setProperty("--w", husk.w);
+      if (![...sr.querySelectorAll("style[data-ki-pille]")].some((s) => s.dataset.kiPille === nokkel)) {
+        const st = document.createElement("style");
+        st.dataset.kiPille = nokkel;
+        /* touch-action pan-y på knappene: sidelengs drag er vårt, loddrett ruller siden.
+           Uten det tar nettleseren over et sidelengs drag i en rullbar rad og sender
+           pointercancel midt i. */
+        st.textContent = `
+          ${rad} { position:relative; }
+          ${kn} { position:relative; z-index:1; touch-action:pan-y; -webkit-tap-highlight-color:transparent;
+            -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+            transition:transform .12s cubic-bezier(.2,.8,.2,1), color .2s; }
+          ${kn}:active { transform:scale(.94); }
+          .ki-pille-klar ${knEgen}.${aktiv} { background:transparent !important; box-shadow:none !important; }
+          @media (prefers-reduced-motion: reduce) { ${kn}:active { transform:none; } }`;
+        sr.appendChild(st);
       }
+    };
 
-      /* Animerer BARE når den aktive fanen faktisk har endret seg.
-       *
-       * De sene målingene på 120 og 400 ms retter bredden når skrifta er ferdig lastet.
-       * Gjøres de animert, ser en ren korreksjon ut som en bevegelse — pilla var for
-       * bred et øyeblikk og krympet synlig etterpå. Det skal skje stille.
-       * Et fanebytte skal derimot gli, og det kjennes på at målet er et annet. */
-      /* Etter en ny tegning står pilla på forrige plass fra `husk`. Da ER det et
-         bytte, selv om vi ikke har sett den forrige fanen i DENNE oppkoblingen —
-         derfor starter vi på et tomt objekt og ikke på fanen selv. */
-      let sisteFane = vert._kiPilleSist ? {} : null;
-      /* Skrifta avgjør fanebredden, og den lastes etter at kortet er tegnet.
-         Viser vi pilla på første måling, er den målt mot reservefonten — for bred og
-         uten innrykk — og retter seg et halvt sekund senere. Det er nettopp blinket
-         man ser. Derfor venter vi på at skrifta er ferdig.
-         Finnes ikke API-et, viser vi med en gang: bedre enn aldri. */
-      let fontKlar = !(document.fonts && document.fonts.ready);
-      if (!fontKlar) document.fonts.ready.then(() => { fontKlar = true; flytt(true); });
+    /* Knappene i rada, i rekkefølge. Skjulte knapper (display:none) teller ikke. */
+    const knapper = (r) => [...r.querySelectorAll(kn)].filter((b) => b.offsetWidth > 0);
+    const sperret = (b) => b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse));
 
-      const flytt = (uten) => {
-        const a = r.querySelector(kn + "." + aktiv);
-        if (!a) { pille.style.setProperty("--w", "0px"); return; }
-        const bytte = sisteFane !== null && sisteFane !== a;
-        sisteFane = a;
-        pille.classList.toggle("drar", !!uten || !bytte);
-        /* offsetLeft/offsetWidth, IKKE getBoundingClientRect.
-         *
-         * Rektangelet regner med transformer. En popup som glir inn med scale gir
-         * derfor en skalert bredde, og pilla ble målt mot et mellomstadium — for bred
-         * og uten innrykk — før den rettet seg når animasjonen var ferdig. Det var
-         * blinket, ikke fontlastingen.
-         *
-         * offsetLeft er avstanden til forelderens KANT, mens `left:0` måles fra
-         * innsiden av ramma. `clientLeft` er nøyaktig den rammebredden. */
-        const kant = r.clientLeft || 0;
-        pille.style.setProperty("--x", (a.offsetLeft - kant) + "px");
-        pille.style.setProperty("--w", a.offsetWidth + "px");
-        vert._kiPilleSist = { x: pille.style.getPropertyValue("--x"),
-                              w: pille.style.getPropertyValue("--w") };
-        /* Først nå tør vi slå av kortets egen bakgrunn. */
-        /* Først når vi har en ekte bredde tør vi vise pilla og slå av kortets egen
-           bakgrunn. De to henger sammen: skjer det ene uten det andre, står enten
-           ingenting merket, eller begge deler samtidig. */
-        const harMaal = a.offsetWidth > 0 && fontKlar;
-        r.classList.toggle("ki-pille-klar", harMaal);
-        pille.classList.toggle("klar", harMaal);
-        /* Landingen spilles bare når pilla faktisk flytter seg til en annen fane, og
-           bare når den glir dit - ikke på de stille breddekorreksjonene. Klassen må
-           fjernes og layouten leses før den settes igjen, ellers ser nettleseren
-           ingen endring og et raskt dobbeltbytte gir bare én sprett. */
-        if (sprett && bytte && !uten && harMaal) {
-          pille.classList.remove("land");
-          void pille.offsetWidth;
-          pille.classList.add("land");
+    /* Plassering i radas koordinater (fra innsiden av ramma, der left:0 på pilla ligger).
+       offsetLeft/offsetWidth, ikke getBoundingClientRect: rektangelet regner med
+       transformer, og en popup som glir inn med scale ga pilla en skalert bredde. */
+    const maal = (b, r) => {
+      let x = 0, y = 0, e = b;
+      while (e && e !== r) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+      if (e !== r) {
+        const a = b.getBoundingClientRect(), q = r.getBoundingClientRect();
+        x = a.left - q.left - (r.clientLeft || 0) + r.scrollLeft; y = a.top - q.top - (r.clientTop || 0) + r.scrollTop;
+      }
+      return { x, y, w: b.offsetWidth, h: b.offsetHeight };
+    };
+    const hjorne = (b) => {
+      const v = parseFloat(getComputedStyle(b).borderTopLeftRadius);
+      return v > 0 ? v + "px" : "999px";
+    };
+
+    const settVar = (p, g) => {
+      p.style.setProperty("--x", g.x + "px"); p.style.setProperty("--y", g.y + "px");
+      p.style.setProperty("--w", g.w + "px"); p.style.setProperty("--h", g.h + "px");
+    };
+    const form = (p, sx, sy) => { p.style.setProperty("--sx", sx); p.style.setProperty("--sy", sy); };
+
+    let fontKlar = !(document.fonts && document.fonts.ready);
+
+    /* Flytter pilla til den aktive knappen.
+       modus: "stille" (måling/korreksjon, ingen animasjon), "glid" (bytte), "snapp" (etter dra). */
+    const flytt = (r, modus) => {
+      const p = r._kiPille;
+      if (!p || p.parentNode !== r) return;
+      const a = r.querySelector(kn + "." + aktiv);
+      if (!a || !a.offsetWidth) {
+        p.classList.toggle("klar", false); r.classList.toggle("ki-pille-klar", false);
+        return;
+      }
+      if (r._kiDra && r._kiDra.drar) return;          // fingeren styrer
+      const alle = knapper(r), idx = alle.indexOf(a);
+      const forrige = r._kiSisteI;
+      const bytte = forrige != null && forrige !== idx;
+      r._kiSisteI = idx;
+      const t = na();
+      let m = modus;
+      /* Et nytt valg glir alltid, også når det er en måling (ResizeObserver, skrift) som
+         oppdager det først — ellers ble byttet brukt opp uten animasjon. */
+      if (m === "stille" && bytte) m = "glid";
+      if (m === "glid" && !bytte) m = "stille";
+      if (m === "glid" && t < (r._kiSnappTil || 0)) m = "snapp";   // bytte som følge av et slipp
+      const g = maal(a, r);
+      const gammel = [p.style.getPropertyValue("--x"), p.style.getPropertyValue("--w"), p.style.getPropertyValue("--y"), p.style.getPropertyValue("--h")].join();
+      const ny = [g.x + "px", g.w + "px", g.y + "px", g.h + "px"].join();
+      if (m === "stille") {
+        /* En korreksjon midt i en glidning skal ikke slå av overgangen (da hopper pilla
+           resten av veien) — den retter bare målet. */
+        if (t >= (r._kiAnimTil || 0)) { p.classList.toggle("stille", true); p.classList.toggle("snapp", false); }
+      } else {
+        p.classList.toggle("stille", false);
+        p.classList.toggle("snapp", m === "snapp");
+        r._kiAnimTil = t + 650;
+        clearTimeout(r._kiSnappT);
+        if (m === "snapp") r._kiSnappT = setTimeout(() => p.classList.toggle("snapp", false), 650);
+      }
+      p.classList.toggle("drar", false);
+      if (gammel !== ny) settVar(p, g);
+      const hj = hjorne(a);
+      if (p.style.borderRadius !== hj) p.style.borderRadius = hj;
+      sist[r._kiHusk] = { x: g.x, y: g.y, w: g.w, h: g.h, i: idx, snappTil: (sist[r._kiHusk] || {}).snappTil || 0 };
+      const harMaal = g.w > 0 && fontKlar;
+      r.classList.toggle("ki-pille-klar", harMaal);
+      p.classList.toggle("klar", harMaal);
+      /* Strekk i fartsretningen når pilla går til et annet valg. */
+      if (bytte && m !== "stille" && harMaal && !redusert()) {
+        if (sprett) { p.classList.remove("land"); void p.offsetWidth; p.classList.add("land"); }
+        else if (m === "glid" && p.animate) {
+          const d = Math.min(3, Math.abs(idx - (forrige == null ? idx : forrige)));
+          try {
+            p.animate([{ scale: "1 1" }, { scale: `${1 + 0.14 * d} ${1 - 0.06 * d}`, offset: 0.35 },
+              { scale: "0.98 1.02", offset: 0.7 }, { scale: "1 1" }], { duration: 520, easing: "ease-out" });
+          } catch (e) { /* uten individuelle transformer: bare glidningen */ }
         }
+      }
+    };
+
+    /* Dra og trykk. Kobles én gang per rad; pilla hentes fra r._kiPille, så den kan byttes. */
+    const koble = (r) => {
+      if (r._kiPilleKoblet) return;
+      r._kiPilleKoblet = true;
+      const knappFra = (e) => e.composedPath().find((x) => x && x.matches && x !== r && r.contains(x) && x.matches(kn));
+      const iRad = (e, d) => {
+        const q = r.getBoundingClientRect(), f = r.offsetWidth ? q.width / r.offsetWidth || 1 : 1;
+        return (e.clientX - q.left) / f - (r.clientLeft || 0) + r.scrollLeft - (d ? d.off : 0);
+      };
+      /* Teksten følger pilla: knappen under den får den aktive tekstfargen mens man drar,
+         så den er lesbar på pilla, og den forrige får den vanlige. Fjernes ved slipp. */
+      const farg = (d, j) => {
+        if (!d.g) return;
+        d.g.forEach((q, i) => {
+          /* important: noen kort (simple-tabs i ki-hjem) setter fanefargen med !important */
+          const s = q.b.style, sett = (k, v) => (v ? s.setProperty(k, v, "important") : s.removeProperty(k));
+          if (i === j) { sett("color", d.farge.paa); sett("opacity", d.farge.paaOp); }
+          else if (q.b === d.aktivKnapp) { sett("color", d.farge.av); sett("opacity", d.farge.avOp); }
+          else { sett("color", ""); sett("opacity", ""); }
+        });
+      };
+      const avfarg = (d) => { if (d && d.g) d.g.forEach((q) => { q.b.style.removeProperty("color"); q.b.style.removeProperty("opacity"); }); };
+      const avslutt = () => {
+        const d = r._kiDra; r._kiDra = null;
+        if (d) clearTimeout(d.ro);
+        const p = r._kiPille; if (p) { form(p, 1, 1); p.classList.toggle("drar", false); }
+        return d;
       };
 
-      /* Klem og strekk på fingeren. Basen flytter pilla; her legges bare formen oppå,
-         som variabler ::before leser. */
-      if (sprett) {
-        const klem = (sx, sy) => {
-          pille.style.setProperty("--sx", sx);
-          pille.style.setProperty("--sy", sy);
-        };
-        let nedX = null;
-        r.addEventListener("pointerdown", (e) => {
-          if (!e.composedPath().some((x) => x.matches && x.matches(kn))) return;
-          nedX = e.clientX;
-          klem(0.94, 0.86);
-        }, { passive: true });
-        r.addEventListener("pointermove", (e) => {
-          if (nedX === null) return;
-          const s2 = Math.min(0.13, Math.abs(e.clientX - nedX) / 420);
-          klem(1 + s2, 1 - s2 * 0.7);
-        }, { passive: true });
-        const slipp = () => { if (nedX === null) return; nedX = null; klem(1, 1); };
-        r.addEventListener("pointerup", slipp, { passive: true });
-        r.addEventListener("pointercancel", slipp, { passive: true });
-      }
+      r.addEventListener("pointerdown", (e) => {
+        if (e.button > 0 || !r._kiPille) return;
+        const b = knappFra(e);
+        if (!b) return;
+        const a = r.querySelector(kn + "." + aktiv);
+        r._kiDra = { id: e.pointerId, x0: e.clientX, y0: e.clientY, fraAktiv: b === a, drar: false,
+          lx: e.clientX, lt: na(), s: 0, j: -1, off: 0 };
+        if (sprett && !redusert()) form(r._kiPille, 0.94, 0.86);
+      });
 
-      /* Kortet bytter aktiv klasse selv; vi følger med i stedet for å ta over valget. */
-      const mo = new MutationObserver(() => flytt(false));
-      mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"] });
-      r.addEventListener("scroll", () => flytt(true), { passive: true });
+      r.addEventListener("pointermove", (e) => {
+        const d = r._kiDra, p = r._kiPille;
+        if (!d || e.pointerId !== d.id || !p) return;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (!d.drar) {
+          if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { avslutt(); return; }   // siden rulles
+          if (Math.abs(dx) < 6) return;                                                   // skjelv er et trykk
+          /* Geometrien måles én gang: valgene pilla kan lande på, med midtpunkt og mål. */
+          d.g = knapper(r).filter((b) => !sperret(b)).map((b) => { const m = maal(b, r); return { b, c: m.x + m.w / 2, ...m }; });
+          if (!d.g.length) { avslutt(); return; }
+          d.drar = true;
+          try { r.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+          /* Tar man i pilla, holder den grepet der fingeren tok; ellers hopper den til fingeren. */
+          if (d.fraAktiv) {
+            const x = parseFloat(p.style.getPropertyValue("--x")) || 0, w = parseFloat(p.style.getPropertyValue("--w")) || 0;
+            d.off = iRad({ clientX: d.x0 }) - (x + w / 2);
+          }
+          p.classList.remove("stille", "snapp", "land");
+          p.classList.add("drar");
+          d.j = d.g.findIndex((o) => o.b.classList.contains(aktiv));
+          d.aktivKnapp = d.j >= 0 ? d.g[d.j].b : null;
+          const annen = d.g.find((o) => o.b !== d.aktivKnapp);
+          const ca = d.aktivKnapp ? getComputedStyle(d.aktivKnapp) : null, cb = annen ? getComputedStyle(annen.b) : null;
+          d.farge = { paa: ca ? ca.color : "", paaOp: ca ? ca.opacity : "", av: cb ? cb.color : "", avOp: cb ? cb.opacity : "" };
+        }
+        const g = d.g, n = g.length;
+        const raa = iRad(e, d);
+        const c = Math.max(g[0].c, Math.min(g[n - 1].c, raa));
+        const o = raa - c;
+        const gummi = o / (1 + Math.abs(o) / 40) * 0.35;           // gummistrikk i endene (maks ~14 px)
+        /* Mellom to knapper: bredde, høyde og topp glir fra den ene til den andre. */
+        let k = 0;
+        while (k < n - 2 && c > g[k + 1].c) k++;
+        const A = g[k], B = g[Math.min(n - 1, k + 1)];
+        const tt = B.c === A.c ? 0 : (c - A.c) / (B.c - A.c);
+        const w = A.w + (B.w - A.w) * tt, h = A.h + (B.h - A.h) * tt, y = A.y + (B.y - A.y) * tt;
+        const x = c + gummi - w / 2;
+        settVar(p, { x, y, w, h });
+        /* Strekk etter farten, løftet litt mens den holdes. */
+        const t = na(), v = Math.abs(e.clientX - d.lx) / Math.max(8, t - d.lt);
+        d.lx = e.clientX; d.lt = t;
+        d.s = d.s * 0.6 + Math.min(0.18, v * 0.12) * 0.4;
+        const ekstra = Math.min(0.12, Math.abs(gummi) / Math.max(20, w) * 0.8);
+        if (!redusert()) form(p, (1.04 + d.s + ekstra).toFixed(3), (1.06 - d.s * 0.55 - ekstra * 0.5).toFixed(3));
+        clearTimeout(d.ro);
+        d.ro = setTimeout(() => { if (r._kiDra === d) { d.s = 0; if (!redusert()) form(p, 1.04, 1.06); } }, 90);
+        sist[r._kiHusk] = { x, y, w, h, i: (sist[r._kiHusk] || {}).i, snappTil: 0 };
+        /* Nærmeste valg; vibrasjon når pilla krysser et nytt. */
+        let j = 0, best = Infinity;
+        g.forEach((q, i) => { const dd = Math.abs(q.c - c); if (dd < best) { best = dd; j = i; } });
+        if (j !== d.j) { d.j = j; farg(d, j); if (haptikk) KI.haptic("selection"); }
+      });
+
+      const slipp = (e) => {
+        const d = r._kiDra;
+        if (!d || e.pointerId !== d.id) return;
+        avslutt();
+        if (!d.drar) return;                  // vanlig trykk: nettleserens klikk gjør jobben
+        const t = na();
+        r._kiDraSlutt = t;
+        r._kiSnappTil = t + 450;
+        sist[r._kiHusk] = { ...(sist[r._kiHusk] || {}), snappTil: t + 450 };
+        const landPaa = e.type === "pointerup" && d.g[d.j] ? d.g[d.j].b : null;
+        if (landPaa && !landPaa.classList.contains(aktiv)) {
+          r._kiSlipper = true;
+          try { landPaa.click(); } finally { r._kiSlipper = false; }
+        }
+        avfarg(d);
+        flytt(r, "snapp");
+      };
+      r.addEventListener("pointerup", slipp);
+      r.addEventListener("pointercancel", slipp);
+      r.addEventListener("lostpointercapture", slipp);
+      /* Klikket nettleseren sender etter et drag skal ikke velge noe; bare vårt eget. */
+      r.addEventListener("click", (e) => {
+        if (r._kiSlipper) return;
+        if (na() - (r._kiDraSlutt || 0) < 400) { e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+
+      /* Kortet bytter aktiv klasse selv; vi følger med. Pillas egne endringer overses. */
+      const mo = new MutationObserver((liste) => {
+        if (liste.some((m) => m.target !== r._kiPille && !(m.type === "childList" && [...m.addedNodes, ...m.removedNodes].every((x) => x === r._kiPille))))
+          flytt(r, "glid");
+      });
+      mo.observe(r, { attributes: true, subtree: true, attributeFilter: ["class"], childList: true });
+      r.addEventListener("scroll", () => flytt(r, "stille"), { passive: true });
       if (window.ResizeObserver) {
-        const ro = new ResizeObserver(() => flytt(true));
+        const ro = new ResizeObserver(() => flytt(r, "stille"));
         ro.observe(r);
         /* Også hver knapp: rada kan ha samme bredde mens en fane inni vokser når
            skrifta byttes fra reservefonten. */
         for (const b of r.querySelectorAll(kn)) ro.observe(b);
       }
+    };
 
-      /* Flere målinger ved oppstart. Ett bilde er ikke nok når kortet fortsatt legger
-         ut, skrifta ikke er byttet, eller en popup glir inn mens vi måler — da ble
-         pilla riktig først etter et fanebytte.
-         `uten` styrer om overgangen er av: FØRSTE gang skal pilla bare stå på plass,
-         men etter en ny tegning har vi en forrige posisjon å gli FRA — og da var
-         `flytt(true)` grunnen til at den hoppet i stedet. */
-      const stille = !husk;
-      requestAnimationFrame(() => {
-        /* Ett bilde etter at forrige plass er satt: nå glir den dit den skal.
-           Første gang finnes ingen forrige plass, og da settes den stille. */
-        flytt(stille);
-        requestAnimationFrame(() => flytt(stille));
-      });
-      /* De sene målingene retter bredden når skrifta er byttet. De MÅ animeres — med
-         `flytt(true)` slo 120 ms-målingen av overgangen midt i glidningen, og pilla
-         hoppet resten av veien. */
-      setTimeout(() => flytt(false), 120);
-      setTimeout(() => flytt(false), 400);
-
-      /* `av: false` betyr ingen sperret fane; utelates den, er det `tom` som før. */
-      const avKlasse = valg.av === undefined ? "tom" : valg.av;
-
-      /* Dra: pilla følger fingeren, og knappen under slippet klikkes. Vi kaller kortets
-         egen click i stedet for å sette tilstand selv — da virker deep-link, minne og
-         haptikk som før. */
-      let ned = 0, startX = 0, drar = false;
-      r.addEventListener("pointerdown", (e) => {
-        const b = e.target.closest && e.target.closest(kn);
-        if (!b) return;
-        ned = e.clientX;
-        startX = parseFloat(pille.style.getPropertyValue("--x")) || 0;
-        drar = false;
-        /* Fang pekeren med en gang. Gjorde vi det først ved bevegelse, rakk rada å
-           starte sin egen rulling, og vi mistet resten av gesten. */
-        try { b.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
-      });
-      const flyttMed = (e) => {
-        if (!ned) return;
-        const dx = e.clientX - ned;
-        if (!drar && Math.abs(dx) < 6) return;
-        drar = true;
-        pille.classList.add("drar");
-        const maks = r.scrollWidth - pille.offsetWidth - 4;
-        pille.style.setProperty("--x", Math.max(2, Math.min(maks, startX + dx)) + "px");
-      };
-      r.addEventListener("pointermove", flyttMed);
-      const slipp = (e) => {
-        if (!ned) return;
-        const vardrar = drar;
-        ned = 0; drar = false;
-        pille.classList.remove("drar");
-        if (!vardrar) return;
-        const rk = r.getBoundingClientRect();
-        const x = e.clientX - rk.left + r.scrollLeft;
-        let best = null, av = Infinity;
-        for (const b of r.querySelectorAll(kn)) {
-          /* En fane som er slått av skal ikke kunne dras til — «I morgen» før
-             morgendagens priser er klare, for eksempel. Uten dette ville dra landet
-             på den, og klikket blitt avvist uten at brukeren forsto hvorfor.
-             `av: false` slår sperren av: da er den dempede fanen trykkbar, og da skal
-             den kunne dras til også — ellers gjør de to gestene ulike ting. */
-          if (b.hasAttribute("disabled") || (avKlasse && b.classList.contains(avKlasse))) continue;
-          const m = b.offsetLeft + b.offsetWidth / 2;
-          if (Math.abs(m - x) < av) { av = Math.abs(m - x); best = b; }
-        }
-        if (best && !best.classList.contains(aktiv)) best.click();
-        else flytt(false);
-      };
-      /* Med pekerfangst går move/up til KNAPPEN, ikke til rada — derfor må lytterne
-         ligge der også. Uten dette kom bevegelsen aldri fram. */
-      for (const b of r.querySelectorAll(kn)) {
-        b.addEventListener("pointermove", flyttMed);
-        b.addEventListener("pointerup", slipp);
-        b.addEventListener("pointercancel", slipp);
+    const oppsett = (r, i) => {
+      if (r._kiPille && r._kiPille.parentNode === r) return false;
+      r.dataset.kiPille = "1";
+      r._kiHusk = nokkel + "#" + i;
+      const p = document.createElement("span");
+      p.className = "ki-pille" + (sprett ? " sprett" : "");
+      if (valg.farge) p.style.setProperty("--ki-pille-bg", valg.farge);
+      r.insertBefore(p, r.firstChild);
+      r._kiPille = p;
+      /* En rad som er tegnet på nytt starter der den forrige pilla sto, og glir derfra. */
+      const husk = sist[r._kiHusk];
+      r._kiSisteI = undefined;
+      if (husk && husk.w) {
+        p.classList.add("stille");
+        settVar(p, husk);
+        r._kiSisteI = husk.i;
+        if (na() < (husk.snappTil || 0)) r._kiSnappTil = husk.snappTil;
       }
-      r.addEventListener("pointerup", slipp);
-      r.addEventListener("pointercancel", slipp);
+      koble(r);
+      const modus = husk && husk.w ? "glid" : "stille";
+      requestAnimationFrame(() => { flytt(r, modus); requestAnimationFrame(() => flytt(r, modus)); });
+      setTimeout(() => flytt(r, "stille"), 120);
+      setTimeout(() => flytt(r, "stille"), 400);
       return true;
+    };
+
+    const start = (sr) => {
+      const rader = [...sr.querySelectorAll(rad)];
+      if (!rader.length) return false;
+      stil(sr);
+      rader.forEach((r, i) => oppsett(r, i));
+      return true;
+    };
+
+    if (!fontKlar) document.fonts.ready.then(() => {
+      fontKlar = true;
+      const sr = vert.shadowRoot;
+      if (sr) for (const r of sr.querySelectorAll(rad)) flytt(r, "stille");
+    });
+
+    /* Kortet kan tegne rada på nytt når som helst (Lit-kort som simple-tabs gjør det ved
+       hver oppdatering, andre bruker innerHTML). Vakta setter pilla inn igjen når den
+       mangler; start() gjør ingenting når alt er på plass. */
+    const vakt = (sr) => {
+      const v = vert._kiPilleVakter || (vert._kiPilleVakter = {});
+      if (v[nokkel] || !window.MutationObserver) return;
+      v[nokkel] = new MutationObserver(() => {
+        if ([...sr.querySelectorAll(rad)].some((r) => !r._kiPille || r._kiPille.parentNode !== r)) start(sr);
+      });
+      v[nokkel].observe(sr, { childList: true, subtree: true });
     };
 
     /* Kortet bygger shadowRoot asynkront, så vi prøver til det er der. */
     let n = 0;
     const prov = () => {
-      const sr = vert && vert.shadowRoot;
+      const sr = vert.shadowRoot;
       if (sr && start(sr)) { vakt(sr); return; }
+      if (sr) vakt(sr);
       if (n++ < 60) setTimeout(prov, 50);
     };
-
-    /* Kortet kan tegne fanerada på nytt når som helst — Lit-baserte kort som
-     * simple-tabs gjør det ved hver oppdatering. Da er både pilla og lytterne våre
-     * borte, og uten dette ble de aldri satt tilbake: pilla hoppet mellom fanene i
-     * stedet for å gli, og dra virket ikke i det hele tatt.
-     *
-     * Vakta ser på hele shadowRoot og kobler på igjen når pilla mangler. `start()`
-     * gjør ingenting når alt er på plass, så det koster ikke noe å spørre.
-     */
-    const vakt = (sr) => {
-      if (vert._kiPilleVakt || !window.MutationObserver) return;
-      vert._kiPilleVakt = new MutationObserver(() => {
-        const r = sr.querySelector(rad.replace(/\\/g, ""));
-        if (r && !r.querySelector(".ki-pille")) start(sr);
-      });
-      vert._kiPilleVakt.observe(sr, { childList: true, subtree: true });
-    };
-
     prov();
   };
+  KI.segDrag = KI.pillefaner;
 })(window.KI);

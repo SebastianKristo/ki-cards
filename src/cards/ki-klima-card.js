@@ -219,6 +219,9 @@ class KiKlimaCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>${KiKlimaCard.styles}</style>${html}`;
     this._root = this.shadowRoot;
+    /* Enkel/Avansert: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".switch", knapp: ".switch-valg", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._root.addEventListener("click", (e) => this._onClick(e));
     this._root.addEventListener("change", (e) => this._onChange(e));
     this._built = true;

@@ -1860,6 +1860,8 @@
             `<button class="${Math.abs(snitt - v) <= 5 ? "valgt" : ""}" data-tap="preset" data-i="${i}" data-v="${v}">${v} %</button>`).join("")}</div>
         </div>`;
       }).join("");
+      /* Segmentet mellom dekkene: glidende pille som kan dras (bevegelsen fra Liquid Glass). */
+      if (seg && window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".seg", knapp: ".seg button", aktiv: "valgt" });
     }
   }
 

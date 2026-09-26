@@ -456,6 +456,9 @@ class KiKlimaProCard extends HTMLElement {
     this._rot.addEventListener("focusout", () => {
       if (this._ventTegn) { this._ventTegn = false; setTimeout(() => this._tegn(), 250); }
     });
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygd = true;
   }
 

@@ -259,6 +259,9 @@ class KiFremoverCard extends HTMLElement {
     r.querySelectorAll("[data-f]").forEach((b) => b.addEventListener("click", () => {
       this._valgt = b.dataset.f || null; this._forrige = null; this._tegn();
     }));
+    /* Kalenderfilteret: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".filtre"))
+      window.KI.pillefaner(this, { rad: ".filtre", knapp: ".filtre .filter", aktiv: "valgt" });
     r.querySelectorAll("[data-e]").forEach((el) => el.addEventListener("click", () => this._mer(el.dataset.e)));
   }
 }

@@ -661,6 +661,9 @@ class KiMediaCard extends HTMLElement {
       this._spillere = [this._valgt];
       this._bygg(); this._oppdater();
     }));
+    /* Spillervelgeren: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner && r.querySelector(".vskinne"))
+      window.KI.pillefaner(this, { rad: ".vskinne", knapp: ".vskinne .vknapp2", aktiv: "valgt", av: false });
     r.querySelectorAll("[data-kilde]").forEach((b) => b.addEventListener("click", () => this._settKilde(b.dataset.kilde)));
     r.querySelectorAll("[data-radio]").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();

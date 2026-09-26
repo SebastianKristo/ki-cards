@@ -362,6 +362,9 @@ class KiEnergiCard extends HTMLElement {
       }
     });
 
+    /* Kroner/kWh og I dag/Måneden: glidende pille som kan dras (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".brytere .pille", knapp: ".brytere .pille button", aktiv: "aktiv",
+      farge: "var(--active-small, var(--active-big))" });
     this._bygget = true;
   }
 

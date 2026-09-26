@@ -397,6 +397,10 @@ class KiVaerCard extends HTMLElement {
       </div>`;
     this.shadowRoot.querySelectorAll(".fane").forEach((b) =>
       b.addEventListener("click", () => { this._fane = b.dataset.f; this._bygget = false; this._oppdater(); }));
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass).
+       Kortet tegnes på nytt ved fanebytte; pilla starter der den sto og glir videre. */
+    if (window.KI && window.KI.pillefaner && faner.length > 1)
+      window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "valgt", farge: "var(--gray100)" });
     this._bygget = true;
   }
   _oppdater() {

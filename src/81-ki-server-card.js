@@ -931,6 +931,8 @@ class KiServerCard extends HTMLElement {
     for (const b of rot.querySelectorAll("[data-fane]")) {
       b.addEventListener("click", () => { this._fane = b.dataset.fane; this._tegn(); });
     }
+    /* Glidende pille som kan dras mellom fanene (bevegelsen fra Liquid Glass, uten glass). */
+    if (window.KI && window.KI.pillefaner) window.KI.pillefaner(this, { rad: ".faner", knapp: ".faner .fane", aktiv: "aktiv" });
     for (const el of rot.querySelectorAll("[data-mer]")) {
       if (!el.dataset.mer) continue;
       el.addEventListener("click", (e) => {
